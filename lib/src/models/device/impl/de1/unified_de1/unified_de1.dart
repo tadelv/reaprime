@@ -221,6 +221,11 @@ class UnifiedDe1 implements De1Interface {
     initRawStream();
     await _transport.connect();
 
+    // Connection edge: the device's profile state is unknown (possibly
+    // wedged mid-receive in ProfileDownloadInProgress), so the first
+    // setProfile must perform a complete upload.
+    _currentProfile = null;
+
     if (_info != null) {
       return;
     }

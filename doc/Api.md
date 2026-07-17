@@ -413,7 +413,7 @@ so a late joiner gets a coherent view from any single frame; `decision` is non-n
 
 ### `connectionStatus.error`
 
-When a BLE operation fails (connect timeout, mid-session disconnect, adapter off, permission denied, scan failure), the devices WebSocket emits an update with a structured `connectionStatus.error` object. `null` when no error is active.
+When a BLE operation fails (connect timeout, mid-session disconnect, adapter off, permission denied, scan failure, or profile upload failure), the devices WebSocket emits an update with a structured `connectionStatus.error` object. `null` when no error is active.
 
 ```json
 {

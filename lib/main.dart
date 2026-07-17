@@ -377,7 +377,7 @@ void main(List<String> args) async {
     workflowController: workflowController,
     de1Controller: de1Controller,
     onUploadError: connectionManager.reportError,
-    onUploadRecovered: () => connectionManager.clearErrorOfKind(
+    onUploadErrorCleared: () => connectionManager.clearErrorOfKind(
       ConnectionErrorKind.profileUploadFailed,
     ),
   );

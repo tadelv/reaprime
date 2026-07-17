@@ -25,27 +25,16 @@ import 'package:reaprime/src/models/errors.dart';
 ///
 /// A failed upload (e.g. a GATT write timeout on a flaky link) is retried
 /// automatically with capped backoff ([retryDelays]) until it lands, is
-/// superseded, or the machine disconnects — a fresh upload restarts the
-/// firmware receive state machine from the header, so the machine can
-/// never stay wedged while connected. Retries are deliberately not gated
-/// on machine state: pushes mid-shot are already possible today, and a
-/// wedged machine is strictly worse.
+/// superseded, or the machine disconnects. Retries are deliberately not
+/// gated on machine state: pushes mid-shot are already possible today.
 ///
-/// On DE1 disconnect pending retries are cancelled and desired state is
-/// forgotten; on (re)connect the sync re-pushes the current workflow
-/// profile itself, through the same serialized/retry machinery. This
-/// replaced the single-shot `De1Controller._setDe1Defaults` upload whose
-/// mid-sequence failure was swallowed — leaving the firmware's
-/// `ProfileDownloadInProgress` latch stuck (magenta GH-LED pulse, start
-/// requests ignored) with every same-profile repair blocked by the
-/// device-state caches. For the same reason nothing here may
-/// ever *assume* what profile the device holds: `_lastPushedProfile`
-/// starts null and is cleared on every connection edge, so the first
-/// push after a (re)connect always goes to the wire.
-///
-/// Callers outside this sync (REST `POST /api/v1/machine/profile`) are
-/// backstopped by the per-device upload queue in `UnifiedDe1.setProfile`,
-/// so they cannot interleave with an upload from here either.
+/// The on-connect profile push is triggered by
+/// [De1Controller.initSettled], which fires after the machine is ready
+/// and startup defaults have been attempted — not by the raw de1 stream
+/// event (which fires before initialization completes). This preserves
+/// the ordering where startup/default writes complete before the profile
+/// upload begins, and avoids any direct coupling between
+/// `De1Controller` and this sync.
 class WorkflowDeviceSync {
   WorkflowDeviceSync({
     required WorkflowController workflowController,
@@ -56,85 +45,71 @@ class WorkflowDeviceSync {
       Duration(seconds: 30),
     ],
     this.onUploadError,
-    this.onUploadRecovered,
-  })  : _workflow = workflowController,
-        _de1 = de1Controller {
-    // No optimistic `_lastPushedProfile` seed: assuming the device already
-    // holds the persisted workflow profile blocked the same-profile repair
-    // push after an interrupted upload. Costs one redundant
-    // upload per connect, guarantees the device really holds the profile.
+    this.onUploadErrorCleared,
+  }) : _workflow = workflowController,
+       _de1 = de1Controller {
     _workflow.addListener(_onChange);
     _de1Sub = _de1.de1.listen(_onDe1Change);
+    _initSettledSub = _de1.initSettled.listen(_onInitSettled);
   }
 
   final WorkflowController _workflow;
   final De1Controller _de1;
   final Logger _log = Logger('WorkflowDeviceSync');
 
-  /// Backoff schedule for upload retries; the last entry repeats as the cap.
   final List<Duration> retryDelays;
 
   /// Surfaces a persistent upload failure on the app's connection-status
-  /// stream instead of burying it in logs (the on-connect push
-  /// used to fail invisibly). Wired to `ConnectionManager.reportError` in
-  /// `main.dart`; fired once per failing push cycle, on the first failure.
+  /// stream when a retry cycle is active. Wired to
+  /// `ConnectionManager.reportError` in `main.dart`; fired once per
+  /// failing push cycle, on the first failure.
   final void Function(ConnectionError error)? onUploadError;
 
-  /// Invoked when an upload lands after [onUploadError] fired, so the
-  /// reporter can retract the surfaced error.
-  final void Function()? onUploadRecovered;
+  /// Invoked when the surfaced upload error is no longer current — either
+  /// a retry landed successfully, the machine disconnected, or the sync
+  /// was disposed.
+  final void Function()? onUploadErrorCleared;
 
-  /// What the device is known to hold. Stamped only after a successful
-  /// upload; cleared when an upload fails, since a mid-sequence failure
-  /// leaves the device profile state unknown (comms-harden #1) — and on
-  /// every connection edge, since a machine that went away may have missed
-  /// or dropped what was pushed.
   Profile? _lastPushedProfile;
-
-  /// Latest profile the device should end up with. Overwritten freely by
-  /// workflow changes while an upload is in flight (latest wins).
   Profile? _desiredProfile;
-
   bool _uploading = false;
   Timer? _retryTimer;
   int _attempt = 0;
 
-  /// Whether [onUploadError] fired for the current push cycle; gates the
-  /// matching [onUploadRecovered] call and keeps retries from re-emitting.
   bool _errorSurfaced = false;
-
   bool _disposed = false;
 
-  /// Past the ramp, only every Nth failed attempt logs at WARNING.
   static const int _retryLogHeartbeat = 10;
 
-  /// Bumped on disconnect and dispose; in-flight drains and pending retry
-  /// timers capture it and bail when it changes.
   int _generation = 0;
 
   StreamSubscription<De1Interface?>? _de1Sub;
+  StreamSubscription<int?>? _initSettledSub;
 
   void _onChange() {
-    // Record the desired profile and let the drain loop decide — comparing
-    // against `_lastPushedProfile` here would go stale when an upload is in
-    // flight (e.g. reverting to the last-pushed profile while a newer one
-    // uploads: once that lands, the device holds the newer one and the
-    // revert must still be pushed).
     final next = _workflow.currentWorkflow.profile;
     if (next == _desiredProfile) {
-      // Not a profile change (a non-profile workflow edit, or a re-select
-      // of the same content): leave a pending retry's backoff undisturbed
-      // rather than resetting a failing upload to the floor delay.
       return;
     }
     _desiredProfile = next;
     _attempt = 0;
-    _cancelRetry(); // a fresh change replaces any pending retry
+    _cancelRetry();
     unawaited(_drain());
   }
 
-  /// Uploads the latest desired profile, one upload at a time, until the
-  /// device is in sync. Concurrent calls collapse into the running loop.
+  /// Kicks the profile push when machine initialization settles (ready +
+  /// defaults attempted). Replaces the old single-shot
+  /// `De1Controller._setDe1Defaults` upload and the short-lived raw-de1
+  /// stream trigger that raced initialization.
+  void _onInitSettled(int? generation) {
+    if (generation == null || generation != _generation) return;
+    _lastPushedProfile = null;
+    _desiredProfile = _workflow.currentWorkflow.profile;
+    _attempt = 0;
+    _cancelRetry();
+    unawaited(_drain());
+  }
+
   Future<void> _drain() async {
     if (_uploading) return;
     _uploading = true;
@@ -153,30 +128,20 @@ class WorkflowDeviceSync {
           _attempt = 0;
           if (_errorSurfaced) {
             _errorSurfaced = false;
-            onUploadRecovered?.call();
+            onUploadErrorCleared?.call();
           }
-          // Loop again: if the desired profile advanced mid-upload, the
-          // next iteration pushes it; otherwise the guard above exits.
         } on DeviceNotConnectedException {
           _log.fine(
-            'DE1 not connected; skipping profile push — the on-connect '
-            'push (_onDe1Change) re-syncs on next connect',
+            'DE1 not connected; skipping profile push',
           );
           return;
         } catch (e, st) {
           if (generation != _generation) return;
-          // The upload died mid-sequence: the device profile state is
-          // unknown (possibly wedged mid-receive), so forget what was
-          // last pushed — even a revert to it must re-upload.
           _lastPushedProfile = null;
           final delay = _scheduleRetry(generation);
           final message =
               'setProfile failed (attempt $_attempt); retrying in '
               '${delay.inMilliseconds}ms';
-          // Retries are unbounded, so a persistent fault would otherwise
-          // emit a stack-trace WARNING every capped delay forever. Warn
-          // while the backoff ramps and on a periodic heartbeat after
-          // that; log the rest quietly.
           if (_attempt <= retryDelays.length ||
               _attempt % _retryLogHeartbeat == 0) {
             _log.warning(message, e, st);
@@ -185,33 +150,30 @@ class WorkflowDeviceSync {
           }
           if (!_errorSurfaced) {
             _errorSurfaced = true;
-            onUploadError?.call(ConnectionError(
-              kind: ConnectionErrorKind.profileUploadFailed,
-              severity: ConnectionErrorSeverity.warning,
-              timestamp: DateTime.now().toUtc(),
-              deviceId: _de1.connectedDe1OrNull?.deviceId,
-              deviceName: _de1.connectedDe1OrNull?.name,
-              message: 'Profile upload to the machine failed; '
-                  'retrying automatically',
-            ));
+            onUploadError?.call(
+              ConnectionError(
+                kind: ConnectionErrorKind.profileUploadFailed,
+                severity: ConnectionErrorSeverity.warning,
+                timestamp: DateTime.now().toUtc(),
+                deviceId: _de1.connectedDe1OrNull?.deviceId,
+                deviceName: _de1.connectedDe1OrNull?.name,
+                message:
+                    'Profile upload to the machine failed; '
+                    'retrying automatically',
+              ),
+            );
           }
           return;
         }
       }
     } finally {
       _uploading = false;
-      // A (re)connect may have set a new desired profile while this
-      // now-stale drain was unwinding (its generation was bumped by the
-      // disconnect, so it exits without pushing). Kick a fresh loop for
-      // the new generation or the on-connect push would be stranded until
-      // the next workflow change.
       if (!_disposed && generation != _generation && _desiredProfile != null) {
         unawaited(_drain());
       }
     }
   }
 
-  /// Arms the retry timer with the next backoff delay and returns it.
   Duration _scheduleRetry(int generation) {
     final delay = retryDelays[min(_attempt, retryDelays.length - 1)];
     _attempt++;
@@ -229,29 +191,20 @@ class WorkflowDeviceSync {
 
   void _onDe1Change(De1Interface? device) {
     if (device == null) {
-      // Machine gone: cancel retries and forget desired state; the
-      // on-connect branch below re-syncs. Also forget what was pushed —
-      // an upload interrupted by the disconnect latches the firmware's
-      // profile-receive state machine, and only a full re-upload clears
-      // it.
       _generation++;
       _cancelRetry();
       _desiredProfile = null;
       _lastPushedProfile = null;
       _attempt = 0;
-      _errorSurfaced = false;
+      if (_errorSurfaced) {
+        _errorSurfaced = false;
+        onUploadErrorCleared?.call();
+      }
       return;
     }
-    // Machine (re)connected: push the current workflow profile through the
-    // serialized/retry machinery. Replaces the single-shot, error-swallowing
-    // upload in De1Controller._setDe1Defaults. `_lastPushedProfile`
-    // is cleared so the push cannot be skipped as already-held — the device's
-    // actual state after a connection edge is unknown.
-    _lastPushedProfile = null;
-    _desiredProfile = _workflow.currentWorkflow.profile;
-    _attempt = 0;
-    _cancelRetry();
-    unawaited(_drain());
+    // Sync generation to the controller so the upcoming init-settled
+    // event (which may have already fired) matches.
+    _generation = _de1.connectionGeneration;
   }
 
   void dispose() {
@@ -261,5 +214,11 @@ class WorkflowDeviceSync {
     _cancelRetry();
     _de1Sub?.cancel();
     _de1Sub = null;
+    _initSettledSub?.cancel();
+    _initSettledSub = null;
+    if (_errorSurfaced) {
+      _errorSurfaced = false;
+      onUploadErrorCleared?.call();
+    }
   }
 }
