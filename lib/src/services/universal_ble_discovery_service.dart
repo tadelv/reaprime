@@ -95,6 +95,16 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   /// the watch scan before that kicks in.
   static const _watchRefreshInterval = Duration(minutes: 25);
 
+  /// Liveness probe cadence. The native scan can die without anything
+  /// reaching Dart: the fork drops `onScanFailed` (logs only), and its
+  /// SafeScanner throttle can swallow a start entirely (returns success,
+  /// defers the real start, and a later stopScan cancels the deferral).
+  /// `UniversalBle.isScanning()` is a cheap host-side check — no radio
+  /// use — so probe often enough that a dead watch recovers in ~1 probe
+  /// interval instead of waiting for the 25-min refresh.
+  static const _watchLivenessInterval = Duration(seconds: 90);
+  Timer? _watchLivenessTimer;
+
   final StreamController<void> _watchFailureController =
       StreamController.broadcast();
 
@@ -157,6 +167,8 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   }) async {
     _watchRefreshTimer?.cancel();
     _watchRefreshTimer = null;
+    _watchLivenessTimer?.cancel();
+    _watchLivenessTimer = null;
     _cancelWatchScanSub();
     _watchScanActive = false;
     if (stopOsScan) {
@@ -276,7 +288,35 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     }
     _watchScanActive = true;
     _armWatchRefresh();
+    _armWatchLiveness();
     log.info('Background device watch started (prefix: $namePrefix)');
+  }
+
+  void _armWatchLiveness() {
+    _watchLivenessTimer?.cancel();
+    _watchLivenessTimer = Timer(_watchLivenessInterval, () async {
+      _watchLivenessTimer = null;
+      if (!_watchScanActive || _isScanning) return;
+      bool alive;
+      try {
+        alive = await UniversalBle.isScanning();
+      } catch (e, st) {
+        // A failed probe proves nothing — don't churn the scan over it.
+        log.fine('Watch liveness probe failed', e, st);
+        alive = true;
+      }
+      // Re-check: a burst/stop may have taken over during the await.
+      if (!_watchScanActive || _isScanning) return;
+      if (alive) {
+        _armWatchLiveness();
+        return;
+      }
+      log.warning(
+        'Watch scan died silently (isScanning=false); restarting',
+      );
+      await _deactivateWatchScan(stopOsScan: false, context: 'liveness');
+      await _restartWatchOrReportFailure('liveness restart');
+    });
   }
 
   void _armWatchRefresh() {

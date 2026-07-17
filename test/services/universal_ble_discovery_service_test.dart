@@ -62,15 +62,22 @@ class _FakeBlePlatform extends UniversalBlePlatform {
       await hold.future;
     }
     startScanCalls.add((filter: scanFilter, config: platformConfig));
+    nativeScanning = true;
   }
 
   @override
   Future<void> stopScan() async {
     stopScanCalls++;
+    nativeScanning = false;
   }
 
+  /// Mirrors the native scanner state (set by startScan/stopScan).
+  /// Tests flip it to false directly to simulate a silent scan death
+  /// (Android killing the scan without any callback reaching Dart).
+  bool nativeScanning = false;
+
   @override
-  Future<bool> isScanning() async => false;
+  Future<bool> isScanning() async => nativeScanning;
 
   @override
   Future<void> connect(
@@ -546,6 +553,57 @@ void main() {
               'a refresh that cannot restart the scan leaves the '
               'watch dead — it must be reported, not swallowed',
         );
+      });
+    });
+
+    test(
+        'the liveness probe restarts a silently dead native scan', () {
+      // The fork's SafeScanner can swallow a start (scan-frequency
+      // throttling returns success without scanning, and a later stop
+      // cancels the pending auto-start) and onScanFailed never reaches
+      // Dart — so the watch must verify the native scan actually exists.
+      fakeAsync((async) {
+        final zoned = UniversalBleDiscoveryService(
+          watchSupportGate: () => true,
+        );
+        zoned.initialize();
+        async.flushMicrotasks();
+        zoned.startDeviceWatch(_watchFilter);
+        async.flushMicrotasks();
+        expect(platform.startScanCalls, hasLength(1));
+
+        platform.nativeScanning = false; // silent death
+        async.elapse(const Duration(minutes: 2));
+        async.flushMicrotasks();
+
+        expect(platform.startScanCalls.length, greaterThanOrEqualTo(2),
+            reason: 'the probe must notice the dead scan and restart it '
+                'instead of waiting for the 25-min refresh');
+        expect(lastStart().filter?.withNamePrefix, ['Decent Scale']);
+
+        zoned.stopDeviceWatch();
+        async.flushMicrotasks();
+      });
+    });
+
+    test('a live scan passes the liveness probe untouched', () {
+      fakeAsync((async) {
+        final zoned = UniversalBleDiscoveryService(
+          watchSupportGate: () => true,
+        );
+        zoned.initialize();
+        async.flushMicrotasks();
+        zoned.startDeviceWatch(_watchFilter);
+        async.flushMicrotasks();
+
+        async.elapse(const Duration(minutes: 10));
+        async.flushMicrotasks();
+
+        expect(platform.startScanCalls, hasLength(1),
+            reason: 'probes on a healthy scan must not churn the session');
+
+        zoned.stopDeviceWatch();
+        async.flushMicrotasks();
       });
     });
 
