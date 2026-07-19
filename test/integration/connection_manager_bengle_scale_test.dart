@@ -314,6 +314,32 @@ void main() {
       );
     });
 
+    test('selecting Bengle after scan ignores retained external scales',
+        () async {
+      final bengle = _FakeBengle(deviceId: 'bengle-1');
+      final de1 = _FakeDe1(deviceId: 'de1-1');
+      final externalScale = TestScale(deviceId: 'external-scale');
+      await mockScaleController.connectToScale(externalScale);
+      mockScaleController.connectCalls.clear();
+      mockScanner.addDevice(bengle);
+      mockScanner.addDevice(de1);
+      mockScanner.addDevice(externalScale);
+      await Future.delayed(Duration.zero);
+
+      await connectionManager.scanAndConnect();
+      expect(connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.machinePicker);
+
+      await connectionManager.selectMachine(bengle);
+
+      expect(mockScaleController.connectCalls, hasLength(1));
+      expect(mockScaleController.connectCalls.single.deviceId,
+          startsWith('bengle-internal-'));
+      expect(mockScaleController.connectCalls.any(
+        (scale) => scale.deviceId == externalScale.deviceId,
+      ), isFalse);
+    });
+
     test('non-Bengle machine still runs external scale phase', () async {
       await settingsController.setPreferredMachineId('de1-1');
       await settingsController.setPreferredScaleId('ext-scale');

@@ -96,6 +96,12 @@ Pre-stream responses are `400` for malformed input, `404` for an unknown artifac
 | POST | `/api/v1/devices/wifi` | Add a WiFi scale by IP/hostname (`{host}`) | |
 | DELETE | `/api/v1/devices/wifi` | Remove a manual WiFi endpoint (`{host}` body or `?host=`) | |
 
+`/api/v1/devices/scan` keeps the existing query shape and defaults:
+`connect=true` when omitted and `quick=false` when omitted. With connection
+enabled, the request scans first, preserves occupied slots, then fills missing
+machine and scale slots; this may take longer than the former quick-connect
+behavior. `quick=true` returns immediately but does not change that policy.
+
 Each device entry carries an **`available`** boolean. `true` = currently present
 in discovery; `false` = a **remembered** device that isn't present (reported with
 `state: "disconnected"`). Devices the user connects to are remembered and persist

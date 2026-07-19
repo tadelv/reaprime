@@ -144,7 +144,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
           _directAutoConnected = true;
           _log.info('--direct: auto-connecting to ${_discoveredMachines.first.name}');
           unawaited(widget.connectionManager
-              .connectMachine(_discoveredMachines.first));
+              .selectMachine(_discoveredMachines.first));
           return;
         }
         if (status.pendingAmbiguity == AmbiguityReason.scalePicker &&
@@ -152,7 +152,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
           _directAutoConnected = true;
           _log.info('--direct: auto-connecting to scale ${_discoveredScales.first.name}');
           unawaited(widget.connectionManager
-              .connectScale(_discoveredScales.first));
+              .selectScale(_discoveredScales.first));
           return;
         }
       }

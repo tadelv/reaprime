@@ -69,7 +69,34 @@ void main() {
       await tester.tap(find.text('Retry'));
       await tester.pump();
 
-      expect(cm.connectCalls, 1);
+      expect(cm.scanAndConnectCalls, 1);
+      expect(cm.automaticConnectCalls, 0);
+    });
+
+    testWidgets('disconnect Retry uses automatic recovery policy',
+        (tester) async {
+      final cm = FakeConnectionManager();
+      cm.setError(ConnectionError(
+        kind: ConnectionErrorKind.machineDisconnected,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.now().toUtc(),
+        message: 'x',
+      ));
+
+      await tester.pumpWidget(
+        ShadApp(
+          home: Scaffold(
+            body: ConnectionErrorBanner(connectionManager: cm),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+
+      expect(cm.automaticConnectCalls, 1);
+      expect(cm.scanAndConnectCalls, 0);
     });
 
     testWidgets(

@@ -461,9 +461,21 @@ class DevicesHandler {
   Future<void> _connectDevice(Device device) async {
     switch (device.type) {
       case DeviceType.machine:
-        await _connectionManager.connectMachine(device as De1Interface);
+        final machine = device as De1Interface;
+        if (_connectionManager.currentStatus.pendingAmbiguity ==
+            AmbiguityReason.machinePicker) {
+          await _connectionManager.selectMachine(machine);
+        } else {
+          await _connectionManager.connectMachine(machine);
+        }
       case DeviceType.scale:
-        await _connectionManager.connectScale(device as Scale);
+        final scale = device as Scale;
+        if (_connectionManager.currentStatus.pendingAmbiguity ==
+            AmbiguityReason.scalePicker) {
+          await _connectionManager.selectScale(scale);
+        } else {
+          await _connectionManager.connectScale(scale);
+        }
       case DeviceType.sensor:
         await (device as Sensor).onConnect();
     }

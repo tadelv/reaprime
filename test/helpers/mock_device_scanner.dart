@@ -34,6 +34,8 @@ class MockDeviceScanner implements DeviceScanner {
   /// this completer before emitting `scanning: false`. This lets tests
   /// add devices mid-scan and verify early-stop behavior.
   Completer<void>? scanCompleter;
+  final List<Completer<void>> queuedScanCompleters = [];
+  final List<List<Device>> queuedScanResults = [];
 
   /// When set, the next [scanForDevices] call throws this object instead of
   /// running a scan. Consumed after one throw. Tests use this to exercise
@@ -121,19 +123,21 @@ class MockDeviceScanner implements DeviceScanner {
     }
     scanCallCount++;
     final start = DateTime.now();
+    final scanDevices =
+        queuedScanResults.isNotEmpty ? queuedScanResults.removeAt(0) : _devices;
     _scanningSubject.add(true);
-    // Re-emit current devices to simulate scan rediscovery.
-    // This ensures listeners that skip(1) the BehaviorSubject replay
-    // still see the devices.
-    _deviceSubject.add(List.from(_devices));
-    if (scanCompleter != null) {
-      await scanCompleter!.future;
+    _deviceSubject.add(List.from(scanDevices));
+    final completer = queuedScanCompleters.isNotEmpty
+        ? queuedScanCompleters.removeAt(0)
+        : scanCompleter;
+    if (completer != null) {
+      await completer.future;
     } else {
       await Future.delayed(Duration.zero);
       _scanningSubject.add(false);
     }
     return ScanResult(
-      matchedDevices: List.unmodifiable(_devices),
+      matchedDevices: List.unmodifiable(scanDevices),
       failedServices: const [],
       terminationReason: ScanTerminationReason.completed,
       duration: DateTime.now().difference(start),
