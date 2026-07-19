@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
@@ -57,6 +58,8 @@ class MockConnectionManager extends ConnectionManager {
   int selectMachineCallCount = 0;
   int selectScaleCallCount = 0;
   int cancelSelectionSessionCallCount = 0;
+  int cancelActiveScanCallCount = 0;
+  bool shouldFailMachineConnect = false;
   ScanReport? _lastScanReport;
 
   MockConnectionManager({
@@ -91,12 +94,44 @@ class MockConnectionManager extends ConnectionManager {
   }
 
   @override
-  Future<void> connectMachine(De1Interface machine) async {}
-
-  @override
   Future<void> selectMachine(De1Interface machine) async {
     selectMachineCallCount++;
-    await connectMachine(machine);
+    try {
+      await connectMachine(machine);
+    } catch (_) {
+      // connectMachine already updates the status stream with the error.
+      // The widget must not see the exception.
+    }
+  }
+
+  @override
+  Future<void> connectMachine(De1Interface machine) async {
+    if (shouldFailMachineConnect) {
+      final error = ConnectionError(
+        kind: ConnectionErrorKind.machineConnectFailed,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.now().toUtc(),
+        message: 'Machine ${machine.name} failed to connect.',
+        suggestion: 'Try again.',
+      );
+      final currentMachines = _statusOverride.value.foundMachines;
+      final alternatives =
+          currentMachines.where((m) => m.deviceId != machine.deviceId).toList();
+      if (alternatives.isNotEmpty) {
+        _statusOverride.add(_statusOverride.value.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          error: () => error,
+        ));
+      } else {
+        _statusOverride.add(_statusOverride.value.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => null,
+          error: () => error,
+        ));
+      }
+      throw Exception('connectMachine failed');
+    }
   }
 
   @override
@@ -107,6 +142,11 @@ class MockConnectionManager extends ConnectionManager {
   Future<ConnectionResult> selectScale(device_scale.Scale scale) async {
     selectScaleCallCount++;
     return connectScale(scale);
+  }
+
+  @override
+  void cancelActiveScan() {
+    cancelActiveScanCallCount++;
   }
 
   @override

@@ -30,6 +30,7 @@ class FakeConnectionManager extends ConnectionManager {
   int automaticConnectCalls = 0;
   int scanAndConnectCalls = 0;
   int cancelSelectionSessionCalls = 0;
+  int cancelActiveScanCalls = 0;
   bool _scaleOnlyLastCall = false;
   bool get scaleOnlyLastCall => _scaleOnlyLastCall;
 
@@ -84,6 +85,11 @@ class FakeConnectionManager extends ConnectionManager {
     connectCalls += 1;
     scanAndConnectCalls += 1;
     _scaleOnlyLastCall = false;
+  }
+
+  @override
+  void cancelActiveScan() {
+    cancelActiveScanCalls += 1;
   }
 
   @override

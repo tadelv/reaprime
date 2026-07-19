@@ -26,14 +26,69 @@ The single BLE transport is `UniversalBleTransport` in `lib/src/services/ble/uni
 
 ## Connection Flow
 
-`ConnectionManager.connect()` orchestrates the full connect sequence:
-1. Scan for devices
-2. Apply preferred-device policy (`PolicyResolver`)
-3. Connect machine (`connectMachine()`)
-4. Connect scale (`connectScale()`)
-5. Emit `ready` status
+`ConnectionManager` supports three distinct connection intents, selected via
+`ConnectionAttemptPolicy`:
 
-`StatusPublisher` drives `ConnectionStatus` stream with phases: `idle` → `scanning` → `connectingMachine` → `connectingScale` → `ready`.
+### automatic `connect()`
+
+Used by startup, machine recovery, and USB-attach recovery. Tries
+remembered-machine quick-connect first. If that fails, scans for devices.
+During the scan, preferred machines and scales are connected as they appear
+(`connectPreferredDuringScan: true`). The scan stops early once all
+preferences are satisfied (`stopScanAfterPreferredConnect: true`).
+Preferred-scale watch and deferred scale scan handle the wake-after-connect
+race.
+
+### explicit `scanAndConnect()`
+
+Used by the launcher scan page, REST/WS scan commands (when `connect=true`),
+and explicit retry buttons. Completes full discovery before policy runs
+(`connectPreferredDuringScan: false`), never quick-connects, and never
+stops early. Preserves occupied machine/scale slots. When discovery
+produces ambiguity (multiple candidates for an unoccupied slot),
+a `ConnectionSelectionSession` holds the immutable scan snapshot.
+`selectMachine()` and `selectScale()` continue the session against the
+session-owned canonical candidates — no new scan fires.
+
+### `scaleOnly` / scale recovery
+
+Triggered by the background scale watch, deferred scale scan, and queued
+scale-only reconnect callers. Skips the machine phase entirely. If a
+selection session is active with pending ambiguity, scale recovery is
+deferred to avoid racing with the user's choice. Only runs when the
+machine is connected or sleeping. On Android, uses a filtered scan to
+bypass background throttling.
+
+### Phase lifecycle
+
+`StatusPublisher` drives the `ConnectionStatus` stream with phases:
+`idle` → `scanning` → `connectingMachine` → `connectingScale` → `ready`.
+
+Errors transit through the status-publisher gatekeeper: transient errors
+(most `ConnectionErrorKind` values) are stripped when the phase moves
+into a clearing phase (`connectingMachine`, `connectingScale`, `ready`).
+Sticky errors (`scanFailed`, `bluetoothPermissionDenied`) survive
+transitions.
+
+### Slot policy
+
+Machine and scale are independently fillable. Occupied slots are never
+replaced automatically by a scan. A missing slot auto-connects its
+preferred device when found. Without a preferred ID, exactly one candidate
+auto-connects; more than one produces ambiguity.
+
+### Cancellation
+
+`cancelActiveScan()` bumps the generation token, stops the scanner,
+cancels any active selection session, and clears pending ambiguity. An
+in-flight `_connectImpl` detects the generation mismatch after `runScan`
+returns and skips policy. `cancelSelectionSession()` finalises an already-
+completed scan as cancelled without touching an in-flight scan.
+
+Cancel (launcher) and route-back interception both route through
+`cancelActiveScan()`. "View found devices" intentionally stops discovery
+and proceeds with partial results — that is a different action, not
+cancellation.
 
 ## Footgun #1: GATT-133 on Cold Boot
 
@@ -181,38 +236,3 @@ from a disconnected generation.
 ## Keeping Notes Fresh
 
 Add lessons that would have saved debugging time: new footguns, thread-safety constraints, connection-lifecycle changes, non-obvious symptoms, and cross-transport dependencies. Prune stale claims. Prefer fewer, sharper notes over long background.
-
-## Connection Policy (PR #476)
-
-Two intents govern how `ConnectionManager` starts a connect cycle:
-
-- **automatic `connect()`**: Used by startup, machine recovery, and USB-attach
-  recovery. Remembers-machine quick-connect, connects preferred devices during
-  the scan, and stops scanning early once preferences are satisfied. Fastest
-  restoration of the expected configuration.
-- **explicit `scanAndConnect()`**: Used by the launcher scan page, REST/WS
-  scan commands (when `connect=true`), and explicit retry buttons. Completes
-  full discovery before policy runs, never quick-connects during the scan,
-  and never stops early. Preserves working machine/scale slots.
-
-Slot policy: machine and scale are independently fillable. Occupied slots are
-never replaced automatically by a scan. A missing slot auto-connects its
-preferred device when found. Without a preferred ID, exactly one candidate
-auto-connects; more than one produces ambiguity.
-
-Session continuation: when a scan produces ambiguity (`machinePicker` or
-`scalePicker`), a `ConnectionSelectionSession` holds the immutable scan
-snapshot. `selectMachine()` and `selectScale()` resolve the session-owned
-candidate object (never the caller-supplied reference) and continue with
-retained scale candidates — no additional scan fires. `cancelSelectionSession()`
-clears pending ambiguity, finalises the report as cancelled, and re-arms
-scale reacquisition.
-
-Preferred-scale watch: the persistent background scale watch pauses while
-scale ambiguity is pending so it cannot auto-connect the old preferred scale
-while the user is choosing. Successful explicit scale selection persists the
-new preferred ID and the watch re-arms after session completion or cancellation.
-
-Live-machine quick-connect guard: `_machineConnected` prevents quick-connect
-from re-adopting a fresh object for the same already-connected peripheral.
-This avoids spurious DE1 disconnect/re-attach cycles.
