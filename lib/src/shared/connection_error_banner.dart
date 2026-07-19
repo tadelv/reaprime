@@ -7,8 +7,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 /// [ConnectionManager.status].
 ///
 /// Renders a destructive [ShadAlert] while `status.error != null`. Shows a
-/// Retry button for transient kinds (connect-failed, disconnected) that
-/// dispatches `connectionManager.scanAndConnect()`. Environmental kinds
+/// Retry button for transient kinds. Disconnect recovery dispatches
+/// `connectionManager.connect()`; failed explicit connections dispatch
+/// `connectionManager.scanAndConnect()`. Environmental kinds
 /// (adapterOff, bluetoothPermissionDenied, scanFailed) require user action
 /// outside the app, so only the instruction text is shown — no retry button.
 class ConnectionErrorBanner extends StatelessWidget {
@@ -45,7 +46,7 @@ class ConnectionErrorBanner extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: ShadButton.outline(
-                    onPressed: () => connectionManager.scanAndConnect(),
+                    onPressed: () => _retry(err.kind),
                     child: const Text('Retry'),
                   ),
                 ),
@@ -55,6 +56,15 @@ class ConnectionErrorBanner extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _retry(String kind) {
+    if (kind == ConnectionErrorKind.machineDisconnected ||
+        kind == ConnectionErrorKind.scaleDisconnected) {
+      connectionManager.connect();
+    } else {
+      connectionManager.scanAndConnect();
+    }
   }
 
   /// Retry makes sense for transient kinds — the user can re-trigger a scan

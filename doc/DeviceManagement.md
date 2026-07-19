@@ -302,13 +302,14 @@ Transition owners (where the `publish(phase: …)` call lives):
 | `scanning → idle` (scan failure)        | `ScanOrchestrator._emitScanStartError`                  |
 | `scanning → connectingMachine`          | `ConnectionManager.connectMachine` (policy stage)       |
 | `connectingMachine → connectingScale`   | `ConnectionManager.connectScale` (post-machine policy)  |
-| `connectingMachine → ready` (no scale)  | `ConnectionManager._finalizePhase`                      |
-| `connectingScale → ready`               | `ConnectionManager._finalizePhase`                      |
+| `connectingMachine → ready` (no scale)  | `ConnectionManager._settleAfterMachinePhase`           |
+| `connectingScale → ready`               | `ConnectionManager._settleAfterScalePhase`             |
 | `connectingScale → idle` (scale error)  | `StatusPublisher.emitError` → gatekeeper folds to idle  |
 | any `→ idle` on disconnect              | `DisconnectSupervisor._onMachineGone / _onScaleGone`    |
 
 `scaleOnly` reconnects (`connect(scaleOnly: true)`) skip every machine-phase
-edge and go `idle → scanning → connectingScale → ready`.
+edge. With a machine connected they settle at `ready`; without one they settle
+at `idle` after the scale connects.
 
 Non-phase status fields (`error`, `foundMachines`, `pendingAmbiguity`)
 are allowed to change on any edge; only the `phase` field follows the
@@ -327,6 +328,10 @@ Automatic `connect()` scans may early-connect preferred devices as they appear. 
    - No preferred, multiple → show picker (`machinePicker`)
 2. **Scale phase** — after machine resolution, apply the same policy to a missing scale. If no machine is found, an unambiguous scale can still connect while the overall phase remains `idle`. Machine ambiguity is resolved before scale ambiguity, and selecting a machine continues with scale candidates retained from the same scan. Bengle skips external-scale policy because its integrated scale always owns the slot.
 
+The `ScanReport` covers this full selection session. It is finalized after any
+picker continuation and retained scale work complete; a newer full scan or a
+disconnect finalizes the superseded session as cancelled.
+
 **Early stop.** With a preferred machine set, the scan stops as soon as
 its targets connect rather than running the full timeout: when a preferred
 scale is also configured, only once *both* connect; when no preferred scale
@@ -342,9 +347,9 @@ so a full scan that ran to completion never triggers one.
 
 - `connect()` — Startup/recovery quick-connect with scan fallback
 - `scanAndConnect()` — Explicit scan-first flow that fills missing slots
-- `scanAndConnectScale()` — Scale-only reconnect (skips machine phase)
-- `connectMachine(De1Interface)` — Connect to a specific machine
-- `connectScale(Scale)` — Connect to a specific scale
+- `connect(scaleOnly: true)` — Automatic scale recovery (skips machine phase)
+- `connectMachine(De1Interface)` / `connectScale(Scale)` — Deliberate direct connection
+- `selectMachine(De1Interface)` / `selectScale(Scale)` — Continue the active selection session; stale choices are rejected
 - `disconnectMachine()` / `disconnectScale()` — Explicit disconnects
 
 ### Disconnect Handling
@@ -707,24 +712,12 @@ through to `scanning` (existing scan path).
 
 If multiple machines or scales are found without a preferred device set, ConnectionManager emits `pendingAmbiguity: machinePicker` or `scalePicker`, and the UI shows a picker dialog.
 
-### Scale Reconnect from StatusTile (legacy home_feature)
+### Explicit Retry from Native Device UI
 
-> **Note:** This tap-to-reconnect affordance lives in the legacy `home_feature`
-> StatusTile. Since the native UI redesign, `LauncherView` (not `home_feature`)
-> is the default post-onboarding screen. When no machine is connected, the
-> launcher shows a **"Connect your machine"** hero card above the skin slot
-> that pushes a full-screen scan page (`LauncherScanPage`) reusing the
-> onboarding scan flow. Tapping it triggers `connectionManager.connect()`.
-
-```
-1. User taps "Scale" text in StatusTile (when no scale connected)
-   ↓
-2. connectionManager.scanAndConnectScale()
-   ↓
-3. BLE scan runs, preferred scale policy applied
-   ↓
-4. If multiple scales found → scalePicker dialog shown
-```
+The legacy `home_feature` StatusTile reconnect affordance is retired. Native
+scan and retry controls call `scanAndConnect()`, so they perform a complete
+scan before filling missing slots. The launcher’s **Connect your machine** hero
+opens `LauncherScanPage`, which reuses this scan-first flow.
 
 ### Machine Wake → Scale Reconnect Flow
 
@@ -735,7 +728,7 @@ If multiple machines or scales are found without a preferred device set, Connect
    ↓
 3. Check if scale connected → NO, scalePowerMode == disconnect → YES
    ↓
-4. Call connectionManager.scanAndConnectScale()
+4. Call `connectionManager.connect(scaleOnly: true)`
    ↓
 5. Scan runs, preferred scale connected automatically
 ```
@@ -858,7 +851,7 @@ All connection decisions are centralized in `ConnectionManager`. Individual cont
 
 ConnectionManager uses `SettingsController` to read preferred device IDs:
 
-1. **Preferred device set + found during scan** → auto-connect immediately (early connect during scan)
+1. **Preferred device set + found during scan** → auto-connect (during discovery for automatic recovery; after discovery completes for explicit scans)
 2. **Preferred device set + not found, but others available** → show picker dialog
 3. **No preferred device, 1 found** → auto-connect silently
 4. **No preferred device, multiple found** → show picker dialog
@@ -869,12 +862,12 @@ Preferred device IDs are auto-saved on successful connection and can be managed 
 ### Machine vs Scale Connection
 
 - Connected machine and scale slots are preserved; alternatives discovered by a scan never replace them automatically.
-- Machine policy resolves before scale policy so Bengle's integrated scale always wins.
+- Machine policy resolves before scale policy so Bengle's integrated scale always wins; selecting or reconnecting Bengle hands off an attached external scale to the integrated scale.
 - If no machine is found, a missing unambiguous scale still connects; phase remains `idle` and the scan UI shows the partial result.
 - Machine selection continues deterministically into the retained scale phase from the same scan.
 - Scale ambiguity pauses preferred-scale reacquisition until the user selects a scale; successful selection updates the preferred ID used by future watches.
 - **Scale failures are non-blocking** — if scale connection fails, machine stays connected and phase stays `ready`
-- **Scale-only reconnect** — `scanAndConnectScale()` skips the machine phase entirely (used by De1StateManager for wake-from-sleep and by StatusTile for manual reconnect)
+- **Scale-only reconnect** — `connect(scaleOnly: true)` skips the machine phase and retains automatic preferred-scale recovery behavior (used by De1StateManager for wake-from-sleep)
 
 ---
 

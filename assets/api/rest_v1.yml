@@ -98,10 +98,11 @@ paths:
             type: boolean
             default: true
         - name: quick
-          description: If this flag is set to true, REA will return immediately after calling this function, returning an empty array. Useful if you want to poll for new devices manually
+          description: If true, Decent.app returns an empty array immediately while the same scan-first policy continues in the background. Useful when polling for device updates manually.
           in: query
           schema:
             type: boolean
+            default: false
       responses:
         "200":
           description: Scan started successfully

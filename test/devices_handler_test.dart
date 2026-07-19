@@ -203,6 +203,30 @@ void main() {
       });
     });
 
+    test('connect continues a pending scale selection session', () async {
+      final scale1 = TestScale(deviceId: 'scale-1', name: 'Scale 1');
+      final scale2 = TestScale(deviceId: 'scale-2', name: 'Scale 2');
+      mockDiscovery.addDevice(scale1);
+      mockDiscovery.addDevice(scale2);
+      await Future.delayed(Duration.zero);
+
+      await connectionManager.scanAndConnect();
+      expect(connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.scalePicker);
+
+      final response = await sendPut(
+        '/api/v1/devices/connect',
+        body: jsonEncode({'deviceId': scale2.deviceId}),
+      );
+
+      expect(response.statusCode, 200);
+      expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+      expect(connectionManager.lastScanReport?.matchedDevices
+          .firstWhere((device) => device.deviceId == scale2.deviceId)
+          .connectionResult
+          ?.success, isTrue);
+    });
+
     group('disconnect', () {
       test('reads deviceId from JSON body', () async {
         mockDiscovery.addDevice(

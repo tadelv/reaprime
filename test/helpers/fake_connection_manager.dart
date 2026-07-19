@@ -27,6 +27,8 @@ class FakeConnectionManager extends ConnectionManager {
       BehaviorSubject.seeded(const ConnectionStatus());
 
   int connectCalls = 0;
+  int automaticConnectCalls = 0;
+  int scanAndConnectCalls = 0;
   bool _scaleOnlyLastCall = false;
   bool get scaleOnlyLastCall => _scaleOnlyLastCall;
 
@@ -72,12 +74,14 @@ class FakeConnectionManager extends ConnectionManager {
   @override
   Future<void> connect({bool scaleOnly = false}) async {
     connectCalls += 1;
+    automaticConnectCalls += 1;
     _scaleOnlyLastCall = scaleOnly;
   }
 
   @override
   Future<void> scanAndConnect() async {
     connectCalls += 1;
+    scanAndConnectCalls += 1;
     _scaleOnlyLastCall = false;
   }
 
