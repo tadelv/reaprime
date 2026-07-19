@@ -157,6 +157,12 @@ class ConnectionManager {
   /// outer connect()'s finally block (comms-harden #9).
   Completer<void>? _queuedScaleOnly;
 
+  /// Completer shared by all `scanAndConnect()` callers that arrive while
+  /// another connect is already running. Drained BEFORE
+  /// [_queuedScaleOnly] so explicit user-requested discovery is not
+  /// delayed behind background scale reacquisition.
+  Completer<void>? _queuedExplicitScan;
+
   /// Deferred scale-only rescan armed when the preferred machine
   /// connects but no preferred scale is configured. The initial scan
   /// stops the instant the machine connects (see [_checkEarlyStop]), so
@@ -513,7 +519,23 @@ class ConnectionManager {
   );
 
   /// Complete an explicit scan before connecting missing device slots.
-  Future<void> scanAndConnect() {
+  ///
+  /// When a connection cycle is already in progress, the active scan is
+  /// superseded: its generation is invalidated, the scanner is stopped,
+  /// and exactly one replacement explicit scan is queued. Multiple
+  /// concurrent callers share the queued future. The superseded scan
+  /// emits one cancelled report; the replacement emits its normal report.
+  Future<void> scanAndConnect() async {
+    // Multiple concurrent explicit requests coalesce into one replacement.
+    if (_queuedExplicitScan != null) {
+      return _queuedExplicitScan!.future;
+    }
+    if (_isConnecting) {
+      _explicitScanGeneration++;
+      deviceScanner.stopScan();
+      _queuedExplicitScan = Completer<void>();
+      return _queuedExplicitScan!.future;
+    }
     _explicitScanGeneration++;
     return _runConnect(
       scaleOnly: false,
@@ -536,6 +558,21 @@ class ConnectionManager {
     try {
       await _executeConnect(scaleOnly, policy: policy);
     } finally {
+      // Drain queued explicit scan first so user-requested discovery
+      // is not delayed behind background scale reacquisition.
+      while (_queuedExplicitScan != null) {
+        final drain = _queuedExplicitScan!;
+        _queuedExplicitScan = null;
+        try {
+          await _executeConnect(
+            false,
+            policy: ConnectionAttemptPolicy.explicitScan,
+          );
+          drain.complete();
+        } catch (e, st) {
+          drain.completeError(e, st);
+        }
+      }
       while (_queuedScaleOnly != null) {
         final drain = _queuedScaleOnly!;
         _queuedScaleOnly = null;
@@ -1655,6 +1692,9 @@ class ConnectionManager {
   void cancelActiveScan() {
     _explicitScanGeneration++;
     deviceScanner.stopScan();
+    final queued = _queuedExplicitScan;
+    _queuedExplicitScan = null;
+    queued?.complete();
     final session = _selectionSession;
     if (session != null) {
       _publishStatus(currentStatus.copyWith(
