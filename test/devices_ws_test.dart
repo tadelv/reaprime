@@ -294,6 +294,33 @@ void main() {
       await channel.sink.close();
     });
 
+    test('scan command defaults to discovery-only', () async {
+      final (channel, messages) = connectWs();
+
+      await waitForState(messages);
+      channel.sink.add(jsonEncode({'command': 'scan'}));
+
+      await waitForState(messages);
+      await Future.delayed(const Duration(milliseconds: 300));
+      expect(mockDiscovery.scanCallCount, 1);
+      expect(connectionManager.lastScanReport, isNull);
+
+      await channel.sink.close();
+    });
+
+    test('scan command connect=true opts into connection policy', () async {
+      final (channel, messages) = connectWs();
+
+      await waitForState(messages);
+      channel.sink.add(jsonEncode({'command': 'scan', 'connect': true}));
+
+      await waitForState(messages);
+      await Future.delayed(const Duration(milliseconds: 300));
+      expect(connectionManager.lastScanReport, isNotNull);
+
+      await channel.sink.close();
+    });
+
     test('scan command triggers scanForDevices', () async {
       final (channel, messages) = connectWs();
 

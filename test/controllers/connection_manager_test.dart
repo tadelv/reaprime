@@ -218,6 +218,41 @@ void main() {
         await sub.cancel();
       });
 
+      test('already-connected machine is not quick-connected again', () async {
+        await connectionManager.dispose();
+        await settingsController.setPreferredMachineId('pref-de1');
+        mockSettingsService.setRememberedDevices(RememberedDevice.encodeList([
+          const RememberedDevice(
+            id: 'pref-de1',
+            name: 'DE1',
+            type: DeviceType.machine,
+          ),
+        ]));
+        final remembered = RememberedDevicesController(
+          machineConnections: const Stream.empty(),
+          scaleConnections: const Stream.empty(),
+          settings: mockSettingsService,
+        );
+        await remembered.initialize();
+
+        final connectedMachine = _FakeDe1(deviceId: 'pref-de1');
+        mockDe1Controller.de1Subject.add(connectedMachine);
+        mockScanner.quickConnectResult = _FakeDe1(deviceId: 'pref-de1');
+        connectionManager = ConnectionManager(
+          deviceScanner: mockScanner,
+          de1Controller: mockDe1Controller,
+          scaleController: mockScaleController,
+          settingsController: settingsController,
+          rememberedDevices: remembered,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        await connectionManager.connect();
+
+        expect(mockScanner.quickConnectCallCount, 0);
+        remembered.dispose();
+      });
+
       test('no preferred, 0 machines → stays idle', () async {
         await connectionManager.connect();
         await Future.delayed(Duration.zero);

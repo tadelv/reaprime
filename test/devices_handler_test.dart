@@ -233,6 +233,23 @@ void main() {
       });
     });
 
+    group('scan endpoint', () {
+      test('defaults to discovery-only', () async {
+        final response = await sendGet('/api/v1/devices/scan');
+
+        expect(response.statusCode, 200);
+        expect(mockDiscovery.scanCallCount, 1);
+        expect(connectionManager.lastScanReport, isNull);
+      });
+
+      test('connect=true opts into connection policy', () async {
+        final response = await sendGet('/api/v1/devices/scan?connect=true');
+
+        expect(response.statusCode, 200);
+        expect(connectionManager.lastScanReport, isNotNull);
+      });
+    });
+
     group('scanning state', () {
       test('isScanning is initially false', () {
         expect(deviceController.isScanning, isFalse);

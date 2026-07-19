@@ -160,10 +160,10 @@ Returns all discovered devices with their connection states.
 
 #### Scan for Devices
 ```http
-GET /api/v1/devices/scan?connect=true&quick=false
+GET /api/v1/devices/scan
 ```
 
-Triggers a device scan. When `connect=true` (default), uses the ConnectionManager to scan and automatically connect to preferred or single devices (both machines and scales). When `connect=false`, performs a scan-only without automatic connections. Use `quick=true` to return immediately without waiting for scan results.
+Triggers a discovery-only device scan without disturbing connected devices. Discovered alternatives appear in the device list and remain disconnected until the skin explicitly connects one. Set `connect=true` to use the ConnectionManager to automatically connect preferred or single devices. Use `quick=true` to return immediately without waiting for scan results.
 
 #### Connect to Device
 ```http
@@ -2861,7 +2861,8 @@ Here's a complete minimal skin implementation:
 
 ### Scale Not Responding
 - Check scale is connected: `GET /api/v1/devices`
-- Try reconnecting scale: `GET /api/v1/devices/scan?connect=true`
+- Discover available scales: `GET /api/v1/devices/scan`
+- Connect the selected scale: `PUT /api/v1/devices/connect` with `{"deviceId":"..."}`
 - Check scale battery level via scale snapshot stream
 
 ---

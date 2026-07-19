@@ -658,8 +658,9 @@ scale discovery:
 - **No preferred scale:** `_armPostQuickConnectScaleScan()` (single deferred
   scale-only scan after ~3s, same delay as the post-wake reconnect)
 
-Quick-connect is tried in **all** connect cycles (startup, manual
-reconnect, recovery mode). The phase stream shows
+Quick-connect is tried in connect cycles only while no machine is connected
+(startup, manual reconnect, recovery mode). An already-connected machine is
+preserved while a connect cycle scans for scales. The phase stream shows
 `idle → connectingMachine → ready` on success. On failure:
 `connectingMachine` is published before the attempt, then phase falls
 through to `scanning` (existing scan path).
