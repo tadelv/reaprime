@@ -320,4 +320,27 @@ void main() {
       expect(mockCm.scanAndConnectCallCount, 1);
     });
   });
+
+  group('stale-scan recovery', () {
+    testWidgets('triggers scanAndConnect on stale event', (tester) async {
+      mockCm.emitStatus(const ConnectionStatus(
+        phase: ConnectionPhase.scanning,
+      ));
+
+      await tester.pumpWidget(buildView(
+        initialConnectionIntent: () => mockCm.scanAndConnect(),
+      ));
+      await tester.pump();
+
+      final callsBefore = mockCm.scanAndConnectCallCount;
+
+      // Simulate stale scan via the public onAppResumed test hook.
+      scanStateGuardian.onAppResumed();
+      await tester.pump();
+
+      // scanAndConnect was called again, which triggers the superseding
+      // logic (stop scan + queue replacement) when an active scan exists.
+      expect(mockCm.scanAndConnectCallCount, greaterThan(callsBefore));
+    });
+  });
 }

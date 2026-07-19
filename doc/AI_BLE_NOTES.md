@@ -53,11 +53,12 @@ session-owned canonical candidates — no new scan fires.
 ### `scaleOnly` / scale recovery
 
 Triggered by the background scale watch, deferred scale scan, and queued
-scale-only reconnect callers. Skips the machine phase entirely. If a
-selection session is active with pending ambiguity, scale recovery is
-deferred to avoid racing with the user's choice. Only runs when the
-machine is connected or sleeping. On Android, uses a filtered scan to
-bypass background throttling.
+scale-only reconnect callers. Skips the machine phase entirely — a scale
+can connect independently of the machine. If a selection session is active
+with pending ambiguity, scale recovery is deferred to avoid racing with
+the user's choice. Scales powered off while the machine is sleeping are
+skipped to respect the radio-disconnect power mode. On Android, uses a
+filtered scan to bypass background throttling.
 
 ### Phase lifecycle
 
@@ -77,13 +78,21 @@ replaced automatically by a scan. A missing slot auto-connects its
 preferred device when found. Without a preferred ID, exactly one candidate
 auto-connects; more than one produces ambiguity.
 
-### Cancellation
+### Cancellation and superseding
 
 `cancelActiveScan()` bumps the generation token, stops the scanner,
-cancels any active selection session, and clears pending ambiguity. An
-in-flight `_connectImpl` detects the generation mismatch after `runScan`
-returns and skips policy. `cancelSelectionSession()` finalises an already-
-completed scan as cancelled without touching an in-flight scan.
+cancels any active selection session, discards any queued explicit
+replacement, and clears pending ambiguity. An in-flight `_connectImpl`
+detects the generation mismatch after `runScan` returns and skips policy.
+`cancelSelectionSession()` finalises an already-completed scan as cancelled
+without touching an in-flight scan.
+
+Repeated explicit scan requests ("ReScan", stale-scan recovery, repeated
+REST/UI calls) supersede the active scan and coalesce into a single
+queued replacement. The superseded scan emits one cancelled report; the
+replacement emits its normal report. If `cancelActiveScan()` fires while
+a replacement is queued, the replacement is discarded and its waiting
+callers complete cleanly.
 
 Cancel (launcher) and route-back interception both route through
 `cancelActiveScan()`. "View found devices" intentionally stops discovery
