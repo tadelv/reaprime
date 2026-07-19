@@ -118,6 +118,12 @@ class ConnectionManager {
   bool _activeScaleOnlyScan = false;
   ConnectionSelectionSession? _selectionSession;
 
+  /// Generation counter bumped on each new explicit [scanAndConnect] or
+  /// [cancelActiveScan] call. [_connectImpl] checks it after [runScan]
+  /// returns; if it changed the in-flight scan was cancelled and policy
+  /// must not run.
+  int _explicitScanGeneration = 0;
+
   /// End-to-end timeout for a single `connectMachine` / `connectScale`
   /// call. Phase 1 bounded the MMR-read hang at 2s; this is the
   /// belt-and-braces that keeps any other transport-level hang from
@@ -507,10 +513,13 @@ class ConnectionManager {
   );
 
   /// Complete an explicit scan before connecting missing device slots.
-  Future<void> scanAndConnect() => _runConnect(
-    scaleOnly: false,
-    policy: ConnectionAttemptPolicy.explicitScan,
-  );
+  Future<void> scanAndConnect() {
+    _explicitScanGeneration++;
+    return _runConnect(
+      scaleOnly: false,
+      policy: ConnectionAttemptPolicy.explicitScan,
+    );
+  }
 
   Future<void> _runConnect({
     required bool scaleOnly,
@@ -670,6 +679,10 @@ class ConnectionManager {
           )
         : null;
 
+    // Capture the generation at scan start so the post-scan check detects
+    // cancellation that happened while the scan was in-flight.
+    final scanGen = _explicitScanGeneration;
+
     final scanRun = await _scanOrchestrator.runScan(
       preferredMachineId: policy.connectPreferredDuringScan
           ? preferredMachineId
@@ -685,6 +698,23 @@ class ConnectionManager {
     if (scanRun == null) {
       // Scan failed catastrophically; orchestrator already emitted
       // the sticky error + phase=idle.
+      return;
+    }
+
+    // Explicit scan was cancelled while the scan was in-flight — emit a
+    // cancelled report and bail without applying policy.
+    if (_explicitScanGeneration != scanGen) {
+      _scanReportSubject.add(scanRun.reportBuilder.build(
+        preferredMachineId: preferredMachineId,
+        preferredScaleId: preferredScaleId,
+        terminationReason: ScanTerminationReason.cancelledByUser,
+        adapterStateAtEnd: deviceScanner.currentAdapterState,
+      ));
+      _publishStatus(currentStatus.copyWith(
+        pendingAmbiguity: () => null,
+        phase: _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+      ));
+      _ensureScaleReacquisition();
       return;
     }
 
@@ -1253,7 +1283,14 @@ class ConnectionManager {
       _log.fine('Ignoring stale machine selection ${machine.deviceId}');
       return;
     }
-    await connectMachine(resolved);
+    try {
+      await connectMachine(resolved);
+    } catch (_) {
+      // connectMachine already emitted the classified error and either
+      // re-presented the machine picker (alternatives remain) or
+      // transitioned to the scale phase (no alternatives, scale candidates
+      // present). The widget must not see the exception.
+    }
   }
 
   Future<void> connectMachine(De1Interface machine) async {
@@ -1605,6 +1642,31 @@ class ConnectionManager {
     _selectionSession = null;
     _scanReportSubject.add(report);
     _log.info(ScanReportBuilder.format(report));
+  }
+
+  /// Cancels the active explicit scan, including any in-flight discovery.
+  ///
+  /// Bumps the generation token so the in-flight [_connectImpl] either
+  /// bails before runScan (not yet started) or detects the mismatch after
+  /// the scan completes and skips policy. Also stops the scanner and
+  /// cancels any existing selection session.
+  ///
+  /// Safe to call when no scan is active — it is a no-op in that case.
+  void cancelActiveScan() {
+    _explicitScanGeneration++;
+    deviceScanner.stopScan();
+    final session = _selectionSession;
+    if (session != null) {
+      _publishStatus(currentStatus.copyWith(
+        pendingAmbiguity: () => null,
+      ));
+      _finishSelectionSession(
+        session,
+        ScanTerminationReason.cancelledByUser,
+      );
+    }
+    _settleAfterScalePhase();
+    _ensureScaleReacquisition();
   }
 
   /// Cancels the active selection session, finalising the scan report

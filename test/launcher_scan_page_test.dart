@@ -64,7 +64,7 @@ void main() {
     );
   });
 
-  testWidgets('cancel calls cancelSelectionSession', (tester) async {
+  testWidgets('cancel calls cancelActiveScan', (tester) async {
     // Navigate to the picker state so the Cancel button is visible.
     mockCm.emitStatus(ConnectionStatus(
       phase: ConnectionPhase.idle,
@@ -82,6 +82,6 @@ void main() {
     await tester.tap(cancelFinder);
     await tester.pump();
 
-    expect(mockCm.cancelSelectionSessionCallCount, 1);
+    expect(mockCm.cancelActiveScanCallCount, 1);
   });
 }

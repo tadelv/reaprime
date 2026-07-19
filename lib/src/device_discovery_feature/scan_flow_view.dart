@@ -273,11 +273,17 @@ class ScanFlowViewState extends State<ScanFlowView> {
   Widget build(BuildContext context) {
     final Widget content;
 
-    // Adapter error takes precedence
+    // Adapter error takes precedence.
     if (_adapterError != null) {
       content = _adapterErrorView(context);
     }
-    // Error state from connection manager
+    // Ambiguity picker — show even when an error coexists, with the error
+    // rendered inline so the user can continue without a new scan.
+    else if (_status.pendingAmbiguity == AmbiguityReason.machinePicker ||
+        _status.pendingAmbiguity == AmbiguityReason.scalePicker) {
+      content = _devicePickerView(context);
+    }
+    // Standalone error (idle with no pending ambiguity).
     else if (_status.error != null && _status.phase == ConnectionPhase.idle) {
       content = _errorView(context);
     }
@@ -289,11 +295,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
     else if (_status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale) {
       content = _connectingView(context);
-    }
-    // Ambiguity: machine or scale picker
-    else if (_status.pendingAmbiguity == AmbiguityReason.machinePicker ||
-        _status.pendingAmbiguity == AmbiguityReason.scalePicker) {
-      content = _devicePickerView(context);
     }
     // Idle with no machines found
     else if (_status.phase == ConnectionPhase.idle &&
@@ -454,6 +455,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
         },
         isConnecting: isConnecting,
         canConnect: _selectedMachineId != null,
+        errorMessage: _status.error?.message,
       );
     }
 
@@ -480,6 +482,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
         },
         isConnecting: isConnecting,
         canConnect: _selectedScaleId != null,
+        errorMessage: _status.error?.message,
       );
     }
 
@@ -596,7 +599,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
     );
   }
 
-  Widget _singlePickerView<T>({
+  Widget _singlePickerView<T extends dev.Device>({
     required BuildContext context,
     required String label,
     required List<T> devices,
@@ -605,6 +608,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
     required VoidCallback onConnect,
     required bool isConnecting,
     required bool canConnect,
+    String? errorMessage,
   }) {
     final theme = ShadTheme.of(context);
     return Center(
@@ -615,9 +619,35 @@ class ScanFlowViewState extends State<ScanFlowView> {
           spacing: 16,
           children: [
             Text(label, style: theme.textTheme.h3),
+            if (errorMessage != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.destructive.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.colorScheme.destructive.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    Icon(LucideIcons.triangleAlert,
+                        size: 16, color: theme.colorScheme.destructive),
+                    Expanded(
+                      child: Text(
+                        errorMessage,
+                        style: theme.textTheme.small
+                            .copyWith(color: theme.colorScheme.destructive),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ...devices.map((device) {
-              final id = (device as dynamic).deviceId as String;
-              final name = (device as dynamic).name as String;
+              final id = device.deviceId;
+              final name = device.name;
               final isSelected = selectedId == id;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),

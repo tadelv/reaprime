@@ -2878,6 +2878,134 @@ void main() {
       });
     });
   });
+
+  group('cancelActiveScan', () {
+    late ConnectionManager connectionManager;
+    late MockDeviceScanner mockScanner;
+    late MockDe1Controller mockDe1Controller;
+    late MockScaleController mockScaleController;
+
+    setUp(() async {
+      mockScanner = MockDeviceScanner();
+      mockDe1Controller =
+          MockDe1Controller(controller: DeviceController([]));
+      mockScaleController = MockScaleController();
+      final localSettings = SettingsController(MockSettingsService());
+      await localSettings.loadSettings();
+      connectionManager = ConnectionManager(
+        deviceScanner: mockScanner,
+        de1Controller: mockDe1Controller,
+        scaleController: mockScaleController,
+        settingsController: localSettings,
+      );
+    });
+
+    test('stops the scanner', () {
+      connectionManager.cancelActiveScan();
+      expect(mockScanner.stopScanCallCount, 1);
+    });
+
+    test('clears pending ambiguity when a session is active', () async {
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm2'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      await connectionManager.connect();
+      await Future<void>.delayed(Duration.zero);
+
+      // Two machines → machinePicker.
+      expect(connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.machinePicker);
+
+      connectionManager.cancelActiveScan();
+
+      // Ambiguity cleared, phase settled.
+      expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+      expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+    });
+
+    test('emits exactly one cancelled report', () async {
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm2'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      await connectionManager.connect();
+      await Future<void>.delayed(Duration.zero);
+
+      final reports = <ScanReport>[];
+      final sub = connectionManager.scanReportStream.listen(reports.add);
+
+      connectionManager.cancelActiveScan();
+
+      await Future<void>.delayed(Duration.zero);
+      await sub.cancel();
+
+      expect(reports.length, 1);
+      expect(reports.first.scanTerminationReason,
+          ScanTerminationReason.cancelledByUser);
+    });
+
+    test('holds scanner open → cancel → no machine connected', () async {
+      // Arrange: queue a scan that will be held open.
+      final scanCompleter = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanCompleter);
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      // Start the scan.
+      final connectFuture = connectionManager.scanAndConnect();
+      // Let the async machinery spin up to where it awaits the scan completer.
+      await Future<void>.delayed(Duration.zero);
+
+      // Cancel while scan is in-flight.
+      connectionManager.cancelActiveScan();
+      expect(mockScanner.stopScanCallCount, greaterThan(0));
+
+      // Complete the held scan.
+      scanCompleter.complete();
+      await connectFuture;
+
+      // No machine connected — the cancelled scan skipped policy.
+      expect(mockDe1Controller.connectMachineCallCount, 0);
+    });
+
+    test(
+        'holds scanner open → cancel → no picker appears afterward',
+        () async {
+      final scanCompleter = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanCompleter);
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm2'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      final connectFuture = connectionManager.scanAndConnect();
+      await Future<void>.delayed(Duration.zero);
+
+      connectionManager.cancelActiveScan();
+      scanCompleter.complete();
+      await connectFuture;
+
+      // No ambiguity — policy never ran.
+      expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+    });
+
+    test('holds scanner open → cancel → phase is settled', () async {
+      final scanCompleter = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanCompleter);
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      final connectFuture = connectionManager.scanAndConnect();
+      await Future<void>.delayed(Duration.zero);
+
+      connectionManager.cancelActiveScan();
+      scanCompleter.complete();
+      await connectFuture;
+
+      // Phase settled to idle (no machine connected).
+      expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+    });
+  });
 }
 
 /// A De1Controller mock that uses a Completer to control when connectToDe1 completes.
