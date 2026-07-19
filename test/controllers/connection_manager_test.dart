@@ -3005,6 +3005,29 @@ void main() {
       // Phase settled to idle (no machine connected).
       expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
     });
+
+    test('subsequent connect is not blocked after cancellation', () async {
+      final scanCompleter = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanCompleter);
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      final connectFuture = connectionManager.scanAndConnect();
+      await Future<void>.delayed(Duration.zero);
+
+      connectionManager.cancelActiveScan();
+      scanCompleter.complete();
+      await connectFuture;
+
+      // Second scan with 2 machines → machinePicker (not stuck/cancelled).
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm2'));
+      await connectionManager.scanAndConnect();
+      await Future<void>.delayed(Duration.zero);
+
+      // Not cancelled: policy ran and produced expected ambiguity.
+      expect(connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.machinePicker);
+    });
   });
 }
 
