@@ -155,7 +155,7 @@ void main() {
       expect(find.text('Continue to Dashboard'), findsOneWidget);
     });
 
-    testWidgets('Re-start scan calls connectionManager.connect',
+    testWidgets('Re-start scan uses the scan-first connection path',
         (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -166,12 +166,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      final before = mockConnectionManager.connectCallCount;
+      final before = mockConnectionManager.scanAndConnectCallCount;
       await tester.tap(find.text('Re-start scan'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(mockConnectionManager.connectCallCount, before + 1);
+      expect(mockConnectionManager.scanAndConnectCallCount, before + 1);
     });
 
     testWidgets('Continue to Dashboard calls advance', (tester) async {

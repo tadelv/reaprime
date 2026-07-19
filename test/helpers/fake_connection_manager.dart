@@ -76,6 +76,12 @@ class FakeConnectionManager extends ConnectionManager {
   }
 
   @override
+  Future<void> scanAndConnect() async {
+    connectCalls += 1;
+    _scaleOnlyLastCall = false;
+  }
+
+  @override
   Future<void> dispose() async {
     _statusOverride.close();
     await super.dispose();

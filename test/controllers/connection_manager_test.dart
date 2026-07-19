@@ -253,6 +253,56 @@ void main() {
         remembered.dispose();
       });
 
+      test('explicit scan bypasses machine quick-connect', () async {
+        await connectionManager.dispose();
+        await settingsController.setPreferredMachineId('pref-de1');
+        mockSettingsService.setRememberedDevices(RememberedDevice.encodeList([
+          const RememberedDevice(
+            id: 'pref-de1',
+            name: 'DE1',
+            type: DeviceType.machine,
+          ),
+        ]));
+        final remembered = RememberedDevicesController(
+          machineConnections: const Stream.empty(),
+          scaleConnections: const Stream.empty(),
+          settings: mockSettingsService,
+        );
+        await remembered.initialize();
+        mockScanner.quickConnectResult = _FakeDe1(deviceId: 'pref-de1');
+        connectionManager = ConnectionManager(
+          deviceScanner: mockScanner,
+          de1Controller: mockDe1Controller,
+          scaleController: mockScaleController,
+          settingsController: settingsController,
+          rememberedDevices: remembered,
+        );
+
+        await connectionManager.scanAndConnect();
+
+        expect(mockScanner.quickConnectCallCount, 0);
+        expect(mockScanner.scanCallCount, 1);
+        remembered.dispose();
+      });
+
+      test('explicit scan waits for discovery before connecting preferred',
+          () async {
+        await settingsController.setPreferredMachineId('pref-de1');
+        final preferred = _FakeDe1(deviceId: 'pref-de1');
+        mockScanner.addDevice(preferred);
+        mockScanner.scanCompleter = Completer<void>();
+
+        final scan = connectionManager.scanAndConnect();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(mockDe1Controller.connectCalls, isEmpty);
+
+        mockScanner.scanCompleter!.complete();
+        await scan;
+
+        expect(mockDe1Controller.connectCalls, [same(preferred)]);
+      });
+
       test('no preferred, 0 machines → stays idle', () async {
         await connectionManager.connect();
         await Future.delayed(Duration.zero);
@@ -328,6 +378,20 @@ void main() {
         expect(mockDe1Controller.connectCalls, isEmpty);
       });
 
+      test('failed preferred machine emits ambiguity for alternatives',
+          () async {
+        await settingsController.setPreferredMachineId('pref-de1');
+        mockDe1Controller.shouldFailConnect = true;
+        mockScanner.addDevice(_FakeDe1(deviceId: 'pref-de1'));
+        mockScanner.addDevice(_FakeDe1(deviceId: 'alternative-de1'));
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.scanAndConnect();
+
+        expect(connectionManager.currentStatus.pendingAmbiguity,
+            AmbiguityReason.machinePicker);
+      });
+
       test('preferred machine not found, no others → stays idle', () async {
         await settingsController.setPreferredMachineId('missing-de1');
 
@@ -340,6 +404,83 @@ void main() {
       });
 
       group('scale phase', () {
+        test('connects a scale when no machine is found', () async {
+          final scale = TestScale(deviceId: 'only-scale');
+          mockScanner.addDevice(scale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.scanAndConnect();
+
+          expect(mockScaleController.connectCalls, [same(scale)]);
+          expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+        });
+
+        test('does not replace an already-connected scale', () async {
+          final connectedScale = TestScale(deviceId: 'connected-scale');
+          mockScaleController.mockEmitConnectionState(ConnectionState.connected);
+          mockScaleController.debugSetLastConnectedId(connectedScale.deviceId);
+          mockScanner.addDevice(TestScale(deviceId: 'alternative-scale'));
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.scanAndConnect();
+
+          expect(mockScaleController.connectCalls, isEmpty);
+        });
+
+        test('machine ambiguity defers scale until machine selection', () async {
+          final machineA = _FakeDe1(deviceId: 'de1-a');
+          final machineB = _FakeDe1(deviceId: 'de1-b');
+          final scale = TestScale(deviceId: 'only-scale');
+          mockScanner.addDevice(machineA);
+          mockScanner.addDevice(machineB);
+          mockScanner.addDevice(scale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.scanAndConnect();
+
+          expect(connectionManager.currentStatus.pendingAmbiguity,
+              AmbiguityReason.machinePicker);
+          expect(mockScaleController.connectCalls, isEmpty);
+
+          await connectionManager.connectMachine(machineA);
+
+          expect(mockScaleController.connectCalls, [same(scale)]);
+          expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+        });
+
+        test('machine ambiguity resolves before scale ambiguity', () async {
+          await settingsController.setPreferredMachineId('missing-de1');
+          await settingsController.setPreferredScaleId('missing-scale');
+          final machine = _FakeDe1(deviceId: 'alternative-de1');
+          mockScanner.addDevice(machine);
+          mockScanner.addDevice(TestScale(deviceId: 'alternative-scale'));
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.scanAndConnect();
+
+          expect(connectionManager.currentStatus.pendingAmbiguity,
+              AmbiguityReason.machinePicker);
+
+          await connectionManager.connectMachine(machine);
+
+          expect(connectionManager.currentStatus.pendingAmbiguity,
+              AmbiguityReason.scalePicker);
+          expect(mockScaleController.connectCalls, isEmpty);
+        });
+
+        test('missing preferred scale emits ambiguity for alternatives', () async {
+          await settingsController.setPreferredScaleId('missing-scale');
+          final alternative = TestScale(deviceId: 'alternative-scale');
+          mockScanner.addDevice(alternative);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.scanAndConnect();
+
+          expect(mockScaleController.connectCalls, isEmpty);
+          expect(connectionManager.currentStatus.pendingAmbiguity,
+              AmbiguityReason.scalePicker);
+        });
+
         test('preferred scale found → connects after machine', () async {
           await settingsController.setPreferredScaleId('pref-scale');
 
@@ -403,6 +544,20 @@ void main() {
           expect(mockScaleController.connectCalls, isEmpty);
           expect(
               connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        });
+
+        test('failed preferred scale emits ambiguity for alternatives',
+            () async {
+          await settingsController.setPreferredScaleId('pref-scale');
+          mockScaleController.shouldFailConnect = true;
+          mockScanner.addDevice(TestScale(deviceId: 'pref-scale'));
+          mockScanner.addDevice(TestScale(deviceId: 'alternative-scale'));
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.scanAndConnect();
+
+          expect(connectionManager.currentStatus.pendingAmbiguity,
+              AmbiguityReason.scalePicker);
         });
 
         test('scale failure does not affect machine connection', () async {
@@ -1322,8 +1477,7 @@ void main() {
         expect(connectionManager.currentStatus.error, isNull);
       });
 
-      test('emits connectingScale but not ready when no machine connected',
-          () async {
+      test('returns to idle after scale connects without a machine', () async {
         final phases = <ConnectionPhase>[];
         final sub = connectionManager.status.listen((s) {
           phases.add(s.phase);
@@ -1333,10 +1487,10 @@ void main() {
         await connectionManager.connectScale(testScale);
         await Future.delayed(Duration.zero);
 
-        // Scale alone should not emit ready — machine must be connected first
         expect(phases, [
           ConnectionPhase.idle,
           ConnectionPhase.connectingScale,
+          ConnectionPhase.idle,
         ]);
 
         await sub.cancel();
@@ -2118,6 +2272,37 @@ void main() {
         expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
         expect(mockScanner.scanCallCount, 0,
             reason: 'the connect must not go through a burst scan');
+      });
+
+      test('scale ambiguity pauses watch and selection updates its target',
+          () async {
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId('missing-scale');
+        mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.watchActive, isTrue);
+
+        final alternative = TestScale(deviceId: 'alternative-scale');
+        mockScanner.addDevice(alternative);
+        await connectionManager.scanAndConnect();
+
+        expect(connectionManager.currentStatus.pendingAmbiguity,
+            AmbiguityReason.scalePicker);
+        expect(mockScanner.watchActive, isFalse);
+
+        await connectionManager.connectScale(alternative);
+        expect(settingsController.preferredScaleId, alternative.deviceId);
+
+        final callsBeforeDisconnect = mockScaleController.connectCalls.length;
+        mockScaleController
+            .mockEmitConnectionState(ConnectionState.disconnected);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(mockScaleController.connectCalls.length,
+            callsBeforeDisconnect + 1);
+        expect(mockScaleController.connectCalls.last.deviceId,
+            alternative.deviceId);
       });
 
       test('failed watch connect re-arms the watch', () async {

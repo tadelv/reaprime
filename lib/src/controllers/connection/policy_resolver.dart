@@ -36,10 +36,8 @@ final class NoMachineAction extends MachinePolicyAction {
 /// Decide what to do with the machine phase given the scan snapshot.
 ///
 /// Rules:
-///   - If `preferredMachineId` is set, early-connect would have
-///     handled the happy path — reaching post-scan means the
-///     preferred device wasn't discovered. Show a picker if any
-///     other machines appeared, otherwise idle.
+///   - If `preferredMachineId` is set and found, connect it. Otherwise,
+///     show a picker if any other machines appeared, or stay idle.
 ///   - If no preferred is set: auto-connect iff exactly one machine
 ///     was found; otherwise picker (>1) or idle (0).
 MachinePolicyAction resolveMachinePolicy({
@@ -47,6 +45,10 @@ MachinePolicyAction resolveMachinePolicy({
   required String? preferredMachineId,
 }) {
   if (preferredMachineId != null) {
+    final match = machines
+        .where((machine) => machine.deviceId == preferredMachineId)
+        .firstOrNull;
+    if (match != null) return ConnectMachineAction(match);
     if (machines.isNotEmpty) return const MachinePickerAction();
     return const NoMachineAction(hasOtherMachines: false);
   }

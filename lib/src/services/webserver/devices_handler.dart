@@ -234,14 +234,14 @@ class DevicesHandler {
       final bool quickScan =
           req.requestedUri.queryParametersAll["quick"]?.firstOrNull == "true";
       final bool connect =
-          req.requestedUri.queryParametersAll["connect"]?.firstOrNull == "true";
+          req.requestedUri.queryParametersAll["connect"]?.firstOrNull != "false";
       log.info("running scan, quick = $quickScan, connect = $connect");
       if (connect) {
         if (quickScan) {
-          _connectionManager.connect();
+          _connectionManager.scanAndConnect();
           return [];
         }
-        await _connectionManager.connect();
+        await _connectionManager.scanAndConnect();
       } else {
         if (quickScan) {
           _controller.scanForDevices();
@@ -395,14 +395,14 @@ class DevicesHandler {
 
     switch (command) {
       case 'scan':
-        final connect = data['connect'] as bool? ?? false;
+        final connect = data['connect'] as bool? ?? true;
         final quick = data['quick'] as bool? ?? false;
         _log.fine("ws scan command: connect=$connect, quick=$quick");
         if (connect) {
           if (quick) {
-            _connectionManager.connect();
+            _connectionManager.scanAndConnect();
           } else {
-            _connectionManager.connect().catchError((e) {
+            _connectionManager.scanAndConnect().catchError((e) {
               socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
             });
           }

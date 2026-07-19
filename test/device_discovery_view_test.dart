@@ -153,6 +153,31 @@ void main() {
       });
     });
 
+    testWidgets('shows a connected scale when no machine is found',
+        (tester) async {
+      final origOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (details.toString().contains('overflowed') ||
+            details.toString().contains('deactivated')) {
+          return;
+        }
+        origOnError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = origOnError);
+
+      await tester.runAsync(() async {
+        mockService.addDevice(TestScale());
+
+        await tester.pumpWidget(buildDiscoveryView());
+        await Future.delayed(Duration(milliseconds: 500));
+        await tester.pump();
+
+        expect(find.text('No Decent Machines Found'), findsNothing);
+        expect(find.text('Scales'), findsOneWidget);
+        expect(find.text('Mock Scale'), findsOneWidget);
+      });
+    });
+
     testWidgets('shows device picker when multiple machines found', (tester) async {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {

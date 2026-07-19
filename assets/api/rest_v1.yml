@@ -88,15 +88,15 @@ paths:
   /api/v1/devices/scan:
     get:
       summary: Scan for Devices
-      description: Triggers a discovery-only device scan by default. When connect=true, uses the ConnectionManager to scan and automatically connect to preferred or single devices.
+      description: Triggers a device scan. When connect=true (default), scans first and automatically fills missing machine and scale slots without replacing connected devices. When connect=false, performs discovery only.
       tags: [Devices]
       parameters:
         - name: connect
-          description: Whether to use the ConnectionManager to automatically connect to preferred/discovered devices during scanning. Defaults to false.
+          description: Whether to scan first and automatically connect missing preferred/discovered devices. Defaults to true.
           in: query
           schema:
             type: boolean
-            default: false
+            default: true
         - name: quick
           description: If this flag is set to true, REA will return immediately after calling this function, returning an empty array. Useful if you want to poll for new devices manually
           in: query

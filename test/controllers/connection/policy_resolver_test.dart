@@ -72,6 +72,16 @@ void main() {
       expect(result, isA<MachinePickerAction>());
     });
 
+    test('preferred set + preferred discovered → connect preferred', () {
+      final preferred = _FakeDe1('pref');
+      final result = resolveMachinePolicy(
+        machines: [preferred, _FakeDe1('other')],
+        preferredMachineId: 'pref',
+      );
+      expect(result, isA<ConnectMachineAction>());
+      expect((result as ConnectMachineAction).machine, same(preferred));
+    });
+
     test('preferred set + no machines → idle', () {
       final result = resolveMachinePolicy(
         machines: const [],

@@ -294,7 +294,7 @@ void main() {
       await channel.sink.close();
     });
 
-    test('scan command defaults to discovery-only', () async {
+    test('scan command defaults to scan-first connection policy', () async {
       final (channel, messages) = connectWs();
 
       await waitForState(messages);
@@ -303,20 +303,20 @@ void main() {
       await waitForState(messages);
       await Future.delayed(const Duration(milliseconds: 300));
       expect(mockDiscovery.scanCallCount, 1);
-      expect(connectionManager.lastScanReport, isNull);
+      expect(connectionManager.lastScanReport, isNotNull);
 
       await channel.sink.close();
     });
 
-    test('scan command connect=true opts into connection policy', () async {
+    test('scan command connect=false opts into discovery-only', () async {
       final (channel, messages) = connectWs();
 
       await waitForState(messages);
-      channel.sink.add(jsonEncode({'command': 'scan', 'connect': true}));
+      channel.sink.add(jsonEncode({'command': 'scan', 'connect': false}));
 
       await waitForState(messages);
       await Future.delayed(const Duration(milliseconds: 300));
-      expect(connectionManager.lastScanReport, isNotNull);
+      expect(connectionManager.lastScanReport, isNull);
 
       await channel.sink.close();
     });
