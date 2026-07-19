@@ -316,16 +316,16 @@ table above.
 
 ### Connection Policy
 
-When `connect()` is called:
+`connect()` is the automatic startup/recovery path: it may quick-connect a missing remembered machine before falling back to scanning. `scanAndConnect()` is the explicit user/API path: it always scans first, preserves connected machine and scale slots, then fills only missing slots.
 
-1. **Scan** for all devices via `DeviceController.scanForDevices()`
-2. **Early connect** — if preferred device IDs are set in settings, connect as soon as they appear during scan (don't wait for scan to finish)
-3. **Machine phase** — apply preferred machine policy:
+Automatic `connect()` scans may early-connect preferred devices as they appear. Explicit `scanAndConnect()` scans collect the complete result first, then apply policy:
+
+1. **Machine phase** — apply preferred machine policy:
    - Preferred set + found → auto-connect
    - Preferred set + not found, but others available → show picker (`machinePicker`)
    - No preferred, 1 machine → auto-connect
    - No preferred, multiple → show picker (`machinePicker`)
-4. **Scale phase** — apply preferred scale policy (same logic as machine)
+2. **Scale phase** — after machine resolution, apply the same policy to a missing scale. If no machine is found, an unambiguous scale can still connect while the overall phase remains `idle`. Machine ambiguity is resolved before scale ambiguity, and selecting a machine continues with scale candidates retained from the same scan. Bengle skips external-scale policy because its integrated scale always owns the slot.
 
 **Early stop.** With a preferred machine set, the scan stops as soon as
 its targets connect rather than running the full timeout: when a preferred
@@ -340,7 +340,8 @@ so a full scan that ran to completion never triggers one.
 
 ### Key Methods
 
-- `connect()` — Full scan + connect flow (machine + scale)
+- `connect()` — Startup/recovery quick-connect with scan fallback
+- `scanAndConnect()` — Explicit scan-first flow that fills missing slots
 - `scanAndConnectScale()` — Scale-only reconnect (skips machine phase)
 - `connectMachine(De1Interface)` — Connect to a specific machine
 - `connectScale(Scale)` — Connect to a specific scale
@@ -658,9 +659,9 @@ scale discovery:
 - **No preferred scale:** `_armPostQuickConnectScaleScan()` (single deferred
   scale-only scan after ~3s, same delay as the post-wake reconnect)
 
-Quick-connect is tried in connect cycles only while no machine is connected
-(startup, manual reconnect, recovery mode). An already-connected machine is
-preserved while a connect cycle scans for scales. The phase stream shows
+Quick-connect is reserved for automatic startup and recovery, including
+Android USB-attach recovery. Explicit native, REST, and WebSocket scans call
+`scanAndConnect()` and always scan before applying policy. The phase stream shows
 `idle → connectingMachine → ready` on success. On failure:
 `connectingMachine` is published before the attempt, then phase falls
 through to `scanning` (existing scan path).
@@ -867,7 +868,11 @@ Preferred device IDs are auto-saved on successful connection and can be managed 
 
 ### Machine vs Scale Connection
 
-- **Machine** connects first, then scale phase runs
+- Connected machine and scale slots are preserved; alternatives discovered by a scan never replace them automatically.
+- Machine policy resolves before scale policy so Bengle's integrated scale always wins.
+- If no machine is found, a missing unambiguous scale still connects; phase remains `idle` and the scan UI shows the partial result.
+- Machine selection continues deterministically into the retained scale phase from the same scan.
+- Scale ambiguity pauses preferred-scale reacquisition until the user selects a scale; successful selection updates the preferred ID used by future watches.
 - **Scale failures are non-blocking** — if scale connection fails, machine stays connected and phase stays `ready`
 - **Scale-only reconnect** — `scanAndConnectScale()` skips the machine phase entirely (used by De1StateManager for wake-from-sleep and by StatusTile for manual reconnect)
 

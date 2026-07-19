@@ -163,7 +163,7 @@ Returns all discovered devices with their connection states.
 GET /api/v1/devices/scan
 ```
 
-Triggers a discovery-only device scan without disturbing connected devices. Discovered alternatives appear in the device list and remain disconnected until the skin explicitly connects one. Set `connect=true` to use the ConnectionManager to automatically connect preferred or single devices. Use `quick=true` to return immediately without waiting for scan results.
+Triggers a scan-first connection cycle. With the default `connect=true`, Decent.app preserves connected devices and automatically fills only missing machine and scale slots. Preferred devices connect without prompting when found; missing preferred devices or multiple candidates produce machine-first, then scale ambiguity on `ws/v1/devices`. Set `connect=false` for discovery only. Use `quick=true` to return immediately without waiting for scan results.
 
 #### Connect to Device
 ```http
@@ -2861,8 +2861,8 @@ Here's a complete minimal skin implementation:
 
 ### Scale Not Responding
 - Check scale is connected: `GET /api/v1/devices`
-- Discover available scales: `GET /api/v1/devices/scan`
-- Connect the selected scale: `PUT /api/v1/devices/connect` with `{"deviceId":"..."}`
+- Scan and reconnect a missing scale: `GET /api/v1/devices/scan`
+- If alternatives produce ambiguity, connect the selected scale: `PUT /api/v1/devices/connect` with `{"deviceId":"..."}`
 - Check scale battery level via scale snapshot stream
 
 ---

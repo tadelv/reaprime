@@ -53,6 +53,7 @@ class MockConnectionManager extends ConnectionManager {
   );
 
   int connectCallCount = 0;
+  int scanAndConnectCallCount = 0;
   ScanReport? _lastScanReport;
 
   MockConnectionManager({
@@ -78,6 +79,12 @@ class MockConnectionManager extends ConnectionManager {
   @override
   Future<void> connect({bool scaleOnly = false}) async {
     connectCallCount++;
+  }
+
+  @override
+  Future<void> scanAndConnect() async {
+    connectCallCount++;
+    scanAndConnectCallCount++;
   }
 
   @override

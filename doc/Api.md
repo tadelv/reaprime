@@ -88,7 +88,7 @@ Pre-stream responses are `400` for malformed input, `404` for an unknown artifac
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
 | GET | `/api/v1/devices` | List devices (present + remembered) | `devices_handler.dart` |
-| GET | `/api/v1/devices/scan` | Discover devices (`?quick=`); set `?connect=true` to auto-connect | |
+| GET | `/api/v1/devices/scan` | Scan and fill missing device slots; set `?connect=false` for discovery only | |
 | PUT | `/api/v1/devices/connect` | Connect to device by ID | |
 | PUT | `/api/v1/devices/disconnect` | Disconnect device | |
 | PUT | `/api/v1/devices/forget` | Forget a remembered device | |

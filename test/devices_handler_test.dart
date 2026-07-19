@@ -234,19 +234,19 @@ void main() {
     });
 
     group('scan endpoint', () {
-      test('defaults to discovery-only', () async {
+      test('defaults to scan-first connection policy', () async {
         final response = await sendGet('/api/v1/devices/scan');
 
         expect(response.statusCode, 200);
         expect(mockDiscovery.scanCallCount, 1);
-        expect(connectionManager.lastScanReport, isNull);
+        expect(connectionManager.lastScanReport, isNotNull);
       });
 
-      test('connect=true opts into connection policy', () async {
-        final response = await sendGet('/api/v1/devices/scan?connect=true');
+      test('connect=false opts into discovery-only', () async {
+        final response = await sendGet('/api/v1/devices/scan?connect=false');
 
         expect(response.statusCode, 200);
-        expect(connectionManager.lastScanReport, isNotNull);
+        expect(connectionManager.lastScanReport, isNull);
       });
     });
 

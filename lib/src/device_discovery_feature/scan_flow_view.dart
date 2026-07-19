@@ -75,7 +75,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
     setState(() {
       _adapterError = null;
     });
-    widget.connectionManager.connect();
+    widget.connectionManager.scanAndConnect();
   }
 
   void _clearAdapterErrorAndTryDemo() {
@@ -85,14 +85,14 @@ class ScanFlowViewState extends State<ScanFlowView> {
     widget.settingsController.enableSimulatedDevicesForSession(
       {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
     );
-    widget.connectionManager.connect();
+    widget.connectionManager.scanAndConnect();
   }
 
   void _tryDemoModeFromNoDevices() {
     widget.settingsController.enableSimulatedDevicesForSession(
       {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
     );
-    widget.connectionManager.connect();
+    widget.connectionManager.scanAndConnect();
   }
 
   late StreamSubscription<ConnectionStatus> _statusSubscription;
@@ -127,7 +127,9 @@ class ScanFlowViewState extends State<ScanFlowView> {
         BootTiming.mark('connect_${status.phase.name}');
       }
 
-      if (status.phase == ConnectionPhase.ready && !_hasNavigated) {
+      if (status.phase == ConnectionPhase.ready &&
+          status.pendingAmbiguity == null &&
+          !_hasNavigated) {
         _hasNavigated = true;
         _cancelTooLongTimer();
         BootTiming.mark('scan_ready');
@@ -233,7 +235,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
         // If we're stuck in scanning phase, the scan may have silently finished
         if (_status.phase == ConnectionPhase.scanning) {
           _log.info('Stale scan detected, restarting');
-          widget.connectionManager.connect();
+          widget.connectionManager.scanAndConnect();
         }
         break;
     }
@@ -276,12 +278,13 @@ class ScanFlowViewState extends State<ScanFlowView> {
     }
     // Idle with no machines found
     else if (_status.phase == ConnectionPhase.idle &&
-        _status.foundMachines.isEmpty) {
+        _status.foundMachines.isEmpty &&
+        _status.foundScales.isEmpty) {
       content = _noDevicesFoundView(context);
     }
     // Idle with machines but no ambiguity (fallback)
     else if (_status.phase == ConnectionPhase.idle &&
-        _status.foundMachines.isNotEmpty) {
+        (_status.foundMachines.isNotEmpty || _status.foundScales.isNotEmpty)) {
       content = _devicePickerView(context);
     }
     // Default: scanning view
@@ -490,10 +493,10 @@ class ScanFlowViewState extends State<ScanFlowView> {
               if (!isConnecting)
                 AccessibleButton(
                   label: 'ReScan',
-                  onTap: () => widget.connectionManager.connect(),
+                  onTap: () => widget.connectionManager.scanAndConnect(),
                   child: ShadButton.outline(
                     size: ShadButtonSize.sm,
-                    onPressed: () => widget.connectionManager.connect(),
+                    onPressed: () => widget.connectionManager.scanAndConnect(),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       spacing: 4,
@@ -513,14 +516,14 @@ class ScanFlowViewState extends State<ScanFlowView> {
                 onTap: isConnecting
                     ? null
                     : widget.settingsController.preferredMachineId != null
-                        ? () => widget.connectionManager.connect()
+                        ? () => widget.connectionManager.scanAndConnect()
                         : null,
                 child: ShadButton(
                   size: ShadButtonSize.sm,
                   onPressed: isConnecting
                       ? null
                       : widget.settingsController.preferredMachineId != null
-                          ? () => widget.connectionManager.connect()
+                          ? () => widget.connectionManager.scanAndConnect()
                           : null,
                   child: isConnecting
                       ? Row(
@@ -578,9 +581,9 @@ class ScanFlowViewState extends State<ScanFlowView> {
           ),
           AccessibleButton(
             label: 'Retry',
-            onTap: () => widget.connectionManager.connect(),
+            onTap: () => widget.connectionManager.scanAndConnect(),
             child: ShadButton(
-              onPressed: () => widget.connectionManager.connect(),
+              onPressed: () => widget.connectionManager.scanAndConnect(),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
@@ -655,9 +658,9 @@ class ScanFlowViewState extends State<ScanFlowView> {
       return Center(
         child: AccessibleButton(
           label: 'Scan Again',
-          onTap: () => widget.connectionManager.connect(),
+          onTap: () => widget.connectionManager.scanAndConnect(),
           child: ShadButton(
-            onPressed: () => widget.connectionManager.connect(),
+            onPressed: () => widget.connectionManager.scanAndConnect(),
             child: const Text('Scan Again'),
           ),
         ),
@@ -667,7 +670,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
     return Center(
       child: ScanResultsSummary(
         report: report,
-        onScanAgain: () => widget.connectionManager.connect(),
+        onScanAgain: () => widget.connectionManager.scanAndConnect(),
         onTryDemoMode: _tryDemoModeFromNoDevices,
         onTroubleshoot: () => showTroubleshootingWizard(
           context: context,
@@ -708,7 +711,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
               title: const Text('Re-start scan'),
               onTap: () {
                 Navigator.pop(context);
-                widget.connectionManager.connect();
+                widget.connectionManager.scanAndConnect();
               },
             ),
             ListTile(

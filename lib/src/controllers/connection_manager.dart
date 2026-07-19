@@ -80,6 +80,18 @@ class ConnectionStatus {
   }
 }
 
+class _PendingScalePhase {
+  final List<Scale> scales;
+  final String? preferredScaleId;
+  final ScanReportBuilder scanReport;
+
+  const _PendingScalePhase({
+    required this.scales,
+    required this.preferredScaleId,
+    required this.scanReport,
+  });
+}
+
 class ConnectionManager {
   final DeviceScanner deviceScanner;
   final De1Controller de1Controller;
@@ -113,6 +125,7 @@ class ConnectionManager {
   bool _isConnectingMachine = false;
   bool _isConnectingScale = false;
   bool _activeScaleOnlyScan = false;
+  _PendingScalePhase? _pendingScalePhase;
 
   /// End-to-end timeout for a single `connectMachine` / `connectScale`
   /// call. Phase 1 bounded the MMR-read hang at 2s; this is the
@@ -462,7 +475,7 @@ class ConnectionManager {
   void debugNotifyMachineDisconnected(String deviceId) =>
       _disconnectSupervisor.notifyMachineDisconnected(deviceId);
 
-  /// Scan for devices and connect based on preference policy.
+  /// Quick-connect or scan for devices using automatic recovery policy.
   ///
   /// When [scaleOnly] is false (default):
   /// 1. Scans for all devices
@@ -488,7 +501,21 @@ class ConnectionManager {
   /// replay and share the same returned Future. Non-`scaleOnly` calls
   /// during an in-flight connect are still dropped silently
   /// (comms-harden #9).
-  Future<void> connect({bool scaleOnly = false}) async {
+  Future<void> connect({bool scaleOnly = false}) => _runConnect(
+        scaleOnly: scaleOnly,
+        allowQuickConnect: true,
+      );
+
+  /// Complete an explicit scan before connecting missing device slots.
+  Future<void> scanAndConnect() => _runConnect(
+        scaleOnly: false,
+        allowQuickConnect: false,
+      );
+
+  Future<void> _runConnect({
+    required bool scaleOnly,
+    required bool allowQuickConnect,
+  }) async {
     if (_isConnecting) {
       if (scaleOnly) {
         final completer = _queuedScaleOnly ??= Completer<void>();
@@ -497,18 +524,17 @@ class ConnectionManager {
       return;
     }
 
-    // Run the current call, then drain any scale-only requests that
-    // queued up while it was running. The drain runs in a `finally`
-    // so stranded callers get woken up even if the initial call
-    // throws.
     try {
-      await _executeConnect(scaleOnly);
+      await _executeConnect(
+        scaleOnly,
+        allowQuickConnect: allowQuickConnect,
+      );
     } finally {
       while (_queuedScaleOnly != null) {
         final drain = _queuedScaleOnly!;
         _queuedScaleOnly = null;
         try {
-          await _executeConnect(true);
+          await _executeConnect(true, allowQuickConnect: false);
           drain.complete();
         } catch (e, st) {
           drain.completeError(e, st);
@@ -517,15 +543,19 @@ class ConnectionManager {
     }
   }
 
-  /// One connect iteration — sets `_isConnecting` for the duration so
-  /// the concurrency guard in [connect] sees the in-flight state.
-  Future<void> _executeConnect(bool scaleOnly) async {
+  Future<void> _executeConnect(
+    bool scaleOnly, {
+    required bool allowQuickConnect,
+  }) async {
     _isConnecting = true;
     if (scaleOnly) {
       _activeScaleOnlyScan = true;
     }
     try {
-      await _connectImpl(scaleOnly: scaleOnly);
+      await _connectImpl(
+        scaleOnly: scaleOnly,
+        allowQuickConnect: allowQuickConnect,
+      );
     } finally {
       if (scaleOnly) {
         _activeScaleOnlyScan = false;
@@ -559,7 +589,10 @@ class ConnectionManager {
     return null;
   }
 
-  Future<void> _connectImpl({required bool scaleOnly}) async {
+  Future<void> _connectImpl({
+    required bool scaleOnly,
+    required bool allowQuickConnect,
+  }) async {
     // Also disarms the watch: during a full scan EarlyConnectWatcher
     // observes the same deviceStream and owns preferred-scale connects —
     // a live watch would race it. Re-armed at the end-of-connect sites.
@@ -576,13 +609,17 @@ class ConnectionManager {
       _deferredScaleScan?.cancel();
       _deferredScaleScan = null;
       _earlyStopFired = false;
+      _pendingScalePhase = null;
     }
 
     // Quick-connect: try direct connection to the preferred machine from
     // remembered metadata. Scales are excluded — the machine-only critical
     // path publishes ready immediately after adoption, then kicks off
     // background scale discovery.
-    if (!scaleOnly && !_machineConnected && rememberedDevices != null) {
+    if (allowQuickConnect &&
+        !scaleOnly &&
+        !_machineConnected &&
+        rememberedDevices != null) {
       _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.connectingMachine));
       final qcMachine = await _tryQuickConnectMachine();
@@ -614,7 +651,7 @@ class ConnectionManager {
     // Previously gated on preferredMachineId != null, which meant
     // auto-discovered machines never stopped the scan early even
     // with both devices found and connected.
-    final earlyStopEnabled = !scaleOnly;
+    final earlyStopEnabled = !scaleOnly && allowQuickConnect;
 
     final scanStartTime = DateTime.now();
 
@@ -628,8 +665,8 @@ class ConnectionManager {
         : null;
 
     final scanRun = await _scanOrchestrator.runScan(
-      preferredMachineId: preferredMachineId,
-      preferredScaleId: preferredScaleId,
+      preferredMachineId: allowQuickConnect ? preferredMachineId : null,
+      preferredScaleId: allowQuickConnect ? preferredScaleId : null,
       earlyStopEnabled: earlyStopEnabled,
       onEarlyAttemptComplete: () => _checkEarlyStop(earlyStopEnabled),
       scanStartTime: scanStartTime,
@@ -677,8 +714,6 @@ class ConnectionManager {
       currentStatus.copyWith(foundMachines: machines, foundScales: scales),
     );
 
-    // If machine is already connected (either from before or
-    // early-connect), skip straight to scale phase.
     if (_machineConnected) {
       _log.fine('Machine connected, proceeding to scale phase');
       await _runScalePhase(
@@ -687,6 +722,7 @@ class ConnectionManager {
         preferredScaleId,
         scanReport,
       );
+      _settleAfterScalePhase();
       _maybeArmDeferredScaleScan();
       _ensureScaleReacquisition();
       _emitScanReport(
@@ -698,26 +734,55 @@ class ConnectionManager {
       return;
     }
 
-    // Post-scan machine policy. Early-connect already handled the
-    // "preferred found during scan" happy path; what arrives here
-    // is everything else.
+    final policyMachines = allowQuickConnect && preferredMachineId != null
+        ? machines
+            .where((machine) => machine.deviceId != preferredMachineId)
+            .toList()
+        : machines;
     final machineAction = resolveMachinePolicy(
-      machines: machines,
+      machines: policyMachines,
       preferredMachineId: preferredMachineId,
     );
     switch (machineAction) {
       case ConnectMachineAction(machine: final m):
         await _connectMachineTracked(m, scanReport);
-        await _runScalePhase(m, scales, preferredScaleId, scanReport);
-        _maybeArmDeferredScaleScan();
-        _ensureScaleReacquisition();
+        final alternatives =
+            machines.where((machine) => machine != m).toList();
+        if (!_machineConnected && alternatives.isNotEmpty) {
+          _pendingScalePhase = _PendingScalePhase(
+            scales: scales,
+            preferredScaleId: preferredScaleId,
+            scanReport: scanReport,
+          );
+          _publishStatus(currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          ));
+        } else {
+          await _runScalePhase(
+            _disconnectSupervisor.latestMachine,
+            scales,
+            preferredScaleId,
+            scanReport,
+          );
+          _settleAfterScalePhase();
+          _maybeArmDeferredScaleScan();
+          _ensureScaleReacquisition();
+        }
       case MachinePickerAction():
+        _pendingScalePhase = _PendingScalePhase(
+          scales: scales,
+          preferredScaleId: preferredScaleId,
+          scanReport: scanReport,
+        );
         _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
           pendingAmbiguity: () => AmbiguityReason.machinePicker,
         ));
       case NoMachineAction():
-        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
+        await _runScalePhase(null, scales, preferredScaleId, scanReport);
+        _settleAfterScalePhase();
+        _ensureScaleReacquisition();
     }
 
     _emitScanReport(
@@ -881,6 +946,7 @@ class ConnectionManager {
   bool _shouldRetryPreferredScale() {
     return _machineConnected &&
         !_scaleConnected &&
+        currentStatus.pendingAmbiguity != AmbiguityReason.scalePicker &&
         settingsController.preferredScaleId != null &&
         !_scaleReconnectBlockedByPowerMode;
   }
@@ -1069,6 +1135,14 @@ class ConnectionManager {
     _latestMachineState = null;
   }
 
+  void _settleAfterScalePhase() {
+    final phase =
+        _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle;
+    if (currentStatus.phase != phase) {
+      _publishStatus(currentStatus.copyWith(phase: phase));
+    }
+  }
+
   /// Gate the scale phase on machine type. When the connected machine
   /// is a [BengleInterface], its integrated scale (exposed as a
   /// [BengleVirtualScale]) takes the slot and external-scale discovery
@@ -1136,13 +1210,20 @@ class ConnectionManager {
     );
     switch (action) {
       case ConnectScaleAction(scale: final s):
-        await _connectScaleTracked(s, scanReport);
+        final result = await _connectScaleTracked(s, scanReport);
+        final alternatives = scales.where((scale) => scale != s).toList();
+        if (!result.success && result.error != null && alternatives.isNotEmpty) {
+          _cancelScaleReacquisition();
+          _publishStatus(currentStatus.copyWith(
+            pendingAmbiguity: () => AmbiguityReason.scalePicker,
+          ));
+        }
       case ScalePickerAction():
+        _cancelScaleReacquisition();
         _publishStatus(currentStatus.copyWith(
           pendingAmbiguity: () => AmbiguityReason.scalePicker,
         ));
       case NoScaleAction():
-        // Nothing to do — idle scale phase.
         break;
     }
   }
@@ -1165,20 +1246,35 @@ class ConnectionManager {
       ),
     );
 
+    final pendingScalePhase = _pendingScalePhase;
     try {
       await de1Controller
           .connectToDe1(machine)
           .timeout(_connectTimeout);
       await settingsController.setPreferredMachineId(machine.deviceId);
-      // `_latestDe1` is populated by the de1Controller.de1 stream
-      // listener; by the time connectToDe1 returns, that microtask has
-      // fired so `_machineConnected` (which reads `_latestDe1`) is true.
-      _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
+      if (pendingScalePhase != null) {
+        _pendingScalePhase = null;
+        await _runScalePhase(
+          machine,
+          pendingScalePhase.scales,
+          pendingScalePhase.preferredScaleId,
+          pendingScalePhase.scanReport,
+        );
+        _settleAfterScalePhase();
+        _ensureScaleReacquisition();
+      } else if (!_isConnecting) {
+        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
+      }
     } catch (e) {
       // Unlike connectScale, this path reverts to `idle` (not a clearing
       // phase), so the _publishStatus/_emit ordering isn't load-bearing —
       // kept consistent with connectScale for readability.
-      _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
+      _publishStatus(currentStatus.copyWith(
+        phase: ConnectionPhase.idle,
+        pendingAmbiguity: pendingScalePhase == null
+            ? null
+            : () => AmbiguityReason.machinePicker,
+      ));
       final timedOut = e is TimeoutException;
       _emit(_buildConnectError(
         kind: ConnectionErrorKind.machineConnectFailed,
@@ -1240,12 +1336,10 @@ class ConnectionManager {
         return const ConnectionResult.succeeded();
       }
       await settingsController.setPreferredScaleId(scale.deviceId);
-      // `_latestScaleState` is populated by the scaleController
-      // listener; `_scaleConnected` reads from it.
-      // Only emit ready if machine is also connected — scale alone isn't enough
-      if (_machineConnected) {
-        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
-      }
+      _publishStatus(currentStatus.copyWith(
+        phase:
+            _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+      ));
       return const ConnectionResult.succeeded();
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle.
@@ -1321,7 +1415,7 @@ class ConnectionManager {
       );
       return;
     }
-    return _connectScaleTracked(scale, scanReport);
+    await _connectScaleTracked(scale, scanReport);
   }
 
   /// Returns true when the external scale's early-connect path should
@@ -1375,7 +1469,7 @@ class ConnectionManager {
 
   /// Connect a scale and record the attempt outcome on the scan
   /// report builder.
-  Future<void> _connectScaleTracked(
+  Future<ConnectionResult> _connectScaleTracked(
     Scale scale,
     ScanReportBuilder scanReport,
   ) async {
@@ -1385,6 +1479,7 @@ class ConnectionManager {
     // than assuming success (a swallowed failure used to log "— connected").
     final result = await connectScale(scale);
     scanReport.recordResult(scale.deviceId, result);
+    return result;
   }
 
   /// Build a [ScanReport] from [scanReport] and publish it on the

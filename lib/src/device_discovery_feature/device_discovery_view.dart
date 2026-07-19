@@ -87,7 +87,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
       // Navigate when ready (only once — connectMachine and connectScale
       // both emit ready, so guard against double navigation)
-      if (status.phase == ConnectionPhase.ready && !_navigated) {
+      if (status.phase == ConnectionPhase.ready &&
+          status.pendingAmbiguity == null &&
+          !_navigated) {
         _navigated = true;
         _navigateAfterConnection();
         return;
@@ -201,13 +203,14 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     // Idle with no machines found
     if (_status.phase == ConnectionPhase.idle &&
-        _status.foundMachines.isEmpty) {
+        _status.foundMachines.isEmpty &&
+        _status.foundScales.isEmpty) {
       return _noDevicesFoundView(context);
     }
 
     // Idle with machines (shouldn't normally happen without ambiguity, but fallback)
     if (_status.phase == ConnectionPhase.idle &&
-        _status.foundMachines.isNotEmpty) {
+        (_status.foundMachines.isNotEmpty || _status.foundScales.isNotEmpty)) {
       return _resultsView(context);
     }
 
@@ -310,7 +313,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
             if (!isConnecting)
               ShadButton.outline(
                 size: ShadButtonSize.sm,
-                onPressed: () => widget.connectionManager.connect(),
+                onPressed: () => widget.connectionManager.scanAndConnect(),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   spacing: 4,
@@ -325,7 +328,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
               onPressed: isConnecting
                   ? null
                   : widget.settingsController.preferredMachineId != null
-                      ? () => widget.connectionManager.connect()
+                      ? () => widget.connectionManager.scanAndConnect()
                       : null,
               child: isConnecting
                   ? Row(
@@ -410,7 +413,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                     )
                   else
                     ShadButton(
-                      onPressed: () => widget.connectionManager.connect(),
+                      onPressed: () => widget.connectionManager.scanAndConnect(),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         spacing: 8,
@@ -425,7 +428,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                       widget.settingsController.enableSimulatedDevicesForSession(
                         {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
                       );
-                      widget.connectionManager.connect();
+                      widget.connectionManager.scanAndConnect();
                     },
                     child: Row(
                       mainAxisSize: MainAxisSize.min,

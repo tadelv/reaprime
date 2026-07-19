@@ -853,8 +853,8 @@ components:
           description: Device identifier. Required for connect and disconnect commands.
         connect:
           type: boolean
-          description: Whether to auto-connect discovered devices (scan command only). Defaults to discovery-only.
-          default: false
+          description: Whether to scan first and automatically fill missing machine and scale slots without replacing connected devices (scan command only).
+          default: true
         quick:
           type: boolean
           description: Fire-and-forget scan without waiting for results (scan command only).
