@@ -40,6 +40,12 @@ class ScanFlowView extends StatefulWidget {
   /// of showing a picker on ambiguity.
   final bool directConnect;
 
+  /// The initial connection action. When non-null, invoked once from
+  /// [initState] instead of the default [ConnectionManager.connect].
+  /// Launcher pages should pass `connectionManager.scanAndConnect`;
+  /// onboarding uses `connect` (the default when null).
+  final VoidCallback? initialConnectionIntent;
+
   /// Invoked once when the connection phase first reaches `ready`.
   final VoidCallback onConnected;
 
@@ -59,6 +65,7 @@ class ScanFlowView extends StatefulWidget {
     required this.settingsController,
     required this.scanStateGuardian,
     this.directConnect = false,
+    this.initialConnectionIntent,
     required this.onConnected,
     required this.onExit,
     this.exitLabel = 'Dashboard',
@@ -112,6 +119,10 @@ class ScanFlowViewState extends State<ScanFlowView> {
   List<De1Interface> _discoveredMachines = [];
   List<device_scale.Scale> _discoveredScales = [];
 
+  /// Currently selected device ID in the picker UI.
+  String? _selectedMachineId;
+  String? _selectedScaleId;
+
   /// Bluetooth adapter error message, set by ScanStateGuardian events.
   String? _adapterError;
 
@@ -160,6 +171,9 @@ class ScanFlowViewState extends State<ScanFlowView> {
       // Reset the "taking too long" timer when phase changes away from scanning
       if (status.phase != ConnectionPhase.scanning) {
         _cancelTooLongTimer();
+      } else {
+        _selectedMachineId = null;
+        _selectedScaleId = null;
       }
 
       // Start the timer when entering scanning phase
@@ -194,7 +208,12 @@ class ScanFlowViewState extends State<ScanFlowView> {
         widget.scanStateGuardian.events.listen(_onGuardianEvent);
 
     // Kick off the connection flow
-    widget.connectionManager.connect();
+    final intent = widget.initialConnectionIntent;
+    if (intent != null) {
+      intent();
+    } else {
+      widget.connectionManager.connect();
+    }
     _startTooLongTimer();
   }
 
@@ -407,21 +426,69 @@ class ScanFlowViewState extends State<ScanFlowView> {
   Widget _devicePickerView(BuildContext context) {
     final isConnecting = _status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale;
-    final connectingDeviceId = isConnecting
-        ? (_status.foundMachines.isNotEmpty
-            ? _status.foundMachines.first.deviceId
-            : null)
-        : null;
 
-    // Check if preferred device is configured but not among found devices
     final preferredMachineId =
         widget.settingsController.preferredMachineId;
+    final preferredScaleId = widget.settingsController.preferredScaleId;
+
+    if (_status.pendingAmbiguity == AmbiguityReason.machinePicker) {
+      final preferredMachineNotFound = preferredMachineId != null &&
+          _status.foundMachines.isNotEmpty &&
+          !_status.foundMachines
+              .any((m) => m.deviceId == preferredMachineId);
+      return _singlePickerView(
+        context: context,
+        label: preferredMachineNotFound
+            ? "Your preferred machine wasn't found, but we discovered these:"
+            : 'Machines',
+        devices: _status.foundMachines,
+        selectedId: _selectedMachineId,
+        onTapped: (id) => setState(() => _selectedMachineId = id),
+        onConnect: () {
+          final id = _selectedMachineId;
+          if (id == null) return;
+          final machine = _status.foundMachines.firstWhere(
+            (m) => m.deviceId == id,
+          );
+          widget.connectionManager.selectMachine(machine);
+        },
+        isConnecting: isConnecting,
+        canConnect: _selectedMachineId != null,
+      );
+    }
+
+    if (_status.pendingAmbiguity == AmbiguityReason.scalePicker) {
+      final preferredScaleNotFound = preferredScaleId != null &&
+          _status.foundScales.isNotEmpty &&
+          !_status.foundScales
+              .any((s) => s.deviceId == preferredScaleId);
+      return _singlePickerView(
+        context: context,
+        label: preferredScaleNotFound
+            ? "Your preferred scale wasn't found, but we discovered these:"
+            : 'Scales',
+        devices: _status.foundScales,
+        selectedId: _selectedScaleId,
+        onTapped: (id) => setState(() => _selectedScaleId = id),
+        onConnect: () {
+          final id = _selectedScaleId;
+          if (id == null) return;
+          final scale = _status.foundScales.firstWhere(
+            (s) => s.deviceId == id,
+          );
+          widget.connectionManager.selectScale(scale);
+        },
+        isConnecting: isConnecting,
+        canConnect: _selectedScaleId != null,
+      );
+    }
+
+    // Fallback: idle with devices but no ambiguity — show combined view.
     final preferredMachineNotFound = preferredMachineId != null &&
         _status.foundMachines.isNotEmpty &&
         !_status.foundMachines
             .any((m) => m.deviceId == preferredMachineId);
 
-    final preferredScaleId = widget.settingsController.preferredScaleId;
     final preferredScaleNotFound = preferredScaleId != null &&
         _status.foundScales.isNotEmpty &&
         !_status.foundScales
@@ -452,7 +519,11 @@ class ScanFlowViewState extends State<ScanFlowView> {
                     deviceType: dev.DeviceType.machine,
                     showHeader: true,
                     headerText: machineHeader,
-                    connectingDeviceId: connectingDeviceId,
+                    connectingDeviceId: isConnecting
+                        ? (_status.foundMachines.isNotEmpty
+                            ? _status.foundMachines.first.deviceId
+                            : null)
+                        : null,
                     errorMessage: _status.error?.message,
                     selectedDeviceId: null,
                     preferredDeviceId:
@@ -507,43 +578,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
                     ),
                   ),
                 ),
-              AccessibleButton(
-                label: isConnecting
-                    ? 'Connecting'
-                    : widget.settingsController.preferredMachineId != null
-                        ? 'Connect'
-                        : 'Select a machine',
-                onTap: isConnecting
-                    ? null
-                    : widget.settingsController.preferredMachineId != null
-                        ? () => widget.connectionManager.scanAndConnect()
-                        : null,
-                child: ShadButton(
-                  size: ShadButtonSize.sm,
-                  onPressed: isConnecting
-                      ? null
-                      : widget.settingsController.preferredMachineId != null
-                          ? () => widget.connectionManager.scanAndConnect()
-                          : null,
-                  child: isConnecting
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 4,
-                          children: [
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const Text('Connecting...'),
-                          ],
-                        )
-                      : Text(widget.settingsController.preferredMachineId != null
-                          ? 'Connect'
-                          : 'Select a machine'),
-                ),
-              ),
               if (!isConnecting)
                 AccessibleButton(
                   label: widget.exitLabel,
@@ -554,6 +588,109 @@ class ScanFlowViewState extends State<ScanFlowView> {
                     child: Text(widget.exitLabel),
                   ),
                 ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _singlePickerView<T>({
+    required BuildContext context,
+    required String label,
+    required List<T> devices,
+    required String? selectedId,
+    required void Function(String id) onTapped,
+    required VoidCallback onConnect,
+    required bool isConnecting,
+    required bool canConnect,
+  }) {
+    final theme = ShadTheme.of(context);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 16,
+          children: [
+            Text(label, style: theme.textTheme.h3),
+            ...devices.map((device) {
+              final id = (device as dynamic).deviceId as String;
+              final name = (device as dynamic).name as String;
+              final isSelected = selectedId == id;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: ShadCard(
+                  width: double.infinity,
+                  child: InkWell(
+                    onTap: isConnecting ? null : () => onTapped(id),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name),
+                                Text(id,
+                                    style: theme.textTheme.muted),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(LucideIcons.checkCircle,
+                                color: theme.colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                if (!isConnecting)
+                  ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: () => widget.connectionManager.scanAndConnect(),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        Icon(LucideIcons.refreshCw, size: 14),
+                        Text('ReScan'),
+                      ],
+                    ),
+                  ),
+                ShadButton(
+                  size: ShadButtonSize.sm,
+                  onPressed: isConnecting || !canConnect ? null : onConnect,
+                  child: isConnecting
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 4,
+                          children: [
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            Text('Connecting...'),
+                          ],
+                        )
+                      : const Text('Connect'),
+                ),
+                if (!isConnecting)
+                  ShadButton.secondary(
+                    size: ShadButtonSize.sm,
+                    onPressed: _skipToDashboard,
+                    child: Text(widget.exitLabel),
+                  ),
               ],
             ),
           ],

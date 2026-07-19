@@ -28,6 +28,9 @@ class MockScaleController extends ScaleController {
 
   MockScaleController();
 
+  Scale? get lastConnectedScale =>
+      connectCalls.isNotEmpty ? connectCalls.last : null;
+
   @override
   String? get lastConnectedDeviceId => _mockLastConnectedDeviceId;
 

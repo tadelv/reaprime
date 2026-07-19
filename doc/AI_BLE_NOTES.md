@@ -181,3 +181,38 @@ from a disconnected generation.
 ## Keeping Notes Fresh
 
 Add lessons that would have saved debugging time: new footguns, thread-safety constraints, connection-lifecycle changes, non-obvious symptoms, and cross-transport dependencies. Prune stale claims. Prefer fewer, sharper notes over long background.
+
+## Connection Policy (PR #476)
+
+Two intents govern how `ConnectionManager` starts a connect cycle:
+
+- **automatic `connect()`**: Used by startup, machine recovery, and USB-attach
+  recovery. Remembers-machine quick-connect, connects preferred devices during
+  the scan, and stops scanning early once preferences are satisfied. Fastest
+  restoration of the expected configuration.
+- **explicit `scanAndConnect()`**: Used by the launcher scan page, REST/WS
+  scan commands (when `connect=true`), and explicit retry buttons. Completes
+  full discovery before policy runs, never quick-connects during the scan,
+  and never stops early. Preserves working machine/scale slots.
+
+Slot policy: machine and scale are independently fillable. Occupied slots are
+never replaced automatically by a scan. A missing slot auto-connects its
+preferred device when found. Without a preferred ID, exactly one candidate
+auto-connects; more than one produces ambiguity.
+
+Session continuation: when a scan produces ambiguity (`machinePicker` or
+`scalePicker`), a `ConnectionSelectionSession` holds the immutable scan
+snapshot. `selectMachine()` and `selectScale()` resolve the session-owned
+candidate object (never the caller-supplied reference) and continue with
+retained scale candidates — no additional scan fires. `cancelSelectionSession()`
+clears pending ambiguity, finalises the report as cancelled, and re-arms
+scale reacquisition.
+
+Preferred-scale watch: the persistent background scale watch pauses while
+scale ambiguity is pending so it cannot auto-connect the old preferred scale
+while the user is choosing. Successful explicit scale selection persists the
+new preferred ID and the watch re-arms after session completion or cancellation.
+
+Live-machine quick-connect guard: `_machineConnected` prevents quick-connect
+from re-adopting a fresh object for the same already-connected peripheral.
+This avoids spurious DE1 disconnect/re-attach cycles.
