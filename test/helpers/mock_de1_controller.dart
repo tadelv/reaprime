@@ -25,6 +25,11 @@ class MockDe1Controller extends De1Controller {
 
   MockDe1Controller({required super.controller});
 
+  De1Interface? get lastConnectedDe1 =>
+      connectCalls.isNotEmpty ? connectCalls.last : null;
+
+  int get connectMachineCallCount => connectCalls.length;
+
   @override
   Stream<De1Interface?> get de1 => de1Subject.stream;
 

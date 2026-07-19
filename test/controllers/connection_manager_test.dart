@@ -63,7 +63,7 @@ class _FakeDe1 implements De1Interface {
   @override
   Future<void> dispose() async {}
 
-  _FakeDe1({this.deviceId = 'fake-de1'}) : name = 'DE1-$deviceId';
+  _FakeDe1({this.deviceId = 'fake-de1', String? name}) : name = name ?? 'DE1-$deviceId';
 
   void emitState(MachineState state) {
     _snapshotController.add(_machineSnapshot(state));
@@ -2688,6 +2688,193 @@ void main() {
 
         await connectionManager.dispose();
         expect(mockScanner.watchActive, isFalse);
+      });
+    });
+
+    group('cancelSelectionSession', () {
+      test('clears pendingAmbiguity', () async {
+        final scale1 = TestScale(deviceId: 's1');
+        final scale2 = TestScale(deviceId: 's2');
+        mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+        mockScanner.addDevice(scale1);
+        mockScanner.addDevice(scale2);
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+
+        // Machine auto-connects. Two scales with no preferred = scalePicker.
+        expect(
+          connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.scalePicker,
+        );
+
+        connectionManager.cancelSelectionSession();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+      });
+
+      test('emits report as cancelled exactly once', () async {
+        final reports = <ScanReport>[];
+        final sub = connectionManager.scanReportStream.listen(reports.add);
+
+        mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+        mockScanner.addDevice(TestScale(deviceId: 's1'));
+        mockScanner.addDevice(TestScale(deviceId: 's2'));
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.scalePicker,
+        );
+
+        connectionManager.cancelSelectionSession();
+        await Future<void>.delayed(Duration.zero);
+
+        final cancelled = reports.where(
+          (r) => r.scanTerminationReason == ScanTerminationReason.cancelledByUser,
+        );
+        expect(cancelled.length, 1);
+        await sub.cancel();
+      });
+
+      test('subsequent scaleOnly connect is no longer blocked', () async {
+        mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+        mockScanner.addDevice(TestScale(deviceId: 's1'));
+        mockScanner.addDevice(TestScale(deviceId: 's2'));
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.scalePicker,
+        );
+
+        connectionManager.cancelSelectionSession();
+        await Future<void>.delayed(Duration.zero);
+
+        // scaleOnly connect should now proceed (not skipped)
+        await connectionManager.connect(scaleOnly: true);
+        await Future<void>.delayed(Duration.zero);
+        // No exception — the call was not skipped by pending ambiguity guard
+      });
+
+      test('selection submitted after cancellation is ignored', () async {
+        final scale = TestScale(deviceId: 's-cancelled');
+        mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+        mockScanner.addDevice(scale);
+        mockScanner.addDevice(TestScale(deviceId: 's-other'));
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.scalePicker,
+        );
+
+        connectionManager.cancelSelectionSession();
+        await Future<void>.delayed(Duration.zero);
+
+        final result = await connectionManager.selectScale(scale);
+        expect(result.success, isFalse);
+      });
+    });
+
+    group('machine failure preserved through scale-picker', () {
+      test('machineConnectFailed remains visible after scale selection',
+          () async {
+        mockDe1Controller.shouldFailConnect = true;
+
+        final scale1 = TestScale(deviceId: 's1');
+        final scale2 = TestScale(deviceId: 's2');
+        mockScanner.addDevice(_FakeDe1(deviceId: 'fail-m1'));
+        mockScanner.addDevice(scale1);
+        mockScanner.addDevice(scale2);
+
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+
+        // Machine failed, scalePicker active.
+        final status = connectionManager.currentStatus;
+        expect(status.pendingAmbiguity, AmbiguityReason.scalePicker);
+        expect(status.error?.kind, ConnectionErrorKind.machineConnectFailed);
+        expect(status.phase, ConnectionPhase.idle);
+
+        // User selects a scale — it should succeed.
+        mockDe1Controller.shouldFailConnect = false;
+        final result = await connectionManager.selectScale(scale1);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(result.success, isTrue);
+        final after = connectionManager.currentStatus;
+        expect(after.phase, ConnectionPhase.idle);
+        expect(after.error?.kind, ConnectionErrorKind.machineConnectFailed,
+            reason: 'machine error must remain visible after scale connects');
+      });
+    });
+
+    group('stale caller-supplied object', () {
+      test('stale machine object is not connected', () async {
+        // Session's candidate is from scanner. Caller supplies a different
+        // object with the same deviceId. resolveMachine must return the
+        // session's object, not the caller's.
+        final staleMachine = _FakeDe1(deviceId: 'same-id', name: 'stale-copy');
+        final sessionMachine = _FakeDe1(deviceId: 'same-id', name: 'session');
+
+        mockScanner.addDevice(sessionMachine);
+        mockScanner.addDevice(_FakeDe1(deviceId: 'm-other'));
+        mockScanner.addDevice(TestScale(deviceId: 's1'));
+        mockScanner.addDevice(TestScale(deviceId: 's2'));
+
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+
+        // Two machines → machinePicker. Both in session.
+        expect(
+          connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.machinePicker,
+        );
+
+        // Caller supplies the stale object. Resolution must find the
+        // session's canonical candidate.
+        await connectionManager.selectMachine(staleMachine);
+
+        final connected = mockDe1Controller.connectCalls.lastOrNull;
+        expect(identical(connected, staleMachine), isFalse,
+            reason: 'stale caller-supplied object must not be connected');
+        expect(connected?.deviceId, 'same-id',
+            reason: 'resolution must find the canonical candidate by id');
+        expect(connected?.name, 'session',
+            reason: 'must be the session\'s object, not the stale copy');
+      });
+
+      test('stale scale object is not connected', () async {
+        final staleScale = TestScale(
+          deviceId: 'same-scale-id',
+          name: 'stale-scale',
+        );
+        final sessionScale = TestScale(
+          deviceId: 'same-scale-id',
+          name: 'session-scale',
+        );
+
+        mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+        mockScanner.addDevice(sessionScale);
+        mockScanner.addDevice(TestScale(deviceId: 's-other'));
+
+        await connectionManager.connect();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          connectionManager.currentStatus.pendingAmbiguity,
+          AmbiguityReason.scalePicker,
+        );
+
+        final result = await connectionManager.selectScale(staleScale);
+        expect(result.success, isTrue);
+
+        final connected = mockScaleController.connectCalls.lastOrNull;
+        expect(identical(connected, staleScale), isFalse,
+            reason: 'stale caller-supplied scale object must not be connected');
+        expect(connected?.deviceId, 'same-scale-id',
+            reason: 'resolution must find the canonical candidate by id');
       });
     });
   });

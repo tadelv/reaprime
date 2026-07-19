@@ -30,8 +30,10 @@ class LauncherScanPage extends StatelessWidget {
       deviceController: deviceController,
       settingsController: settingsController,
       scanStateGuardian: scanStateGuardian,
+      initialConnectionIntent: () => connectionManager.scanAndConnect(),
       onConnected: () => Navigator.of(context).pop(),
       onExit: () {
+        connectionManager.cancelSelectionSession();
         deviceController.stopScan();
         Navigator.of(context).pop();
       },

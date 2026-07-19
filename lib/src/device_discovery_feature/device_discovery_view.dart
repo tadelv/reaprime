@@ -100,7 +100,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       });
     });
 
-    // Kick off the connection flow
+    // Kick off the connection flow.
+    // Automatic startup uses `connect()` (remembered-machine quick-connect +
+    // early stop). Explicit user/API scans use `scanAndConnect()` instead.
     widget.connectionManager.connect();
   }
 

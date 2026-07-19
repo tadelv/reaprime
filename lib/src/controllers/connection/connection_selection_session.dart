@@ -52,6 +52,20 @@ class ConnectionSelectionSession {
     );
   }
 
+  De1Interface? resolveMachine(String deviceId) {
+    return machines.cast<De1Interface?>().firstWhere(
+      (candidate) => candidate?.deviceId == deviceId,
+      orElse: () => null,
+    );
+  }
+
+  Scale? resolveScale(String deviceId) {
+    return scales.cast<Scale?>().firstWhere(
+      (candidate) => candidate?.deviceId == deviceId,
+      orElse: () => null,
+    );
+  }
+
   void invalidate() {
     if (isActive) {
       _state = ConnectionSelectionSessionState.cancelled;

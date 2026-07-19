@@ -1244,12 +1244,16 @@ class ConnectionManager {
   Future<void> selectMachine(De1Interface machine) async {
     final session = _selectionSession;
     if (session == null ||
-        currentStatus.pendingAmbiguity != AmbiguityReason.machinePicker ||
-        !session.acceptsMachine(machine)) {
+        currentStatus.pendingAmbiguity != AmbiguityReason.machinePicker) {
       _log.fine('Ignoring stale machine selection ${machine.deviceId}');
       return;
     }
-    await connectMachine(machine);
+    final resolved = session.resolveMachine(machine.deviceId);
+    if (resolved == null) {
+      _log.fine('Ignoring stale machine selection ${machine.deviceId}');
+      return;
+    }
+    await connectMachine(resolved);
   }
 
   Future<void> connectMachine(De1Interface machine) async {
@@ -1300,35 +1304,55 @@ class ConnectionManager {
         machine.deviceId,
         ConnectionResult.failed(e.toString()),
       );
-      // Unlike connectScale, this path reverts to `idle` (not a clearing
-      // phase), so the _publishStatus/_emit ordering isn't load-bearing —
-      // kept consistent with connectScale for readability.
-      _publishStatus(
-        currentStatus.copyWith(
+      final machineError = _buildConnectError(
+        kind: ConnectionErrorKind.machineConnectFailed,
+        deviceId: machine.deviceId,
+        deviceName: machine.name,
+        message: e is TimeoutException
+            ? 'Machine ${machine.name} did not respond within '
+                  '${_connectTimeout.inSeconds}s.'
+            : 'Machine ${machine.name} failed to connect.',
+        suggestion: e is TimeoutException
+            ? 'Try again. If the problem persists, power-cycle the machine.'
+            : 'Make sure the DE1 is powered on and in range, then retry.',
+        exception: e,
+      );
+
+      if (selectionSession == null || !selectionSession.isActive) {
+        _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
-          pendingAmbiguity:
-              selectionSession == null || !selectionSession.isActive
-              ? null
-              : () => AmbiguityReason.machinePicker,
-        ),
+          pendingAmbiguity: () => null,
+        ));
+        _emit(machineError);
+        rethrow;
+      }
+
+      final alternatives = selectionSession.machines
+          .where((m) => m.deviceId != machine.deviceId)
+          .toList();
+      if (alternatives.isNotEmpty) {
+        _publishStatus(currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => AmbiguityReason.machinePicker,
+        ));
+        _emit(machineError);
+        rethrow;
+      }
+
+      _publishStatus(currentStatus.copyWith(
+        phase: ConnectionPhase.idle,
+        pendingAmbiguity: () => null,
+      ));
+      _emit(machineError);
+      await _runScalePhase(
+        null,
+        selectionSession.scales,
+        selectionSession.preferredScaleId,
+        selectionSession.scanReport,
       );
-      final timedOut = e is TimeoutException;
-      _emit(
-        _buildConnectError(
-          kind: ConnectionErrorKind.machineConnectFailed,
-          deviceId: machine.deviceId,
-          deviceName: machine.name,
-          message: timedOut
-              ? 'Machine ${machine.name} did not respond within '
-                    '${_connectTimeout.inSeconds}s.'
-              : 'Machine ${machine.name} failed to connect.',
-          suggestion: timedOut
-              ? 'Try again. If the problem persists, power-cycle the machine.'
-              : 'Make sure the DE1 is powered on and in range, then retry.',
-          exception: e,
-        ),
-      );
-      rethrow;
+      _settleAfterScalePhase();
+      _ensureScaleReacquisition();
+      _emit(machineError);
     } finally {
       _isConnectingMachine = false;
     }
@@ -1422,16 +1446,27 @@ class ConnectionManager {
   Future<ConnectionResult> selectScale(Scale scale) async {
     final session = _selectionSession;
     if (session == null ||
-        currentStatus.pendingAmbiguity != AmbiguityReason.scalePicker ||
-        !session.acceptsScale(scale)) {
+        currentStatus.pendingAmbiguity != AmbiguityReason.scalePicker) {
       _log.fine('Ignoring stale scale selection ${scale.deviceId}');
       return const ConnectionResult.skipped();
     }
-    session.scanReport.markAttempted(scale.deviceId);
-    final result = await connectScale(scale);
-    session.scanReport.recordResult(scale.deviceId, result);
+    final resolved = session.resolveScale(scale.deviceId);
+    if (resolved == null) {
+      _log.fine('Ignoring stale scale selection ${scale.deviceId}');
+      return const ConnectionResult.skipped();
+    }
+    // Capture the machine error before connectScale publishes a clearing
+    // phase (connectingScale) and the gatekeeper strips it.
+    final machineError = !_machineConnected &&
+            currentStatus.error?.kind == ConnectionErrorKind.machineConnectFailed
+        ? currentStatus.error
+        : null;
+    session.scanReport.markAttempted(resolved.deviceId);
+    final result = await connectScale(resolved);
+    session.scanReport.recordResult(resolved.deviceId, result);
     if (result.success) {
       _completeSelectionSessionIfResolved(session);
+      if (machineError != null) _emit(machineError);
     } else {
       _cancelScaleReacquisition();
       _publishStatus(
@@ -1570,6 +1605,27 @@ class ConnectionManager {
     _selectionSession = null;
     _scanReportSubject.add(report);
     _log.info(ScanReportBuilder.format(report));
+  }
+
+  /// Cancels the active selection session, finalising the scan report
+  /// as cancelled and clearing [pendingAmbiguity]. Safe to call when no
+  /// session is active — it is a no-op in that case.
+  ///
+  /// After cancellation the phase settles from actual connected state
+  /// and scale reacquisition is re-armed so the background watch can
+  /// pick up the preferred scale again.
+  void cancelSelectionSession() {
+    final session = _selectionSession;
+    if (session == null) return;
+    _publishStatus(currentStatus.copyWith(
+      pendingAmbiguity: () => null,
+    ));
+    _finishSelectionSession(
+      session,
+      ScanTerminationReason.cancelledByUser,
+    );
+    _settleAfterScalePhase();
+    _ensureScaleReacquisition();
   }
 
   void _cancelSelectionSession({required bool emitReport}) {

@@ -54,6 +54,9 @@ class MockConnectionManager extends ConnectionManager {
 
   int connectCallCount = 0;
   int scanAndConnectCallCount = 0;
+  int selectMachineCallCount = 0;
+  int selectScaleCallCount = 0;
+  int cancelSelectionSessionCallCount = 0;
   ScanReport? _lastScanReport;
 
   MockConnectionManager({
@@ -91,15 +94,25 @@ class MockConnectionManager extends ConnectionManager {
   Future<void> connectMachine(De1Interface machine) async {}
 
   @override
-  Future<void> selectMachine(De1Interface machine) => connectMachine(machine);
+  Future<void> selectMachine(De1Interface machine) async {
+    selectMachineCallCount++;
+    await connectMachine(machine);
+  }
 
   @override
   Future<ConnectionResult> connectScale(device_scale.Scale scale) async =>
       const ConnectionResult.succeeded();
 
   @override
-  Future<ConnectionResult> selectScale(device_scale.Scale scale) =>
-      connectScale(scale);
+  Future<ConnectionResult> selectScale(device_scale.Scale scale) async {
+    selectScaleCallCount++;
+    return connectScale(scale);
+  }
+
+  @override
+  void cancelSelectionSession() {
+    cancelSelectionSessionCallCount++;
+  }
 
   @override
   Future<void> dispose() async {

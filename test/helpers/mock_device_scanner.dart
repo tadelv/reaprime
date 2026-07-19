@@ -107,6 +107,20 @@ class MockDeviceScanner implements DeviceScanner {
     _deviceSubject.add(List.from(_devices));
   }
 
+  /// Reset all state for a fresh test.
+  void reset() {
+    _devices.clear();
+    _deviceSubject.add([]);
+    stopScanCallCount = 0;
+    scanCallCount = 0;
+    scanCompleter = null;
+    queuedScanCompleters.clear();
+    queuedScanResults.clear();
+    failNextScanWith = null;
+    quickConnectResult = null;
+    quickConnectCallCount = 0;
+  }
+
   /// Complete the scan. Only needed when [scanCompleter] is set.
   void completeScan() {
     scanCompleter?.complete();
