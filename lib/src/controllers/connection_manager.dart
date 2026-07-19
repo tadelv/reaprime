@@ -558,22 +558,25 @@ class ConnectionManager {
     try {
       await _executeConnect(scaleOnly, policy: policy);
     } finally {
-      // Drain queued explicit scan first so user-requested discovery
-      // is not delayed behind background scale reacquisition.
-      while (_queuedExplicitScan != null) {
-        final drain = _queuedExplicitScan!;
-        _queuedExplicitScan = null;
-        try {
-          await _executeConnect(
-            false,
-            policy: ConnectionAttemptPolicy.explicitScan,
-          );
-          drain.complete();
-        } catch (e, st) {
-          drain.completeError(e, st);
+      // Single priority-aware drain loop: explicit always evaluated
+      // first at each scheduling boundary. An explicit request arriving
+      // during a queued scale-only drain is picked up immediately.
+      while (_queuedExplicitScan != null || _queuedScaleOnly != null) {
+        if (_queuedExplicitScan != null) {
+          final drain = _queuedExplicitScan!;
+          _queuedExplicitScan = null;
+          try {
+            await _executeConnect(
+              false,
+              policy: ConnectionAttemptPolicy.explicitScan,
+            );
+            drain.complete();
+          } catch (e, st) {
+            drain.completeError(e, st);
+          }
+          continue;
         }
-      }
-      while (_queuedScaleOnly != null) {
+
         final drain = _queuedScaleOnly!;
         _queuedScaleOnly = null;
         try {
@@ -1780,6 +1783,8 @@ class ConnectionManager {
     _deferredScaleScan?.cancel();
     _cancelPreferredScaleReconnect();
     await _attachReconnectCoordinator?.dispose();
+    _queuedExplicitScan?.complete();
+    _queuedExplicitScan = null;
     // Awaited (not via _cancelScaleReacquisition) so the watch is
     // deterministically stopped before the controllers it feeds are
     // disposed.
