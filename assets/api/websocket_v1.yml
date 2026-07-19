@@ -853,7 +853,7 @@ components:
           description: Device identifier. Required for connect and disconnect commands.
         connect:
           type: boolean
-          description: Whether to auto-connect discovered devices (scan command only).
+          description: Whether to auto-connect discovered devices (scan command only). Defaults to discovery-only.
           default: false
         quick:
           type: boolean

@@ -12,6 +12,7 @@ import 'package:rxdart/rxdart.dart';
 class MockDeviceDiscoveryService implements DeviceDiscoveryService {
   final _controller = BehaviorSubject<List<Device>>.seeded([]);
   final List<Device> _devices = [];
+  int scanCallCount = 0;
 
   @override
   Stream<List<Device>> get devices => _controller.stream;
@@ -38,7 +39,9 @@ class MockDeviceDiscoveryService implements DeviceDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices({ScanFilter? filter}) async {}
+  Future<void> scanForDevices({ScanFilter? filter}) async {
+    scanCallCount++;
+  }
 
   @override
   void stopScan() {}

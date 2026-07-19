@@ -234,7 +234,7 @@ class DevicesHandler {
       final bool quickScan =
           req.requestedUri.queryParametersAll["quick"]?.firstOrNull == "true";
       final bool connect =
-          req.requestedUri.queryParametersAll["connect"]?.firstOrNull != "false";
+          req.requestedUri.queryParametersAll["connect"]?.firstOrNull == "true";
       log.info("running scan, quick = $quickScan, connect = $connect");
       if (connect) {
         if (quickScan) {
@@ -395,7 +395,7 @@ class DevicesHandler {
 
     switch (command) {
       case 'scan':
-        final connect = data['connect'] as bool? ?? true;
+        final connect = data['connect'] as bool? ?? false;
         final quick = data['quick'] as bool? ?? false;
         _log.fine("ws scan command: connect=$connect, quick=$quick");
         if (connect) {

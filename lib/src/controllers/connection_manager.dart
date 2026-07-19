@@ -582,7 +582,7 @@ class ConnectionManager {
     // remembered metadata. Scales are excluded — the machine-only critical
     // path publishes ready immediately after adoption, then kicks off
     // background scale discovery.
-    if (!scaleOnly && rememberedDevices != null) {
+    if (!scaleOnly && !_machineConnected && rememberedDevices != null) {
       _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.connectingMachine));
       final qcMachine = await _tryQuickConnectMachine();
