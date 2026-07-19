@@ -3185,33 +3185,61 @@ void main() {
       expect(completed.length, greaterThan(0));
     });
 
-    test('queue priority: explicit before scaleOnly', () async {
-      final scanCompleter = Completer<void>();
-      mockScanner.queuedScanCompleters.add(scanCompleter);
+    test('queue priority: explicit arrives during scale-only drain', () async {
+      // Set up device list shared by all scans.
       mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
       mockScanner.addDevice(TestScale(deviceId: 's1'));
 
-      // Start a connect cycle and hold it open.
+      // Phase 1: start automatic scan A and hold it.
+      final scanA = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanA);
       connectionManager.connect();
       await Future<void>.delayed(Duration.zero);
 
-      // Queue both explicit and scaleOnly.
-      connectionManager.scanAndConnect();
+      // Queue scale-only while A is active.
       connectionManager.connect(scaleOnly: true);
       await Future<void>.delayed(Duration.zero);
 
-      // Before completing: verify scanner was stopped (superseded by explicit).
-      // The key property: after scanCompleter completes, the explicit scan
-      // drains first. We verify by checking that the generation was bumped.
+      // Phase 2: add scanB for the drain to hold the scale-only scan.
+      // Then complete A so the drain runs scale-only, which waits on scanB.
+      final scanB = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanB);
 
-      scanCompleter.complete();
-      await Future<void>.delayed(Duration.zero);
+      scanA.complete();
       await Future<void>.delayed(Duration.zero);
 
-      // The explicit scan ran (generation bump caused superseding). The
-      // scaleOnly also ran afterward if still needed. The system is not
-      // wedged.
-      expect(connectionManager.currentStatus.phase, isNotNull);
+      // Scale-only B is now active (waiting on scanB).
+      // Request explicit scan — this supersedes B.
+      final explicitFuture = connectionManager.scanAndConnect();
+      await Future<void>.delayed(Duration.zero);
+
+      // Scan was stopped (generation bump in scanAndConnect).
+      expect(mockScanner.stopScanCallCount, greaterThan(0));
+
+      // Complete B. Generation mismatch → cancelled report. Drain picks
+      // up queued explicit scan.
+      scanB.complete();
+      await Future<void>.delayed(Duration.zero);
+
+      // Phase 3: explicit scan C starts. Hold and complete it.
+      final scanC = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanC);
+      mockScanner.addDevice(_FakeDe1(deviceId: 'm1'));
+      mockScanner.addDevice(TestScale(deviceId: 's1'));
+
+      scanC.complete();
+      await explicitFuture;
+      await Future<void>.delayed(Duration.zero);
+
+      // C completed successfully (no exception from the future).
+
+      // Phase 4: no stranded queued request — a subsequent scanAndConnect
+      // runs normally.
+      final newFuture = connectionManager.scanAndConnect();
+      final scanD = Completer<void>();
+      mockScanner.queuedScanCompleters.add(scanD);
+      scanD.complete();
+      await newFuture;
     });
   });
 }
