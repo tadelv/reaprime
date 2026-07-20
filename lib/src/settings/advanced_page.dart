@@ -139,6 +139,37 @@ class AdvancedPage extends StatelessWidget {
                 ),
               ),
               const SettingsDivider(),
+              if (Platform.isIOS || Platform.isMacOS || Platform.isWindows) 
+              ...{
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: ShadSwitch(
+                  value: controller
+                      .isFeatureFlagEnabled(.largeBleMtuNonAndroid),
+                  onChanged: (v) async {
+                    await controller.setFeatureFlag(
+                      FeatureFlag.largeBleMtuNonAndroid,
+                      v,
+                    );
+                  },
+                  label: const Text('Use MTU value of 517'),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: Text(
+                  'Will try to negotiate a larger MTU value '
+                  'for Bluetooth connections. ',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SettingsDivider(),
+              },
 
               // Simulated devices
               Padding(

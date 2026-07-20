@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
@@ -106,12 +108,11 @@ class Bengle extends UnifiedDe1
     }
   }
 
-  // --- integrated scale lifecycle ---
-
   @override
   Future<void> onConnect() async {
     await super.onConnect();
     if (!isBengleModelValue(connectedModelValue)) {
+      unawaited(dispose());
       throw DeviceIdentityMismatchException(
         expected: 'Bengle',
         actualModelValue: connectedModelValue,

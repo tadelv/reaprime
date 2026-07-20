@@ -252,15 +252,7 @@ void main(List<String> args) async {
 
   final List<DeviceDiscoveryService> services = [];
 
-  // Every platform always has exactly one BLE service.
-  final BleDiscoveryService bleDiscoveryService;
-
-  // flutter_blue_plus → universal_ble migration complete: every platform
-  // (Windows, macOS, iOS, Android, and Linux as of Phase 3) runs on the single
-  // universal_ble stack. Linux uses universal_ble's pure-Dart BlueZ backend.
-  // See doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
-  final universalBleDiscoveryService = UniversalBleDiscoveryService();
-  bleDiscoveryService = universalBleDiscoveryService;
+  final bleDiscoveryService = UniversalBleDiscoveryService();
   if (!cliArgs.serial) {
     services.add(bleDiscoveryService);
   } else {
@@ -545,8 +537,8 @@ void main(List<String> args) async {
     };
   });
   await settingsController.loadSettings();
-  universalBleDiscoveryService.requestLargeMtuNonAndroid = settingsController
-      .isFeatureFlagEnabled(FeatureFlag.largeBleMtuNonAndroid);
+  bleDiscoveryService.requestLargeMtuNonAndroid = () =>
+      settingsController.isFeatureFlagEnabled(.largeBleMtuNonAndroid);
 
   // CLI overrides — apply after loadSettings so they overwrite any persisted
   // values and persist themselves.
