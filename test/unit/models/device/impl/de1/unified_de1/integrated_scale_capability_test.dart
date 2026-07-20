@@ -21,7 +21,7 @@ void main() {
       logSub = Logger.root.onRecord.listen(logRecords.add);
       transport = FakeBleTransport();
       bengle = Bengle(transport: transport);
-      transport.queueOnConnectResponses();
+      transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
     });
 
@@ -86,7 +86,7 @@ void main() {
       // subject; otherwise a fresh listener would observe `done`
       // immediately and the capability would be dead until the device
       // is re-instantiated.
-      transport.queueOnConnectResponses();
+      transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
 
       // Listening to weightSnapshot after the second onConnect should

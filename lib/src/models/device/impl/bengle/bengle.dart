@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 class Bengle extends UnifiedDe1
@@ -53,8 +55,9 @@ class Bengle extends UnifiedDe1
   // another MMR slot).
   final BehaviorSubject<double> _stopAtTempTarget =
       BehaviorSubject<double>.seeded(0.0);
-  final BehaviorSubject<bool> _probeAttached =
-      BehaviorSubject<bool>.seeded(false);
+  final BehaviorSubject<bool> _probeAttached = BehaviorSubject<bool>.seeded(
+    false,
+  );
   final PublishSubject<double> _probeTemperature = PublishSubject<double>();
   int _stopAtTempStubWarningsEmitted = 0;
 
@@ -76,7 +79,8 @@ class Bengle extends UnifiedDe1
     final addr = BengleSteamMmr.stopAtTemperatureTarget;
     if (addr.address == 0x00000000) {
       _logStopAtTempStubOnce(
-          'setStopAtTemperatureTarget($clamped) ignored. Awaiting FW.');
+        'setStopAtTemperatureTarget($clamped) ignored. Awaiting FW.',
+      );
       return;
     }
     await writeMmrScaled(addr, clamped);
@@ -107,6 +111,12 @@ class Bengle extends UnifiedDe1
   @override
   Future<void> onConnect() async {
     await super.onConnect();
+    if (!isBengleModelValue(connectedModelValue)) {
+      throw DeviceIdentityMismatchException(
+        expected: 'Bengle',
+        actualModelValue: connectedModelValue,
+      );
+    }
     await initIntegratedScale();
     await initLedStrip();
   }

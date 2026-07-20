@@ -5,8 +5,9 @@ class PermissionDeniedException implements Exception {
   const PermissionDeniedException([this.message]);
 
   @override
-  String toString() =>
-      message == null ? 'PermissionDeniedException' : 'PermissionDeniedException: $message';
+  String toString() => message == null
+      ? 'PermissionDeniedException'
+      : 'PermissionDeniedException: $message';
 }
 
 /// Which kind of device produced a [DeviceNotConnectedException].
@@ -31,6 +32,20 @@ class DeviceNotConnectedException implements Exception {
   @override
   String toString() =>
       'DeviceNotConnectedException: ${kind.name} not connected';
+}
+
+class DeviceIdentityMismatchException implements Exception {
+  final String expected;
+  final int actualModelValue;
+
+  const DeviceIdentityMismatchException({
+    required this.expected,
+    required this.actualModelValue,
+  });
+
+  @override
+  String toString() =>
+      'DeviceIdentityMismatchException: expected $expected, got v13Model=$actualModelValue';
 }
 
 /// Recorded as a non-fatal (never thrown) when `UnifiedDe1Transport.connect`
@@ -76,7 +91,8 @@ class MmrTimeoutException implements Exception {
 /// streaming response.
 class FirmwareUpdateInProgressException implements Exception {
   @override
-  String toString() => 'FirmwareUpdateInProgressException: a firmware '
+  String toString() =>
+      'FirmwareUpdateInProgressException: a firmware '
       'update is already in progress';
 }
 
@@ -86,7 +102,8 @@ class FirmwareUpdateCancelledException implements Exception {
   const FirmwareUpdateCancelledException();
 
   @override
-  String toString() => 'FirmwareUpdateCancelledException: firmware update '
+  String toString() =>
+      'FirmwareUpdateCancelledException: firmware update '
       'was cancelled';
 }
 

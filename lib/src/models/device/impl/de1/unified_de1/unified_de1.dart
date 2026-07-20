@@ -215,6 +215,10 @@ class UnifiedDe1 implements De1Interface {
   int _voltage = -1;
   int _refillKit = -1;
   double? _cachedFlowEstimation;
+  int? _connectedModelValue;
+
+  @protected
+  int get connectedModelValue => _connectedModelValue!;
 
   @override
   Future<void> onConnect() async {
@@ -231,10 +235,11 @@ class UnifiedDe1 implements De1Interface {
     }
 
     final model = _unpackMMRInt(await _mmrRead(MMRItem.v13Model));
-    if (model >= 128) {
+    _connectedModelValue = model;
+    if (isBengleModelValue(model)) {
       _log.warning(
-        'Device model $model indicates non-DE1 hardware '
-        '(Bengle or similar). Advertised name may be misleading.',
+        'Device model $model indicates Bengle hardware; '
+        'continuing in degraded DE1-compatible mode.',
       );
     }
     final ghcInfo = _unpackMMRInt(await _mmrRead(MMRItem.ghcInfo));

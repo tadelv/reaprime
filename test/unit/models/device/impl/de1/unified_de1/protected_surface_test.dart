@@ -207,6 +207,22 @@ void main() {
       expect(result, closeTo(25.0, 1e-9));
     });
 
+    test('SteamStartSecs uses hundredths of a second on the wire', () async {
+      expect(MMRItem.steamStartSecs.address, 0x0080382C);
+      expect(MMRItem.steamStartSecs.length, 4);
+
+      transport.queueMmrResponseInt(MMRItem.steamStartSecs, 150);
+      expect(await de1.capReadScaled(MMRItem.steamStartSecs), 1.5);
+
+      transport.writes.clear();
+      await de1.capWriteScaled(MMRItem.steamStartSecs, 1.5);
+      final frame = transport.writes.firstWhere(
+        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
+      );
+      final payload = ByteData.sublistView(frame.data, 4, 8);
+      expect(payload.getInt32(0, Endian.little), 150);
+    });
+
     test('writeMmrScaled clamps to min/max and writes scaled int', () async {
       const addr = _CapabilityAddr(
         address: 0x00804000,

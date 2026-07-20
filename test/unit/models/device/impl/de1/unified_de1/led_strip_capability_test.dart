@@ -21,7 +21,7 @@ void main() {
       logSub = Logger.root.onRecord.listen(logRecords.add);
       transport = FakeBleTransport();
       bengle = Bengle(transport: transport);
-      transport.queueOnConnectResponses();
+      transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
     });
 
@@ -100,7 +100,7 @@ void main() {
         emitsInOrder([isA<LedStripState>(), emitsDone]),
       );
 
-      transport.queueOnConnectResponses();
+      transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
 
       var streamCompletedWithoutValue = false;

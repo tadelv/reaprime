@@ -33,7 +33,7 @@ void main() {
         () async {
       final transport = FakeBleTransport();
       addTearDown(transport.dispose);
-      transport.queueOnConnectResponses();
+      transport.queueOnConnectResponses(v13Model: 128);
 
       final bengle = Bengle(transport: transport);
       await bengle.onConnect();
