@@ -59,13 +59,21 @@ class UniversalBleTransport implements BLETransport {
   static const int _bluezDiscoveryRetries = 3;
   static const Duration _bluezDiscoveryRetryDelay = Duration(seconds: 1);
 
-  bool get _isLinux => Platform.isLinux;
+  bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
+  bool get _isLinux => _isLinuxOverride ?? Platform.isLinux;
 
   UniversalBleTransport({
     required BleDevice device,
     Future<void> Function()? stopScan,
+    bool requestLargeMtuNonAndroid = false,
+    bool? isAndroidOverride,
+    bool? isLinuxOverride,
   })  : _device = device,
-        _stopScan = stopScan {
+        _stopScan = stopScan,
+        _requestLargeMtuNonAndroid = requestLargeMtuNonAndroid,
+        _isAndroidOverride = isAndroidOverride,
+        _isLinuxOverride = isLinuxOverride {
+
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
@@ -76,6 +84,9 @@ class UniversalBleTransport implements BLETransport {
   /// is already stopped. Falls back to a direct platform stop for
   /// transports constructed without a service.
   final Future<void> Function()? _stopScan;
+  final bool _requestLargeMtuNonAndroid;
+  final bool? _isAndroidOverride;
+  final bool? _isLinuxOverride;
 
   Future<void> _stopScanViaOwner() =>
       _stopScan?.call() ?? UniversalBle.stopScan();
@@ -121,7 +132,7 @@ class UniversalBleTransport implements BLETransport {
     // as the BlueZ le-connection-abort-by-local mitigation above; observed
     // 2026-07-15 as repeated 10s connect timeouts to an advertising scale
     // mid-scan). The ConnectionManager retry loop restarts scanning.
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       try {
         _log.fine("stopping scan before connect");
         await _stopScanViaOwner();
@@ -144,12 +155,10 @@ class UniversalBleTransport implements BLETransport {
     }
     _startAdvertWatch();
 
-    // Android: post-connect settle + MTU bump.
-    // The 200ms settle avoids service-discovery races on tablet SoCs
-    // where the BLE stack finalises GATT setup asynchronously after
-    // connect. MTU 517 reduces GATT round-trips for reads/writes.
-    if (!_isLinux && Platform.isAndroid) {
+    if (_isAndroid) {
       await Future.delayed(_androidPostConnectDelay);
+    }
+    if (!_isLinux && (_isAndroid || _requestLargeMtuNonAndroid)) {
       try {
         await UniversalBle.requestMtu(
           _device.deviceId,
