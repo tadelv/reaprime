@@ -12,7 +12,6 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/firmware_update_state.dart';
-import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
@@ -237,7 +236,7 @@ class UnifiedDe1 implements De1Interface {
 
     final model = _unpackMMRInt(await _mmrRead(MMRItem.v13Model));
     _connectedModelValue = model;
-    if (isBengleModelValue(model) && this is! Bengle) {
+    if (isBengleModelValue(model) && implementation != .bengle) {
       _log.warning(
         'Device model $model indicates Bengle hardware; '
         'continuing in degraded DE1-compatible mode.',
