@@ -260,20 +260,16 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 | PUT | `/api/v1/presence/schedules/:id` | Update wake schedule | |
 | DELETE | `/api/v1/presence/schedules/:id` | Delete wake schedule | |
 
-`POST /api/v1/presence/settings` validates its body and returns **400** rather than storing a bad
-value:
+`POST /api/v1/presence/settings` validates its body before persisting anything:
 
 | Field | Accepted | On anything else |
 |---|---|---|
 | `userPresenceEnabled` | a boolean | `400`, nothing stored |
-| `sleepTimeoutMinutes` | an integer in **0–240** | `400`, nothing stored |
+| `sleepTimeoutMinutes` | a JSON integer | `400`, nothing stored |
 
-`sleepTimeoutMinutes: 0` is valid and means **"Disabled"** — the app will not sleep the machine on
-its own idle timer.
-
-Both fields remain optional (partial updates are supported); validation applies only to fields that
-are present. Previously the handler hard-cast the raw JSON, so a non-integer threw and surfaced as a
-`500`, while an out-of-range number was stored verbatim.
+Integer values for `sleepTimeoutMinutes` are normalized into **0..240**. `0` disables the app-side
+idle sleep timer. Partial updates are supported — fields are optional. Invalid field types in the
+same request prevent all fields from being stored (validation is atomic).
 
 ### Sensors
 

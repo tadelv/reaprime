@@ -90,6 +90,22 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
   }
 
   Widget _buildSleepTimeoutSection() {
+    final controller = TextEditingController(
+      text: widget.controller.sleepTimeoutMinutes.toString(),
+    );
+
+    void commit() {
+      final parsed = int.tryParse(controller.text);
+      if (parsed == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a number of minutes')),
+        );
+        return;
+      }
+      widget.controller.setSleepTimeoutMinutes(parsed);
+      controller.text = widget.controller.sleepTimeoutMinutes.toString();
+    }
+
     return ShadCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -98,62 +114,42 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
           Text(
             'Sleep',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Put the machine to sleep after a period of inactivity. '
+            'Put the machine to sleep after a period of inactivity (0 = disabled). '
             'The timer resets whenever the machine is used.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
-          DropdownButton<int>(
-            isExpanded: true,
-            value: widget.controller.sleepTimeoutMinutes,
-            onChanged: (value) {
-              if (value != null) {
-                widget.controller.setSleepTimeoutMinutes(value);
-              }
-            },
-            items: const [
-              DropdownMenuItem(
-                value: 0,
-                child: Text('Disabled'),
+          Row(
+            children: [
+              SizedBox(
+                width: 80,
+                child: TextFormField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    suffixText: 'min',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(),
+                  ),
+                  onFieldSubmitted: (_) => commit(),
+                  onTapOutside: (_) => commit(),
+                ),
               ),
-              DropdownMenuItem(
-                value: 15,
-                child: Text('15 minutes'),
-              ),
-              DropdownMenuItem(
-                value: 30,
-                child: Text('30 minutes'),
-              ),
-              DropdownMenuItem(
-                value: 45,
-                child: Text('45 minutes'),
-              ),
-              DropdownMenuItem(
-                value: 60,
-                child: Text('1 hour'),
-              ),
-              DropdownMenuItem(
-                value: 90,
-                child: Text('1.5 hours'),
-              ),
-              DropdownMenuItem(
-                value: 120,
-                child: Text('2 hours'),
-              ),
-              DropdownMenuItem(
-                value: 180,
-                child: Text('3 hours'),
-              ),
+              const SizedBox(width: 8),
+              ShadButton.outline(onPressed: commit, child: const Text('Set')),
             ],
           ),
         ],
@@ -172,19 +168,18 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
           Text(
             'Wake schedule',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             'Schedule times for the machine to automatically wake up. '
             'Useful for having the machine ready when you start your day.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           if (widget.keepAwakeUntil != null &&
               widget.keepAwakeUntil!.isAfter(DateTime.now())) ...[
@@ -205,9 +200,8 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                   Text(
                     'Keeping awake until ${TimeOfDay.fromDateTime(widget.keepAwakeUntil!).format(context)}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
                   ),
                 ],
               ),
@@ -215,7 +209,9 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
           ],
           if (schedules.isNotEmpty) ...[
             const SizedBox(height: 16),
-            ...schedules.map((schedule) => _buildScheduleRow(schedule, schedules)),
+            ...schedules.map(
+              (schedule) => _buildScheduleRow(schedule, schedules),
+            ),
           ],
           const SizedBox(height: 16),
           ShadButton.outline(
@@ -229,7 +225,10 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
 
   // MARK: - Schedule Row
 
-  Widget _buildScheduleRow(WakeSchedule schedule, List<WakeSchedule> schedules) {
+  Widget _buildScheduleRow(
+    WakeSchedule schedule,
+    List<WakeSchedule> schedules,
+  ) {
     final timeOfDay = TimeOfDay(hour: schedule.hour, minute: schedule.minute);
 
     return Padding(
@@ -263,8 +262,9 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
               IconButton(
                 icon: const Icon(Icons.delete),
                 onPressed: () {
-                  final updated =
-                      schedules.where((s) => s.id != schedule.id).toList();
+                  final updated = schedules
+                      .where((s) => s.id != schedule.id)
+                      .toList();
                   _saveSchedules(updated);
                 },
               ),
@@ -318,8 +318,10 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                       hintText: '0',
                       suffixText: 'min',
                       isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
                       border: OutlineInputBorder(),
                     ),
                     onFieldSubmitted: (value) {
@@ -327,8 +329,7 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                       if (minutes != null && minutes > 720) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content:
-                                Text('Maximum is 720 minutes (12 hours)'),
+                            content: Text('Maximum is 720 minutes (12 hours)'),
                           ),
                         );
                         return;
@@ -356,8 +357,8 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
               'even if nobody uses it. After this time, the '
               'regular timeout decides when it goes to sleep.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           // Show day chips toggle when "Every day" is shown
@@ -370,8 +371,7 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                   // Start with all days selected
                   final updated = schedules.map((s) {
                     if (s.id == schedule.id) {
-                      return s.copyWith(
-                          daysOfWeek: {1, 2, 3, 4, 5, 6, 7});
+                      return s.copyWith(daysOfWeek: {1, 2, 3, 4, 5, 6, 7});
                     }
                     return s;
                   }).toList();
@@ -380,8 +380,8 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                 child: Text(
                   'Tap to select specific days',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
             ),

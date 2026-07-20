@@ -5,7 +5,7 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
-import 'package:reaprime/src/settings/sleep_timeout_safety.dart';
+import 'package:reaprime/src/settings/sleep_timeout_preference.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 
 import 'settings_service.dart';
@@ -135,23 +135,28 @@ class SettingsController with ChangeNotifier {
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
     _telemetryConsent = await _settingsService.telemetryConsent();
     _telemetryPromptShown = await _settingsService.telemetryPromptShown();
-    _telemetryConsentDialogShown = await _settingsService.telemetryConsentDialogShown();
+    _telemetryConsentDialogShown = await _settingsService
+        .telemetryConsentDialogShown();
     _chargingMode = await _settingsService.chargingMode();
     _nightModeEnabled = await _settingsService.nightModeEnabled();
     _nightModeSleepTime = await _settingsService.nightModeSleepTime();
     _nightModeMorningTime = await _settingsService.nightModeMorningTime();
     _userPresenceEnabled = await _settingsService.userPresenceEnabled();
-    _sleepTimeoutMinutes = await _settingsService.sleepTimeoutMinutes();
+    final rawTimeout = await _settingsService.sleepTimeoutMinutes();
+    final repaired = normalizeSleepTimeoutPreferenceMinutes(rawTimeout);
+    if (repaired != rawTimeout) {
+      await _settingsService.setSleepTimeoutMinutes(repaired);
+    }
+    _sleepTimeoutMinutes = repaired;
     _wakeSchedules = await _settingsService.wakeSchedules();
-    _lowBatteryBrightnessLimit = await _settingsService.lowBatteryBrightnessLimit();
+    _lowBatteryBrightnessLimit = await _settingsService
+        .lowBatteryBrightnessLimit();
     _onboardingCompleted = await _settingsService.onboardingCompleted();
     _accountStepSeen = await _settingsService.accountStepSeen();
-    _androidWarningDismissed =
-        await _settingsService.androidWarningDismissed();
-    _showSkinExitInstructions =
-        await _settingsService.showSkinExitInstructions();
-    _enableSimulatedWebViews =
-        await _settingsService.enableSimulatedWebViews();
+    _androidWarningDismissed = await _settingsService.androidWarningDismissed();
+    _showSkinExitInstructions = await _settingsService
+        .showSkinExitInstructions();
+    _enableSimulatedWebViews = await _settingsService.enableSimulatedWebViews();
 
     // Load feature flags
     for (final flag in FeatureFlag.values) {
@@ -221,7 +226,10 @@ class SettingsController with ChangeNotifier {
   }
 
   Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async {
-    if (const SetEquality<SimulatedDevicesTypes>().equals(value, _simulatedDevices)) {
+    if (const SetEquality<SimulatedDevicesTypes>().equals(
+      value,
+      _simulatedDevices,
+    )) {
       return;
     }
     _simulatedDevices = value;
@@ -241,10 +249,12 @@ class SettingsController with ChangeNotifier {
   /// on app restart.
   void enableSimulatedDevicesForSession(Set<SimulatedDevicesTypes> devices) {
     _simulatedDevices = devices;
-    _preferredMachineId =
-        devices.contains(SimulatedDevicesTypes.machine) ? 'MockDe1' : null;
-    _preferredScaleId =
-        devices.contains(SimulatedDevicesTypes.scale) ? 'MockScale' : null;
+    _preferredMachineId = devices.contains(SimulatedDevicesTypes.machine)
+        ? 'MockDe1'
+        : null;
+    _preferredScaleId = devices.contains(SimulatedDevicesTypes.scale)
+        ? 'MockScale'
+        : null;
     notifyListeners();
   }
 
@@ -283,7 +293,7 @@ class SettingsController with ChangeNotifier {
     await _settingsService.setScalePowerMode(mode);
     notifyListeners();
   }
-  
+
   Future<void> setBlockOnNoScale(bool value) async {
     if (value == _blockOnNoScale) {
       return;
@@ -403,19 +413,11 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sets the user's idle-sleep preference, in minutes. `0` = "Disabled", i.e.
-  /// the APP will not sleep the machine on its own idle timer.
-  ///
-  /// Clamped to `0..240` so no caller — REST, an imported settings blob, a
-  /// hand-edited pref — can store a nonsense value. `0` stays legal: it is a
-  /// statement about the app's behaviour, and says nothing about the machine's
-  /// own inactivity timeout.
   Future<void> setSleepTimeoutMinutes(int value) async {
-    final clamped =
-        value.clamp(kMinSleepTimeoutSetting, kMaxSleepTimeoutSetting);
-    if (clamped == _sleepTimeoutMinutes) return;
-    _sleepTimeoutMinutes = clamped;
-    await _settingsService.setSleepTimeoutMinutes(clamped);
+    final normalized = normalizeSleepTimeoutPreferenceMinutes(value);
+    if (normalized == _sleepTimeoutMinutes) return;
+    _sleepTimeoutMinutes = normalized;
+    await _settingsService.setSleepTimeoutMinutes(normalized);
     notifyListeners();
   }
 
@@ -475,6 +477,3 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 }
-
-
-
