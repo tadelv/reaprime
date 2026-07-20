@@ -27,11 +27,12 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   /// continuous scan there is battery-hostile. Injectable so host
   /// tests (where `Platform.isAndroid` is false) can exercise the
   /// watch path.
-  UniversalBleDiscoveryService({bool Function()? watchSupportGate})
-      : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid);
+  UniversalBleDiscoveryService({bool Function()? watchSupportGate, bool Function()? requestLargeMtuNonAndroid})
+    : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid),
+    requestLargeMtuNonAndroid = requestLargeMtuNonAndroid ?? (() => false);
 
   final bool Function() _watchSupportGate;
-  bool requestLargeMtuNonAndroid = false;
+  bool Function() requestLargeMtuNonAndroid;
 
   @override
   bool get supportsDeviceWatch => _watchSupportGate();
@@ -536,7 +537,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         transport: UniversalBleTransport(
           device: device,
           stopScan: _stopScanForConnect,
-          requestLargeMtuNonAndroid: requestLargeMtuNonAndroid,
+          requestLargeMtuNonAndroid: requestLargeMtuNonAndroid(),
         ),
         advertisedName: name,
       );
@@ -584,7 +585,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     final transport = UniversalBleTransport(
       device: bleDevice,
       stopScan: _stopScanForConnect,
-      requestLargeMtuNonAndroid: requestLargeMtuNonAndroid,
+      requestLargeMtuNonAndroid: requestLargeMtuNonAndroid(),
     );
     final device = DeviceFactory.createBle(impl, transport);
     if (device == null) {
@@ -603,13 +604,15 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
             'Quick-connect: identity mismatch for $deviceId '
             '(expected ${impl.name}, got model=$model)',
           );
-          try {
-            await device.disconnect();
-          } catch (_) {}
-          try {
-            await transport.dispose();
-          } catch (_) {}
-          return null;
+          if (expectedBengle && !actualBengle) {
+            try {
+              await device.disconnect();
+            } catch (_) {}
+            try {
+              await transport.dispose();
+            } catch (_) {}
+            return null;
+          }
         }
       }
       _devices[deviceId] = device;
