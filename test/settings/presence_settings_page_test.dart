@@ -22,6 +22,12 @@ void main() {
     await controller.loadSettings();
   });
 
+  /// Returns the text inside the sleep-timeout [TextFormField].
+  String sleepTimeoutFieldText(WidgetTester tester) {
+    final field = find.byType(TextFormField).first;
+    return tester.widget<TextFormField>(field).controller!.text;
+  }
+
   group('sleep timeout text field', () {
     testWidgets('enters an in-range value and commits it', (tester) async {
       await tester.pumpWidget(buildPage());
@@ -29,72 +35,59 @@ void main() {
 
       final field = find.byType(TextFormField).first;
       await tester.enterText(field, '37');
-
-      final setButton = find.text('Set');
-      await tester.tap(setButton);
+      await tester.tap(find.text('Set'));
       await tester.pump();
 
       expect(controller.sleepTimeoutMinutes, 37);
+      expect(sleepTimeoutFieldText(tester), '37');
     });
 
-    testWidgets('enters a value above 240, normalizes to 240', (tester) async {
+    testWidgets('clamps to 240', (tester) async {
       await tester.pumpWidget(buildPage());
       await tester.pump();
 
-      final field = find.byType(TextFormField).first;
-      await tester.enterText(field, '999');
-
-      final setButton = find.text('Set');
-      await tester.tap(setButton);
+      await tester.enterText(find.byType(TextFormField).first, '999');
+      await tester.tap(find.text('Set'));
       await tester.pump();
 
       expect(controller.sleepTimeoutMinutes, 240);
-      expect(find.text('240'), findsWidgets);
+      expect(sleepTimeoutFieldText(tester), '240');
     });
 
-    testWidgets('enters negative value, normalizes to 0', (tester) async {
+    testWidgets('clamps to 0 for negative input', (tester) async {
       await tester.pumpWidget(buildPage());
       await tester.pump();
 
-      final field = find.byType(TextFormField).first;
-      await tester.enterText(field, '-10');
-
-      final setButton = find.text('Set');
-      await tester.tap(setButton);
+      await tester.enterText(find.byType(TextFormField).first, '-10');
+      await tester.tap(find.text('Set'));
       await tester.pump();
 
       expect(controller.sleepTimeoutMinutes, 0);
-      expect(find.text('0'), findsWidgets);
+      expect(sleepTimeoutFieldText(tester), '0');
     });
 
-    testWidgets('empty text shows validation and is not persisted', (
+    testWidgets('empty text shows validation and does not persist', (
       tester,
     ) async {
       await tester.pumpWidget(buildPage());
       await tester.pump();
 
-      final field = find.byType(TextFormField).first;
-      await tester.enterText(field, '');
-
-      final setButton = find.text('Set');
-      await tester.tap(setButton);
+      await tester.enterText(find.byType(TextFormField).first, '');
+      await tester.tap(find.text('Set'));
       await tester.pump();
 
       expect(find.text('Enter a number of minutes'), findsOneWidget);
       expect(controller.sleepTimeoutMinutes, 30);
     });
 
-    testWidgets('non-numeric text shows validation and is not persisted', (
+    testWidgets('non-numeric text shows validation and does not persist', (
       tester,
     ) async {
       await tester.pumpWidget(buildPage());
       await tester.pump();
 
-      final field = find.byType(TextFormField).first;
-      await tester.enterText(field, 'abc');
-
-      final setButton = find.text('Set');
-      await tester.tap(setButton);
+      await tester.enterText(find.byType(TextFormField).first, 'abc');
+      await tester.tap(find.text('Set'));
       await tester.pump();
 
       expect(find.text('Enter a number of minutes'), findsOneWidget);
@@ -105,15 +98,55 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pump();
 
-      final field = find.byType(TextFormField).first;
-      await tester.enterText(field, '37');
-
-      final setButton = find.text('Set');
-      await tester.tap(setButton);
+      await tester.enterText(find.byType(TextFormField).first, '37');
+      await tester.tap(find.text('Set'));
       await tester.pump();
 
       expect(controller.sleepTimeoutMinutes, 37);
-      expect(find.text('37'), findsWidgets);
+      expect(sleepTimeoutFieldText(tester), '37');
+    });
+  });
+
+  group('rebuild safety', () {
+    testWidgets('uncommitted text survives controller notification', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextFormField).first, '37');
+      // do not commit — rebuild by changing an unrelated setting
+      controller.setShowSkinExitInstructions(true);
+      await tester.pump();
+
+      expect(sleepTimeoutFieldText(tester), '37');
+      expect(controller.sleepTimeoutMinutes, 30); // still the default
+    });
+
+    testWidgets('external change syncs field when unfocused', (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      expect(sleepTimeoutFieldText(tester), '30');
+
+      await controller.setSleepTimeoutMinutes(90);
+      await tester.pump();
+
+      expect(sleepTimeoutFieldText(tester), '90');
+    });
+
+    testWidgets('focused field ignores external changes', (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      final field = find.byType(TextFormField).first;
+      await tester.enterText(field, '42');
+
+      // external change while field has focus
+      await controller.setSleepTimeoutMinutes(90);
+      await tester.pump();
+
+      expect(sleepTimeoutFieldText(tester), '42');
     });
   });
 }
