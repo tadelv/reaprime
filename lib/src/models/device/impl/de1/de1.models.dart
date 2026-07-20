@@ -73,7 +73,9 @@ enum De1StateEnum {
   inBootLoader(0x13), // Bootloader is active, firmware has not run
   airPurge(0x14), // Air purge
   schedIdle(0x15), // Scheduled wake-up idle state
-  fwUpgrade(0x16), // FirmwareUp (corrected from 0x22, which was never a wire value)
+  fwUpgrade(
+    0x16,
+  ), // FirmwareUp (corrected from 0x22, which was never a wire value)
   unknown(-1); // Default or unknown state
 
   final int hexValue;
@@ -296,6 +298,8 @@ enum MMRItem implements MmrAddress {
     4,
     MmrValueKind.scaledFloat,
     "Seconds of high steam flow * 100. Valid range 0.0 - 4.0. 0 may result in an overheated heater. Be careful.",
+    readScale: 0.01,
+    writeScale: 100.0,
   ),
   serialN(0x00803830, 4, MmrValueKind.int32, "Current serial number"),
   heaterV(
@@ -397,6 +401,8 @@ enum MMRItem implements MmrAddress {
   String get name => (this as Enum).name;
 }
 
+bool isBengleModelValue(int value) => value >= 128;
+
 enum DecentMachineModel {
   DE1Pro,
   DE1XL,
@@ -415,10 +421,10 @@ enum DecentMachineModel {
         return DecentMachineModel.DE1XXL;
       case 6:
         return DecentMachineModel.DE1XXXL;
-      case 128:
-        return DecentMachineModel.Bengle;
       default:
-        return DecentMachineModel.Unknown;
+        return isBengleModelValue(model)
+            ? DecentMachineModel.Bengle
+            : DecentMachineModel.Unknown;
     }
   }
 }

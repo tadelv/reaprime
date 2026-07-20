@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
@@ -431,7 +432,8 @@ class SerialServiceAndroid
               break;
             }
           }
-          final isBengle = v13Model != null && v13Model >= 128;
+          final isBengle =
+              v13Model != null && isBengleModelValue(v13Model);
           _log.info(
               "Detected: ${isBengle ? 'Bengle' : 'DE1'} (v13Model=$v13Model)");
           return isBengle
