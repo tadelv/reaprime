@@ -18,6 +18,10 @@ enum FeatureFlag {
   /// Default: **true** (opt-out — 10-shot validation gate passed;
   /// mean |Δyield| 0.44g ≤ 1g baseline, flow noise 8–13% vs 14.7% old).
   kalmanFlow,
+
+  /// Requests MTU 517 on native platforms other than Android and Linux.
+  /// Android already requests it unconditionally; BlueZ owns Linux MTU.
+  largeBleMtuNonAndroid,
 }
 
 /// Default values for each flag. Flags that ship as "on" default to true;
@@ -25,4 +29,5 @@ enum FeatureFlag {
 const Map<FeatureFlag, bool> defaultFeatureFlagValues = {
   FeatureFlag.stepExitArbiter: true,
   FeatureFlag.kalmanFlow: true,
+  FeatureFlag.largeBleMtuNonAndroid: false,
 };

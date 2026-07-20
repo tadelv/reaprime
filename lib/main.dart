@@ -259,7 +259,8 @@ void main(List<String> args) async {
   // (Windows, macOS, iOS, Android, and Linux as of Phase 3) runs on the single
   // universal_ble stack. Linux uses universal_ble's pure-Dart BlueZ backend.
   // See doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
-  bleDiscoveryService = UniversalBleDiscoveryService();
+  final universalBleDiscoveryService = UniversalBleDiscoveryService();
+  bleDiscoveryService = universalBleDiscoveryService;
   if (!cliArgs.serial) {
     services.add(bleDiscoveryService);
   } else {
@@ -544,6 +545,8 @@ void main(List<String> args) async {
     };
   });
   await settingsController.loadSettings();
+  universalBleDiscoveryService.requestLargeMtuNonAndroid = settingsController
+      .isFeatureFlagEnabled(FeatureFlag.largeBleMtuNonAndroid);
 
   // CLI overrides — apply after loadSettings so they overwrite any persisted
   // values and persist themselves.

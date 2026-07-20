@@ -31,6 +31,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid);
 
   final bool Function() _watchSupportGate;
+  bool requestLargeMtuNonAndroid = false;
 
   @override
   bool get supportsDeviceWatch => _watchSupportGate();
@@ -362,7 +363,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     });
 
     if (initialState != AvailabilityState.poweredOn) {
-      log.warning("Bluetooth not supported on this platform, state: ${initialState.name}");
+      log.warning(
+        "Bluetooth not supported on this platform, state: ${initialState.name}",
+      );
     }
   }
 
@@ -533,6 +536,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         transport: UniversalBleTransport(
           device: device,
           stopScan: _stopScanForConnect,
+          requestLargeMtuNonAndroid: requestLargeMtuNonAndroid,
         ),
         advertisedName: name,
       );
@@ -580,6 +584,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     final transport = UniversalBleTransport(
       device: bleDevice,
       stopScan: _stopScanForConnect,
+      requestLargeMtuNonAndroid: requestLargeMtuNonAndroid,
     );
     final device = DeviceFactory.createBle(impl, transport);
     if (device == null) {
@@ -598,8 +603,12 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
             'Quick-connect: identity mismatch for $deviceId '
             '(expected ${impl.name}, got model=$model)',
           );
-          try { await device.disconnect(); } catch (_) {}
-          try { await transport.dispose(); } catch (_) {}
+          try {
+            await device.disconnect();
+          } catch (_) {}
+          try {
+            await transport.dispose();
+          } catch (_) {}
           return null;
         }
       }
