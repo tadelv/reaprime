@@ -8,13 +8,13 @@
 - Out-of-range integers were written unchecked (e.g., 99999)
 - `userPresenceEnabled as bool` had the same unchecked cast
 - Settings import (`SettingsExportSection._importSetting`) had the identical hard cast
-- The native settings page used a dropdown with only 5, 15, 30, 60, 120 options
+- The native settings page used a dropdown with only 0, 15, 30, 45, 60, 90, 120, 180 options
 
 ## Selected preference contract
 
 - `sleepTimeoutMinutes` range: **0–240** (0 = disabled)
 - Integer values outside this range are **normalized** (clamped), not rejected
-- Non-integer values (string, double, null, missing) are **rejected** with 400
+- Non-integer values (string, double, null) are **rejected** with 400
 - `userPresenceEnabled` accepts `bool` only — everything else is 400
 - Both fields remain optional (partial updates valid)
 
@@ -63,7 +63,7 @@ The `PresenceSettingsPage` timeout field uses:
 | Preference unit | 3 | normalization bounds |
 | Controller | 7 | normalize-on-write, repair-on-load, no-op guard |
 | REST handler | 15 | atomic validation, normalization, rejection, partial updates |
-| Import | 8 | int OK, string/negative/null rejected, field index tracking |
+| Import | 8 | int OK, string/null rejected, negative normalized to 0, field index tracking |
 | Widget | 9 | commit, clamp, validation, rebuild survival, external sync, focus protection |
 
 **Total: 42 tests**
