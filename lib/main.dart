@@ -65,7 +65,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
-import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 
 import 'src/app.dart';
 import 'src/launcher/launcher_view.dart';
