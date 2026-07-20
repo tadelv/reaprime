@@ -20,6 +20,76 @@ class PresenceSettingsPage extends StatefulWidget {
 class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
   static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  late final TextEditingController _sleepTimeoutTextController;
+  late final FocusNode _sleepTimeoutFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _sleepTimeoutTextController = TextEditingController(
+      text: widget.controller.sleepTimeoutMinutes.toString(),
+    );
+    _sleepTimeoutFocusNode = FocusNode();
+
+    widget.controller.addListener(_handleSettingsChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleSettingsChanged);
+    _sleepTimeoutTextController.dispose();
+    _sleepTimeoutFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PresenceSettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleSettingsChanged);
+      widget.controller.addListener(_handleSettingsChanged);
+      _syncSleepTimeoutText();
+    }
+  }
+
+  void _handleSettingsChanged() {
+    if (!_sleepTimeoutFocusNode.hasFocus) {
+      _syncSleepTimeoutText();
+    }
+  }
+
+  void _syncSleepTimeoutText() {
+    final value = widget.controller.sleepTimeoutMinutes.toString();
+
+    if (_sleepTimeoutTextController.text == value) return;
+
+    _sleepTimeoutTextController.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  Future<void> _commitSleepTimeout() async {
+    final parsed = int.tryParse(_sleepTimeoutTextController.text.trim());
+
+    if (parsed == null) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a number of minutes')),
+      );
+      return;
+    }
+
+    await widget.controller.setSleepTimeoutMinutes(parsed);
+
+    if (!mounted) return;
+
+    _syncSleepTimeoutText();
+  }
+
   List<WakeSchedule> _parseSchedules() {
     final json = widget.controller.wakeSchedules;
     if (json.isEmpty || json == '[]') return [];
@@ -90,22 +160,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
   }
 
   Widget _buildSleepTimeoutSection() {
-    final controller = TextEditingController(
-      text: widget.controller.sleepTimeoutMinutes.toString(),
-    );
-
-    void commit() {
-      final parsed = int.tryParse(controller.text);
-      if (parsed == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a number of minutes')),
-        );
-        return;
-      }
-      widget.controller.setSleepTimeoutMinutes(parsed);
-      controller.text = widget.controller.sleepTimeoutMinutes.toString();
-    }
-
     return ShadCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -133,8 +187,12 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
               SizedBox(
                 width: 80,
                 child: TextFormField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
+                  controller: _sleepTimeoutTextController,
+                  focusNode: _sleepTimeoutFocusNode,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true,
+                    decimal: false,
+                  ),
                   decoration: const InputDecoration(
                     suffixText: 'min',
                     isDense: true,
@@ -144,12 +202,22 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                     ),
                     border: OutlineInputBorder(),
                   ),
-                  onFieldSubmitted: (_) => commit(),
-                  onTapOutside: (_) => commit(),
+                  onFieldSubmitted: (_) {
+                    _commitSleepTimeout();
+                  },
+                  onTapOutside: (_) {
+                    _sleepTimeoutFocusNode.unfocus();
+                    _commitSleepTimeout();
+                  },
                 ),
               ),
               const SizedBox(width: 8),
-              ShadButton.outline(onPressed: commit, child: const Text('Set')),
+              ShadButton.outline(
+                onPressed: () {
+                  _commitSleepTimeout();
+                },
+                child: const Text('Set'),
+              ),
             ],
           ),
         ],
@@ -238,7 +306,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
         children: [
           Row(
             children: [
-              // Time display - tappable to edit
               GestureDetector(
                 onTap: () => _editScheduleTime(schedule, schedules),
                 child: Text(
@@ -247,7 +314,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                 ),
               ),
               const Spacer(),
-              // Enable/disable toggle
               ShadSwitch(
                 value: schedule.enabled,
                 onChanged: (v) {
@@ -258,7 +324,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                   _saveSchedules(updated);
                 },
               ),
-              // Delete button
               IconButton(
                 icon: const Icon(Icons.delete),
                 onPressed: () {
@@ -271,7 +336,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
             ],
           ),
           const SizedBox(height: 8),
-          // Day chips
           Wrap(
             spacing: 6,
             runSpacing: 4,
@@ -299,7 +363,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                   ),
             ],
           ),
-          // Keep-awake duration input
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Row(
@@ -361,14 +424,11 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
               ),
             ),
           ),
-          // Show day chips toggle when "Every day" is shown
           if (schedule.daysOfWeek.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: GestureDetector(
                 onTap: () {
-                  // Switch from "every day" to explicit day selection
-                  // Start with all days selected
                   final updated = schedules.map((s) {
                     if (s.id == schedule.id) {
                       return s.copyWith(daysOfWeek: {1, 2, 3, 4, 5, 6, 7});
@@ -444,7 +504,6 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
       newDays.remove(day);
     }
 
-    // If all days are deselected, revert to "every day" (empty set)
     final effectiveDays = newDays.length == 7 ? <int>{} : newDays;
 
     final updated = schedules.map((s) {
