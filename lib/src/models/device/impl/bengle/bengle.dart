@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
@@ -112,7 +110,7 @@ class Bengle extends UnifiedDe1
   Future<void> onConnect() async {
     await super.onConnect();
     if (!isBengleModelValue(connectedModelValue)) {
-      unawaited(dispose());
+      await dispose();
       throw DeviceIdentityMismatchException(
         expected: 'Bengle',
         actualModelValue: connectedModelValue,

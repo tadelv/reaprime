@@ -12,6 +12,7 @@ import 'package:reaprime/src/services/device_factory.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:reaprime/src/models/device/device_watch.dart';
 import 'package:reaprime/src/models/device/watch_filter.dart';
+import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
@@ -19,20 +20,49 @@ import '../models/device/machine.dart';
 import '../models/device/impl/de1/de1.models.dart';
 import 'package:logging/logging.dart' as logging;
 
+typedef BleTransportFactory = BLETransport Function({
+  required BleDevice device,
+  required Future<void> Function() stopScan,
+  required bool requestLargeMtuNonAndroid,
+});
+
 class UniversalBleDiscoveryService extends BleDiscoveryService
     implements DeviceWatchCapable {
-  /// [watchSupportGate] gates [supportsDeviceWatch]. Defaults to
-  /// Android-only: the background watch relies on `AndroidScanMode`
-  /// duty cycles; CoreBluetooth has no equivalent knob and a
-  /// continuous scan there is battery-hostile. Injectable so host
-  /// tests (where `Platform.isAndroid` is false) can exercise the
-  /// watch path.
-  UniversalBleDiscoveryService({bool Function()? watchSupportGate, bool Function()? requestLargeMtuNonAndroid})
-    : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid),
-    requestLargeMtuNonAndroid = requestLargeMtuNonAndroid ?? (() => false);
+    UniversalBleDiscoveryService({
+    bool Function()? watchSupportGate,
+    bool Function()? requestLargeMtuNonAndroid,
+    BleTransportFactory? transportFactory,
+  }) : _watchSupportGate =
+           watchSupportGate ?? (() => Platform.isAndroid),
+       requestLargeMtuNonAndroid =
+           requestLargeMtuNonAndroid ?? (() => false),
+       _transportFactory =
+           transportFactory ?? _defaultTransportFactory;
+
+  static BLETransport _defaultTransportFactory({
+    required BleDevice device,
+    required Future<void> Function() stopScan,
+    required bool requestLargeMtuNonAndroid,
+  }) {
+    return UniversalBleTransport(
+      device: device,
+      stopScan: stopScan,
+      requestLargeMtuNonAndroid: requestLargeMtuNonAndroid,
+    );
+  }
 
   final bool Function() _watchSupportGate;
+  final BleTransportFactory _transportFactory;
+
   bool Function() requestLargeMtuNonAndroid;
+
+  BLETransport _createTransport(BleDevice device) {
+    return _transportFactory(
+      device: device,
+      stopScan: _stopScanForConnect,
+      requestLargeMtuNonAndroid: requestLargeMtuNonAndroid(),
+    );
+  }
 
   @override
   bool get supportsDeviceWatch => _watchSupportGate();
@@ -534,11 +564,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       if (_devices.containsKey(device.deviceId.toString())) return;
 
       final matchedDevice = await DeviceMatcher.match(
-        transport: UniversalBleTransport(
-          device: device,
-          stopScan: _stopScanForConnect,
-          requestLargeMtuNonAndroid: requestLargeMtuNonAndroid(),
-        ),
+        transport: _createTransport(device),
         advertisedName: name,
       );
 
@@ -582,11 +608,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       bleDevice = BleDevice(deviceId: deviceId, name: remembered.name);
     }
 
-    final transport = UniversalBleTransport(
-      device: bleDevice,
-      stopScan: _stopScanForConnect,
-      requestLargeMtuNonAndroid: requestLargeMtuNonAndroid(),
-    );
+    final transport = _createTransport(bleDevice);
     final device = DeviceFactory.createBle(impl, transport);
     if (device == null) {
       log.warning('Quick-connect: DeviceFactory returned null for $impl');
