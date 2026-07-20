@@ -3352,14 +3352,12 @@ paths:
                     any other type is rejected with 400.
                 sleepTimeoutMinutes:
                   type: integer
-                  minimum: 0
-                  maximum: 240
                   description: >
                     Minutes of inactivity before the app puts the machine to
-                    sleep. Must be an integer in 0..240; anything else (a
-                    non-integer, or a value outside the range) is rejected with
-                    400 and nothing is stored. `0` means "Disabled" — the app
-                    will not sleep the machine on its own idle timer.
+                    sleep. Must be a JSON integer; non-integer types are
+                    rejected with 400. Integer values are normalized into
+                    0..240. `0` disables the app-side idle sleep timer.
+                    Partial updates are supported.
             examples:
               enablePresence:
                 summary: Enable presence tracking with 30 minute timeout
@@ -3386,11 +3384,13 @@ paths:
                     type: boolean
                   sleepTimeoutMinutes:
                     type: integer
+                    minimum: 0
+                    maximum: 240
         "400":
           description: >
             Invalid field value — `userPresenceEnabled` was not a boolean, or
-            `sleepTimeoutMinutes` was not an integer in 0..240. No setting is
-            changed.
+            `sleepTimeoutMinutes` was not an integer, or the request body was
+            malformed. No setting is changed.
           content:
             application/json:
               schema:

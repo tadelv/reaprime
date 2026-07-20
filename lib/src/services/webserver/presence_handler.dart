@@ -9,8 +9,8 @@ class PresenceHandler {
   PresenceHandler({
     required PresenceController presenceController,
     required SettingsController settingsController,
-  })  : _presenceController = presenceController,
-        _settingsController = settingsController;
+  }) : _presenceController = presenceController,
+       _settingsController = settingsController;
 
   void addRoutes(RouterPlus app) {
     app.post('/api/v1/machine/heartbeat', _heartbeatHandler);
@@ -41,9 +41,9 @@ class PresenceHandler {
       final schedulesJson = _settingsController.wakeSchedules;
       List<Map<String, dynamic>> schedules = [];
       if (schedulesJson.isNotEmpty && schedulesJson != '[]') {
-        schedules = WakeSchedule.deserializeList(schedulesJson)
-            .map((s) => s.toJson())
-            .toList();
+        schedules = WakeSchedule.deserializeList(
+          schedulesJson,
+        ).map((s) => s.toJson()).toList();
       }
 
       return jsonOk({
@@ -63,35 +63,47 @@ class PresenceHandler {
   Future<Response> _updateSettingsHandler(Request request) async {
     try {
       final body = await request.readAsString();
-      final json = jsonDecode(body) as Map<String, dynamic>;
-
-      if (json.containsKey('userPresenceEnabled')) {
-        final enabled = json['userPresenceEnabled'];
-        if (enabled is! bool) {
-          return jsonBadRequest(
-              {'error': 'userPresenceEnabled must be a boolean'});
-        }
-        await _settingsController.setUserPresenceEnabled(enabled);
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) {
+        return jsonBadRequest({'error': 'Request body must be a JSON object'});
       }
-      if (json.containsKey('sleepTimeoutMinutes')) {
-        // Bounded, never cast raw: a null/garbage/out-of-range value used to
-        // sail straight into the setting, and a non-int threw a TypeError that
-        // surfaced as a 500. See sleep_timeout_safety.dart.
-        final minutes = json['sleepTimeoutMinutes'];
-        if (minutes is! int || !isValidSleepTimeoutSetting(minutes)) {
+
+      bool? userPresenceEnabled;
+      int? sleepTimeoutMinutes;
+
+      if (decoded.containsKey('userPresenceEnabled')) {
+        final v = decoded['userPresenceEnabled'];
+        if (v is! bool) {
           return jsonBadRequest({
-            'error': 'sleepTimeoutMinutes must be an integer '
-                '$kMinSleepTimeoutSetting-$kMaxSleepTimeoutSetting '
-                '(0 = the app will not sleep the machine on its own idle timer)',
+            'error': 'userPresenceEnabled must be a boolean',
           });
         }
-        await _settingsController.setSleepTimeoutMinutes(minutes);
+        userPresenceEnabled = v;
+      }
+
+      if (decoded.containsKey('sleepTimeoutMinutes')) {
+        final v = decoded['sleepTimeoutMinutes'];
+        if (v is! int) {
+          return jsonBadRequest({
+            'error': 'sleepTimeoutMinutes must be an integer',
+          });
+        }
+        sleepTimeoutMinutes = normalizeSleepTimeoutPreferenceMinutes(v);
+      }
+
+      if (userPresenceEnabled != null) {
+        await _settingsController.setUserPresenceEnabled(userPresenceEnabled);
+      }
+      if (sleepTimeoutMinutes != null) {
+        await _settingsController.setSleepTimeoutMinutes(sleepTimeoutMinutes);
       }
 
       return jsonOk({
         'userPresenceEnabled': _settingsController.userPresenceEnabled,
         'sleepTimeoutMinutes': _settingsController.sleepTimeoutMinutes,
       });
+    } on FormatException {
+      return jsonBadRequest({'error': 'Malformed JSON'});
     } catch (e, st) {
       log.severe('Error in update settings handler', e, st);
       return jsonError({'error': e.toString()});
@@ -124,13 +136,17 @@ class PresenceHandler {
 
       final keepAwakeFor = json['keepAwakeFor'] as int?;
       if (keepAwakeFor != null && (keepAwakeFor < 0 || keepAwakeFor > 720)) {
-        return jsonBadRequest({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'});
+        return jsonBadRequest({
+          'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear',
+        });
       }
 
       final schedule = WakeSchedule.create(
-        hour: json['hour'] as int? ??
+        hour:
+            json['hour'] as int? ??
             int.parse((json['time'] as String).split(':')[0]),
-        minute: json['minute'] as int? ??
+        minute:
+            json['minute'] as int? ??
             int.parse((json['time'] as String).split(':')[1]),
         daysOfWeek: json.containsKey('daysOfWeek')
             ? (json['daysOfWeek'] as List).cast<int>().toSet()
@@ -146,8 +162,9 @@ class PresenceHandler {
       }
 
       schedules.add(schedule);
-      await _settingsController
-          .setWakeSchedules(WakeSchedule.serializeList(schedules));
+      await _settingsController.setWakeSchedules(
+        WakeSchedule.serializeList(schedules),
+      );
 
       return jsonCreated(schedule.toJson());
     } catch (e, st) {
@@ -190,7 +207,9 @@ class PresenceHandler {
       if (json.containsKey('keepAwakeFor')) {
         final val = json['keepAwakeFor'] as int?;
         if (val != null && (val < 0 || val > 720)) {
-          return jsonBadRequest({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'});
+          return jsonBadRequest({
+            'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear',
+          });
         }
         if (val == null || val == 0) {
           clearKeepAwakeFor = true;
@@ -212,8 +231,9 @@ class PresenceHandler {
       );
 
       schedules[index] = updated;
-      await _settingsController
-          .setWakeSchedules(WakeSchedule.serializeList(schedules));
+      await _settingsController.setWakeSchedules(
+        WakeSchedule.serializeList(schedules),
+      );
 
       return jsonOk(updated.toJson());
     } catch (e, st) {
@@ -238,8 +258,9 @@ class PresenceHandler {
       }
 
       schedules.removeAt(index);
-      await _settingsController
-          .setWakeSchedules(WakeSchedule.serializeList(schedules));
+      await _settingsController.setWakeSchedules(
+        WakeSchedule.serializeList(schedules),
+      );
 
       return jsonOk({'deleted': id});
     } catch (e, st) {

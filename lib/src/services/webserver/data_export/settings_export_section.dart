@@ -2,14 +2,13 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
-import 'package:reaprime/src/settings/sleep_timeout_safety.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 
 class SettingsExportSection implements DataExportSection {
   final SettingsController _controller;
 
   SettingsExportSection({required SettingsController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   @override
   String get filename => 'settings.json';
@@ -59,14 +58,14 @@ class SettingsExportSection implements DataExportSection {
       final settings = map['settings'] as Map<String, dynamic>?;
       if (settings != null) {
         if (settings.containsKey('gatewayMode')) {
-          final mode =
-              GatewayModeFromString.fromString(settings['gatewayMode']);
+          final mode = GatewayModeFromString.fromString(
+            settings['gatewayMode'],
+          );
           if (mode != null) {
             await _controller.updateGatewayMode(mode);
             imported++;
           } else {
-            errors.add(
-                'Invalid gatewayMode: ${settings['gatewayMode']}');
+            errors.add('Invalid gatewayMode: ${settings['gatewayMode']}');
           }
         }
 
@@ -107,85 +106,93 @@ class SettingsExportSection implements DataExportSection {
 
         if (settings.containsKey('scalePowerMode')) {
           final mode = ScalePowerModeFromString.fromString(
-              settings['scalePowerMode']);
+            settings['scalePowerMode'],
+          );
           if (mode != null) {
             await _controller.setScalePowerMode(mode);
             imported++;
           } else {
-            errors.add(
-                'Invalid scalePowerMode: ${settings['scalePowerMode']}');
+            errors.add('Invalid scalePowerMode: ${settings['scalePowerMode']}');
           }
         }
 
         if (settings.containsKey('blockOnNoScale')) {
-          await _controller
-              .setBlockOnNoScale(settings['blockOnNoScale'] as bool);
+          await _controller.setBlockOnNoScale(
+            settings['blockOnNoScale'] as bool,
+          );
           imported++;
         }
 
         if (settings.containsKey('stopHotWaterAtWeight')) {
-          await _controller
-              .setStopHotWaterAtWeight(settings['stopHotWaterAtWeight'] as bool);
+          await _controller.setStopHotWaterAtWeight(
+            settings['stopHotWaterAtWeight'] as bool,
+          );
           imported++;
         }
 
         if (settings.containsKey('defaultSkinId')) {
-          await _controller
-              .setDefaultSkinId(settings['defaultSkinId'] as String);
+          await _controller.setDefaultSkinId(
+            settings['defaultSkinId'] as String,
+          );
           imported++;
         }
 
         if (settings.containsKey('automaticUpdateCheck')) {
-          await _controller
-              .setAutomaticUpdateCheck(settings['automaticUpdateCheck'] as bool);
+          await _controller.setAutomaticUpdateCheck(
+            settings['automaticUpdateCheck'] as bool,
+          );
           imported++;
         }
 
         if (settings.containsKey('chargingMode')) {
-          final mode =
-              ChargingModeFromString.fromString(settings['chargingMode']);
+          final mode = ChargingModeFromString.fromString(
+            settings['chargingMode'],
+          );
           if (mode != null) {
             await _controller.setChargingMode(mode);
             imported++;
           } else {
-            errors.add(
-                'Invalid chargingMode: ${settings['chargingMode']}');
+            errors.add('Invalid chargingMode: ${settings['chargingMode']}');
           }
         }
 
         if (settings.containsKey('nightModeEnabled')) {
-          await _controller
-              .setNightModeEnabled(settings['nightModeEnabled'] as bool);
+          await _controller.setNightModeEnabled(
+            settings['nightModeEnabled'] as bool,
+          );
           imported++;
         }
 
         if (settings.containsKey('nightModeSleepTime')) {
-          await _controller
-              .setNightModeSleepTime(settings['nightModeSleepTime'] as int);
+          await _controller.setNightModeSleepTime(
+            settings['nightModeSleepTime'] as int,
+          );
           imported++;
         }
 
         if (settings.containsKey('nightModeMorningTime')) {
-          await _controller
-              .setNightModeMorningTime(settings['nightModeMorningTime'] as int);
+          await _controller.setNightModeMorningTime(
+            settings['nightModeMorningTime'] as int,
+          );
           imported++;
         }
 
         if (settings.containsKey('userPresenceEnabled')) {
-          await _controller
-              .setUserPresenceEnabled(settings['userPresenceEnabled'] as bool);
+          await _controller.setUserPresenceEnabled(
+            settings['userPresenceEnabled'] as bool,
+          );
           imported++;
         }
 
         if (settings.containsKey('sleepTimeoutMinutes')) {
-          // Bounded, not hard-cast: an imported blob is untrusted input. An
-          // unusable value is SKIPPED (the current setting stands) rather than
-          // stored — see sleep_timeout_safety.dart.
-          final minutes =
-              sanitizeSleepTimeoutSetting(settings['sleepTimeoutMinutes']);
-          if (minutes != null) {
-            await _controller.setSleepTimeoutMinutes(minutes);
+          final v = settings['sleepTimeoutMinutes'];
+          if (v is int) {
+            await _controller.setSleepTimeoutMinutes(v);
             imported++;
+          } else {
+            errors.add(
+              'sleepTimeoutMinutes must be an integer, got ${v.runtimeType}',
+            );
           }
         }
       }
@@ -200,13 +207,15 @@ class SettingsExportSection implements DataExportSection {
       final devicePrefs = map['devicePreferences'] as Map<String, dynamic>?;
       if (devicePrefs != null) {
         if (devicePrefs.containsKey('preferredMachineId')) {
-          await _controller
-              .setPreferredMachineId(devicePrefs['preferredMachineId'] as String?);
+          await _controller.setPreferredMachineId(
+            devicePrefs['preferredMachineId'] as String?,
+          );
           imported++;
         }
         if (devicePrefs.containsKey('preferredScaleId')) {
-          await _controller
-              .setPreferredScaleId(devicePrefs['preferredScaleId'] as String?);
+          await _controller.setPreferredScaleId(
+            devicePrefs['preferredScaleId'] as String?,
+          );
           imported++;
         }
       }
