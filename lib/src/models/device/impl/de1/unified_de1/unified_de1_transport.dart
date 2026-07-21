@@ -11,6 +11,7 @@ import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/serial_response_correlator.dart';
 import 'package:rxdart/rxdart.dart';
 
 class UnifiedDe1Transport {
@@ -23,6 +24,8 @@ class UnifiedDe1Transport {
   // before the subscription was wired, or on BLE transports where the
   // serial branch never runs.
   StreamSubscription<String>? _transportSubscription;
+  StreamSubscription<device.ConnectionState>? _connectionStateSubscription;
+  final _serialResponses = SerialResponseCorrelator();
 
   // True while `_handleBleTimeout` is doing a deliberate disconnect→reconnect
   // to recover from a BLE timeout. The disconnect it issues must stay
@@ -195,6 +198,8 @@ class UnifiedDe1Transport {
     if (_transport is! SerialTransport) {
       throw "Wrong transport type";
     }
+    await _transportSubscription?.cancel();
+    await _connectionStateSubscription?.cancel();
     // Start notifications - regular setup
     // await _transport.writeCommand("<-N>");
     // await _transport.writeCommand("<-M>");
@@ -203,6 +208,11 @@ class UnifiedDe1Transport {
     // await _transport.writeCommand("<-E>");
 
     _transportSubscription = _transport.readStream.listen(_processSerialInput);
+    _connectionStateSubscription = _transport.connectionState.listen((state) {
+      if (state == device.ConnectionState.disconnected) {
+        _serialResponses.failAll(StateError('Serial transport disconnected'));
+      }
+    });
 
     await _transport.writeCommand("<+${Endpoint.stateInfo.representation}>");
     await _transport.writeCommand("<+${Endpoint.shotSample.representation}>");
@@ -219,9 +229,12 @@ class UnifiedDe1Transport {
   /// subscription, and disposes the underlying transport. Safe to call
   /// more than once. Re-use after dispose is not supported.
   Future<void> dispose() async {
+    _serialResponses.failAll(StateError('Serial transport disposed'));
     // Cancel serial subscription if active
     await _transportSubscription?.cancel();
     _transportSubscription = null;
+    await _connectionStateSubscription?.cancel();
+    _connectionStateSubscription = null;
 
     // Close all BehaviorSubjects so downstream listeners see onDone
     if (!_stateSubject.isClosed) _stateSubject.close();
@@ -235,6 +248,7 @@ class UnifiedDe1Transport {
   }
 
   Future<void> disconnect() async {
+    _serialResponses.failAll(StateError('Serial transport disconnected'));
     _log.warning(
       'disconnect() called by app code',
       null,
@@ -247,6 +261,8 @@ class UnifiedDe1Transport {
         }
         await _transportSubscription?.cancel();
         _transportSubscription = null;
+        await _connectionStateSubscription?.cancel();
+        _connectionStateSubscription = null;
         // Start notifications - regular setup
         await _transport.writeCommand(
           "<-${Endpoint.stateInfo.representation}>",
@@ -358,21 +374,24 @@ class UnifiedDe1Transport {
     try {
       final Uint8List payload = hexToBytes(input.substring(3));
       final ByteData data = ByteData.sublistView(payload);
-      switch (input.substring(0, 3)) {
-        case "[M]":
+      final representation = input[1];
+      switch (representation) {
+        case "M":
           _shotSampleNotification(data);
-        case "[N]":
+        case "N":
           _stateNotification(data);
-        case "[Q]":
+        case "Q":
           _waterLevelsNotification(data);
-        case "[K]":
+        case "K":
           _shotSettingsNotification(data);
-        case "[E]":
+        case "E":
           _mmrNotification(data);
-        case "[I]":
+        case "I":
           _fwMapNotification(data);
         default:
-          _log.warning("unhandled de1 message: $input");
+          if (!_serialResponses.complete(representation, data)) {
+            _log.warning("unhandled de1 message: $input");
+          }
           break;
       }
     } on FormatException catch (e) {
@@ -467,7 +486,10 @@ class UnifiedDe1Transport {
             throw StateError(
                 'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no serial wire support');
           }
-          return await _serialRead(endpoint);
+          return await _serialRead(
+            endpoint,
+            timeout ?? const Duration(seconds: 4),
+          );
         default:
           throw ("Unknown transport type: $transportType");
       }
@@ -497,14 +519,16 @@ class UnifiedDe1Transport {
     return response;
   }
 
-  Future<ByteData> _serialRead(Endpoint e) async {
+  Future<ByteData> _serialRead(Endpoint e, Duration timeout) async {
     if (transportType != TransportType.serial) {
       throw "Invalid transport type, expected Serial";
     }
 
     switch (e) {
       case Endpoint.versions:
-        throw UnimplementedError();
+      case Endpoint.temperatures:
+      case Endpoint.calibration:
+        return _serialOneShotRead(e, timeout);
       case Endpoint.requestedState:
         return _stateSubject.first;
       case Endpoint.setTime:
@@ -521,8 +545,6 @@ class UnifiedDe1Transport {
         throw UnimplementedError();
       case Endpoint.fwMapRequest:
         return _fwMapRequestSubject.first;
-      case Endpoint.temperatures:
-        throw UnimplementedError();
       case Endpoint.shotSettings:
         return shotSettingsSubject.first;
       case Endpoint.deprecatedShotDesc:
@@ -537,9 +559,41 @@ class UnifiedDe1Transport {
         throw UnimplementedError();
       case Endpoint.waterLevels:
         return _waterLevelsSubject.first;
-      case Endpoint.calibration:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+    }
+  }
+
+  Future<ByteData> _serialOneShotRead(Endpoint endpoint, Duration timeout) async {
+    final representation = endpoint.representation;
+    final response = _serialResponses.register(representation, timeout);
+    Object? failure;
+    try {
+      await (_transport as SerialTransport)
+          .writeCommand('<+$representation>')
+          .timeout(timeout);
+      return await response;
+    } catch (error, stackTrace) {
+      failure = error;
+      _serialResponses.fail(representation, error, stackTrace);
+      try {
+        await response;
+      } catch (_) {}
+      rethrow;
+    } finally {
+      _serialResponses.remove(representation);
+      try {
+        await (_transport as SerialTransport)
+            .writeCommand('<-$representation>')
+            .timeout(timeout);
+      } catch (error, stackTrace) {
+        if (failure == null) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        _log.warning(
+          'Failed to unsubscribe from serial $representation',
+          error,
+          stackTrace,
+        );
+      }
     }
   }
 
