@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_attach_notifier.dart';
@@ -41,7 +42,7 @@ class _FakeDe1 implements De1Interface {
   final _snapshots = StreamController<MachineSnapshot>.broadcast();
 
   @override
-  final String deviceId = 'pref-de1';
+  final String deviceId;
 
   @override
   String get name => 'DE1';
@@ -54,6 +55,8 @@ class _FakeDe1 implements De1Interface {
 
   @override
   TransportType get transportType => TransportType.serial;
+
+  _FakeDe1({this.deviceId = 'pref-de1'});
 
   @override
   Stream<ConnectionState> get connectionState =>
@@ -115,6 +118,26 @@ void main() {
     await manager.dispose();
     scanner.dispose();
     discovery.dispose();
+  });
+
+  test('BLE preference stays distinct until the USB machine is selected',
+      () async {
+    await settings.setPreferredMachineId('ble-machine-id');
+    final usbMachine = _FakeDe1(deviceId: 'usb-machine-id');
+    scanner.addDevice(usbMachine);
+    scanner.mockAdapterState(AdapterState.poweredOff);
+
+    await manager.scanAndConnect();
+
+    expect(manager.currentStatus.pendingAmbiguity,
+        AmbiguityReason.machinePicker);
+    expect(manager.currentStatus.foundMachines.single.deviceId,
+        'usb-machine-id');
+    expect(settings.preferredMachineId, 'ble-machine-id');
+
+    await manager.selectMachine(usbMachine);
+
+    expect(settings.preferredMachineId, 'usb-machine-id');
   });
 
   test('attach invokes current connection policy immediately', () async {
