@@ -127,6 +127,20 @@ cancellation.
 
 **Fix (PR #246):** `shouldWriteChargerMode()` in `charging_logic.dart`: write-on-change, re-assert "off" every 5min while discharging, skip otherwise. Reset last-applied on disconnect.
 
+## Footgun #4: Watch Scan Silent Death (fork SafeScanner)
+
+**Symptom:** background scale watch armed (`Background device watch started` in the log) but the preferred scale never auto-connects; a manual scan connects it immediately. No error anywhere.
+
+**Root cause (two mechanisms in the universal_ble fork's Android code):**
+1. `SafeScanner`'s scan-frequency throttle (>5 starts/30s) silently swallows a start: the Dart call returns success while the real start is deferred via `handler.postDelayed`, and any `stopScan` in between cancels the deferral (`removeCallbacksAndMessages(null)`). Scan churn (bursts + watch pause/resume around machine reconnects) is the trigger.
+2. `onScanFailed` is logged Kotlin-side and never surfaced to Dart, so a scan Android kills post-start is invisible.
+
+**Fix:** `UniversalBleDiscoveryService` probes `UniversalBle.isScanning()` every 90s while the watch scan is believed running (`_armWatchLiveness`). Dead scan → teardown + restart through `_restartWatchOrReportFailure`, so a failing restart reports on `deviceWatchFailures` and `ScaleWatch` activates the legacy backoff. Probe errors fail open — an unprovable probe must not churn the session; ownership is re-checked after the await (a burst may have taken the session).
+
+**Coverage limit:** `isScanning()` reflects SafeScanner's *host-side bookkeeping*, not adapter truth. Mechanism 1 is caught (bookkeeping never went true). Mechanism 2 is NOT (bookkeeping stays true after `onScanFailed`) — bounded by the 25-min refresh until the fork updates SafeScanner state in `onScanFailed` / emits a scan-state event (candidate fork follow-up).
+
+**Field triage:** `ScaleWatch` logs sightings at INFO. `Background device watch started` with no `Preferred scale … sighted` → scan/screen problem (this footgun, or unfiltered-scan screen-off suspension). `sighted` with no connect → connect-path problem.
+
 ## Gone-Device Error Handling
 
 `UniversalBleTransport._handleGattError()` catches `UniversalBleException` with gone-device codes:

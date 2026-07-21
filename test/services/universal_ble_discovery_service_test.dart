@@ -201,6 +201,12 @@ void main() {
     await service.initialize();
   });
 
+  tearDown(() async {
+    // Stop any active watch so its refresh/liveness timers cannot fire
+    // in a later test against that test's replaced UniversalBle fake.
+    await service.stopDeviceWatch();
+  });
+
   ({ScanFilter? filter, PlatformConfig? config}) lastStart() =>
       platform.startScanCalls.last;
 
@@ -553,6 +559,9 @@ void main() {
               'a refresh that cannot restart the scan leaves the '
               'watch dead — it must be reported, not swallowed',
         );
+
+        zoned.stopDeviceWatch();
+        async.flushMicrotasks();
       });
     });
 

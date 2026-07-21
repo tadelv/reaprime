@@ -418,6 +418,17 @@ Watch lifecycle details:
   session) and resume it when they finish; the watch self-restarts
   every 25 minutes to dodge Android's 30-minute opportunistic-scan
   downgrade, and survives adapter off/on cycles.
+- While its scan is believed running, the watch probes
+  `UniversalBle.isScanning()` every 90 seconds (a host-side bookkeeping
+  check, no radio use). A dead scan is torn down and restarted through
+  the same failure path as refresh/resume, so a restart that also fails
+  reports watch-unavailable and hands off to the legacy backoff
+  fallback. Probe errors fail open (treated as alive) so an unprovable
+  probe never churns the session. Coverage limit: the probe catches
+  starts the fork's `SafeScanner` throttle silently swallowed, but a
+  native `onScanFailed` after a successful start does not update the
+  host-side bookkeeping, so that flavor stays bounded by the 25-minute
+  refresh — see `doc/AI_BLE_NOTES.md` ("Watch Scan Silent Death").
 - `De1StateManager` skips its post-wake scale-only burst when the watch
   covers reacquisition (watch supported + preferred scale set); the
   burst remains for the no-preferred-scale discovery/picker case.
