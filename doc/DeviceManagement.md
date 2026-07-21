@@ -85,15 +85,29 @@ Discovery services are responsible for scanning and creating device instances. E
   - `lib/src/services/serial/serial_service.dart` (factory)
 - **Discovery:** Enumerates serial ports, probes for device identification
 
-  DE1-family detection is layered:
-  1. `productName == "DE1"` → `UnifiedDe1`. `productName == "Bengle"` →
-     `Bengle`. Cheapest path.
-  2. VID:PID match against `lib/src/services/serial/usb_ids.dart`.
-     Tables empty until concrete pairs are captured from hardware.
-  3. Fallback: open the port, send `<+M>` and the v13Model MMR-read
-     request, wait for `[M]` (DE1-protocol baseline) plus an `[E]…`
-     reply at addr `0x0080000C`. v13Model `>= 128` → `Bengle`, else
-     `UnifiedDe1`. Encoded via `lib/src/services/serial/mmr_codec.dart`.
+  DE1-family detection uses product names and the normal protocol probe:
+  1. Exact `productName == "DE1"` creates `UnifiedDe1`; exact
+     `productName == "Bengle"` creates `Bengle`.
+  2. Devices admitted by the existing generic serial-name rules are opened and
+     identified through the normal `v13Model` MMR read. Bengle model values
+     create `Bengle`; stock-DE1 values create `UnifiedDe1`.
+
+  USB VID/PID values do not participate in Bengle recognition. Devices whose
+  descriptors match neither a known product name nor the generic serial-name
+  rules are outside the current discovery policy.
+
+  Serial protocol parity rules:
+  - `<F>` (`writeToMMR`) frames are exactly 20 bytes. Short payloads are
+    zero-padded without changing their length byte; oversized payloads fail.
+  - One-shot A/J/R reads use temporary `<+X>` subscriptions correlated by
+    representation and always attempt `<-X>` cleanup.
+  - Persistent reads return only observed wire data or explicit local state
+    recorded after a successful write. They never return seeded zero buffers.
+  - Missing observed data is temporarily unavailable; endpoints without a
+    serial representation are unsupported. These are distinct errors.
+  - Notification liveness uses the existing snapshot watchdog and normal
+    `ConnectionManager` reconnect lifecycle. Serial has no separate keepalive
+    or reconnect loop.
 
 #### 3. SimulatedDeviceService
 - **Platform:** All
@@ -263,7 +277,17 @@ ConnectionManager exposes a `ConnectionStatus` stream driven by the
 The status also tracks:
 - `foundMachines` / `foundScales` — devices discovered during the last scan
 - `pendingAmbiguity` — `machinePicker` or `scalePicker` when the UI needs to show a device selection dialog
+- `intent` — automatic connection, explicit discovery, or scale recovery
+- `activeTargetTransport` — transport of the selected device while connecting
+- `conditions` — transport-scoped discovery conditions and affected device types
 - `error` — error message from the last connection attempt
+
+USB discovery continues while Bluetooth is unavailable. A Bluetooth condition
+is shown as a nonblocking notice when a serial path remains viable, so serial
+scanning, selection, and connection continue normally. It becomes blocking when
+the current operation has only BLE candidates, such as BLE-only machine
+selection or scale recovery. Selected-device connection failures remain visible
+independently of discovery conditions.
 
 #### Phase transitions
 
@@ -504,6 +528,13 @@ Device preferences are stored via `SettingsController`:
 - `preferredMachineId` — auto-set on successful machine connection
 - `preferredScaleId` — auto-set on successful scale connection
 - Configurable in Settings → Device Management
+
+Identity remains per transport. BLE and USB IDs for the same physical machine
+are not aliased. If the BLE ID is preferred while Bluetooth is unavailable, a
+discovered USB identity is offered for selection; selecting it persists that USB
+ID. Later automatic startup and Android USB-attach recovery can quick-connect
+through the remembered USB record, with normal implementation validation and
+scan fallback on failure.
 
 ---
 
