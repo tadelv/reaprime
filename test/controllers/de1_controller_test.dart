@@ -10,21 +10,20 @@ import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/test_de1.dart';
 
 De1ShotSettings _emptyShotSettings() => De1ShotSettings(
-      steamSetting: 0,
-      targetSteamTemp: 0,
-      targetSteamDuration: 0,
-      targetHotWaterTemp: 0,
-      targetHotWaterVolume: 0,
-      targetHotWaterDuration: 0,
-      targetShotVolume: 0,
-      groupTemp: 0,
-    );
+  steamSetting: 0,
+  targetSteamTemp: 0,
+  targetSteamDuration: 0,
+  targetHotWaterTemp: 0,
+  targetHotWaterVolume: 0,
+  targetHotWaterDuration: 0,
+  targetShotVolume: 0,
+  groupTemp: 0,
+);
 
 void main() {
   group('connectedDe1OrNull accessor', () {
     test('returns null when no machine connected', () async {
-      final deviceController =
-          DeviceController([MockDeviceDiscoveryService()]);
+      final deviceController = DeviceController([MockDeviceDiscoveryService()]);
       await deviceController.initialize();
       final de1Controller = De1Controller(controller: deviceController);
 
@@ -33,8 +32,9 @@ void main() {
 
     test('returns the connected DE1 once connectToDe1 completes', () async {
       await runZonedGuarded(() async {
-        final deviceController =
-            DeviceController([MockDeviceDiscoveryService()]);
+        final deviceController = DeviceController([
+          MockDeviceDiscoveryService(),
+        ]);
         await deviceController.initialize();
         final de1Controller = De1Controller(controller: deviceController);
         final testDe1 = TestDe1();
@@ -52,8 +52,9 @@ void main() {
 
     test('returns null again after disconnect', () async {
       await runZonedGuarded(() async {
-        final deviceController =
-            DeviceController([MockDeviceDiscoveryService()]);
+        final deviceController = DeviceController([
+          MockDeviceDiscoveryService(),
+        ]);
         await deviceController.initialize();
         final de1Controller = De1Controller(controller: deviceController);
         final testDe1 = TestDe1();
@@ -73,6 +74,34 @@ void main() {
     });
   });
 
+  group('initial shot settings', () {
+    test(
+      'missing initial settings do not block initialization',
+      () async {
+        final deviceController = DeviceController([
+          MockDeviceDiscoveryService(),
+        ]);
+        await deviceController.initialize();
+        final de1Controller = De1Controller(controller: deviceController);
+        final testDe1 = TestDe1();
+
+        await de1Controller.connectToDe1(testDe1);
+
+        expect(
+          await de1Controller.initSettled
+              .firstWhere((generation) => generation != null)
+              .timeout(const Duration(seconds: 3)),
+          isNotNull,
+        );
+        expect(de1Controller.connectedDe1OrNull, same(testDe1));
+
+        testDe1.dispose();
+        de1Controller.dispose();
+      },
+      timeout: const Timeout(Duration(seconds: 5)),
+    );
+  });
+
   group('shot-settings debounce race (comms-harden #5)', () {
     test(
       'disconnect during debounce does not leak an unhandled async error',
@@ -81,8 +110,9 @@ void main() {
 
         await runZonedGuarded(
           () async {
-            final deviceController =
-                DeviceController([MockDeviceDiscoveryService()]);
+            final deviceController = DeviceController([
+              MockDeviceDiscoveryService(),
+            ]);
             await deviceController.initialize();
             final de1Controller = De1Controller(controller: deviceController);
             final testDe1 = TestDe1();
@@ -109,8 +139,7 @@ void main() {
             // Wait past the 100ms debounce window. With the generation
             // fix, the timer body should find a stale generation (or
             // null _de1) and bail without touching connectedDe1().
-            await Future<void>.delayed(
-                const Duration(milliseconds: 200));
+            await Future<void>.delayed(const Duration(milliseconds: 200));
 
             testDe1.dispose();
           },

@@ -16,6 +16,8 @@ class ConnectionTimings {
   /// stable "scanning" window rather than a zero-duration flicker.
   static const postScanSettleDelay = Duration(milliseconds: 200);
 
+  static const initialShotSettingsTimeout = Duration(seconds: 2);
+
   /// Debounce window for `De1Controller` shot-settings pushes. Coalesces
   /// the flurry of calls that come from consecutive UI adjustments
   /// (`setSteamFlow`, `setHotWaterFlow`, `updateShotSettings`) into one

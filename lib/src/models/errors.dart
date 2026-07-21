@@ -74,6 +74,17 @@ class DuplicateBleSubscription implements Exception {
 /// register read does not receive a matching notification within the
 /// bounded timeout. Prevents connect attempts from hanging forever on
 /// a dropped BLE notify.
+class EndpointUnavailableException implements Exception {
+  final String endpointName;
+  final Duration timeout;
+
+  const EndpointUnavailableException(this.endpointName, this.timeout);
+
+  @override
+  String toString() =>
+      'EndpointUnavailableException: no $endpointName frame within $timeout';
+}
+
 class MmrTimeoutException implements Exception {
   final String mmrItemName;
   final Duration timeout;

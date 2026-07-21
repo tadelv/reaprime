@@ -627,7 +627,7 @@ class UnifiedDe1 implements De1Interface {
     index++;
 
     await _transport.writeWithResponse(Endpoint.shotSettings, data);
-    _transport.shotSettingsSubject.add(ByteData.sublistView(data));
+    _transport.recordLocalShotSettings(ByteData.sublistView(data));
   }
 
   @override

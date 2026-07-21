@@ -276,12 +276,30 @@ class De1Controller {
     _dataInitialized = true;
 
     try {
-      final settings = await device.shotSettings.first;
-      if (!stillCurrent()) return;
-      _shotSettingsUpdate(settings);
       _subscriptions.add(
         device.shotSettings.listen(_shotSettingsUpdate),
       );
+      try {
+        final settings = await device.shotSettings.first.timeout(
+          ConnectionTimings.initialShotSettingsTimeout,
+        );
+        if (!stillCurrent()) return;
+        _shotSettingsUpdate(settings);
+      } on TimeoutException catch (e, st) {
+        _log.warning(
+          'Initial shot settings unavailable; skipping startup defaults',
+          e,
+          st,
+        );
+        return;
+      } on EndpointUnavailableException catch (e, st) {
+        _log.warning(
+          'Initial shot settings unavailable; skipping startup defaults',
+          e,
+          st,
+        );
+        return;
+      }
 
       try {
         await _setDe1DefaultsFor(device, stillCurrent);
