@@ -9,6 +9,10 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    - build/**
+
 # Formatter configuration (Dart 3.7+). `dart format` and CI's
 # `dart format --set-exit-if-changed lib test` use this.
 formatter:
