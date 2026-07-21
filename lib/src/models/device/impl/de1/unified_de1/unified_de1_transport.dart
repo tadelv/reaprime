@@ -687,7 +687,13 @@ class UnifiedDe1Transport {
     if (_transport is! SerialTransport) {
       throw "Invalid transport type, expected Serial";
     }
-    final payload = data
+    if (e == Endpoint.writeToMMR && data.length > 20) {
+      throw ArgumentError.value(data.length, 'data.length', 'must not exceed 20');
+    }
+    final frame = e == Endpoint.writeToMMR && data.length < 20
+        ? (Uint8List(20)..setAll(0, data))
+        : data;
+    final payload = frame
         .map((e) => e.toRadixString(16).padLeft(2, '0'))
         .join('');
     await _transport.writeCommand('<${e.representation!}>$payload');
