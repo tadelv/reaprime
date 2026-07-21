@@ -32,6 +32,11 @@ bool isDE1(List<String> data, List<int> bytes) {
   return data.any((e) => e.startsWith("[M]"));
 }
 
+bool serialProbeAllowsProductName(String? productName) {
+  if (productName == null || productName.contains('Serial')) return true;
+  return const {'DE1', 'Bengle', 'Half Decent Scale'}.contains(productName);
+}
+
 /// Non-blocking replacement for the native `sp_drain`, which has no timeout
 /// and blocks the calling isolate forever when a USB-serial device never
 /// transmits the buffered bytes (observed when scan probes a non-Decent
