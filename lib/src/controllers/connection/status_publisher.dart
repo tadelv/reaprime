@@ -65,7 +65,13 @@ class StatusPublisher {
       effectiveError = null;
     }
 
-    _subject.add(next.copyWith(error: () => effectiveError));
+    _subject.add(
+      next.copyWith(
+        error: () => effectiveError,
+        activeTargetTransport:
+            next.phase == ConnectionPhase.ready ? () => null : null,
+      ),
+    );
   }
 
   /// Emit [err] on the status stream without changing the current
