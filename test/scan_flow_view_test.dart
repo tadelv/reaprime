@@ -5,6 +5,8 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/device_discovery_feature/scan_flow_view.dart';
+import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -318,6 +320,105 @@ void main() {
 
       expect(mockCm.selectScaleCallCount, 1);
       expect(mockCm.scanAndConnectCallCount, 1);
+    });
+  });
+
+  group('wired discovery without Bluetooth', () {
+    TransportCondition bluetoothOffCondition() {
+      return TransportCondition(
+        transportType: TransportType.ble,
+        affectedDeviceTypes: const {DeviceType.machine, DeviceType.scale},
+        connectionError: ConnectionError(
+          kind: ConnectionErrorKind.adapterOff,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.utc(2025),
+          message: 'Bluetooth is turned off.',
+        ),
+      );
+    }
+
+    testWidgets('serial picker remains interactive with a Bluetooth notice',
+        (tester) async {
+      final serialMachine = FakeDe1(
+        deviceId: 'usb-machine',
+        name: 'USB Machine',
+        transportType: TransportType.serial,
+      );
+      final condition = bluetoothOffCondition();
+      mockCm.emitStatus(ConnectionStatus(
+        pendingAmbiguity: AmbiguityReason.machinePicker,
+        foundMachines: [serialMachine],
+        error: condition.connectionError,
+        conditions: [condition],
+      ));
+
+      await tester.pumpWidget(buildView(
+        initialConnectionIntent: () => mockCm.scanAndConnect(),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('USB Machine'), findsOneWidget);
+      expect(
+        find.text('Bluetooth is unavailable. USB devices remain available.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('USB Machine'));
+      await tester.pump();
+      await tester.tap(find.text('Connect'));
+      await tester.pump();
+      expect(mockCm.selectMachineCallCount, 1);
+    });
+
+    testWidgets('serial connection failure stays visible above the notice',
+        (tester) async {
+      final condition = bluetoothOffCondition();
+      mockCm.emitStatus(ConnectionStatus(
+        activeTargetTransport: TransportType.serial,
+        error: ConnectionError(
+          kind: ConnectionErrorKind.machineConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.utc(2025),
+          message: 'USB machine failed to connect.',
+        ),
+        conditions: [condition],
+      ));
+
+      await tester.pumpWidget(buildView(
+        initialConnectionIntent: () => mockCm.scanAndConnect(),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Connection Error'), findsOneWidget);
+      expect(find.text('USB machine failed to connect.'), findsOneWidget);
+      expect(
+        find.text('Bluetooth is unavailable. USB devices remain available.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('BLE-only picker shows the blocking Bluetooth error',
+        (tester) async {
+      final condition = bluetoothOffCondition();
+      mockCm.emitStatus(ConnectionStatus(
+        pendingAmbiguity: AmbiguityReason.machinePicker,
+        foundMachines: [
+          FakeDe1(
+            deviceId: 'ble-machine',
+            name: 'BLE Machine',
+            transportType: TransportType.ble,
+          ),
+        ],
+        error: condition.connectionError,
+        conditions: [condition],
+      ));
+
+      await tester.pumpWidget(buildView(
+        initialConnectionIntent: () => mockCm.scanAndConnect(),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bluetooth Unavailable'), findsOneWidget);
+      expect(find.text('BLE Machine'), findsNothing);
     });
   });
 

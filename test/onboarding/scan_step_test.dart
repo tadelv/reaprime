@@ -5,6 +5,8 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
+import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
@@ -354,45 +356,49 @@ void main() {
     });
   });
 
-  group('ScanStateGuardian integration', () {
-    testWidgets('shows adapter error when BLE adapter turns off',
+  group('connection status authority', () {
+    testWidgets('guardian adapter events do not create independent errors',
         (tester) async {
-      // Set initial state to poweredOn before building widget,
-      // so the guardian sees the transition to poweredOff.
       mockBleService.setAdapterState(AdapterState.poweredOn);
-      // Allow guardian subscription to process
       await tester.runAsync(() => Future.delayed(Duration.zero));
-
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      // Turn off adapter — ScanStateGuardian will emit adapterTurnedOff
       mockBleService.setAdapterState(AdapterState.poweredOff);
-      // Allow stream events to propagate
       await tester.runAsync(() => Future.delayed(Duration.zero));
       await tester.pump();
 
-      expect(find.text('Bluetooth Unavailable'), findsOneWidget);
-      expect(find.text('Bluetooth was turned off'), findsOneWidget);
+      expect(find.text('Bluetooth Unavailable'), findsNothing);
     });
 
-    testWidgets('clears adapter error when BLE adapter turns back on',
+    testWidgets('connection status shows and clears the adapter condition',
         (tester) async {
-      mockBleService.setAdapterState(AdapterState.poweredOn);
-      await tester.runAsync(() => Future.delayed(Duration.zero));
-
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      final error = ConnectionError(
+        kind: ConnectionErrorKind.adapterOff,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.utc(2025),
+        message: 'Bluetooth is turned off.',
+      );
 
-      // Turn off
-      mockBleService.setAdapterState(AdapterState.poweredOff);
-      await tester.runAsync(() => Future.delayed(Duration.zero));
+      mockConnectionManager.emitStatus(ConnectionStatus(
+        error: error,
+        conditions: [
+          TransportCondition(
+            transportType: TransportType.ble,
+            affectedDeviceTypes: const {
+              DeviceType.machine,
+              DeviceType.scale,
+            },
+            connectionError: error,
+          ),
+        ],
+      ));
       await tester.pump();
       expect(find.text('Bluetooth Unavailable'), findsOneWidget);
 
-      // Turn back on
-      mockBleService.setAdapterState(AdapterState.poweredOn);
-      await tester.runAsync(() => Future.delayed(Duration.zero));
+      mockConnectionManager.emitStatus(const ConnectionStatus());
       await tester.pump();
       expect(find.text('Bluetooth Unavailable'), findsNothing);
     });

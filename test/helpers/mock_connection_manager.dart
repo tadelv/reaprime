@@ -26,14 +26,17 @@ class FakeDe1 implements De1Interface {
   DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
 
   @override
-  TransportType get transportType => TransportType.unknown;
+  final TransportType transportType;
 
   @override
   Stream<dev.ConnectionState> get connectionState =>
       Stream.value(dev.ConnectionState.connected);
 
-  FakeDe1({this.deviceId = 'fake-de1', String? name})
-      : name = name ?? 'DE1-$deviceId';
+  FakeDe1({
+    this.deviceId = 'fake-de1',
+    String? name,
+    this.transportType = TransportType.unknown,
+  }) : name = name ?? 'DE1-$deviceId';
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => const Stream.empty();
