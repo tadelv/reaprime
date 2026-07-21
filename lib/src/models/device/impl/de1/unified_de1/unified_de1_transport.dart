@@ -26,6 +26,7 @@ class UnifiedDe1Transport {
   StreamSubscription<String>? _transportSubscription;
   StreamSubscription<device.ConnectionState>? _connectionStateSubscription;
   final _serialResponses = SerialResponseCorrelator();
+  bool _cacheCleared = false;
 
   // True while `_handleBleTimeout` is doing a deliberate disconnect→reconnect
   // to recover from a BLE timeout. The disconnect it issues must stay
@@ -43,29 +44,16 @@ class UnifiedDe1Transport {
 
   String get id => _transport.id;
 
-  final BehaviorSubject<ByteData> _stateSubject = BehaviorSubject.seeded(
-    ByteData(4),
-  );
-  final BehaviorSubject<ByteData> _shotSampleSubject = BehaviorSubject.seeded(
-    ByteData(19),
-  );
-  // TODO: change this to expose a different subject if needed
-  final BehaviorSubject<ByteData> shotSettingsSubject = BehaviorSubject.seeded(
-    ByteData(9),
-  );
-  final BehaviorSubject<ByteData> _waterLevelsSubject = BehaviorSubject.seeded(
-    ByteData(4),
-  );
-  final BehaviorSubject<ByteData> _mmrSubject = BehaviorSubject.seeded(
-    ByteData(20),
-  );
-  final BehaviorSubject<ByteData> _fwMapRequestSubject = BehaviorSubject.seeded(
-    ByteData(7),
-  );
+  BehaviorSubject<ByteData> _stateSubject = BehaviorSubject();
+  BehaviorSubject<ByteData> _shotSampleSubject = BehaviorSubject();
+  BehaviorSubject<ByteData> _shotSettingsSubject = BehaviorSubject();
+  BehaviorSubject<ByteData> _waterLevelsSubject = BehaviorSubject();
+  final PublishSubject<ByteData> _mmrSubject = PublishSubject();
+  BehaviorSubject<ByteData> _fwMapRequestSubject = BehaviorSubject();
 
   Stream<ByteData> get state => _stateSubject.asBroadcastStream();
   Stream<ByteData> get shotSample => _shotSampleSubject.asBroadcastStream();
-  Stream<ByteData> get shotSettings => shotSettingsSubject.asBroadcastStream();
+  Stream<ByteData> get shotSettings => _shotSettingsSubject.asBroadcastStream();
   Stream<ByteData> get waterLevels => _waterLevelsSubject.asBroadcastStream();
   Stream<ByteData> get mmr => _mmrSubject.asBroadcastStream();
   Stream<ByteData> get fwMapRequest => _fwMapRequestSubject.asBroadcastStream();
@@ -136,6 +124,7 @@ class UnifiedDe1Transport {
     }
 
     await _transport.connect();
+    _cacheCleared = false;
 
     switch (transportType) {
       case TransportType.ble:
@@ -211,6 +200,7 @@ class UnifiedDe1Transport {
     _connectionStateSubscription = _transport.connectionState.listen((state) {
       if (state == device.ConnectionState.disconnected) {
         _serialResponses.failAll(StateError('Serial transport disconnected'));
+        _resetCachedState();
       }
     });
 
@@ -239,7 +229,7 @@ class UnifiedDe1Transport {
     // Close all BehaviorSubjects so downstream listeners see onDone
     if (!_stateSubject.isClosed) _stateSubject.close();
     if (!_shotSampleSubject.isClosed) _shotSampleSubject.close();
-    if (!shotSettingsSubject.isClosed) shotSettingsSubject.close();
+    if (!_shotSettingsSubject.isClosed) _shotSettingsSubject.close();
     if (!_waterLevelsSubject.isClosed) _waterLevelsSubject.close();
     if (!_mmrSubject.isClosed) _mmrSubject.close();
     if (!_fwMapRequestSubject.isClosed) _fwMapRequestSubject.close();
@@ -293,6 +283,22 @@ class UnifiedDe1Transport {
     }
 
     await _transport.disconnect();
+    _resetCachedState();
+  }
+
+  void _resetCachedState() {
+    if (_cacheCleared) return;
+    _cacheCleared = true;
+    _stateSubject.close();
+    _shotSampleSubject.close();
+    _shotSettingsSubject.close();
+    _waterLevelsSubject.close();
+    _fwMapRequestSubject.close();
+    _stateSubject = BehaviorSubject();
+    _shotSampleSubject = BehaviorSubject();
+    _shotSettingsSubject = BehaviorSubject();
+    _waterLevelsSubject = BehaviorSubject();
+    _fwMapRequestSubject = BehaviorSubject();
   }
 
   // Matches a complete message: [X] prefix + hex payload, terminated by
@@ -446,7 +452,7 @@ class UnifiedDe1Transport {
   }
 
   void _shotSettingsNotification(ByteData d) {
-    shotSettingsSubject.add(d);
+    _shotSettingsSubject.add(d);
   }
 
   void _fwMapNotification(ByteData d) {
@@ -530,36 +536,58 @@ class UnifiedDe1Transport {
       case Endpoint.calibration:
         return _serialOneShotRead(e, timeout);
       case Endpoint.requestedState:
-        return _stateSubject.first;
+        throw UnsupportedError(
+          'Endpoint ${e.name} has no serial response frame',
+        );
       case Endpoint.setTime:
-        throw UnimplementedError();
       case Endpoint.shotDirectory:
-        throw UnimplementedError();
+        throw UnsupportedError(
+          'Endpoint ${e.name} has no serial read path',
+        );
       case Endpoint.readFromMMR:
-        return _mmrSubject.first;
+        throw UnsupportedError(
+          'MMR reads require address correlation',
+        );
       case Endpoint.writeToMMR:
-        throw UnimplementedError();
+        throw UnsupportedError('Endpoint ${e.name} is write-only');
       case Endpoint.shotMapRequest:
-        throw UnimplementedError();
       case Endpoint.deleteShotRange:
-        throw UnimplementedError();
+        throw UnsupportedError(
+          'Endpoint ${e.name} has no serial read path',
+        );
       case Endpoint.fwMapRequest:
-        return _fwMapRequestSubject.first;
+        return _latestSerialFrame(e, _fwMapRequestSubject, timeout);
       case Endpoint.shotSettings:
-        return shotSettingsSubject.first;
+        return _latestSerialFrame(e, _shotSettingsSubject, timeout);
       case Endpoint.deprecatedShotDesc:
-        throw UnimplementedError();
+        throw UnsupportedError(
+          'Endpoint ${e.name} has no serial read path',
+        );
       case Endpoint.shotSample:
-        return _shotSampleSubject.first;
+        return _latestSerialFrame(e, _shotSampleSubject, timeout);
       case Endpoint.stateInfo:
-        return _stateSubject.first;
+        return _latestSerialFrame(e, _stateSubject, timeout);
       case Endpoint.headerWrite:
-        throw UnimplementedError();
       case Endpoint.frameWrite:
-        throw UnimplementedError();
+        throw UnsupportedError('Endpoint ${e.name} is write-only');
       case Endpoint.waterLevels:
-        return _waterLevelsSubject.first;
+        return _latestSerialFrame(e, _waterLevelsSubject, timeout);
     }
+  }
+
+  Future<ByteData> _latestSerialFrame(
+    Endpoint endpoint,
+    Stream<ByteData> frames,
+    Duration timeout,
+  ) {
+    return frames.first.timeout(
+      timeout,
+      onTimeout: () => throw EndpointUnavailableException(endpoint.name, timeout),
+    );
+  }
+
+  void recordLocalShotSettings(ByteData data) {
+    _shotSettingsSubject.add(data);
   }
 
   Future<ByteData> _serialOneShotRead(Endpoint endpoint, Duration timeout) async {

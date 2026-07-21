@@ -3,9 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../../../../../helpers/fake_ble_transport.dart';
@@ -115,6 +118,114 @@ void main() {
     await bleTransport.write(Endpoint.writeToMMR, Uint8List.fromList([1]));
 
     expect(ble.writes.single.data, [1]);
+  });
+
+  group('locally known shot settings', () {
+    final settings = De1ShotSettings(
+      steamSetting: 1,
+      targetSteamTemp: 140,
+      targetSteamDuration: 30,
+      targetHotWaterTemp: 80,
+      targetHotWaterVolume: 200,
+      targetHotWaterDuration: 20,
+      targetShotVolume: 40,
+      groupTemp: 90.5,
+    );
+
+    test('successful writes record local state', () async {
+      final localSerial = _RecordingSerialTransport();
+      final machine = UnifiedDe1(transport: localSerial);
+      addTearDown(machine.dispose);
+
+      await machine.updateShotSettings(settings);
+
+      expect(await machine.shotSettings.first, settings);
+    });
+
+    test('failed writes record no local state', () async {
+      final localSerial = _RecordingSerialTransport();
+      final machine = UnifiedDe1(transport: localSerial);
+      addTearDown(machine.dispose);
+      localSerial.onWrite = (_) => throw StateError('write failed');
+
+      await expectLater(machine.updateShotSettings(settings), throwsStateError);
+      await expectLater(
+        machine.shotSettings.first.timeout(const Duration(milliseconds: 10)),
+        throwsA(isA<TimeoutException>()),
+      );
+    });
+  });
+
+  group('persistent serial reads', () {
+    setUp(() async {
+      await transport.connect();
+      serial.writes.clear();
+    });
+
+    test('missing frames report typed unavailability', () async {
+      for (final endpoint in [
+        Endpoint.stateInfo,
+        Endpoint.shotSample,
+        Endpoint.waterLevels,
+        Endpoint.shotSettings,
+        Endpoint.fwMapRequest,
+      ]) {
+        await expectLater(
+          transport.read(endpoint, timeout: Duration.zero),
+          throwsA(isA<EndpointUnavailableException>()),
+        );
+      }
+    });
+
+    test('latest genuine frame is replayed', () async {
+      serial.input.add('[N]0102\n');
+
+      final result = await transport.read(
+        Endpoint.stateInfo,
+        timeout: const Duration(milliseconds: 100),
+      );
+
+      expect(result.buffer.asUint8List(), [1, 2]);
+    });
+
+    test(
+      'MMR and requested-state reads are not aliases of cached state',
+      () async {
+        serial.input.add('[E]0102\n[N]0304\n');
+
+        await expectLater(
+          transport.read(Endpoint.readFromMMR),
+          throwsA(isA<UnsupportedError>()),
+        );
+        await expectLater(
+          transport.read(Endpoint.requestedState),
+          throwsA(isA<UnsupportedError>()),
+        );
+      },
+    );
+
+    test('write-only endpoint reads are unsupported', () async {
+      await expectLater(
+        transport.read(Endpoint.writeToMMR),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('disconnect clears cached persistent frames', () async {
+      serial.input.add('[N]0102\n');
+      expect(
+        (await transport.read(Endpoint.stateInfo)).buffer.asUint8List(),
+        [1, 2],
+      );
+
+      await transport.disconnect();
+      await transport.connect();
+
+      await expectLater(
+        transport.read(Endpoint.stateInfo, timeout: Duration.zero),
+        throwsA(isA<EndpointUnavailableException>()),
+      );
+    });
   });
 
   group('one-shot serial reads', () {

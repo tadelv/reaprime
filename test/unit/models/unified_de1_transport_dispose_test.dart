@@ -62,9 +62,8 @@ void main() {
     // Underlying transport should have been disposed
     expect(fake.disposeCalled, isTrue);
 
-    // After dispose, subjects are closed. A closed BehaviorSubject
-    // stream emits its last value then done, so drain and verify
-    // completion (not the value itself, which is a seeded zero buffer).
+    // After dispose, subjects are closed and complete without emitting
+    // placeholder values.
     for (final stream in [
       transport.state,
       transport.shotSample,
@@ -74,10 +73,7 @@ void main() {
       transport.fwMapRequest,
     ]) {
       final events = await stream.toList();
-      // Each subject was seeded with a ByteData buffer at construction.
-      // After close, toList() returns the buffered value and then
-      // completes — we just verify it completed (no timeout / hang).
-      expect(events.isNotEmpty, isTrue);
+      expect(events, isEmpty);
     }
   });
 
