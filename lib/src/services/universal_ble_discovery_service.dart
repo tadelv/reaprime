@@ -95,13 +95,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   /// the watch scan before that kicks in.
   static const _watchRefreshInterval = Duration(minutes: 25);
 
-  /// Liveness probe cadence. The native scan can die without anything
-  /// reaching Dart: the fork drops `onScanFailed` (logs only), and its
-  /// SafeScanner throttle can swallow a start entirely (returns success,
-  /// defers the real start, and a later stopScan cancels the deferral).
-  /// `UniversalBle.isScanning()` is a cheap host-side check — no radio
-  /// use — so probe often enough that a dead watch recovers in ~1 probe
-  /// interval instead of waiting for the 25-min refresh.
+  /// Dead-scan probe cadence. The native scan can die without any event
+  /// reaching Dart; see doc/AI_BLE_NOTES.md ("Watch Scan Silent Death")
+  /// for the fork mechanics and the probe's coverage limits.
   static const _watchLivenessInterval = Duration(seconds: 90);
   Timer? _watchLivenessTimer;
 
@@ -301,11 +297,11 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       try {
         alive = await UniversalBle.isScanning();
       } catch (e, st) {
-        // A failed probe proves nothing — don't churn the scan over it.
+        // Fail open: an unprovable probe must not churn the session.
         log.fine('Watch liveness probe failed', e, st);
         alive = true;
       }
-      // Re-check: a burst/stop may have taken over during the await.
+      // A burst/stop may have taken ownership during the await.
       if (!_watchScanActive || _isScanning) return;
       if (alive) {
         _armWatchLiveness();

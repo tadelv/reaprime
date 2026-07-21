@@ -72,6 +72,13 @@ commit chain is now authoritative for *what* changed. What follows is the
   unfiltered in balanced mode; the duty cycle was always the real win. A
   future improvement could persist the ADVERTISED name at discovery time and
   restore plugin-side prefix filtering to cut platform-channel traffic.
+- **Liveness probe added after field testing (2026-07-17).** The design
+  assumed a started scan stays started until stopped, but the fork can lose
+  the native scan with nothing reaching Dart (SafeScanner throttle swallows
+  starts; `onScanFailed` is dropped) — observed as "watch armed, scale never
+  auto-connects". The service now probes `UniversalBle.isScanning()` every
+  90s and restarts a dead scan through the failure/fallback path. See
+  `doc/AI_BLE_NOTES.md` footgun #4 for mechanics and coverage limits.
 - **Legacy loop retained, not removed.** The 5s→60s backoff-burst loop is the
   active path on non-Android platforms and the runtime fallback when
   `startScaleWatch` throws (`onWatchUnavailable`).
