@@ -1,9 +1,8 @@
-/// USB VID:PID dispatch for DE1-family devices.
+/// USB VID:PID dispatch for stock DE1 devices.
 ///
 /// The desktop and Android serial services consult [usbDeviceTable] as a
-/// fast path before falling through to protocol probing. Currently both
-/// tables are empty until concrete pairs are captured from hardware
-/// (procedure documented in `doc/plans/...bengle-mock-and-usb.md`).
+/// fast path before falling through to protocol probing. Bengle recognition
+/// uses its product name or the v13Model protocol probe, never VID:PID.
 ///
 /// Note on DE1: the original DE1 uses a generic USB-serial adapter
 /// (FTDI / similar), so VID:PID matching may false-match on unrelated
@@ -11,7 +10,7 @@
 /// stays in place. Only add a DE1 VID:PID pair here if a specific DE1
 /// model is verified to expose a custom descriptor distinct from the
 /// generic adapter.
-enum UsbDeviceModel { de1, bengle }
+enum UsbDeviceModel { de1 }
 
 /// `(vendorId, productId)` pairs.
 typedef UsbIdPair = (int vid, int pid);
@@ -19,13 +18,9 @@ typedef UsbIdPair = (int vid, int pid);
 /// DE1 USB ID pairs. See doc on [UsbDeviceModel] for caveats.
 const List<UsbIdPair> de1UsbIds = [];
 
-/// Bengle USB ID pairs. Populated once captured from hardware.
-const List<UsbIdPair> bengleUsbIds = [];
-
 /// Default table consulted by serial services.
 const Map<UsbDeviceModel, List<UsbIdPair>> usbDeviceTable = {
   UsbDeviceModel.de1: de1UsbIds,
-  UsbDeviceModel.bengle: bengleUsbIds,
 };
 
 /// Returns the [UsbDeviceModel] for a `(vid, pid)` pair found in [table],

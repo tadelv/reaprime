@@ -484,9 +484,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     try { pid = port.productId; } catch (_) {}
     final usbModel = matchUsbDevice(usbDeviceTable, vid: vid, pid: pid);
     if (usbModel != null) {
-      final device = usbModel == UsbDeviceModel.bengle
-          ? Bengle(transport: transport)
-          : UnifiedDe1(transport: transport);
+      final device = UnifiedDe1(transport: transport);
       _portPathToDeviceId[id] = device.deviceId;
       return device;
     }

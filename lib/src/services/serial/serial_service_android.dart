@@ -307,9 +307,7 @@ class SerialServiceAndroid
 
   Future<Device?> _detectDevice(UsbDevice device) async {
     _log.info("device name: ${device.productName}");
-    if (device.productName?.contains('Serial') == false &&
-        !(device.productName == 'DE1') &&
-        !(device.productName == 'Half Decent Scale')) {
+    if (!serialProbeAllowsProductName(device.productName)) {
       return null;
     }
     UsbPort? port;
@@ -350,9 +348,7 @@ class SerialServiceAndroid
         matchUsbDevice(usbDeviceTable, vid: device.vid, pid: device.pid);
     if (usbModel != null) {
       _log.info("short circuit via VID:PID -> $usbModel");
-      return usbModel == UsbDeviceModel.bengle
-          ? Bengle(transport: transport)
-          : UnifiedDe1(transport: transport);
+      return UnifiedDe1(transport: transport);
     }
 
     final List<Uint8List> rawData = [];
@@ -443,13 +439,23 @@ class SerialServiceAndroid
       }
 
       _log.warning("Unknown device on port $device");
-      await transport.disconnect();
+      await _disposeRejectedTransport(transport);
       return null;
     } catch (e, st) {
       _log.warning("Port $device is probably not a device we want", e, st);
-      await transport.disconnect();
+      await _disposeRejectedTransport(transport);
       return null;
     }
+  }
+
+  Future<void> _disposeRejectedTransport(AndroidSerialPort transport) async {
+    try {
+      await transport.disconnect();
+    } catch (e, st) {
+      _log.fine('Rejected transport disconnect failed', e, st);
+    }
+    _transportForDeviceId.remove(transport.id);
+    await transport.dispose();
   }
 
   Future<void> dispose() async {
