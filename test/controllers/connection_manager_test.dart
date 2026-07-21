@@ -2000,6 +2000,39 @@ void main() {
         expect(connectionManager.currentStatus.error?.kind,
             ConnectionErrorKind.scaleConnectFailed);
       });
+
+      test(
+        'adapter recovery clears stale BLE condition without clearing replacement error',
+        () async {
+          mockScanner.mockAdapterState(AdapterState.poweredOff);
+          await Future<void>.delayed(Duration.zero);
+          expect(
+            connectionManager.currentStatus.conditions.any(
+              (condition) => condition.transportType == TransportType.ble,
+            ),
+            isTrue,
+          );
+
+          connectionManager.debugEmitError(
+            kind: ConnectionErrorKind.scaleConnectFailed,
+            severity: ConnectionErrorSeverity.error,
+            message: 'scale failed',
+          );
+          mockScanner.mockAdapterState(AdapterState.poweredOn);
+          await Future<void>.delayed(Duration.zero);
+
+          expect(
+            connectionManager.currentStatus.conditions.any(
+              (condition) => condition.transportType == TransportType.ble,
+            ),
+            isFalse,
+          );
+          expect(
+            connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.scaleConnectFailed,
+          );
+        },
+      );
     });
 
     group('scan failures', () {

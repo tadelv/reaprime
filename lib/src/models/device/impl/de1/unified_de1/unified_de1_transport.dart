@@ -592,12 +592,24 @@ class UnifiedDe1Transport {
 
   Future<ByteData> _serialOneShotRead(Endpoint endpoint, Duration timeout) async {
     final representation = endpoint.representation;
+    final stopwatch = Stopwatch()..start();
+    Duration remainingBudget() {
+      final remaining = timeout - stopwatch.elapsed;
+      if (remaining <= Duration.zero) {
+        throw TimeoutException(
+          'Serial $representation response timed out',
+          timeout,
+        );
+      }
+      return remaining;
+    }
+
     final response = _serialResponses.register(representation, timeout);
     Object? failure;
     try {
       await (_transport as SerialTransport)
           .writeCommand('<+$representation>')
-          .timeout(timeout);
+          .timeout(remainingBudget());
       return await response;
     } catch (error, stackTrace) {
       failure = error;
@@ -608,11 +620,22 @@ class UnifiedDe1Transport {
       rethrow;
     } finally {
       _serialResponses.remove(representation);
+      final cleanup = (_transport as SerialTransport)
+          .writeCommand('<-$representation>');
       try {
-        await (_transport as SerialTransport)
-            .writeCommand('<-$representation>')
-            .timeout(timeout);
+        await cleanup.timeout(remainingBudget());
       } catch (error, stackTrace) {
+        if (error is TimeoutException && stopwatch.elapsed >= timeout) {
+          unawaited(
+            cleanup.catchError((Object cleanupError, StackTrace cleanupStack) {
+              _log.warning(
+                'Failed to unsubscribe from serial $representation',
+                cleanupError,
+                cleanupStack,
+              );
+            }),
+          );
+        }
         if (failure == null) {
           Error.throwWithStackTrace(error, stackTrace);
         }

@@ -19,8 +19,12 @@ class _RecordingSerialTransport extends SerialTransport {
   );
   final input = StreamController<String>.broadcast(sync: true);
   final writes = <String>[];
+  final blockedCommands = <String, Completer<void>>{};
   void Function(String command)? onWrite;
   String? failCommand;
+
+  Completer<void> blockCommand(String command) =>
+      blockedCommands[command] = Completer<void>();
 
   void emitDisconnected() {
     _connectionState.add(ConnectionState.disconnected);
@@ -58,6 +62,7 @@ class _RecordingSerialTransport extends SerialTransport {
     writes.add(command);
     onWrite?.call(command);
     if (command == failCommand) throw StateError('write failed');
+    await blockedCommands[command]?.future;
   }
 
   @override
@@ -338,6 +343,25 @@ void main() {
       );
 
       expect(result.buffer.asUint8List(), [1]);
+    });
+
+    test('read timeout is not extended by a fresh unsubscribe timeout',
+        () async {
+      const timeout = Duration(milliseconds: 300);
+      final unsubscribe = serial.blockCommand('<-A>');
+      final stopwatch = Stopwatch()..start();
+
+      try {
+        await expectLater(
+          transport.read(Endpoint.versions, timeout: timeout),
+          throwsA(isA<TimeoutException>()),
+        );
+        stopwatch.stop();
+
+        expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 500)));
+      } finally {
+        if (!unsubscribe.isCompleted) unsubscribe.complete();
+      }
     });
 
     test('malformed responses do not complete a request', () async {

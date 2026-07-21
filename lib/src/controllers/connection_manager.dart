@@ -392,12 +392,14 @@ class ConnectionManager {
         );
         _setTransportCondition(error);
         _emit(error);
-      } else if (state == AdapterState.poweredOn &&
-          (currentStatus.error?.kind == ConnectionErrorKind.adapterOff ||
-              currentStatus.error?.kind ==
-                  ConnectionErrorKind.bluetoothPermissionDenied)) {
+      } else if (state == AdapterState.poweredOn) {
         _clearTransportCondition(TransportType.ble);
-        _clearError();
+
+        if (currentStatus.error?.kind == ConnectionErrorKind.adapterOff ||
+            currentStatus.error?.kind ==
+                ConnectionErrorKind.bluetoothPermissionDenied) {
+          _clearError();
+        }
       }
     });
   }
