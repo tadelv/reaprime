@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +14,14 @@ class _RecordingSerialTransport extends SerialTransport {
   final _connectionState = BehaviorSubject<ConnectionState>.seeded(
     ConnectionState.connected,
   );
+  final input = StreamController<String>.broadcast(sync: true);
   final writes = <String>[];
+  void Function(String command)? onWrite;
+  String? failCommand;
+
+  void emitDisconnected() {
+    _connectionState.add(ConnectionState.disconnected);
+  }
 
   @override
   String get id => 'serial-test';
@@ -25,7 +33,7 @@ class _RecordingSerialTransport extends SerialTransport {
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
-  Stream<String> get readStream => const Stream.empty();
+  Stream<String> get readStream => input.stream;
 
   @override
   Stream<Uint8List> get rawStream => const Stream.empty();
@@ -37,10 +45,17 @@ class _RecordingSerialTransport extends SerialTransport {
   Future<void> disconnect() async {}
 
   @override
-  Future<void> dispose() => _connectionState.close();
+  Future<void> dispose() async {
+    if (!input.isClosed) await input.close();
+    if (!_connectionState.isClosed) await _connectionState.close();
+  }
 
   @override
-  Future<void> writeCommand(String command) async => writes.add(command);
+  Future<void> writeCommand(String command) async {
+    writes.add(command);
+    onWrite?.call(command);
+    if (command == failCommand) throw StateError('write failed');
+  }
 
   @override
   Future<void> writeHexCommand(Uint8List command) async {}
@@ -100,5 +115,187 @@ void main() {
     await bleTransport.write(Endpoint.writeToMMR, Uint8List.fromList([1]));
 
     expect(ble.writes.single.data, [1]);
+  });
+
+  group('one-shot serial reads', () {
+    setUp(() async {
+      await transport.connect();
+      serial.writes.clear();
+    });
+
+    for (final endpoint in [
+      Endpoint.versions,
+      Endpoint.temperatures,
+      Endpoint.calibration,
+    ]) {
+      test(
+        '${endpoint.representation} captures an immediate response',
+        () async {
+          serial.onWrite = (command) {
+            if (command == '<+${endpoint.representation}>') {
+              serial.input.add('[${endpoint.representation}]0102\n');
+            }
+          };
+
+          final result = await transport.read(
+            endpoint,
+            timeout: const Duration(milliseconds: 100),
+          );
+
+          expect(result.buffer.asUint8List(), [1, 2]);
+          expect(serial.writes, [
+            '<+${endpoint.representation}>',
+            '<-${endpoint.representation}>',
+          ]);
+        },
+      );
+    }
+
+    test('different representations can be pending concurrently', () async {
+      final a = transport.read(
+        Endpoint.versions,
+        timeout: const Duration(milliseconds: 100),
+      );
+      final j = transport.read(
+        Endpoint.temperatures,
+        timeout: const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      serial.input.add('[J]02\n[A]01\n');
+
+      expect((await a).buffer.asUint8List(), [1]);
+      expect((await j).buffer.asUint8List(), [2]);
+    });
+
+    test('duplicate representation is rejected', () async {
+      final first = transport.read(
+        Endpoint.versions,
+        timeout: const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await expectLater(
+        transport.read(
+          Endpoint.versions,
+          timeout: const Duration(milliseconds: 100),
+        ),
+        throwsStateError,
+      );
+      serial.input.add('[A]01\n');
+      await first;
+    });
+
+    test('write failure clears the waiter and still unsubscribes', () async {
+      serial.failCommand = '<+A>';
+
+      await expectLater(
+        transport.read(
+          Endpoint.versions,
+          timeout: const Duration(milliseconds: 100),
+        ),
+        throwsStateError,
+      );
+
+      serial.failCommand = null;
+      serial.onWrite = (command) {
+        if (command == '<+A>') serial.input.add('[A]01\n');
+      };
+      expect(
+        (await transport.read(
+          Endpoint.versions,
+          timeout: const Duration(milliseconds: 100),
+        )).buffer.asUint8List(),
+        [1],
+      );
+      expect(serial.writes.where((command) => command == '<-A>').length, 2);
+    });
+
+    test('timeout clears the waiter and ignores a late response', () async {
+      await expectLater(
+        transport.read(Endpoint.versions, timeout: Duration.zero),
+        throwsA(isA<TimeoutException>()),
+      );
+      serial.input.add('[A]09\n');
+      serial.onWrite = (command) {
+        if (command == '<+A>') serial.input.add('[A]01\n');
+      };
+
+      final result = await transport.read(
+        Endpoint.versions,
+        timeout: const Duration(milliseconds: 100),
+      );
+
+      expect(result.buffer.asUint8List(), [1]);
+    });
+
+    test('malformed responses do not complete a request', () async {
+      final result = transport.read(
+        Endpoint.versions,
+        timeout: const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      serial.input.add('[A]0\n[A]01\n');
+
+      expect((await result).buffer.asUint8List(), [1]);
+    });
+
+    test('transport disconnect fails pending requests immediately', () async {
+      final result = transport.read(
+        Endpoint.versions,
+        timeout: const Duration(seconds: 1),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final expectation = expectLater(result, throwsStateError);
+
+      serial.emitDisconnected();
+
+      await expectation;
+    });
+
+    test('disconnect fails pending requests immediately', () async {
+      final result = transport.read(
+        Endpoint.versions,
+        timeout: const Duration(seconds: 1),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final expectation = expectLater(result, throwsStateError);
+
+      await transport.disconnect();
+
+      await expectation;
+    });
+
+    test('dispose fails pending requests immediately', () async {
+      final result = transport.read(
+        Endpoint.versions,
+        timeout: const Duration(seconds: 1),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final expectation = expectLater(result, throwsStateError);
+
+      await transport.dispose();
+
+      await expectation;
+    });
+
+    test(
+      'unsubscribe failure is surfaced after a successful response',
+      () async {
+        serial.failCommand = '<-A>';
+        serial.onWrite = (command) {
+          if (command == '<+A>') serial.input.add('[A]01\n');
+        };
+
+        await expectLater(
+          transport.read(
+            Endpoint.versions,
+            timeout: const Duration(milliseconds: 100),
+          ),
+          throwsStateError,
+        );
+      },
+    );
   });
 }
