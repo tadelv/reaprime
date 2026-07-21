@@ -5,10 +5,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/device_discovery_feature/device_discovery_view.dart';
+import 'package:reaprime/src/device_discovery_feature/scan_flow_presentation.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
@@ -78,17 +80,9 @@ class ScanFlowView extends StatefulWidget {
 class ScanFlowViewState extends State<ScanFlowView> {
   void _skipToDashboard() => widget.onExit();
 
-  void _clearAdapterErrorAndRetry() {
-    setState(() {
-      _adapterError = null;
-    });
-    widget.connectionManager.scanAndConnect();
-  }
+  void _retry() => widget.connectionManager.scanAndConnect();
 
-  void _clearAdapterErrorAndTryDemo() {
-    setState(() {
-      _adapterError = null;
-    });
+  void _tryDemoMode() {
     widget.settingsController.enableSimulatedDevicesForSession(
       {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
     );
@@ -122,9 +116,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
   /// Currently selected device ID in the picker UI.
   String? _selectedMachineId;
   String? _selectedScaleId;
-
-  /// Bluetooth adapter error message, set by ScanStateGuardian events.
-  String? _adapterError;
 
   @override
   void initState() {
@@ -186,10 +177,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
 
       setState(() {
         _status = status;
-        // Clear adapter error when scanning resumes
-        if (status.phase == ConnectionPhase.scanning) {
-          _adapterError = null;
-        }
       });
     });
 
@@ -239,24 +226,10 @@ class ScanFlowViewState extends State<ScanFlowView> {
 
   void _onGuardianEvent(ScanStateEvent event) {
     if (!mounted) return;
-    switch (event) {
-      case ScanStateEvent.adapterTurnedOff:
-        setState(() {
-          _adapterError = 'Bluetooth was turned off';
-        });
-        break;
-      case ScanStateEvent.adapterTurnedOn:
-        setState(() {
-          _adapterError = null;
-        });
-        break;
-      case ScanStateEvent.scanStateStale:
-        // If we're stuck in scanning phase, the scan may have silently finished
-        if (_status.phase == ConnectionPhase.scanning) {
-          _log.info('Stale scan detected, restarting');
-          widget.connectionManager.scanAndConnect();
-        }
-        break;
+    if (event == ScanStateEvent.scanStateStale &&
+        _status.phase == ConnectionPhase.scanning) {
+      _log.info('Stale scan detected, restarting');
+      widget.connectionManager.scanAndConnect();
     }
   }
 
@@ -271,11 +244,16 @@ class ScanFlowViewState extends State<ScanFlowView> {
 
   @override
   Widget build(BuildContext context) {
-    final Widget content;
+    final blockingCondition = _conditionWithDisposition(
+      TransportConditionDisposition.blocking,
+    );
+    final noticeCondition = _conditionWithDisposition(
+      TransportConditionDisposition.notice,
+    );
+    Widget content;
 
-    // Adapter error takes precedence.
-    if (_adapterError != null) {
-      content = _adapterErrorView(context);
+    if (blockingCondition != null) {
+      content = _adapterErrorView(context, blockingCondition.connectionError);
     }
     // Ambiguity picker — show even when an error coexists, with the error
     // rendered inline so the user can continue without a new scan.
@@ -312,7 +290,32 @@ class ScanFlowViewState extends State<ScanFlowView> {
       content = _scanningView(context);
     }
 
+    if (blockingCondition == null && noticeCondition != null) {
+      content = _withTransportNotice(content);
+    }
     return Scaffold(body: content);
+  }
+
+  TransportCondition? _conditionWithDisposition(
+    TransportConditionDisposition disposition,
+  ) {
+    for (final condition in _status.conditions) {
+      if (resolveTransportCondition(_status, condition) == disposition) {
+        return condition;
+      }
+    }
+    return null;
+  }
+
+  String? get _operationErrorMessage {
+    final error = _status.error;
+    if (error == null ||
+        _status.conditions.any(
+          (condition) => condition.connectionError.kind == error.kind,
+        )) {
+      return null;
+    }
+    return error.message;
   }
 
   /// Whether devices have been found but the preferred one hasn't.
@@ -455,7 +458,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
         },
         isConnecting: isConnecting,
         canConnect: _selectedMachineId != null,
-        errorMessage: _status.error?.message,
+        errorMessage: _operationErrorMessage,
       );
     }
 
@@ -482,7 +485,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
         },
         isConnecting: isConnecting,
         canConnect: _selectedScaleId != null,
-        errorMessage: _status.error?.message,
+        errorMessage: _operationErrorMessage,
       );
     }
 
@@ -527,7 +530,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
                             ? _status.foundMachines.first.deviceId
                             : null)
                         : null,
-                    errorMessage: _status.error?.message,
+                    errorMessage: _operationErrorMessage,
                     selectedDeviceId: null,
                     preferredDeviceId:
                         widget.settingsController.preferredMachineId,
@@ -766,7 +769,31 @@ class ScanFlowViewState extends State<ScanFlowView> {
     );
   }
 
-  Widget _adapterErrorView(BuildContext context) {
+  Widget _withTransportNotice(Widget content) {
+    return Column(
+      children: [
+        Expanded(child: content),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: ShadAlert(
+              icon: const Icon(LucideIcons.bluetoothOff, size: 16),
+              title: const Text('Bluetooth unavailable'),
+              description: const Text(
+                'Bluetooth is unavailable. USB devices remain available.',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _adapterErrorView(
+    BuildContext context,
+    ConnectionError error,
+  ) {
     final theme = ShadTheme.of(context);
     return Center(
       child: Column(
@@ -779,15 +806,15 @@ class ScanFlowViewState extends State<ScanFlowView> {
           ),
           Text('Bluetooth Unavailable', style: theme.textTheme.h4),
           Text(
-            _adapterError!,
+            error.message,
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),
           AccessibleButton(
             label: 'Try Again',
-            onTap: _clearAdapterErrorAndRetry,
+            onTap: _retry,
             child: ShadButton(
-              onPressed: _clearAdapterErrorAndRetry,
+              onPressed: _retry,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
@@ -800,9 +827,9 @@ class ScanFlowViewState extends State<ScanFlowView> {
           ),
           AccessibleButton(
             label: 'Try Demo Mode',
-            onTap: _clearAdapterErrorAndTryDemo,
+            onTap: _tryDemoMode,
             child: ShadButton.outline(
-              onPressed: _clearAdapterErrorAndTryDemo,
+              onPressed: _tryDemoMode,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
