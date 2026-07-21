@@ -27,6 +27,7 @@ import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/scan_report.dart';
@@ -49,12 +50,29 @@ enum ConnectionPhase {
 
 enum AmbiguityReason { machinePicker, scalePicker }
 
+enum ConnectionIntent { automatic, explicitDiscovery, scaleRecovery }
+
+class TransportCondition {
+  final TransportType transportType;
+  final Set<DeviceType> affectedDeviceTypes;
+  final ConnectionError connectionError;
+
+  const TransportCondition({
+    required this.transportType,
+    required this.affectedDeviceTypes,
+    required this.connectionError,
+  });
+}
+
 class ConnectionStatus {
   final ConnectionPhase phase;
   final List<De1Interface> foundMachines;
   final List<Scale> foundScales;
   final AmbiguityReason? pendingAmbiguity;
   final ConnectionError? error;
+  final ConnectionIntent intent;
+  final TransportType? activeTargetTransport;
+  final List<TransportCondition> conditions;
 
   const ConnectionStatus({
     this.phase = ConnectionPhase.idle,
@@ -62,6 +80,9 @@ class ConnectionStatus {
     this.foundScales = const [],
     this.pendingAmbiguity,
     this.error,
+    this.intent = ConnectionIntent.automatic,
+    this.activeTargetTransport,
+    this.conditions = const [],
   });
 
   ConnectionStatus copyWith({
@@ -70,6 +91,9 @@ class ConnectionStatus {
     List<Scale>? foundScales,
     AmbiguityReason? Function()? pendingAmbiguity,
     ConnectionError? Function()? error,
+    ConnectionIntent? intent,
+    TransportType? Function()? activeTargetTransport,
+    List<TransportCondition>? conditions,
   }) {
     return ConnectionStatus(
       phase: phase ?? this.phase,
@@ -79,6 +103,11 @@ class ConnectionStatus {
           ? pendingAmbiguity()
           : this.pendingAmbiguity,
       error: error != null ? error() : this.error,
+      intent: intent ?? this.intent,
+      activeTargetTransport: activeTargetTransport != null
+          ? activeTargetTransport()
+          : this.activeTargetTransport,
+      conditions: conditions ?? this.conditions,
     );
   }
 }
@@ -342,34 +371,63 @@ class ConnectionManager {
   void _listenForAdapter() {
     _adapterSub = deviceScanner.adapterStateStream.listen((state) {
       if (state == AdapterState.poweredOff) {
-        _emit(
-          ConnectionError(
-            kind: ConnectionErrorKind.adapterOff,
-            severity: ConnectionErrorSeverity.error,
-            timestamp: DateTime.now().toUtc(),
-            message: 'Bluetooth is turned off.',
-            suggestion: 'Turn Bluetooth on to scan for devices.',
-          ),
+        final error = ConnectionError(
+          kind: ConnectionErrorKind.adapterOff,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'Bluetooth is turned off.',
+          suggestion: 'Turn Bluetooth on to scan for Bluetooth devices.',
         );
+        _setTransportCondition(error);
+        _emit(error);
       } else if (state == AdapterState.unauthorized) {
-        _emit(
-          ConnectionError(
-            kind: ConnectionErrorKind.bluetoothPermissionDenied,
-            severity: ConnectionErrorSeverity.error,
-            timestamp: DateTime.now().toUtc(),
-            message: 'Bluetooth permission was denied.',
-            suggestion:
-                'Go to Settings > Privacy & Security > Bluetooth and enable '
-                'permission for Decent.app.',
-          ),
+        final error = ConnectionError(
+          kind: ConnectionErrorKind.bluetoothPermissionDenied,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'Bluetooth permission was denied.',
+          suggestion:
+              'Go to Settings > Privacy & Security > Bluetooth and enable '
+              'permission for Decent.app.',
         );
+        _setTransportCondition(error);
+        _emit(error);
       } else if (state == AdapterState.poweredOn &&
           (currentStatus.error?.kind == ConnectionErrorKind.adapterOff ||
               currentStatus.error?.kind ==
                   ConnectionErrorKind.bluetoothPermissionDenied)) {
+        _clearTransportCondition(TransportType.ble);
         _clearError();
       }
     });
+  }
+
+  void _setTransportCondition(ConnectionError error) {
+    final condition = TransportCondition(
+      transportType: TransportType.ble,
+      affectedDeviceTypes: const {DeviceType.machine, DeviceType.scale},
+      connectionError: error,
+    );
+    _publishStatus(
+      currentStatus.copyWith(
+        conditions: [
+          ...currentStatus.conditions.where(
+            (existing) => existing.transportType != TransportType.ble,
+          ),
+          condition,
+        ],
+      ),
+    );
+  }
+
+  void _clearTransportCondition(TransportType transportType) {
+    _publishStatus(
+      currentStatus.copyWith(
+        conditions: currentStatus.conditions
+            .where((condition) => condition.transportType != transportType)
+            .toList(),
+      ),
+    );
   }
 
   /// Emit a [ConnectionError] onto the status stream without changing
@@ -597,6 +655,16 @@ class ConnectionManager {
     required ConnectionAttemptPolicy policy,
   }) async {
     _isConnecting = true;
+    _publishStatus(
+      currentStatus.copyWith(
+        intent: identical(policy, ConnectionAttemptPolicy.explicitScan)
+            ? ConnectionIntent.explicitDiscovery
+            : identical(policy, ConnectionAttemptPolicy.scaleRecovery)
+                ? ConnectionIntent.scaleRecovery
+                : ConnectionIntent.automatic,
+        activeTargetTransport: () => null,
+      ),
+    );
     if (scaleOnly) {
       _activeScaleOnlyScan = true;
     }
@@ -1352,6 +1420,7 @@ class ConnectionManager {
     _publishStatus(
       currentStatus.copyWith(
         phase: ConnectionPhase.connectingMachine,
+        activeTargetTransport: () => machine.transportType,
         pendingAmbiguity: () => null,
       ),
     );
@@ -1456,6 +1525,7 @@ class ConnectionManager {
     _publishStatus(
       currentStatus.copyWith(
         phase: ConnectionPhase.connectingScale,
+        activeTargetTransport: () => scale.transportType,
         pendingAmbiguity: () => null,
       ),
     );

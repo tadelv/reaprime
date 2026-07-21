@@ -133,6 +133,9 @@ void main() {
       expect(status.foundScales, isEmpty);
       expect(status.pendingAmbiguity, isNull);
       expect(status.error, isNull);
+      expect(status.intent, ConnectionIntent.automatic);
+      expect(status.activeTargetTransport, isNull);
+      expect(status.conditions, isEmpty);
     });
 
     test('copyWith preserves fields not overridden', () {
@@ -1384,21 +1387,21 @@ void main() {
         manager.dispose();
       });
 
-      test('emits connectingMachine then ready phases', () async {
-        final phases = <ConnectionPhase>[];
-        final sub = connectionManager.status.listen((s) {
-          phases.add(s.phase);
-        });
+      test('emits target transport while connecting then clears it', () async {
+        final statuses = <ConnectionStatus>[];
+        final sub = connectionManager.status.listen(statuses.add);
 
         final fakeDe1 = _FakeDe1(deviceId: 'phase-de1');
         await connectionManager.connectMachine(fakeDe1);
         await Future.delayed(Duration.zero);
 
-        expect(phases, [
+        expect(statuses.map((status) => status.phase), [
           ConnectionPhase.idle,
           ConnectionPhase.connectingMachine,
           ConnectionPhase.ready,
         ]);
+        expect(statuses[1].activeTargetTransport, TransportType.unknown);
+        expect(statuses.last.activeTargetTransport, isNull);
 
         await sub.cancel();
       });
@@ -1961,14 +1964,19 @@ void main() {
     });
 
     group('adapter state', () {
-      test('adapter off emits adapterOff error', () async {
+      test('adapter off emits a BLE-scoped condition', () async {
         mockScanner.mockAdapterState(AdapterState.poweredOff);
         await Future<void>.delayed(Duration.zero);
+
         expect(connectionManager.currentStatus.error?.kind,
             ConnectionErrorKind.adapterOff);
+        expect(connectionManager.currentStatus.conditions.single.transportType,
+            TransportType.ble);
+        expect(connectionManager.currentStatus.conditions.single.affectedDeviceTypes,
+            {DeviceType.machine, DeviceType.scale});
       });
 
-      test('adapter on clears adapterOff', () async {
+      test('adapter on clears the BLE-scoped condition', () async {
         mockScanner.mockAdapterState(AdapterState.poweredOff);
         await Future<void>.delayed(Duration.zero);
         expect(connectionManager.currentStatus.error?.kind,
@@ -1977,6 +1985,7 @@ void main() {
         mockScanner.mockAdapterState(AdapterState.poweredOn);
         await Future<void>.delayed(Duration.zero);
         expect(connectionManager.currentStatus.error, isNull);
+        expect(connectionManager.currentStatus.conditions, isEmpty);
       });
 
       test('adapter on does NOT clear an unrelated transient error',

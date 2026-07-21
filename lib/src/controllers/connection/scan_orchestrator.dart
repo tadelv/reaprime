@@ -6,9 +6,11 @@ import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
 import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart'
-    show ConnectionPhase;
+    show ConnectionPhase, TransportCondition;
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/errors.dart';
@@ -170,7 +172,7 @@ class ScanOrchestrator {
     _statusPublisher.publish(
       _statusPublisher.current.copyWith(phase: ConnectionPhase.idle),
     );
-    _statusPublisher.emitError(ConnectionError(
+    final error = ConnectionError(
       kind: kind,
       severity: ConnectionErrorSeverity.error,
       timestamp: DateTime.now().toUtc(),
@@ -181,7 +183,22 @@ class ScanOrchestrator {
           ? 'Grant Bluetooth permission in system settings and retry.'
           : 'Check that Bluetooth is enabled and retry.',
       details: {'exception': e.toString()},
-    ));
+    );
+    _statusPublisher.publish(
+      _statusPublisher.current.copyWith(
+        conditions: [
+          ..._statusPublisher.current.conditions.where(
+            (condition) => condition.transportType != TransportType.ble,
+          ),
+          TransportCondition(
+            transportType: TransportType.ble,
+            affectedDeviceTypes: const {DeviceType.machine, DeviceType.scale},
+            connectionError: error,
+          ),
+        ],
+      ),
+    );
+    _statusPublisher.emitError(error);
   }
 
   void _clearStickyScanError() {
@@ -189,6 +206,16 @@ class ScanOrchestrator {
     if (prevErr != null &&
         (prevErr.kind == ConnectionErrorKind.scanFailed ||
             prevErr.kind == ConnectionErrorKind.bluetoothPermissionDenied)) {
+      _statusPublisher.publish(
+        _statusPublisher.current.copyWith(
+          conditions: _statusPublisher.current.conditions
+              .where((condition) =>
+                  condition.connectionError.kind != ConnectionErrorKind.scanFailed &&
+                  condition.connectionError.kind !=
+                      ConnectionErrorKind.bluetoothPermissionDenied)
+              .toList(),
+        ),
+      );
       _statusPublisher.clearError();
     }
   }
