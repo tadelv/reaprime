@@ -64,7 +64,9 @@ class ScaleController {
         }
       } catch (e) {
         log.warning(
-            'Failed to disconnect previous scale ${previous.deviceId}', e);
+          'Failed to disconnect previous scale ${previous.deviceId}',
+          e,
+        );
       }
     }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
@@ -117,7 +119,10 @@ class ScaleController {
           await previous.disconnect();
         }
       } catch (e) {
-        log.warning('Failed to disconnect previous scale ${previous.deviceId}', e);
+        log.warning(
+          'Failed to disconnect previous scale ${previous.deviceId}',
+          e,
+        );
       }
     }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
@@ -140,7 +145,7 @@ class ScaleController {
     _scaleConnection?.cancel();
     _scale = null;
     _scaleConnection = null;
-    _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
+    _resetDisplayEstimator();
     _kalmanEstimator = null;
     _lastSnapshotTime = null;
     _flowSettleUntil = null;
@@ -164,10 +169,10 @@ class ScaleController {
 
   Stream<WeightSnapshot> get weightSnapshot => _weightSnapshotController.stream;
 
-  MovingAverage weightFlowAverage = MovingAverage(10);
-
   static const smoothingWindowDuration = Duration(milliseconds: 600);
+  static const movingAverageSamples = 10;
 
+  MovingAverage weightFlowAverage = MovingAverage(movingAverageSamples);
   FlowCalculator _flowCalculator = FlowCalculator(
     windowDuration: smoothingWindowDuration,
   );
@@ -176,23 +181,8 @@ class ScaleController {
   /// window off the scale's own clock rather than the wall clock.
   DateTime? _lastSnapshotTime;
 
-  /// Until this scale-clock time, report `weightFlow` as 0 (legacy path only).
-  /// The Kalman path uses [KalmanFlowEstimator.reset] instead — a principled
-  /// re-init at the weight discontinuity rather than a suppress window.
+  /// Until this scale-clock time, report `weightFlow` as 0.
   DateTime? _flowSettleUntil;
-
-  // -- Feature flag / estimator selection --
-
-  /// When true, the Kalman estimator replaces [FlowCalculator] +
-  /// [MovingAverage]. Controlled by [FeatureFlag.kalmanFlow].
-  bool _kalmanFlowEnabled = false;
-
-  /// Enable or disable the Kalman flow estimator at runtime. Safe to call
-  /// while a scale is connected — the flag takes effect on the next
-  /// snapshot.
-  void setKalmanFlowEnabled(bool enabled) {
-    _kalmanFlowEnabled = enabled;
-  }
 
   KalmanFlowEstimator? _kalmanEstimator;
 
@@ -207,46 +197,41 @@ class ScaleController {
   Future<void> tare() async {
     final scale = connectedScale();
     await scale.tare();
-    if (_kalmanFlowEnabled) {
-      _kalmanEstimator?.reset(0.0);
-    } else {
-      _flowCalculator =
-          FlowCalculator(windowDuration: smoothingWindowDuration);
-      weightFlowAverage = MovingAverage(10);
-      _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
-    }
+    _kalmanEstimator?.reset(0.0);
+    _resetDisplayEstimator();
+    _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
+  }
+
+  void _resetDisplayEstimator() {
+    _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
+    weightFlowAverage = MovingAverage(movingAverageSamples);
   }
 
   void _processSnapshot(ScaleSnapshot snapshot) {
     _lastSnapshotTime = snapshot.timestamp;
 
-    final double filteredWeight;
-    final double flow;
+    _kalmanEstimator ??= KalmanFlowEstimator(initialWeight: snapshot.weight);
+    final (_, controlFlow) = _kalmanEstimator!.addSample(
+      snapshot.timestamp,
+      snapshot.weight,
+    );
 
-    if (_kalmanFlowEnabled) {
-      _kalmanEstimator ??=
-          KalmanFlowEstimator(initialWeight: snapshot.weight);
-      final (w, f) =
-          _kalmanEstimator!.addSample(snapshot.timestamp, snapshot.weight);
-      filteredWeight = snapshot.weight;
-      flow = f;
-    } else {
-      // Legacy path: endpoint-difference FlowCalculator + MovingAverage.
-      filteredWeight = snapshot.weight;
-      final rawFlow =
-          _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
-      weightFlowAverage.add(rawFlow);
-
-      final settling = _flowSettleUntil != null &&
-          snapshot.timestamp.isBefore(_flowSettleUntil!);
-      flow = settling ? 0.0 : weightFlowAverage.average;
-    }
+    final rawFlow = _flowCalculator.addSample(
+      snapshot.timestamp,
+      snapshot.weight,
+    );
+    weightFlowAverage.add(rawFlow);
+    final settling =
+        _flowSettleUntil != null &&
+        snapshot.timestamp.isBefore(_flowSettleUntil!);
+    final displayFlow = settling ? 0.0 : weightFlowAverage.average;
 
     _weightSnapshotController.add(
       WeightSnapshot(
         timestamp: snapshot.timestamp,
-        weight: filteredWeight,
-        weightFlow: flow,
+        weight: snapshot.weight,
+        weightFlow: displayFlow,
+        controlWeightFlow: controlFlow,
         battery: snapshot.batteryLevel,
         timerValue: snapshot.timerValue,
       ),
@@ -266,15 +251,17 @@ class WeightSnapshot {
   final DateTime timestamp;
   final double weight;
   final double weightFlow;
+  final double controlWeightFlow;
   final int? battery;
   final Duration? timerValue;
   WeightSnapshot({
     required this.timestamp,
     required this.weight,
     required this.weightFlow,
+    double? controlWeightFlow,
     this.battery,
     this.timerValue,
-  });
+  }) : controlWeightFlow = controlWeightFlow ?? weightFlow;
 
   Map<String, dynamic> toJson() {
     return {
