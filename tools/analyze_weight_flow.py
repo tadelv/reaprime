@@ -58,11 +58,16 @@ def metrics(samples, minimum_flow=0.1):
         abs(flows[index] - 2 * flows[index - 1] + flows[index - 2])
         for index in range(2, len(flows))
     ]
+    tail = flows[-10:]
+    tail_deltas = [abs(right - left) for left, right in zip(tail, tail[1:])]
     return {
         "samples": len(samples),
         "active_samples": len(active),
         "cadence_hz": 1 / statistics.median(intervals) if intervals else 0.0,
         "mean_abs_delta": statistics.fmean(deltas) if deltas else 0.0,
+        "tail_mean_abs_delta": statistics.fmean(tail_deltas)
+        if tail_deltas
+        else 0.0,
         "p95_abs_delta": sorted(deltas)[math.ceil(len(deltas) * 0.95) - 1]
         if deltas
         else 0.0,
@@ -143,6 +148,7 @@ def main():
             f"{shot_id}: samples={result['samples']} active={result['active_samples']} "
             f"cadence={result['cadence_hz']:.2f}Hz "
             f"mean|Δflow|={result['mean_abs_delta']:.3f}g/s "
+            f"tail10={result['tail_mean_abs_delta']:.3f}g/s "
             f"p95|Δflow|={result['p95_abs_delta']:.3f}g/s "
             f"mean|Δ²flow|={result['mean_abs_second_delta']:.3f}g/s"
         )

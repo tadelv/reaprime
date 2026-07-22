@@ -168,6 +168,7 @@ Filter3 is not required; an allonge provides the long-running low-flow trace nee
 - `flutter test`: 2461 tests passed.
 - Python analysis-tool test: passed.
 - Simulated REST smoke: GET, valid POST, invalid POST, hot reload, and state retention passed.
-- Real-hardware allonge and SAW validation: pending.
+- Real-hardware allonge steady-tail mean `|Δflow|`: 0.049 g/s versus 0.276 g/s on the preceding comparable shot, an 82% reduction.
+- First real-hardware SAW result: 53.8 g against 52.5 g target (+1.3 g); one more SAW validation shot is required for the ±1 g gate.
 
-Update the #484 tracking item with measured before/after hardware results after validation.
+Update the #484 tracking item after the remaining SAW validation.
