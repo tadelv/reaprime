@@ -548,6 +548,22 @@ Example error response:
 
 Mock machines execute profiles in a simulated shot loop that follows profile step targets (flow, pressure, temperature) with simplified machine-response dynamics. Design decisions are recorded in archived plans — see `doc/plans/mock-shot-fidelity.md` for the substate model, flow→pressure coupling, weight accumulation, transition shaping, and skipStep semantics.
 
+### Profile Wire Format
+
+Profile uploads encode flow and pressure values at a machine-specific resolution.
+The app selects the format based on the connected device implementation.
+
+| Field | DE1 (v1) | Bengle (v2) |
+|-------|----------|-------------|
+| Header version | 1 | 2 |
+| Flow/pressure scale | 1/16 | 1/10 (U8D1) |
+| Header max flow byte | 12 × 16 = 192 (`0xC0`) | 12 × 10 = 120 (`0x78`) |
+
+Affected fields: header minimum pressure, header maximum flow, frame
+target, frame trigger, extension limiter value, extension limiter range.
+All other fields (temperature, duration, volume, flags, tail) are
+identical across formats.
+
 ### Profile Synchronization with Hardware
 
 #### Ownership

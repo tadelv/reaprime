@@ -18,26 +18,29 @@ extension UnifiedDe1Profile on UnifiedDe1 {
   }
 
   Future<void> _writeHeader(Profile profile) async {
+    final isBengle = implementation == DeviceImplementation.bengle;
+    final scale = isBengle ? 10.0 : 16.0;
+
     Uint8List data = Uint8List(5);
 
     int index = 0;
-    data[index] = 1; // Header version
+    data[index] = isBengle ? 2 : 1; // Header version
     index++;
     data[index] = profile.steps.length;
     index++;
     data[index] = profile.targetVolumeCountStart;
     index++;
-    // min pressure
-    data[index] = 0;
+    data[index] = 0; // min pressure
     index++;
-    // TODO: make this configurable
-    // max flow
-    data[index] = (0.5 + 12.0 * 16.0).toInt();
+    data[index] = (0.5 + 12.0 * scale).toInt(); // max flow - most likely ignored by FW
 
     await _transport.writeWithResponse(Endpoint.headerWrite, data);
   }
 
   Future<void> _writeSteps(Profile profile) async {
+    final isBengle = implementation == DeviceImplementation.bengle;
+    final scale = isBengle ? 10.0 : 16.0;
+
     // write frames
     for (var i = 0; i < profile.steps.length; i++) {
       var step = profile.steps[i];
@@ -51,13 +54,13 @@ extension UnifiedDe1Profile on UnifiedDe1 {
       index++;
       data[index] = Helper.convertProfileFlags(step);
       index++;
-      data[index] = (0.5 + step.getTarget() * 16.0).toInt();
+      data[index] = (0.5 + step.getTarget() * scale).toInt();
       index++; // note to add 0.5, as "round" is used, not truncate
       data[index] = (0.5 + step.temperature * 2.0).toInt();
       index++;
       data[index] = Helper.convert_float_to_F8_1_7(step.seconds);
       index++;
-      data[index] = (0.5 + (step.exit?.value ?? 0) * 16.0).toInt();
+      data[index] = (0.5 + (step.exit?.value ?? 0) * scale).toInt();
       index++;
       Helper.convert_float_to_U10P0(step.volume, data, index);
 
@@ -79,8 +82,8 @@ extension UnifiedDe1Profile on UnifiedDe1 {
       double limiterValue = step.limiter!.value;
       double limiterRange = step.limiter!.range;
 
-      data[1] = (0.5 + limiterValue * 16.0).toInt();
-      data[2] = (0.5 + limiterRange * 16.0).toInt();
+      data[1] = (0.5 + limiterValue * scale).toInt();
+      data[2] = (0.5 + limiterRange * scale).toInt();
 
       data[3] = 0;
       data[4] = 0;
