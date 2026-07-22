@@ -55,30 +55,6 @@ SkinNavDecision classifySkinNavigation(Uri? url) {
   return SkinNavDecision.block;
 }
 
-/// JS predicate evaluated after a skin load settles: did the skin actually come
-/// up? True when something rendered into `<body>`, or a skin published its
-/// `window.app` bridge. A dead load — index.html parsed but none of the skin's
-/// external `<script>`s executed — leaves the body empty and no globals set.
-const String skinRenderedProbeJs =
-    '(!!(document.body && document.body.childElementCount > 0)) '
-    '|| (typeof window.app !== "undefined")';
-
-/// Loading this URL crashes the WebView renderer process. Recreating the Flutter
-/// widget alone reuses the same (wedged) renderer and does not recover a blank
-/// load; crashing forces a fresh renderer via [onRenderProcessGone].
-const String kRendererCrashUrl = 'chrome://crash';
-
-/// Whether a settled skin load that came up blank should be recovered (by
-/// forcing a fresh renderer). Pure so the retry policy is unit-testable without
-/// a live webview, bounded by [maxRecoveries] so a skin that genuinely cannot
-/// load can't spin in a crash loop.
-bool shouldRecoverBlankSkin({
-  required bool rendered,
-  required int priorRecoveries,
-  int maxRecoveries = 3,
-}) =>
-    !rendered && priorRecoveries < maxRecoveries;
-
 class SkinExitCoordinator {
   bool _inProgress = false;
 
@@ -136,22 +112,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   CompatibilityResult? _compatibilityResult;
   bool _rendererCrashed = false;
 
-  // Blank-skin self-heal. Some launches — notably right after a machine
-  // power-cycle, when the reconnect burst competes with the initial page
-  // load — bring the webview up with index.html parsed but none of the skin's
-  // external <script>s executed: a blank page whose spinner never clears. A
-  // page reload does not recover it, and neither does recreating the Flutter
-  // widget — both reuse the same wedged renderer PROCESS. Only a fresh renderer
-  // does (what a full app restart gives). After each load settles we probe
-  // whether the skin rendered and, if not, crash the renderer to force a fresh
-  // one via onRenderProcessGone, bounded by [_maxBlankRecoveries].
-  static const int _maxBlankRecoveries = 3;
-  Timer? _blankSkinWatchdog;
-  int _blankRecoveries = 0;
-
-  /// Mirrors an outstanding Android-global WebView.pauseTimers(). Static on
-  /// purpose: the paused state lives in the shared renderer process, not in
-  /// this State object, so it must survive SkinView dispose/recreate cycles.
   static bool _globalTimersPaused = false;
 
   InAppWebViewController? _webViewController;
@@ -179,16 +139,9 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     _log.fine("disposing");
     _blankPageTimer?.cancel();
     _blankPageTimer = null;
-    _blankSkinWatchdog?.cancel();
-    _blankSkinWatchdog = null;
-    // Balance an outstanding global timer pause before this State (and its
-    // controller) are gone: on Android the pause outlives the webview, and a
-    // SkinView disposed while backgrounded (machine power-cycle: disconnect,
-    // then USB re-attach navigates a fresh stack) would otherwise hand the
-    // NEXT webview a paused renderer scheduler — the blank-skin wedge.
     final controller = _webViewController;
     if (_globalTimersPaused && controller != null) {
-      _resumeLeakedTimerPause(controller, 'dispose');
+      unawaited(_resumeWebViewTimers(controller, 'dispose'));
     }
     WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid) {
@@ -221,10 +174,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       try {
         if (InAppWebViewController.isMethodSupported(.pauseTimers)) {
           _webViewController?.pauseTimers();
-          // On Android this pauses layout, parsing and JS timers for ALL
-          // WebViews in the shared renderer process, and the paused state
-          // outlives this widget and its webview. Track it so dispose() /
-          // onWebViewCreated() can balance a pause the resumed event misses.
           _globalTimersPaused = true;
         }
       } on UnimplementedError catch (e) {
@@ -241,26 +190,11 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         _didBlank = true;
       });
     } else if (state == AppLifecycleState.resumed) {
-      // Bookkeeping first, NOT gated on the controller existing: a resumed
-      // event can arrive while the webview is still being created (or after
-      // a renderer crash nulled the controller). The stale blank-page timer
-      // must never fire into a foregrounded skin, and a pause that the
-      // controller-gated code below cannot balance is healed in
-      // onWebViewCreated instead.
       _blankPageTimer?.cancel();
       _blankPageTimer = null;
       if (_webViewController == null) return;
       _log.info('App foregrounded — resuming WebView and reloading skin');
-      try {
-        if (InAppWebViewController.isMethodSupported(.resumeTimers)) {
-          _webViewController?.resumeTimers();
-          _globalTimersPaused = false;
-        }
-      } on UnimplementedError catch (e) {
-        _log.warning("Unimplemented: ", e);
-      } catch (e, st) {
-        _log.severe("Unexpected: ", e, st);
-      }
+      unawaited(_resumeWebViewTimers(_webViewController!, 'resume'));
       try {
         if (InAppWebViewController.isMethodSupported(.resume)) {
           _webViewController?.resume();
@@ -740,12 +674,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       onWebViewCreated: (controller) {
         _log.info('InAppWebView created');
         _webViewController = controller;
-        // A brand-new webview can inherit a paused renderer scheduler from a
-        // global pauseTimers() that was never balanced (SkinView disposed
-        // while backgrounded, or `resumed` delivered before this webview
-        // existed). Resume is a no-op when nothing is paused, so always
-        // balance here — the initial load must never start wedged.
-        _resumeLeakedTimerPause(controller, 'onWebViewCreated');
+        unawaited(_resumeWebViewTimers(controller, 'onWebViewCreated'));
       },
       onLoadStart: (controller, url) {
         _log.info('Page started loading: $url');
@@ -757,18 +686,12 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           _isLoading = true;
           _errorMessage = null;
         });
-        // A load that never settles (subresources wedged) is itself a blank;
-        // arm a generous watchdog. onLoadStop re-arms a short render-grace one.
-        _armBlankSkinWatchdog(url, const Duration(seconds: 12));
       },
       onLoadStop: (controller, url) async {
         _log.info('Page finished loading: $url');
         setState(() {
           _isLoading = false;
         });
-        // Give the skin a moment to render, then verify it actually did.
-        _armBlankSkinWatchdog(url, const Duration(seconds: 3));
-
         // Inject CSS to hide scrollbars in web content
         // await controller.evaluateJavascript(source: '''
         //   (function() {
@@ -818,11 +741,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         final uri = navigationAction.request.url;
-        // Our own blank-load recovery loads the renderer-crash URL; allow it
-        // through (loadUrl usually bypasses this callback, but be explicit).
-        if (uri?.toString() == kRendererCrashUrl) {
-          return NavigationActionPolicy.ALLOW;
-        }
         switch (classifySkinNavigation(uri)) {
           case SkinNavDecision.exitDashboard:
             if (_skinExitCoordinator.tryStart(
@@ -884,30 +802,17 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     );
   }
 
-  /// Balance a (possibly leaked) global WebView.pauseTimers().
-  ///
-  /// On Android, pauseTimers() pauses layout, parsing and JavaScript timers
-  /// for ALL WebViews in the shared renderer process, and that state outlives
-  /// both this widget and its webview — only resumeTimers() (or renderer
-  /// death) clears it. If the pause is never balanced, the next webview in
-  /// the same renderer wedges mid-parse: index.html's inline scripts run but
-  /// no external <script> ever executes and readyState stays 'loading' — the
-  /// blank-skin-on-launch bug. resumeTimers() is a no-op when nothing is
-  /// paused (and guarded per-webview on iOS), so over-calling is harmless.
-  void _resumeLeakedTimerPause(
+  Future<void> _resumeWebViewTimers(
     InAppWebViewController controller,
     String where,
-  ) {
-    final wasLeaked = _globalTimersPaused;
+  ) async {
+    final wasPaused = _globalTimersPaused;
     try {
       if (InAppWebViewController.isMethodSupported(.resumeTimers)) {
-        controller.resumeTimers();
+        await controller.resumeTimers();
         _globalTimersPaused = false;
-        if (wasLeaked) {
-          _log.warning(
-            'balanced a leaked global WebView timer pause ($where) — '
-            'without this the skin would load blank (parser wedged)',
-          );
+        if (wasPaused) {
+          _log.warning('Balanced WebView timer pause in $where');
         }
       }
     } on UnimplementedError catch (e) {
@@ -915,65 +820,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     } catch (e, st) {
       _log.severe("Unexpected: ", e, st);
     }
-  }
-
-  /// Arm the blank-skin watchdog — for the skin URL only, never about:blank
-  /// (which we deliberately load when backgrounded). Replaces any pending probe.
-  void _armBlankSkinWatchdog(WebUri? url, Duration delay) {
-    if (!(Platform.isAndroid || Platform.isIOS)) return;
-    if (!(url?.toString() ?? '').startsWith('http://localhost:3000')) return;
-    _blankSkinWatchdog?.cancel();
-    _blankSkinWatchdog = Timer(delay, _probeSkinAndRecover);
-  }
-
-  /// After a load settles, ask the page whether the skin actually rendered.
-  /// A blank result (or a probe that throws) recreates the webview, up to
-  /// [_maxBlankRecoveries]; a healthy render refills the recovery budget.
-  Future<void> _probeSkinAndRecover() async {
-    final controller = _webViewController;
-    if (!mounted || controller == null) return;
-    bool rendered;
-    try {
-      final res = await controller
-          .evaluateJavascript(source: skinRenderedProbeJs)
-          .timeout(const Duration(seconds: 5));
-      rendered = res == true || res == 'true' || res == 1;
-    } catch (e, st) {
-      _log.warning('skin-render probe failed; treating as blank', e, st);
-      rendered = false;
-    }
-    if (rendered) {
-      _blankRecoveries = 0; // a healthy load refills the recovery budget
-      return;
-    }
-    if (!shouldRecoverBlankSkin(
-      rendered: rendered,
-      priorRecoveries: _blankRecoveries,
-      maxRecoveries: _maxBlankRecoveries,
-    )) {
-      _log.severe(
-        'skin still blank after $_blankRecoveries recoveries — giving up',
-      );
-      return;
-    }
-    _blankRecoveries++;
-    _log.warning(
-      'skin loaded blank — restarting renderer '
-      '(attempt $_blankRecoveries/$_maxBlankRecoveries)',
-    );
-    _crashRendererForRecovery();
-  }
-
-  /// Force a fresh renderer process. Recreating the Flutter widget reuses the
-  /// same (wedged) renderer, so a blank load does not recover; crashing the
-  /// current renderer trips [onRenderProcessGone], which recreates the webview
-  /// with a NEW renderer and reloads the skin clean. loadUrl is not an in-page
-  /// navigation, so it bypasses shouldOverrideUrlLoading — the crash URL loads
-  /// directly.
-  void _crashRendererForRecovery() {
-    _webViewController?.loadUrl(
-      urlRequest: URLRequest(url: WebUri(kRendererCrashUrl)),
-    );
   }
 
   /// Scripts injected into the skin at document start, before any page script

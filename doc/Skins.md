@@ -58,6 +58,13 @@ The **Streamline Project** is a reference implementation:
 - **WebSocket API**: Port 8080 - Real-time state updates, shot telemetry
 - **API Documentation**: Port 4001 - Interactive API docs (when enabled)
 
+### Embedded Skin Lifecycle
+
+On Android and iOS, Decent.app pauses the embedded WebView while the app is
+backgrounded. After ten minutes in the background, it unloads the page and
+reloads the selected skin when the app returns. Skin state that must survive
+this reload should be persisted through the Decent.app API or browser storage.
+
 ---
 
 ## Getting Started

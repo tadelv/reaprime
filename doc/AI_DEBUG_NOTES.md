@@ -106,6 +106,25 @@ re-upload of any profile clears the latch. See `doc/AI_BLE_NOTES.md` for the
 cache architecture and `doc/plans/archive/profile-upload-recovery/design.md`
 for the full design rationale.
 
+## Blank Android skin after app resume
+
+**Symptom:** The embedded skin stays blank with a spinner after a machine
+power-cycle or app relaunch. Reloading the page does not recover it, but
+restarting the app does.
+
+**Root cause:** Android `WebView.pauseTimers()` pauses layout, parsing, and
+JavaScript timers for every WebView in the process. `SkinView` could be disposed
+while backgrounded, or receive `resumed` before its controller existed, leaving
+the process-wide pause unbalanced. A replacement WebView then inherited the
+paused parser state.
+
+**Fix pattern:** Track the outstanding pause across `SkinView` instances. Cancel
+the background blank-page timer before the controller-null return, resume timers
+during disposal and WebView creation, and clear `_didBlank` before reloading. Do
+not infer renderer health from page DOM shape or deliberately crash the renderer;
+custom skins have no common ready signal and Apple WebViews use a different
+termination callback.
+
 ## Keeping Notes Fresh
 
 Add debugging patterns with: symptom, root cause, fix pattern, prevention. Prune when fixes ship and patterns are no longer current.
