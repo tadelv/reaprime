@@ -10,15 +10,6 @@ enum FeatureFlag {
   /// Default: **true** (opt-out — the fix is the new default behavior).
   stepExitArbiter,
 
-  /// When enabled, replaces the endpoint-difference [FlowCalculator] +
-  /// [MovingAverage] pipeline with a 1-D constant-velocity Kalman filter
-  /// ([KalmanFlowEstimator]) that provides signed, low-lag flow estimates
-  /// with disturbance rejection (issue #417).
-  ///
-  /// Default: **true** (opt-out — 10-shot validation gate passed;
-  /// mean |Δyield| 0.44g ≤ 1g baseline, flow noise 8–13% vs 14.7% old).
-  kalmanFlow,
-
   /// Requests MTU 517 on native platforms other than Android and Linux.
   /// Android already requests it unconditionally; BlueZ owns Linux MTU.
   largeBleMtuNonAndroid,
@@ -28,6 +19,5 @@ enum FeatureFlag {
 /// flags that ship as experimental default to false.
 const Map<FeatureFlag, bool> defaultFeatureFlagValues = {
   FeatureFlag.stepExitArbiter: true,
-  FeatureFlag.kalmanFlow: true,
   FeatureFlag.largeBleMtuNonAndroid: false,
 };

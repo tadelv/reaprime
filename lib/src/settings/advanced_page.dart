@@ -87,8 +87,9 @@ class AdvancedPage extends StatelessWidget {
                   vertical: 8,
                 ),
                 child: ShadSwitch(
-                  value: controller
-                      .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+                  value: controller.isFeatureFlagEnabled(
+                    FeatureFlag.stepExitArbiter,
+                  ),
                   onChanged: (v) async {
                     await controller.setFeatureFlag(
                       FeatureFlag.stepExitArbiter,
@@ -110,65 +111,36 @@ class AdvancedPage extends StatelessWidget {
                 ),
               ),
               const SettingsDivider(),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+              if (Platform.isIOS || Platform.isMacOS || Platform.isWindows) ...{
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: ShadSwitch(
+                    value: controller.isFeatureFlagEnabled(
+                      .largeBleMtuNonAndroid,
+                    ),
+                    onChanged: (v) async {
+                      await controller.setFeatureFlag(
+                        FeatureFlag.largeBleMtuNonAndroid,
+                        v,
+                      );
+                    },
+                    label: const Text('Use MTU value of 517'),
+                  ),
                 ),
-                child: ShadSwitch(
-                  value: controller
-                      .isFeatureFlagEnabled(FeatureFlag.kalmanFlow),
-                  onChanged: (v) async {
-                    await controller.setFeatureFlag(
-                      FeatureFlag.kalmanFlow,
-                      v,
-                    );
-                  },
-                  label: const Text('Kalman Flow Estimator'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                  ),
+                  child: Text(
+                    'Will try to negotiate a larger MTU value '
+                    'for Bluetooth connections. ',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ),
-                child: Text(
-                  'Uses a Kalman filter for smoother, signed flow estimates '
-                  'with disturbance rejection. Enabled by default. Disable if '
-                  'you prefer the legacy endpoint-difference flow calculator.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const SettingsDivider(),
-              if (Platform.isIOS || Platform.isMacOS || Platform.isWindows) 
-              ...{
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: ShadSwitch(
-                  value: controller
-                      .isFeatureFlagEnabled(.largeBleMtuNonAndroid),
-                  onChanged: (v) async {
-                    await controller.setFeatureFlag(
-                      FeatureFlag.largeBleMtuNonAndroid,
-                      v,
-                    );
-                  },
-                  label: const Text('Use MTU value of 517'),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ),
-                child: Text(
-                  'Will try to negotiate a larger MTU value '
-                  'for Bluetooth connections. ',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const SettingsDivider(),
+                const SettingsDivider(),
               },
 
               // Simulated devices
