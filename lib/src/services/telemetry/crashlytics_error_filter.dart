@@ -57,5 +57,14 @@ bool isBenignFrameworkError(Object error) {
   // _handleGattError can't catch it.
   if (errorString.contains('Queue Cancelled')) return true;
 
+  // PlatformException from bonsoir DNS-SD plugin — ServiceNotRunning means
+  // the mDNS daemon isn't available on the platform (iOS/macOS transient
+  // state). Not a code bug.
+  if (errorString.startsWith('PlatformException(') &&
+      (errorString.contains('Bonsoir') ||
+       errorString.contains('ServiceNotRunning'))) {
+    return true;
+  }
+
   return false;
 }

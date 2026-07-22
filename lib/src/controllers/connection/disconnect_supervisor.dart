@@ -174,7 +174,7 @@ class DisconnectSupervisor {
     }
     _statusPublisher.emitError(ConnectionError(
       kind: ConnectionErrorKind.scaleDisconnected,
-      severity: ConnectionErrorSeverity.error,
+      severity: ConnectionErrorSeverity.warning,
       timestamp: DateTime.now().toUtc(),
       deviceId: deviceId,
       message: 'Scale disconnected unexpectedly.',
