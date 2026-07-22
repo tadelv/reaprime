@@ -37,8 +37,20 @@ Simulated devices avoid hardware requirements for smoke testing. Available types
 | `bengle` | `MockBengle` only |
 | `machine,scale` | `MockDe1` + `MockScale` |
 | `sensor` | `MockSensor` only |
+| `0` | None (debug routes on, real hardware) |
 
 Also toggleable from the settings UI after launch.
+
+### `simulate=0` mode
+
+`--dart-define=simulate=0` enables the debug infrastructure (API routes,
+no-Firebase, no-telemetry) while creating zero simulated devices. Use it for
+temporary real-hardware tuning builds where debug endpoints must be reachable.
+
+- Enables debug REST routes (`/api/v1/debug/*`)
+- Creates no simulated devices — all BLE/USB hardware is real
+- Disables Firebase and telemetry
+- Must not be used for production releases
 
 ## Platform Config
 

@@ -4,7 +4,9 @@ import argparse
 import csv
 import json
 import math
+import re
 import statistics
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -123,8 +125,18 @@ def write_svg(path, samples, title):
     )
 
 
+SHOT_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def validate_shot_id(shot_id):
+    if not SHOT_ID_RE.match(shot_id) or shot_id in (".", ".."):
+        raise ValueError(f"invalid shot_id: {shot_id!r}")
+    return shot_id
+
+
 def fetch_shot(base_url, shot_id):
-    url = f"{base_url.rstrip('/')}/api/v1/shots/{shot_id}"
+    encoded = urllib.parse.quote(shot_id, safe="")
+    url = f"{base_url.rstrip('/')}/api/v1/shots/{encoded}"
     with urllib.request.urlopen(url, timeout=15) as response:
         return json.load(response)
 
@@ -139,6 +151,7 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     for shot_id in args.shot_ids:
+        validate_shot_id(shot_id)
         shot = fetch_shot(args.base_url, shot_id)
         samples = extract_samples(shot)
         result = metrics(samples, args.min_flow)
