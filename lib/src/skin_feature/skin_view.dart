@@ -727,7 +727,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
             request.url.toString() == skinExitDashboardUrl) {
           return;
         }
-        _log.severe(
+        _log.warning(
           'WebView error - Code: ${error.type}, Description: ${error.description}',
         );
         if (!mounted) return;
