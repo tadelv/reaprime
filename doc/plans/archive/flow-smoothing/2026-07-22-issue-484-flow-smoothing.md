@@ -169,6 +169,6 @@ Filter3 is not required; an allonge provides the long-running low-flow trace nee
 - Python analysis-tool test: passed.
 - Simulated REST smoke: GET, valid POST, invalid POST, hot reload, and state retention passed.
 - Real-hardware allonge steady-tail mean `|Δflow|`: 0.049 g/s versus 0.276 g/s on the preceding comparable shot, an 82% reduction.
-- First real-hardware SAW result: 53.8 g against 52.5 g target (+1.3 g); one more SAW validation shot is required for the ±1 g gate.
+- First real-hardware SAW result was invalidated: 53.8 g against 52.5 g target (+1.3 g) was pulled with `weightFlowMultiplier: 0.7` instead of the 1.0 baseline. Repeat after restoring the baseline.
 
 Update the #484 tracking item after the remaining SAW validation.
