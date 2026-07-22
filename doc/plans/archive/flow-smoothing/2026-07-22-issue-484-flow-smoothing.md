@@ -3,7 +3,7 @@
 - **Issue:** [#484](https://github.com/tadelv/reaprime/issues/484)
 - **Related:** [#420](https://github.com/tadelv/reaprime/issues/420) — SAW lead decomposition
 - **Date:** 2026-07-22
-- **Status:** agreed, not implemented
+- **Status:** implemented; real-hardware allonge and SAW validation pending
 
 ## Problem
 
@@ -160,6 +160,14 @@ Filter3 is not required; an allonge provides the long-running low-flow trace nee
 - Persistent user-facing smoothing settings.
 - Runtime tuning of Kalman parameters.
 
-## Completion
+## Implementation verification
 
-After implementation and verification, archive this design under `doc/plans/archive/flow-smoothing/` and update the #484 tracking item with measured before/after results.
+- Native fixture display mean `|Δflow|`: within the 0.12 g/s gate.
+- Existing Kalman control output: unchanged (`0.2597772268251356` mean `|Δflow|` on the fixture).
+- `flutter analyze`: clean.
+- `flutter test`: 2461 tests passed.
+- Python analysis-tool test: passed.
+- Simulated REST smoke: GET, valid POST, invalid POST, hot reload, and state retention passed.
+- Real-hardware allonge and SAW validation: pending.
+
+Update the #484 tracking item with measured before/after hardware results after validation.
