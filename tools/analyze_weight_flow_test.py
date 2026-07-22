@@ -25,6 +25,7 @@ class AnalyzeWeightFlowTest(unittest.TestCase):
         self.assertEqual(result["active_samples"], 4)
         self.assertAlmostEqual(result["cadence_hz"], 4.0)
         self.assertAlmostEqual(result["mean_abs_delta"], 2 / 3)
+        self.assertAlmostEqual(result["tail_mean_abs_delta"], 2 / 3)
         self.assertAlmostEqual(result["p95_abs_delta"], 1.0)
         self.assertAlmostEqual(result["mean_abs_second_delta"], 1.0)
 
