@@ -103,8 +103,9 @@ const bodyExample = "</body>";
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('webui_offline_test');
       // Minimal content — shelf_io.serve needs something to serve.
-      await File('${tempDir.path}/index.html')
-          .writeAsString('<html><body>test</body></html>');
+      await File(
+        '${tempDir.path}/index.html',
+      ).writeAsString('<html><body>test</body></html>');
       service = WebUIService();
     });
 
@@ -115,6 +116,15 @@ const bodyExample = "</body>";
       }
       // Restore default behaviour so subsequent tests get real WiFi IP.
       WebUIService.resolveWifiIP = NetworkInfo().getWifiIP;
+      WebUIService.listLocalAddresses = () async {
+        final interfaces = await NetworkInterface.list(
+          includeLoopback: false,
+        );
+        return [
+          for (final iface in interfaces)
+            for (final addr in iface.addresses) addr.address,
+        ];
+      };
     });
 
     test('protects the skin API across origins', () async {
@@ -188,9 +198,63 @@ const bodyExample = "</body>";
       expect(script, isNot(contains(token)));
     });
 
+    test(
+      'accepts a local interface address that differs from the cached WiFi '
+      'IP (e.g. Ethernet, or WiFi IP renewed after the process started)',
+      () async {
+        const wifiIp = '192.168.50.20';
+        const ethernetIp = '10.0.0.7';
+        WebUIService.resolveWifiIP = () async => wifiIp;
+        WebUIService.listLocalAddresses = () async => [ethernetIp];
+        service.skinProxyToken = token;
+        await service.serveFolderAtPath(tempDir.path, port: 3001);
+
+        final client = HttpClient();
+        addTearDown(client.close);
+        final request = await client.getUrl(
+          Uri.parse('http://localhost:3001/'),
+        );
+        request.headers.set(HttpHeaders.hostHeader, '$ethernetIp:3001');
+        final response = await request.close();
+        final body = await response.transform(utf8.decoder).join();
+
+        expect(body, contains('content="$token"'));
+        expect(
+          body,
+          contains(
+            '<script src="http://$ethernetIp:3001$skinApiScriptPath">'
+            '</script>',
+          ),
+        );
+      },
+    );
+
+    test(
+      'still rejects an arbitrary host once local interfaces are enumerated '
+      '(regression guard: broadening the allowlist must not defeat the '
+      'anti-DNS-rebinding check)',
+      () async {
+        WebUIService.resolveWifiIP = () async => '192.168.50.20';
+        WebUIService.listLocalAddresses = () async => ['10.0.0.7'];
+        service.skinProxyToken = token;
+        await service.serveFolderAtPath(tempDir.path, port: 3001);
+
+        final client = HttpClient();
+        addTearDown(client.close);
+        final request = await client.getUrl(
+          Uri.parse('http://localhost:3001/'),
+        );
+        request.headers.set(HttpHeaders.hostHeader, 'example.invalid:3001');
+        final response = await request.close();
+        final body = await response.transform(utf8.decoder).join();
+
+        expect(body, isNot(contains('reaprime-proxy-token')));
+        expect(body, isNot(contains(skinApiScriptPath)));
+      },
+    );
+
     test('falls back to localhost when getWifiIP throws (gh#337)', () async {
-      WebUIService.resolveWifiIP = () async =>
-          throw Exception('no wifi');
+      WebUIService.resolveWifiIP = () async => throw Exception('no wifi');
 
       await service.serveFolderAtPath(tempDir.path);
 
@@ -207,14 +271,16 @@ const bodyExample = "</body>";
       expect(service.deviceIp(), 'localhost');
     });
 
-    test('falls back to localhost when getWifiIP returns empty string',
-        () async {
-      WebUIService.resolveWifiIP = () async => '';
+    test(
+      'falls back to localhost when getWifiIP returns empty string',
+      () async {
+        WebUIService.resolveWifiIP = () async => '';
 
-      await service.serveFolderAtPath(tempDir.path);
+        await service.serveFolderAtPath(tempDir.path);
 
-      expect(service.isServing, isTrue);
-      expect(service.deviceIp(), 'localhost');
-    });
+        expect(service.isServing, isTrue);
+        expect(service.deviceIp(), 'localhost');
+      },
+    );
   });
 }
