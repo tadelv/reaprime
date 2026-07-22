@@ -66,7 +66,7 @@ abstract class TelemetryService {
   static TelemetryService create({required LogBuffer logBuffer}) {
     // Check if telemetry should be disabled
     final isDebugMode = kDebugMode;
-    final isSimulateMode = const String.fromEnvironment('simulate') == '1';
+    final isSimulateMode = const bool.hasEnvironment('simulate');
     final isLinuxOrWindows = Platform.isLinux || Platform.isWindows;
 
     if (isDebugMode || isSimulateMode || isLinuxOrWindows) {
