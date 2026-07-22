@@ -324,18 +324,20 @@ The **proxy** lets clients *use* the account without ever seeing the credentials
 | GET | `/api/v1/webview/logs` | WebView console log forwarding, newest first (`?order=asc` for original chronological order) | `webview_logs_handler.dart` |
 | POST | `/api/v1/derek/answers/stream` | Relay to the Derek RAG assistant: forwards the JSON body verbatim to `derek.decentespresso.com/api/answers/stream` and pipes the SSE response back unbuffered. No auth (public data). Exists so browser skins avoid Derek's failing CORS preflight. | `derek_handler.dart` |
 
-### Debug (simulate mode only)
+### Debug (debug builds only)
 
-Only registered when the app is launched with `--dart-define=simulate=1`. Returns 404 on production builds.
+Only registered when the app is launched with a non-empty `simulate` Dart define. Use `--dart-define=simulate=0` to enable the routes without selecting simulated devices. Returns 404 on production builds.
 
 | Method | Endpoint | Description | Handler |
 |--------|----------|-------------|---------|
 | POST | `/api/v1/debug/update/force` | Force a fake "update available" so the update API/UI can be tested without a real newer release. Optional query: `version` (default `99.0.0`), `downloadUrl` (default = real latest APK, so the download/install path runs end-to-end). | `debug_handler.dart` |
+| GET | `/api/v1/debug/flow-smoothing` | Read process-local display-flow smoothing (`windowMs`, `movingAverageSamples`). | `debug_handler.dart` |
+| POST | `/api/v1/debug/flow-smoothing` | Atomically update and reset display-flow smoothing; accepts integer `windowMs` (100–2000) and `movingAverageSamples` (1–50). | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/stall` | Pause mock scale weight emission (stays "connected") | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/resume` | Resume weight emission after stall | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/disconnect` | Simulate scale disconnect (emits disconnected state, stops data) | `debug_handler.dart` |
 
-All endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`.
+Mock-scale command endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`.
 
 ---
 

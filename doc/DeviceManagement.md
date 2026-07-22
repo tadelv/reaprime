@@ -579,7 +579,8 @@ Future<void> connectToDe1(De1Interface de1Interface) async {
 **Responsibilities:**
 - Manages scale connection lifecycle (called by ConnectionManager)
 - Processes weight and flow data
-- Calculates smoothed weight flow
+- Calculates low-lag Kalman control flow for weight-based decisions
+- Calculates separately smoothed display flow for snapshots and shot history
 - Exposes weight snapshots and connection state
 
 **Note:** ScaleController does **not** auto-connect. Connection decisions are made by `ConnectionManager`. ScaleController only handles the mechanics of connecting to a specific scale.
