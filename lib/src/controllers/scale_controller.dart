@@ -169,12 +169,22 @@ class ScaleController {
 
   Stream<WeightSnapshot> get weightSnapshot => _weightSnapshotController.stream;
 
-  static const smoothingWindowDuration = Duration(milliseconds: 600);
-  static const movingAverageSamples = 10;
+  static const defaultSmoothingWindow = Duration(milliseconds: 600);
+  static const defaultMovingAverageSamples = 10;
+  static const minSmoothingWindowMs = 100;
+  static const maxSmoothingWindowMs = 2000;
+  static const minMovingAverageSamples = 1;
+  static const maxMovingAverageSamples = 50;
 
-  MovingAverage weightFlowAverage = MovingAverage(movingAverageSamples);
+  Duration _smoothingWindow = defaultSmoothingWindow;
+  int _movingAverageSamples = defaultMovingAverageSamples;
+
+  int get flowSmoothingWindowMs => _smoothingWindow.inMilliseconds;
+  int get flowSmoothingSamples => _movingAverageSamples;
+
+  MovingAverage weightFlowAverage = MovingAverage(defaultMovingAverageSamples);
   FlowCalculator _flowCalculator = FlowCalculator(
-    windowDuration: smoothingWindowDuration,
+    windowDuration: defaultSmoothingWindow,
   );
 
   /// Latest scale-clock timestamp seen. Used to time the post-tare flow-settle
@@ -199,12 +209,39 @@ class ScaleController {
     await scale.tare();
     _kalmanEstimator?.reset(0.0);
     _resetDisplayEstimator();
-    _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
+    _flowSettleUntil = _lastSnapshotTime?.add(_smoothingWindow);
+  }
+
+  void setFlowSmoothing({
+    required int windowMs,
+    required int movingAverageSamples,
+  }) {
+    if (windowMs < minSmoothingWindowMs || windowMs > maxSmoothingWindowMs) {
+      throw RangeError.range(
+        windowMs,
+        minSmoothingWindowMs,
+        maxSmoothingWindowMs,
+        'windowMs',
+      );
+    }
+    if (movingAverageSamples < minMovingAverageSamples ||
+        movingAverageSamples > maxMovingAverageSamples) {
+      throw RangeError.range(
+        movingAverageSamples,
+        minMovingAverageSamples,
+        maxMovingAverageSamples,
+        'movingAverageSamples',
+      );
+    }
+    _smoothingWindow = Duration(milliseconds: windowMs);
+    _movingAverageSamples = movingAverageSamples;
+    _resetDisplayEstimator();
+    _flowSettleUntil = null;
   }
 
   void _resetDisplayEstimator() {
-    _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
-    weightFlowAverage = MovingAverage(movingAverageSamples);
+    _flowCalculator = FlowCalculator(windowDuration: _smoothingWindow);
+    weightFlowAverage = MovingAverage(_movingAverageSamples);
   }
 
   void _processSnapshot(ScaleSnapshot snapshot) {

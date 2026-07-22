@@ -243,6 +243,34 @@ void main() {
     controller.dispose();
   });
 
+  test('runtime smoothing update resets only display flow', () async {
+    final controller = ScaleController();
+    final scale = _TrackingScale('A');
+    await controller.connectToScale(scale);
+    final frames = <WeightSnapshot>[];
+    final sub = controller.weightSnapshot.listen(frames.add);
+    final t0 = DateTime.utc(2026, 7, 22);
+
+    for (var i = 0; i < 20; i++) {
+      scale.emitAt(t0.add(Duration(milliseconds: i * 100)), i * 0.5);
+    }
+    await Future.delayed(Duration.zero);
+    expect(frames.last.weightFlow, greaterThan(0));
+    expect(frames.last.controlWeightFlow, greaterThan(0));
+
+    controller.setFlowSmoothing(windowMs: 800, movingAverageSamples: 6);
+    scale.emitAt(t0.add(const Duration(seconds: 2)), 10.0);
+    await Future.delayed(Duration.zero);
+
+    expect(controller.flowSmoothingWindowMs, 800);
+    expect(controller.flowSmoothingSamples, 6);
+    expect(frames.last.weightFlow, 0);
+    expect(frames.last.controlWeightFlow, greaterThan(0));
+
+    await sub.cancel();
+    controller.dispose();
+  });
+
   test('control flow is internal and falls back for historical snapshots', () {
     final timestamp = DateTime.utc(2026, 7, 22);
     final historical = WeightSnapshot.fromJson({

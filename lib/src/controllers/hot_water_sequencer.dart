@@ -50,9 +50,9 @@ class HotWaterSequencer {
   final Logger _log = Logger('HotWaterSequencer');
 
   /// Window after a tare during which the scale reading is not yet trustworthy
-  /// (matches [ScaleController.smoothingWindowDuration]).
+  /// (matches [ScaleController.defaultSmoothingWindow]).
   static const Duration _tareSettleWindow =
-      ScaleController.smoothingWindowDuration;
+      ScaleController.defaultSmoothingWindow;
 
   /// A scale frame older than this is considered stale.
   static const Duration _scaleFreshWindow = Duration(seconds: 2);
