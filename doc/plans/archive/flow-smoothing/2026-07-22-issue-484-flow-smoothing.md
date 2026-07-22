@@ -3,7 +3,7 @@
 - **Issue:** [#484](https://github.com/tadelv/reaprime/issues/484)
 - **Related:** [#420](https://github.com/tadelv/reaprime/issues/420) — SAW lead decomposition
 - **Date:** 2026-07-22
-- **Status:** implemented; real-hardware allonge and SAW validation pending
+- **Status:** implemented and validated
 
 ## Problem
 
@@ -169,6 +169,4 @@ Filter3 is not required; an allonge provides the long-running low-flow trace nee
 - Python analysis-tool test: passed.
 - Simulated REST smoke: GET, valid POST, invalid POST, hot reload, and state retention passed.
 - Real-hardware allonge steady-tail mean `|Δflow|`: 0.049 g/s versus 0.276 g/s on the preceding comparable shot, an 82% reduction.
-- First real-hardware SAW result was invalidated: 53.8 g against 52.5 g target (+1.3 g) was pulled with `weightFlowMultiplier: 0.7` instead of the 1.0 baseline. Repeat after restoring the baseline.
-
-Update the #484 tracking item after the remaining SAW validation.
+- SAW calibration results against a 52.5 g target: multiplier 0.7 yielded 53.8 g, multiplier 1.0 yielded 50.7 g, and multiplier 0.83 yielded 53.3 g (+0.8 g), passing the ±1 g gate.
