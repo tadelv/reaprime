@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
@@ -15,8 +17,13 @@ class DebugHandler {
   DebugHandler({
     required ScaleController scaleController,
     UpdateCheckService? updateCheckService,
-  })  : _scaleController = scaleController,
-        _updateCheckService = updateCheckService;
+  }) : _scaleController = scaleController,
+       _updateCheckService = updateCheckService;
+
+  Map<String, int> get _flowSmoothing => {
+    'windowMs': _scaleController.flowSmoothingWindowMs,
+    'movingAverageSamples': _scaleController.flowSmoothingSamples,
+  };
 
   void addRoutes(RouterPlus app) {
     // Force a fake "update available" so the update API/UI can be tested
@@ -33,6 +40,32 @@ class DebugHandler {
       svc.debugForceUpdate(version: version, downloadUrl: downloadUrl);
       _log.info('Forced update available: $version');
       return jsonOk(svc.currentState.toJson());
+    });
+
+    app.get('/api/v1/debug/flow-smoothing', (request) {
+      return jsonOk(_flowSmoothing);
+    });
+
+    app.post('/api/v1/debug/flow-smoothing', (request) async {
+      try {
+        final body = jsonDecode(await request.readAsString());
+        if (body is! Map<String, dynamic> ||
+            body['windowMs'] is! int ||
+            body['movingAverageSamples'] is! int) {
+          return jsonBadRequest({
+            'error': 'Expected integer windowMs and movingAverageSamples',
+          });
+        }
+        _scaleController.setFlowSmoothing(
+          windowMs: body['windowMs'],
+          movingAverageSamples: body['movingAverageSamples'],
+        );
+        return jsonOk(_flowSmoothing);
+      } on FormatException {
+        return jsonBadRequest({'error': 'Invalid JSON'});
+      } on RangeError catch (e) {
+        return jsonBadRequest({'error': e.message});
+      }
     });
 
     app.post('/api/v1/debug/scale/<command>', (request, command) async {

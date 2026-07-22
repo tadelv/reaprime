@@ -3995,12 +3995,52 @@ paths:
                       type: string
                     message:
                       type: string
+  /api/v1/debug/flow-smoothing:
+    get:
+      summary: Get runtime display-flow smoothing (debug builds only)
+      description: |
+        Returns the process-local display-flow smoothing configuration. Available
+        only when the app is built with a non-empty `simulate` Dart define.
+      tags: [Debug]
+      responses:
+        "200":
+          description: Current smoothing configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowSmoothingConfig"
+        "404":
+          description: Endpoint not available (non-debug build)
+    post:
+      summary: Set runtime display-flow smoothing (debug builds only)
+      description: |
+        Atomically updates and resets the display-flow estimator. Values are
+        process-local and do not affect the Kalman control-flow estimator.
+      tags: [Debug]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlowSmoothingConfig"
+      responses:
+        "200":
+          description: Updated smoothing configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowSmoothingConfig"
+        "400":
+          description: Invalid JSON, type, or range
+        "404":
+          description: Endpoint not available (non-debug build)
+
   /api/v1/debug/scale/{command}:
     post:
       summary: Control mock scale (simulate mode only)
       description: |
         Debug endpoints for controlling the simulated scale. Only available
-        when the app is launched with `--dart-define=simulate=1`.
+        when the app is launched with a non-empty `simulate` Dart define.
         Returns 404 on production builds.
       tags: [Debug]
       parameters:
@@ -4295,6 +4335,21 @@ paths:
 
 components:
   schemas:
+    FlowSmoothingConfig:
+      type: object
+      required: [windowMs, movingAverageSamples]
+      properties:
+        windowMs:
+          type: integer
+          minimum: 100
+          maximum: 2000
+          example: 600
+        movingAverageSamples:
+          type: integer
+          minimum: 1
+          maximum: 50
+          example: 10
+
     AppUpdateState:
       type: object
       description: Snapshot of the app-update state machine.
