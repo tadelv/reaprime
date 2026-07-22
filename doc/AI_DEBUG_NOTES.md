@@ -13,6 +13,7 @@ Read this when debugging BLE errors, diagnosing platform-specific crashes, inves
 - **adb logcat:** `adb logcat | grep -i rea` for live output on Android.
 - **macOS log path:** `~/Library/Containers/net.tadel.reaprime/Data/Documents/log.txt`.
 - **Simulate mode:** Reproduce without hardware using `--dart-define=simulate=1`. Mock devices are deterministic — use them to isolate whether an issue is transport or logic.
+- **`simulate=0` (debug-on-real):** `--dart-define=simulate=0` enables debug routes and disables Firebase/telemetry while keeping real BLE/USB hardware. Use for temporary tuning builds where `/api/v1/debug/*` must be reachable against real devices. Must not be shipped to users.
 - **Stream debugging:** Enable `Logger('ShotState')` for structured shot decisions. `Logger('Ble')` for BLE operations.
 
 ## Common Error Patterns

@@ -118,3 +118,14 @@ jobs:
 
       - name: Build Linux app (unsigned)
         run: flutter build linux --release
+
+  tools:
+    name: Python tools tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Test weight-flow analysis tool
+        run: python3 tools/analyze_weight_flow_test.py

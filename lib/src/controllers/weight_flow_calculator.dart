@@ -42,7 +42,6 @@ class FlowCalculator {
     if (deltaTimeMs <= 0 || deltaWeight.abs() < deadband) return 0.0;
 
     var flow = (deltaWeight * 1000) / deltaTimeMs;
-    flow = flow.abs(); // optional: only show positive flow
-    return flow.clamp(0.0, maxFlow);
+    return flow.clamp(-maxFlow, maxFlow);
   }
 }
