@@ -1188,9 +1188,12 @@ paths:
         Updates an existing shot record. Supports partial updates — only the fields
         included in the request body will be changed, all other fields are preserved
         from the existing record. Use annotations for all post-shot data. The legacy
-        shotNotes and metadata fields remain in responses for older clients but are
-        deprecated; new clients should use annotations.espressoNotes and
-        annotations.extras.
+        shotNotes and metadata request fields are deprecated but remain accepted and
+        map to annotations.espressoNotes and annotations.extras. When canonical and
+        legacy forms are both supplied, canonical fields win, including explicit nulls.
+        A null canonical field clears that field; annotations: null clears all post-shot
+        annotations and ignores legacy values in the same request. Legacy aliases in
+        responses mirror the resulting canonical values and never retain cleared data.
       tags: [Shots History]
       parameters:
         - in: path
@@ -5454,7 +5457,9 @@ components:
     ShotAnnotations:
       type: object
       nullable: true
-      description: Post-shot measurements, extraction data, ratings, notes, and custom data.
+      description: |
+        Post-shot measurements, extraction data, ratings, notes, and custom data.
+        On shot updates, null clears the complete annotations object.
       properties:
         actualDoseWeight:
           type: number
@@ -5474,10 +5479,12 @@ components:
         espressoNotes:
           type: string
           nullable: true
+          description: Null clears the note and its legacy shotNotes alias on update.
         extras:
           type: object
           nullable: true
           additionalProperties: true
+          description: Null clears custom data and its legacy metadata alias on update.
 
     ShotRecord:
       type: object
@@ -5511,13 +5518,13 @@ components:
           type: string
           nullable: true
           deprecated: true
-          description: "Legacy compatibility field — use annotations.espressoNotes instead"
+          description: "Deprecated request alias for annotations.espressoNotes; response value mirrors the canonical field"
         metadata:
           type: object
           nullable: true
           additionalProperties: true
           deprecated: true
-          description: "Legacy compatibility field — use annotations.extras instead"
+          description: "Deprecated request alias for annotations.extras; response value mirrors the canonical field"
 
     ShotRecordSummary:
       type: object
@@ -5544,13 +5551,13 @@ components:
           type: string
           nullable: true
           deprecated: true
-          description: "Legacy field — use annotations.espressoNotes instead"
+          description: "Legacy response alias mirroring annotations.espressoNotes"
         metadata:
           type: object
           nullable: true
           additionalProperties: true
           deprecated: true
-          description: "Legacy field — use annotations.extras instead"
+          description: "Legacy response alias mirroring annotations.extras"
 
     ShotSnapshot:
       type: object
