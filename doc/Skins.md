@@ -3384,7 +3384,7 @@ Decent.app tracks skin metadata in `.rea_metadata.json`:
 {
   "my-nextjs-skin": {
     "skinId": "my-nextjs-skin",
-    "sourceUrl": "https://github.com/username/repo/archive/refs/heads/dist.zip",
+    "sourceUrl": "github_branch:username/repo@dist",
     "etag": "\"abc123def456\"",
     "lastModified": "Wed, 01 Feb 2026 12:00:00 GMT",
     "commitHash": "branch:dist",
@@ -3398,7 +3398,7 @@ Decent.app tracks skin metadata in `.rea_metadata.json`:
 - Remote skins are checked for updates when `downloadRemoteSkins()` is called
 - Uses HTTP `ETag` and `Last-Modified` headers for efficient version checking
 - Only downloads if remote version differs from installed version
-- Updates are automatic for remote bundled skins
+- Updates are automatic for remote bundled skins and user-installed GitHub branch skins
 
 ---
 

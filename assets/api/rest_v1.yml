@@ -3047,7 +3047,7 @@ paths:
   /api/v1/webui/skins/install/github-branch:
     post:
       summary: Install skin from GitHub branch
-      description: Downloads and installs a WebUI skin from a GitHub branch archive
+      description: Downloads and installs a WebUI skin from a GitHub branch archive, persisting the branch source for future update checks
       tags: [WebUI]
       requestBody:
         required: true
@@ -5788,7 +5788,7 @@ components:
         sourceUrl:
           type: string
           nullable: true
-          description: Source URL or identifier (e.g., 'github_release:owner/repo@v1.0.0')
+          description: Source URL or identifier (e.g., 'github_release:owner/repo@v1.0.0' or 'github_branch:owner/repo@main')
         lastModified:
           type: string
           nullable: true
