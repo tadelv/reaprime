@@ -32,8 +32,8 @@ class ShotRecord {
     this.stopReason,
     String? shotNotes,
     Map<String, dynamic>? metadata,
-  }) : _shotNotes = annotations?.espressoNotes ?? shotNotes,
-       _metadata = annotations?.extras ?? metadata;
+  }) : _shotNotes = annotations != null ? annotations.espressoNotes : shotNotes,
+       _metadata = annotations != null ? annotations.extras : metadata;
 
   /// Synthesized from annotations when available, otherwise from legacy field.
   @Deprecated('Use annotations?.espressoNotes instead')
@@ -70,11 +70,13 @@ class ShotRecord {
   }
 
   factory ShotRecord.fromJson(Map<String, dynamic> json) {
-    // Read annotations from new format, or synthesize from legacy fields
     ShotAnnotations? ann;
-    if (json['annotations'] != null) {
-      ann = ShotAnnotations.fromJson(json['annotations']);
-    } else if (json['shotNotes'] != null || json['metadata'] != null) {
+    if (json.containsKey('annotations')) {
+      final annotations = json['annotations'];
+      if (annotations != null) {
+        ann = ShotAnnotations.fromJson(annotations as Map<String, dynamic>);
+      }
+    } else if (json.containsKey('shotNotes') || json.containsKey('metadata')) {
       ann = ShotAnnotations.fromLegacyJson(json);
     }
 
@@ -88,8 +90,12 @@ class ShotRecord {
       annotations: ann,
       stopReason: json["stopReason"] as String?,
       // Still parse legacy fields for backward compat with old callers
-      shotNotes: json["shotNotes"] as String?,
-      metadata: json["metadata"] as Map<String, dynamic>?,
+      shotNotes: json.containsKey('annotations')
+          ? null
+          : json["shotNotes"] as String?,
+      metadata: json.containsKey('annotations')
+          ? null
+          : json["metadata"] as Map<String, dynamic>?,
     );
   }
 

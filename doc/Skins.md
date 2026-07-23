@@ -736,7 +736,9 @@ Supports partial updates via deep merge — only include the fields you want to 
 - `espressoNotes`: Tasting notes and observations
 - `extras`: Flexible dictionary for tags, flags, plugin data, or other custom fields
 
-`shotNotes` and `metadata` are deprecated compatibility fields for older clients. New integrations should read and update `annotations.espressoNotes` and `annotations.extras` instead.
+`shotNotes` and `metadata` are deprecated compatibility fields for older clients, but remain accepted in PUT requests and map to `annotations.espressoNotes` and `annotations.extras`. If a request supplies both forms, the canonical annotation field wins, including when it is explicitly `null`. Setting either canonical field or its legacy alias to `null` clears that value. Setting `annotations` itself to `null` clears all post-shot annotations and ignores legacy values in the same request.
+
+In responses, `shotNotes` and `metadata` mirror their canonical annotation values. Cleared canonical values never leave stale legacy aliases. New integrations should read and update `annotations` directly.
 
 **Response:** Returns the updated shot record.
 

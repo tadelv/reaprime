@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/bean.dart';
+import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/services/database/database.dart'
@@ -42,6 +43,43 @@ void main() {
 
   Future<Response> sendGet(String path) async =>
       handler(Request('GET', Uri.parse('http://localhost$path')));
+
+  Future<Response> sendPut(String id, Map<String, dynamic> patch) async =>
+      handler(
+        Request(
+          'PUT',
+          Uri.parse('http://localhost/api/v1/shots/$id'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode(patch),
+        ),
+      );
+
+  Future<Map<String, dynamic>> decode(Response response) async =>
+      jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+
+  Future<void> persistAnnotatedShot({String id = 'annotated'}) =>
+      persistence.persistShot(
+        makeShot(
+          id: id,
+          annotations: const ShotAnnotations(
+            espressoNotes: 'old notes',
+            extras: {'favorite': false, 'origin': 'existing'},
+          ),
+        ),
+      );
+
+  Future<(Map<String, dynamic>, Map<String, dynamic>)> putAndGet(
+    String id,
+    Map<String, dynamic> patch,
+  ) async {
+    final putResponse = await sendPut(id, patch);
+    expect(putResponse.statusCode, 200);
+    final putJson = await decode(putResponse);
+
+    final getResponse = await sendGet('/api/v1/shots/$id');
+    expect(getResponse.statusCode, 200);
+    return (putJson, await decode(getResponse));
+  }
 
   group('ShotsHandler', () {
     test('GET /api/v1/shots filters by beanId across all batches', () async {
@@ -121,6 +159,158 @@ void main() {
         expect(body['items'], isEmpty);
       },
     );
+
+    test('legacy shotNotes updates canonical notes and persists', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'shotNotes': 'new legacy notes',
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json['annotations']['espressoNotes'], 'new legacy notes');
+        expect(json['shotNotes'], 'new legacy notes');
+      }
+    });
+
+    test('legacy metadata deep-merges canonical extras and persists', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'metadata': {'favorite': true},
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json['annotations']['extras'], {
+          'favorite': true,
+          'origin': 'existing',
+        });
+        expect(json['metadata'], json['annotations']['extras']);
+      }
+    });
+
+    test('canonical annotation fields win over legacy aliases', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'annotations': {
+          'espressoNotes': 'canonical',
+          'extras': {'favorite': true},
+        },
+        'shotNotes': 'legacy',
+        'metadata': {'favorite': false, 'legacy': true},
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json['annotations']['espressoNotes'], 'canonical');
+        expect(json['shotNotes'], 'canonical');
+        expect(json['annotations']['extras'], {
+          'favorite': true,
+          'origin': 'existing',
+        });
+        expect(json['metadata'], json['annotations']['extras']);
+      }
+    });
+
+    test('canonical null clears notes without changing extras', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'annotations': {'espressoNotes': null},
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json['annotations'].containsKey('espressoNotes'), isFalse);
+        expect(json.containsKey('shotNotes'), isFalse);
+        expect(json['annotations']['extras'], {
+          'favorite': false,
+          'origin': 'existing',
+        });
+      }
+    });
+
+    test('canonical null clears extras without changing notes', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'annotations': {'extras': null},
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json['annotations'].containsKey('extras'), isFalse);
+        expect(json.containsKey('metadata'), isFalse);
+        expect(json['annotations']['espressoNotes'], 'old notes');
+      }
+    });
+
+    test('annotations null clears all annotations and aliases', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'annotations': null,
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json.containsKey('annotations'), isFalse);
+        expect(json.containsKey('shotNotes'), isFalse);
+        expect(json.containsKey('metadata'), isFalse);
+      }
+    });
+
+    test('annotations null wins over conflicting legacy aliases', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'annotations': null,
+        'shotNotes': 'must be ignored',
+        'metadata': {'must': 'be ignored'},
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json.containsKey('annotations'), isFalse);
+        expect(json.containsKey('shotNotes'), isFalse);
+        expect(json.containsKey('metadata'), isFalse);
+      }
+    });
+
+    test('legacy nulls clear canonical values and aliases', () async {
+      await persistAnnotatedShot();
+
+      final (notesPut, notesGet) = await putAndGet('annotated', {
+        'shotNotes': null,
+      });
+      for (final json in [notesPut, notesGet]) {
+        expect(json['annotations'].containsKey('espressoNotes'), isFalse);
+        expect(json.containsKey('shotNotes'), isFalse);
+        expect(json['annotations']['extras'], isNotNull);
+      }
+
+      final (metadataPut, metadataGet) = await putAndGet('annotated', {
+        'metadata': null,
+      });
+      for (final json in [metadataPut, metadataGet]) {
+        expect(json['annotations'].containsKey('extras'), isFalse);
+        expect(json.containsKey('metadata'), isFalse);
+      }
+    });
+
+    test('unrelated partial update preserves annotations', () async {
+      await persistAnnotatedShot();
+
+      final (putJson, getJson) = await putAndGet('annotated', {
+        'stopReason': 'apiStop',
+      });
+
+      for (final json in [putJson, getJson]) {
+        expect(json['stopReason'], 'apiStop');
+        expect(json['annotations'], {
+          'espressoNotes': 'old notes',
+          'extras': {'favorite': false, 'origin': 'existing'},
+        });
+        expect(json['shotNotes'], 'old notes');
+        expect(json['metadata'], json['annotations']['extras']);
+      }
+    });
   });
 }
 
@@ -130,6 +320,7 @@ ShotRecord makeShot({
   String? beanBatchId,
   String? coffeeName,
   String? coffeeRoaster,
+  ShotAnnotations? annotations,
 }) {
   final workflow = WorkflowController().currentWorkflow.copyWith(
     context: WorkflowContext(
@@ -143,5 +334,6 @@ ShotRecord makeShot({
     timestamp: timestamp ?? DateTime.utc(2026, 1, 1, 10),
     measurements: const [],
     workflow: workflow,
+    annotations: annotations,
   );
 }

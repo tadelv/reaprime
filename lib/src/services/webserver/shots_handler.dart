@@ -216,7 +216,11 @@ class ShotsHandler {
       }
 
       // Deep merge partial payload onto existing shot data
-      final merged = _deepMerge(existingShot.toJson(), json);
+      final merged = _deepMerge(
+        existingShot.toJson(),
+        _normalizeLegacyAnnotationPatch(json),
+      );
+      _synchronizeLegacyAnnotationAliases(merged);
       merged['id'] = id;
 
       final updatedShot = ShotRecord.fromJson(merged);
@@ -246,6 +250,61 @@ class ShotsHandler {
         return jsonNotFound({"error": "Shot not found"});
       }
       return jsonError({"error": e.toString()});
+    }
+  }
+
+  Map<String, dynamic> _normalizeLegacyAnnotationPatch(
+    Map<String, dynamic> patch,
+  ) {
+    final normalized = Map<String, dynamic>.from(patch);
+
+    if (patch.containsKey('annotations')) {
+      final annotations = patch['annotations'];
+      if (annotations is Map<String, dynamic>) {
+        final normalizedAnnotations = Map<String, dynamic>.from(annotations);
+        if (!annotations.containsKey('espressoNotes') &&
+            patch.containsKey('shotNotes')) {
+          normalizedAnnotations['espressoNotes'] = patch['shotNotes'];
+        }
+        if (!annotations.containsKey('extras') &&
+            patch.containsKey('metadata')) {
+          normalizedAnnotations['extras'] = patch['metadata'];
+        }
+        normalized['annotations'] = normalizedAnnotations;
+      }
+    } else if (patch.containsKey('shotNotes') ||
+        patch.containsKey('metadata')) {
+      normalized['annotations'] = <String, dynamic>{
+        if (patch.containsKey('shotNotes')) 'espressoNotes': patch['shotNotes'],
+        if (patch.containsKey('metadata')) 'extras': patch['metadata'],
+      };
+    }
+
+    normalized.remove('shotNotes');
+    normalized.remove('metadata');
+    return normalized;
+  }
+
+  void _synchronizeLegacyAnnotationAliases(Map<String, dynamic> json) {
+    if (!json.containsKey('annotations')) return;
+
+    final annotations = json['annotations'];
+    if (annotations is Map<String, dynamic>) {
+      final espressoNotes = annotations['espressoNotes'];
+      final extras = annotations['extras'];
+      if (espressoNotes != null) {
+        json['shotNotes'] = espressoNotes;
+      } else {
+        json.remove('shotNotes');
+      }
+      if (extras != null) {
+        json['metadata'] = extras;
+      } else {
+        json.remove('metadata');
+      }
+    } else {
+      json.remove('shotNotes');
+      json.remove('metadata');
     }
   }
 
