@@ -1187,7 +1187,10 @@ paths:
       description: |
         Updates an existing shot record. Supports partial updates — only the fields
         included in the request body will be changed, all other fields are preserved
-        from the existing record. Commonly used to add or update shot notes or metadata.
+        from the existing record. Use annotations for all post-shot data. The legacy
+        shotNotes and metadata fields remain in responses for older clients but are
+        deprecated; new clients should use annotations.espressoNotes and
+        annotations.extras.
       tags: [Shots History]
       parameters:
         - in: path
@@ -1204,15 +1207,17 @@ paths:
               $ref: "#/components/schemas/ShotRecord"
             examples:
               updateNotes:
-                summary: Update only shot notes
+                summary: Update only espresso notes
                 value:
-                  shotNotes: "Tasted great, slightly fruity"
-              updateMetadata:
-                summary: Update only metadata
+                  annotations:
+                    espressoNotes: "Tasted great, slightly fruity"
+              updateAnnotations:
+                summary: Update rating and custom annotations
                 value:
-                  metadata:
-                    rating: 4.5
-                    favorite: true
+                  annotations:
+                    enjoyment: 4.5
+                    extras:
+                      favorite: true
       responses:
         "200":
           description: Shot updated successfully
@@ -5446,6 +5451,34 @@ components:
           description: Rinse flow rate
           example: 6.0
 
+    ShotAnnotations:
+      type: object
+      nullable: true
+      description: Post-shot measurements, extraction data, ratings, notes, and custom data.
+      properties:
+        actualDoseWeight:
+          type: number
+          nullable: true
+        actualYield:
+          type: number
+          nullable: true
+        drinkTds:
+          type: number
+          nullable: true
+        drinkEy:
+          type: number
+          nullable: true
+        enjoyment:
+          type: number
+          nullable: true
+        espressoNotes:
+          type: string
+          nullable: true
+        extras:
+          type: object
+          nullable: true
+          additionalProperties: true
+
     ShotRecord:
       type: object
       properties:
@@ -5459,6 +5492,8 @@ components:
             $ref: "#/components/schemas/ShotSnapshot"
         workflow:
           $ref: "#/components/schemas/WorkflowRequest"
+        annotations:
+          $ref: "#/components/schemas/ShotAnnotations"
         stopReason:
           type: string
           nullable: true
@@ -5475,24 +5510,14 @@ components:
         shotNotes:
           type: string
           nullable: true
-          description: Optional notes about the shot (e.g., tasting notes, observations)
+          deprecated: true
+          description: "Legacy compatibility field — use annotations.espressoNotes instead"
         metadata:
           type: object
           nullable: true
           additionalProperties: true
-          description: |
-            Optional flexible metadata dictionary for future extensibility.
-            Can store arbitrary key-value pairs such as:
-            - rating: numerical rating (1-5)
-            - tags: array of strings for categorization
-            - favorite: boolean flag
-            - barista: string name
-            - customFields: any application-specific data
-          example:
-            rating: 4.5
-            tags: ["morning", "sweet"]
-            favorite: true
-            barista: "Alice"
+          deprecated: true
+          description: "Legacy compatibility field — use annotations.extras instead"
 
     ShotRecordSummary:
       type: object
@@ -5507,32 +5532,7 @@ components:
         workflow:
           $ref: "#/components/schemas/WorkflowRequest"
         annotations:
-          type: object
-          nullable: true
-          description: Post-shot annotations (enjoyment, tasting notes, extraction data)
-          properties:
-            actualDoseWeight:
-              type: number
-              nullable: true
-            actualYield:
-              type: number
-              nullable: true
-            drinkTds:
-              type: number
-              nullable: true
-            drinkEy:
-              type: number
-              nullable: true
-            enjoyment:
-              type: number
-              nullable: true
-            espressoNotes:
-              type: string
-              nullable: true
-            extras:
-              type: object
-              nullable: true
-              additionalProperties: true
+          $ref: "#/components/schemas/ShotAnnotations"
         stopReason:
           type: string
           nullable: true

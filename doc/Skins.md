@@ -657,7 +657,7 @@ Returns array of all shot identifiers. Useful for lightweight syncing.
 GET /api/v1/shots/latest
 ```
 
-Returns the most recent shot record (with measurements).
+Returns the most recent shot record without measurements. Use `GET /api/v1/shots/{id}` for the full record.
 
 #### Get Specific Shot
 ```http
@@ -700,8 +700,13 @@ Returns a single shot record by ID, **including full measurements**.
       "coffeeRoaster": "Square Mile"
     }
   },
-  "shotNotes": "Excellent extraction!",
-  "metadata": { "rating": 4.5 }
+  "annotations": {
+    "actualDoseWeight": 18.0,
+    "actualYield": 36.2,
+    "enjoyment": 4.5,
+    "espressoNotes": "Excellent extraction!",
+    "extras": { "tags": ["morning", "sweet"] }
+  }
 }
 ```
 
@@ -711,22 +716,27 @@ PUT /api/v1/shots/{id}
 Content-Type: application/json
 
 {
-  "shotNotes": "Excellent extraction! Bright acidity with chocolate notes.",
-  "metadata": {
-    "rating": 4.5,
-    "tags": ["morning", "sweet"],
-    "favorite": true
+  "annotations": {
+    "enjoyment": 4.5,
+    "espressoNotes": "Excellent extraction! Bright acidity with chocolate notes.",
+    "extras": {
+      "tags": ["morning", "sweet"],
+      "favorite": true
+    }
   }
 }
 ```
 
-Supports partial updates via deep merge — only include the fields you want to change. Commonly used to add tasting notes or metadata after the fact.
+Supports partial updates via deep merge — only include the fields you want to change. Use `annotations` for post-shot data:
+- `actualDoseWeight`: Actual coffee dose in grams
+- `actualYield`: Actual beverage yield in grams
+- `drinkTds`: Measured total dissolved solids percentage
+- `drinkEy`: Calculated extraction yield percentage
+- `enjoyment`: Numeric rating
+- `espressoNotes`: Tasting notes and observations
+- `extras`: Flexible dictionary for tags, flags, plugin data, or other custom fields
 
-**Metadata Field**: The `metadata` object is a flexible dictionary that can store any custom data:
-- `rating`: Numerical rating (e.g., 1-5)
-- `tags`: Array of strings for categorization
-- `favorite`: Boolean flag
-- Any custom fields your application needs
+`shotNotes` and `metadata` are deprecated compatibility fields for older clients. New integrations should read and update `annotations.espressoNotes` and `annotations.extras` instead.
 
 **Response:** Returns the updated shot record.
 
