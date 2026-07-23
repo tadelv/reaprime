@@ -85,11 +85,23 @@ void main() {
     test('GitHub branch install persists source metadata', () async {
       final archive = makeGitHubArchive();
       var branchHeadRequests = 0;
+      var branchGetRequests = 0;
+      late DateTime before;
+      late DateTime after;
 
       await http.runWithClient(
         () async {
           await storage.installFromGitHub('tadelv/passione', branch: 'dist');
+          before = storage
+              .getSkin('passione-dist')!
+              .reaMetadata!
+              .lastChecked!;
+
           await storage.updateAllSkins();
+          after = storage
+              .getSkin('passione-dist')!
+              .reaMetadata!
+              .lastChecked!;
         },
         () => MockClient((request) async {
           if (request.url.toString() !=
@@ -100,19 +112,20 @@ void main() {
             branchHeadRequests++;
             return http.Response('', 200, headers: {'etag': 'branch-etag'});
           }
+          branchGetRequests++;
           return http.Response.bytes(archive, 200);
         }),
       );
 
       expect(branchHeadRequests, 2);
-      final metadata = storage.getSkin('passione-dist')?.reaMetadata;
-      expect(metadata, isNotNull);
+      expect(branchGetRequests, 1);
+      expect(after.isAfter(before), isTrue);
+
+      final metadata = storage.getSkin('passione-dist')!.reaMetadata!;
       expect(
-        metadata!.sourceUrl,
+        metadata.sourceUrl,
         'github_branch:tadelv/passione@dist',
       );
-      expect(metadata.lastChecked, isNotNull);
-      expect(metadata.lastChecked, isNot(metadata.installedAt));
 
       final persisted = jsonDecode(
         File('${webUIDir.path}/.rea_metadata.json').readAsStringSync(),
@@ -120,6 +133,10 @@ void main() {
       expect(
         persisted['passione-dist']['sourceUrl'],
         'github_branch:tadelv/passione@dist',
+      );
+      expect(
+        DateTime.parse(persisted['passione-dist']['lastChecked']),
+        after,
       );
     });
 
