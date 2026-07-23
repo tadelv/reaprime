@@ -47,6 +47,8 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 - Plugins: must declare `proxy.decent_api` permission.
 - Consent prompt (#300): pending, client consent over active view.
 
+**Skin token bridge:** HTML served on port 3000 receives the account-proxy token only when the request host is loopback or an IP currently assigned to a local network interface. The live interface list is authoritative to avoid retaining stale DHCP addresses in the allowlist and to support Ethernet or multiple adapters. The WiFi IP cached for display is accepted only when interface enumeration fails. Hostnames remain rejected to preserve the DNS-rebinding boundary.
+
 ## Decent Binary Protocol
 
 **Source:** Original DE1 app at `github.com/decentespresso/de1app` is the authoritative source for DE1 protocol behavior, BLE characteristics, and machine state logic.
