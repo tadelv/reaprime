@@ -16,11 +16,17 @@ class SkinOverride {
   final SkinSource source;
   final String? value;
 
-  const SkinOverride.registry() : source = SkinSource.registry, value = null;
+  const SkinOverride.registry()
+      : source = SkinSource.registry,
+        value = null;
 
-  const SkinOverride.path(String path) : source = SkinSource.path, value = path;
+  const SkinOverride.path(String path)
+      : source = SkinSource.path,
+        value = path;
 
-  const SkinOverride.id(String skinId) : source = SkinSource.id, value = skinId;
+  const SkinOverride.id(String skinId)
+      : source = SkinSource.id,
+        value = skinId;
 }
 
 enum SkinSource {
@@ -101,8 +107,17 @@ String buildSkinApiJavaScript() {
       '};';
 }
 
+Future<List<String>> _listDeviceAddresses() async {
+  final interfaces = await NetworkInterface.list(includeLoopback: false);
+  return [
+    for (final interface in interfaces)
+      for (final address in interface.addresses) address.address,
+  ];
+}
+
 class WebUIService {
   final _log = Logger("WebUIService");
+  final Future<List<String>> Function() _listLocalAddresses;
   HttpServer? _server;
   int port = 3000;
   String _path = "";
@@ -112,18 +127,11 @@ class WebUIService {
   /// touching the real platform channel. Returns null when no WiFi IP is
   /// available (null-collapsed by [_resolveLocalIP]).
   @visibleForTesting
-  static Future<String?> Function() resolveWifiIP = NetworkInfo().getWifiIP;
+  static Future<String?> Function() resolveWifiIP =
+      NetworkInfo().getWifiIP;
 
-  /// Test seam: override in tests to control which addresses [_isLocalHost]
-  /// accepts, without depending on the test runner's real network interfaces.
-  @visibleForTesting
-  static Future<List<String>> Function() listLocalAddresses = () async {
-    final interfaces = await NetworkInterface.list(includeLoopback: false);
-    return [
-      for (final iface in interfaces)
-        for (final addr in iface.addresses) addr.address,
-    ];
-  };
+  WebUIService({Future<List<String>> Function()? listLocalAddresses})
+      : _listLocalAddresses = listLocalAddresses ?? _listDeviceAddresses;
 
   /// Resolves the device's WiFi IP for the browser-hero card and QR code.
   /// Must not block the critical path — falls back to "localhost" when the
@@ -146,50 +154,30 @@ class WebUIService {
   /// Injected into served HTML so skins can call the proxy. Null = no injection.
   String? skinProxyToken;
 
+
   // WebUI server methods
 
-  /// True when [host] genuinely addresses this device — loopback, or any
-  /// address currently bound to one of its own network interfaces.
-  ///
-  /// This is the anti-DNS-rebinding guard for the account-proxy token bridge:
-  /// an attacker's page can trick a browser into believing an attacker-owned
-  /// hostname is "this server" (DNS rebound to a local address), but it can't
-  /// make the *server* believe a hostname it has never bound resolves to
-  /// itself, so an arbitrary/attacker Host header is always rejected here.
-  ///
-  /// Deliberately NOT interface-cached: WebUIService.serveFolderAtPath caches
-  /// [_localIP] once (a single WiFi IP, for the QR/hero-card display, which
-  /// tolerates staleness) but the token bridge must not — a DHCP renewal, a
-  /// network switch, or simply reaching this device over Ethernet instead of
-  /// WiFi must not silently strand every skin's account-proxy calls until the
-  /// next process restart. NetworkInterface.list() is a local OS call (no
-  /// network I/O) and this path only runs on HTML responses, so a live lookup
-  /// per request is cheap enough not to need a cache.
+  /// Accepts loopback or an address currently assigned to this device.
   Future<bool> _isLocalHost(String host) async {
     if (host == 'localhost' || host == '127.0.0.1' || host == '::1') {
       return true;
     }
-    if (host == _localIP) return true;
     try {
-      final addresses = await listLocalAddresses();
-      if (addresses.contains(host)) return true;
+      return (await _listLocalAddresses()).contains(host);
     } catch (e) {
-      _log.warning('Failed to enumerate network interfaces', e);
+      _log.fine('Failed to enumerate network interfaces: $e');
+      return host == _localIP;
     }
-    return false;
   }
 
   Future<String?> _skinApiUrl(Request request, int port) async {
     final uri = request.requestedUri;
     if (uri.scheme != 'http' ||
         uri.port != port ||
-        uri.userInfo.isNotEmpty ||
-        !await _isLocalHost(uri.host)) {
-      _log.info(
-        'Skin API bridge not injected for untrusted host "${uri.host}"',
-      );
+        uri.userInfo.isNotEmpty) {
       return null;
     }
+    if (!await _isLocalHost(uri.host)) return null;
     return Uri(
       scheme: 'http',
       host: uri.host,
@@ -346,8 +334,8 @@ class WebUIService {
   }
 
   String deviceIp() {
-    return _localIP ?? "";
-  }
+      return _localIP ?? "";
+    }
 
   String serverPath() {
     return _path;
