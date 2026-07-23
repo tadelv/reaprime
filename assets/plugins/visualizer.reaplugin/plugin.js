@@ -239,7 +239,7 @@ function createPlugin(host) {
       visualizerShot.temperature.goal.push(machine.targetGroupTemperature);
       visualizerShot.temperature.mix_goal.push(machine.targetMixTemperature);
       visualizerShot.totals.weight.push(scale?.weight ?? 0);
-      visualizerShot.totals.water_dispensed.push(waterDispensed);
+      visualizerShot.totals.water_dispensed.push(waterDispensed / 10);
       visualizerShot.state_change.push(machine.state.substate);
     }
 
@@ -973,7 +973,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.5.0",
+    version: "1.5.1",
 
     onLoad(settings) {
       state.username = settings.Username;
