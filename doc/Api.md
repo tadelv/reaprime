@@ -217,7 +217,7 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 | GET | `/api/v1/webui/skins/default` | Get default skin | |
 | PUT | `/api/v1/webui/skins/default` | Set default skin (`{skinId}`) | |
 | POST | `/api/v1/webui/skins/install/github-release` | Install from GitHub release | |
-| POST | `/api/v1/webui/skins/install/github-branch` | Install from GitHub branch | |
+| POST | `/api/v1/webui/skins/install/github-branch` | Install from GitHub branch and persist its source for update checks | |
 | POST | `/api/v1/webui/skins/install/url` | Install from ZIP URL | |
 | DELETE | `/api/v1/webui/skins/:id` | Remove installed skin | |
 | POST | `/api/v1/webui/skins/update` | Check all skins for updates from remote sources | |

@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 
@@ -21,11 +25,21 @@ void main() {
 
       final settingsController = SettingsController(MockSettingsService());
       await settingsController.loadSettings();
-      storage = WebUIStorage(settingsController, appStoreMode: true);
+      storage = WebUIStorage(settingsController, appStoreMode: false);
       storage.debugInitWithWebUIDir(webUIDir);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (_) async => tmpRoot.path,
+      );
     });
 
     tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        null,
+      );
       if (tmpRoot.existsSync()) tmpRoot.deleteSync(recursive: true);
     });
 
@@ -50,6 +64,64 @@ void main() {
           as Map<String, dynamic>;
       return json['version'] as String;
     }
+
+    List<int> makeGitHubArchive() {
+      final archive = Archive()
+        ..addFile(ArchiveFile.string(
+          'passione-dist/skin-manifest.json',
+          jsonEncode({
+            'id': 'passione-dist',
+            'name': 'Passione',
+            'version': '1.0.0',
+          }),
+        ))
+        ..addFile(ArchiveFile.string(
+          'passione-dist/index.html',
+          '<html></html>',
+        ));
+      return ZipEncoder().encode(archive);
+    }
+
+    test('GitHub branch install persists source metadata', () async {
+      final archive = makeGitHubArchive();
+      var branchHeadRequests = 0;
+
+      await http.runWithClient(
+        () async {
+          await storage.installFromGitHub('tadelv/passione', branch: 'dist');
+          await storage.updateAllSkins();
+        },
+        () => MockClient((request) async {
+          if (request.url.toString() !=
+              'https://github.com/tadelv/passione/archive/refs/heads/dist.zip') {
+            return http.Response('', 404);
+          }
+          if (request.method == 'HEAD') {
+            branchHeadRequests++;
+            return http.Response('', 200, headers: {'etag': 'branch-etag'});
+          }
+          return http.Response.bytes(archive, 200);
+        }),
+      );
+
+      expect(branchHeadRequests, 2);
+      final metadata = storage.getSkin('passione-dist')?.reaMetadata;
+      expect(metadata, isNotNull);
+      expect(
+        metadata!.sourceUrl,
+        'github_branch:tadelv/passione@dist',
+      );
+      expect(metadata.lastChecked, isNotNull);
+      expect(metadata.lastChecked, isNot(metadata.installedAt));
+
+      final persisted = jsonDecode(
+        File('${webUIDir.path}/.rea_metadata.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(
+        persisted['passione-dist']['sourceUrl'],
+        'github_branch:tadelv/passione@dist',
+      );
+    });
 
     test('overwriteIfExists:false leaves an existing skin untouched', () async {
       // Newer copy installed first (e.g. from a GitHub release).
