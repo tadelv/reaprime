@@ -620,11 +620,17 @@ paths:
         stream. Rejects an empty body with 400. Returns 409 if an update is
         already in progress. Returns 503 if no machine is connected.
 
-        Event sequence: `erasing (0.0)` → `uploading (0.xx)` → `done (1.0)`.
-        `error` with `progress: -1.0` may interrupt at any phase.
-        Progress events only cover the MMR write (upload) phase; the erase
-        phase and the CRC verification phase have no progress events.
-        Progress jumps from ~0.99 to 1.0 after verification completes.
+        A successful stream emits `erasing`, zero or more `uploading` events,
+        then `done`. A failed stream emits `erasing`, zero or more `uploading`
+        events, then `error` with `progress: -1.0`.
+
+        Upload progress is emitted in approximately one-percent increments.
+        The final `uploading` value may be close to or equal to `1.0`. Only the
+        subsequent `done` event indicates that CRC verification completed
+        successfully. The erase and CRC verification phases do not emit
+        intermediate percentage updates. The stream emits `erasing` when the
+        operation starts and remains silent during verification until either
+        `done` or `error`.
       tags: [Machine]
       requestBody:
         required: true
@@ -6428,19 +6434,29 @@ components:
         NDJSON event streamed during a firmware update. One event per line.
         The stream stays open while final verification is pending.
 
-        Event sequence:
+        Successful sequence:
 
-        1. `{"status":"erasing","progress":0.0}` — erase started
-        2. `{"status":"uploading","progress":0.45}` — MMR write, ~1% increments
-        3. `{"status":"done","progress":1.0}` — success (after verification)
+        1. `{"status":"erasing","progress":0.0}`
+        2. Zero or more `{"status":"uploading","progress":0.45}` events
+        3. `{"status":"done","progress":1.0}`
 
-        At any point `{"status":"error","progress":-1.0,"error":"..."}` may
-        replace the above. Verification failure/timeout emits `error`, never
+        Failure sequence:
+
+        1. `{"status":"erasing","progress":0.0}`
+        2. Zero or more `{"status":"uploading","progress":0.45}` events
+        3. `{"status":"error","progress":-1.0,"error":"..."}`
+
+        An `error` event may terminate the sequence after any previously
+        emitted events. Verification failure or timeout emits `error`, never
         `done`.
 
-        Progress only covers the MMR write phase (upload). The erase and CRC
-        verification phases emit no progress events. Progress jumps from ~0.99
-        to 1.0 after verification completes.
+        Upload progress is emitted in approximately one-percent increments.
+        The final `uploading` value may be close to or equal to `1.0`. Only the
+        subsequent `done` event indicates that CRC verification completed
+        successfully. The erase and CRC verification phases do not emit
+        intermediate percentage updates. The stream emits `erasing` when the
+        operation starts and remains silent during verification until either
+        `done` or `error`.
       properties:
         status:
           type: string
