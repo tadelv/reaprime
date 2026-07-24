@@ -246,6 +246,10 @@ class UniversalBleTransport implements BLETransport {
     UniversalBleErrorCode.deviceDisconnected,
   };
 
+  // universal_ble 2.2.0 compatibility; replace with typed cancellation in #497.
+  static bool _isLegacyQueueCancellation(Object error) =>
+      error.toString().contains('Queue Cancelled');
+
   Never _handleGattError(UniversalBleException e, String operation, String path) {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
@@ -395,11 +399,8 @@ class UniversalBleTransport implements BLETransport {
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'read', '$serviceUUID/$characteristicUUID');
     } catch (e) {
-      // Same clearQueue rationale as write() — see write() catch block.
-      if (e.toString().contains('Queue Cancelled')) {
+      if (_isLegacyQueueCancellation(e)) {
         _log.fine('read($serviceUUID/$characteristicUUID) cancelled by clearQueue');
-        _connectionStateSubject.add(device.ConnectionState.disconnected);
-        throw const DeviceNotConnectedException.unknown();
       }
       rethrow;
     }
@@ -570,19 +571,10 @@ class UniversalBleTransport implements BLETransport {
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'write', '$serviceUUID/$characteristicUUID');
     } catch (e) {
-      // universal_ble's Queue.dispose() (called from clearQueue in
-      // _handleGattError or _onOperationTimeout) cancels pending items
-      // with Exception('Queue Cancelled') — a plain Exception, not
-      // UniversalBleException, so the on UniversalBleException catch
-      // above misses it. Treat it as a gone-device: the queue was
-      // cleared because the device is gone, so emit disconnected and
-      // throw the domain exception.
-      if (e.toString().contains('Queue Cancelled')) {
+      if (_isLegacyQueueCancellation(e)) {
         _log.fine(
             'write($serviceUUID/$characteristicUUID) cancelled by clearQueue',
         );
-        _connectionStateSubject.add(device.ConnectionState.disconnected);
-        throw const DeviceNotConnectedException.unknown();
       }
       rethrow;
     }

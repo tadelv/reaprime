@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:universal_ble/universal_ble.dart';
 
@@ -17,6 +18,7 @@ const _writeTimeout = Duration(milliseconds: 50);
 class _FakeBlePlatform extends UniversalBlePlatform {
   BleConnectionState connectionStateResult = BleConnectionState.connected;
   bool hangWrites = false;
+  UniversalBleException? writeError;
   int getConnectionStateCalls = 0;
   final List<String> disconnectCalls = [];
 
@@ -105,6 +107,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     Uint8List value,
     BleOutputProperty bleOutputProperty,
   ) async {
+    if (writeError case final error?) throw error;
     if (hangWrites) {
       await Completer<void>().future;
     }
@@ -164,6 +167,7 @@ void main() {
     // Drop any queues left over from a previous test (a hung write keeps
     // its per-device queue slot busy forever otherwise).
     UniversalBle.clearQueue();
+    UniversalBle.queueType = QueueType.perDevice;
     // Unique id per test so per-device queue state can't bleed over.
     deviceId = 'AA:BB:CC:DD:EE:${(deviceCounter++).toString().padLeft(2, '0')}';
     transport = UniversalBleTransport(device: bleDevice(deviceId));
@@ -177,6 +181,8 @@ void main() {
   tearDown(() async {
     await stateSub.cancel();
     await transport.dispose();
+    UniversalBle.clearQueue();
+    UniversalBle.queueType = QueueType.global;
   });
 
   Future<void> timedOutWrite() async {
@@ -266,6 +272,75 @@ void main() {
         isNot(contains(device.ConnectionState.disconnected)),
         reason: 'counter must reset on success — only 2 consecutive '
             'timeouts since',
+      );
+    });
+  });
+
+  group('queue reset error handling', () {
+    test('timeout-cleared pending write does not emit disconnected', () async {
+      platform.hangWrites = true;
+
+      final active = expectLater(
+        transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([1]),
+          timeout: _writeTimeout,
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+      final nextActive = expectLater(
+        transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([2]),
+          timeout: const Duration(milliseconds: 100),
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+      final pending = expectLater(
+        transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([3]),
+          timeout: const Duration(seconds: 5),
+        ),
+        throwsA(predicate((e) => e.toString().contains('Queue Cancelled'))),
+      );
+
+      await active;
+      await pending;
+      await nextActive;
+      await pump();
+
+      expect(
+        observedStates,
+        isNot(contains(device.ConnectionState.disconnected)),
+      );
+    });
+
+    test('deviceDisconnected maps and emits disconnected exactly once',
+        () async {
+      platform.writeError = UniversalBleException(
+        code: UniversalBleErrorCode.deviceDisconnected,
+        message: 'simulated native disconnect',
+      );
+
+      await expectLater(
+        transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([1]),
+        ),
+        throwsA(isA<DeviceNotConnectedException>()),
+      );
+      await pump();
+
+      expect(
+        observedStates.where(
+          (state) => state == device.ConnectionState.disconnected,
+        ),
+        hasLength(1),
       );
     });
   });
@@ -435,12 +510,4 @@ void main() {
     });
   });
 
-  // When _handleGattError or _onOperationTimeout calls clearQueue,
-  // universal_ble's Queue.dispose() cancels pending items with
-  // Exception('Queue Cancelled') — a plain Exception, not
-  // UniversalBleException. Our write()/read() catch blocks convert this
-  // to DeviceNotConnectedException. Testing this requires driving the
-  // universal_ble queue through a real dispose cycle, which hangs the
-  // test framework on cleanup. The code is defensive and the framework
-  // error handler filter (isBenignFrameworkError) is the safety net.
 }
