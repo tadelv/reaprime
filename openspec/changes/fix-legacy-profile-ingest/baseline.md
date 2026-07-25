@@ -40,7 +40,8 @@ Both fail with:
 
 ```
 Legacy settings_2a profile with no advanced_shot steps. These require step synthesis
-from flat fields, which is not implemented.
+from flat fields, which is not implemented. See de1app's profile.tcl sync_from_legacy
+for the synthesis logic.
 ```
 
 Both carry `advanced_shot {}` in every de1app commit that touched them, back to the
@@ -113,21 +114,23 @@ preinfuse frame count.
 
 ### The same check across all 89 de1app profiles
 
-Run over every `.tcl` in `de1plus/profiles/`, 80 agree and 9 disagree. None of the nine
-is attributable to the synthesis port:
+Run over every `.tcl` in `de1plus/profiles/`, 84 agree, 4 disagree and 1 refuses to
+convert. Nothing is attributable to the synthesis port:
 
 - **Four A-Flow profiles** - frame count 6 vs 9. Expected: `profile_sync` scans
   `../plugins/*/profiles/` automatically and lets the plugin copy win, while this run
   pointed the ingest tool at `de1plus/profiles/`. This is cause 3, fixed by task 4.2.
-- **Four precision differences** (`Cleaning/Forward Flush x5`, `Easy blooming - active
-  pressure decline`, `Extractamundo Dos!`, `TurboTurbo`) - for example `pressure
-  5.999999999999996` against `6.00`. The noisy literal is in de1app's own file;
-  Decenza's serialiser rounds to two decimals and the ingest tool preserves the source
-  value. Pre-existing behaviour, unrelated to this change, and identical to what the
-  corpus already ships.
-- **`Test/profile_editor_demo`** - `target_weight` 0 vs 36. That de1app file carries no
-  `final_desired_shot_weight*` field at all; Decenza substitutes its own 36 g default.
+- **`Test/profile_editor_demo`** - refuses with `required field
+  'final_desired_shot_weight_advanced' is missing or empty`. That de1app file carries
+  no `final_desired_shot_weight*` field at all; Decenza substitutes its own 36 g
+  default, and the tool now fails rather than emitting a profile with no weight stop.
   Not a bundled profile here.
+
+An earlier run of this check had four further disagreements - `Cleaning/Forward Flush
+x5`, `Easy blooming - active pressure decline`, `Extractamundo Dos!` and `TurboTurbo`,
+all of the form `pressure 5.999999999999996` against `6.00`. The noisy literal is in
+de1app's own file; Decenza's serialiser rounds to two decimals. The tool now snaps that
+float-representation noise on serialise (`convert_step`), so those four agree.
 
 ### A third check, free: seven profiles de1app already derived for us
 
@@ -159,16 +162,27 @@ drive ignored, a zero-value limiter treated as absent:
 | | machine-equivalent | differ | reaprime-only |
 |---|---|---|---|
 | before | 33 | 29 | 8 |
-| after | **59** | **4** | 8 |
+| after | **63** | **0** | 8 |
 
-The four remaining differences are float literals in de1app's own `.tcl` files -
-`9.999999999999993` against Decenza's `10.0`, and so on. Decenza's serialiser rounds to
-two decimals; the ingest tool preserves the source value. They are not a behaviour
-difference: the DE1 encodes a frame's driven axis as one byte in 1/16 steps,
-`(0.5 + value * 16).toInt()` (`unified_de1.profile.dart:57`), and every differing pair
-encodes to the same byte.
+**Every profile both apps ship is now machine-equivalent.**
 
-**So for every profile both apps ship, they now send the machine identical bytes.**
+Reaching 0 took one more step than the frame work. After the corpus rebuild, four
+profiles still differed by float-representation noise carried in de1app's own `.tcl`
+files - `9.999999999999993` against Decenza's `10.0`. That was never a behaviour
+difference: the DE1 encodes a frame's driven axis as one byte,
+`(0.5 + value * scale).toInt()` (`unified_de1.profile.dart:57`), where `scale` is 16 on
+a DE1 and 10 on Bengle (`:41`), and every differing pair encoded to the same byte at
+both scales. It was, though, permanent diff noise between two corpora that should be
+comparable.
+
+`convert_step` now snaps values to six decimals on serialise, so a later harvest cannot
+reintroduce it. Six corpus files carried noise from before the change and were
+normalised in place. Verified across every file this PR touches: **no DE1 byte moves
+except in the eleven profiles whose content is deliberately corrected.**
+
+Note this is *not* Decenza's own format - it writes every number to two decimals
+(`"36.00"`). Adopting that would change the serialised form of all 71 profiles and
+therefore every profile id, for no behavioural gain.
 
 The eight reaprime-only profiles are deliberate additions with no de1app counterpart:
 the four `Baseline` variants, `D-Flow / default`, `I Can't Believe It's Not Filter`,

@@ -72,8 +72,10 @@ made `Classic Italian espresso` stop at 60 g where de1app stops at 36 g.
 - `flow_to_advanced_list` gates the decline frame on `espresso_hold_time`, not
   `espresso_decline_time`. A flow profile with hold 0 and decline 20 gets no decline
   frame. Matching de1app matters more than the frame being sensible.
-- The generators emit no `flow` key on pressure-pumped frames, so de1app's `ifexists`
-  serialises `""` there. The tool writes `"0.0"`, which the app parses identically.
+- Neither generator emits a value on the axis its pump does not drive, so de1app's
+  `ifexists` serialises `""` there — `flow` on a pressure frame, `pressure` on a flow
+  frame. The tool writes `"0.0"`. Nothing reads it either way: `ProfileStepPressure`
+  never parses `flow` and `ProfileStepFlow` never parses `pressure`.
 
 **A-Flow is harvested from `de1plus/plugins/A_Flow/profiles/`, not `de1plus/profiles/`.**
 de1app ships stale 6-frame copies of four A-Flow profiles in the base directory that
@@ -83,10 +85,23 @@ permanently shadow the plugin's 9-frame versions (de1app issue #350). Passing a
 output is a hard error naming every path — never resolved by precedence, because the
 A_Flow author has proposed resolving #350 the opposite way.
 
-**The corpus rebuild is scoped, not wholesale.** A full re-ingest rewrites 40 files;
-13 of those differences are number formatting and author attributions applied during
-the `default-profiles-curation` pass (`Damian's *`, `Cremina`). Re-ingest an explicit
-list.
+The consequence is that a `de1plus`-root run *cannot* emit those four: it fails on them
+by design. Pass `de1plus/plugins/A_Flow/profiles` explicitly to ingest A-Flow.
+
+**The corpus rebuild is scoped, not wholesale.** Re-ingesting all 63 attributable
+sources reproduces 49 byte-identically and rewrites 14. Those 14 are not drift to be
+corrected — re-ingesting them would *lose* information:
+
+- five carry author attributions applied during the `default-profiles-curation` pass
+  (`Damian's LM Leva`, `LRv2`, `LRv3`, `Damian's Q`, `Cremina`) that the de1app source
+  does not have;
+- ten also carry `lang`, `reference_file`, `legacy_profile_type` and
+  `changes_since_last_espresso`, none of which the tool emits, so a re-ingest silently
+  strips four keys.
+
+Re-ingest an explicit list. Note the corpus filename rarely follows from the de1app
+filename (`default.tcl` to `Default1.json`); the mapping is recoverable from the
+`provenance` map in `manifest.json`, which is keyed by corpus filename.
 
 ## SharedPreferences Keys
 

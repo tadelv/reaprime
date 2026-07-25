@@ -14,7 +14,7 @@
       "seconds": "2.0",
       "volume": "100.0",
       "weight": "0.0",
-      "flow": "6.000000000000007",
+      "flow": "6.0",
       "pressure": "1.0",
       "limiter": {
         "value": "0.0",
@@ -30,7 +30,7 @@
       "seconds": "20.0",
       "volume": "100.0",
       "weight": "0.0",
-      "flow": "6.000000000000007",
+      "flow": "6.0",
       "pressure": "1.0",
       "exit": {
         "type": "pressure",
@@ -72,7 +72,7 @@
       "seconds": "4.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "6.9999999999999964",
+      "pressure": "7.0",
       "flow": "2.2",
       "limiter": {
         "value": "0.0",
@@ -88,7 +88,7 @@
       "seconds": "4.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "6.9999999999999964",
+      "pressure": "7.0",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -109,7 +109,7 @@
       "seconds": "5.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "5.699999999999997",
+      "pressure": "5.7",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -130,7 +130,7 @@
       "seconds": "40.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "5.899999999999997",
+      "pressure": "5.9",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -151,7 +151,7 @@
       "seconds": "8.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "6.9999999999999964",
+      "pressure": "7.0",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -172,7 +172,7 @@
       "seconds": "8.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "5.799999999999996",
+      "pressure": "5.8",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -193,7 +193,7 @@
       "seconds": "40.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "5.899999999999997",
+      "pressure": "5.9",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -214,7 +214,7 @@
       "seconds": "30.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "6.9999999999999964",
+      "pressure": "7.0",
       "flow": "2.2",
       "exit": {
         "type": "flow",
@@ -235,7 +235,7 @@
       "seconds": "40.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "5.899999999999997",
+      "pressure": "5.9",
       "flow": "2.2",
       "limiter": {
         "value": "0.0",

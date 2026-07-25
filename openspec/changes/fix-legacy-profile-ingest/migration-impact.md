@@ -6,8 +6,9 @@ question 1 - do corrected profiles reach users who already hold a copy).
 ## What the hash change touches
 
 `ProfileHash.calculateProfileHash` includes `beverage_type`, so the 15 retyped profiles
-get a new id, as do the 12 whose frames or targets change. 27 of 71 bundled profiles
-change id.
+get a new id, as do the 11 whose frames or targets change. **26** of the 70 previously
+bundled profiles change id; `A-Flow____default-light.json` is the 71st and is an
+addition, so it has no prior id and no user can have hidden it.
 
 Nothing references a profile id from outside the profile store:
 
@@ -65,7 +66,7 @@ considers records that are currently visible (`record.visibility != Visibility.v
 `ProfileRecord.create`, which hard-codes `visibility: Visibility.visible`
 (`profile_record.dart:116`). The old hidden record stays hidden; the new one shows up.
 
-This affects all 27 changed profiles, not only the retyped ones, and it is not new
+This affects the 26 changed profiles, not only the retyped ones, and it is not new
 behaviour introduced here - any corpus change has always done this. It is simply
 reaching 27 profiles at once for the first time.
 

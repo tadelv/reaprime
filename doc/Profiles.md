@@ -195,15 +195,18 @@ Manifest structure:
 `provenance` records where each bundled profile came from, so "which source produced
 this?" is a lookup rather than an experiment. Every manifest entry has one; a profile
 that cannot be attributed to a de1app source is recorded as `"source": "unknown"`
-rather than omitted. The corpus is built by `tools/ingest_profiles.py` — see
+rather than omitted. `source` is relative to `repository`, not to the de1app checkout —
+the five A-Flow entries name paths inside the `Jan3kJ/A_Flow` submodule. `verified` and
+`note` are hand-written observations about how the shipped file relates to its source;
+a re-ingest refreshes them rather than preserving a stale claim. The corpus is built by `tools/ingest_profiles.py` — see
 `doc/AI_STORAGE_NOTES.md` for how legacy `settings_2a`/`2b` frames are derived rather
 than copied, and why A-Flow is harvested from the plugin directory.
 
 Beverage types use de1app's wire spelling: `espresso`, `pourover`, `cleaning`,
 `calibrate`, `manual`, `tea`, `tea_portafilter`, `filter`. Note the underscore in
 `tea_portafilter` — the Dart enum case is `teaPortafilter`, and `BeverageType.wireName`
-is what serialises. Only `cleaning` and `calibrate` change app behaviour (they skip the
-no-scale guard); tea and filter are brewed to weight like espresso.
+is what serialises. Only `cleaning` and `calibrate` change app behaviour — they skip the no-scale guard
+and are not persisted as shots; tea and filter are brewed to weight like espresso.
 
 #### Migration from Old Installations
 

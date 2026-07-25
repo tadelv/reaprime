@@ -133,6 +133,11 @@ class Profile extends Equatable {
 /// de1app's beverage types. [wireName] is the spelling de1app and Visualizer use;
 /// it is not always the Dart enum name, so serialise through [wireName] rather
 /// than `.name` or `tea_portafilter` becomes `teaPortafilter` on the wire.
+///
+/// [wireName] is also SHA-256 input to `ProfileHash.calculateProfileHash`, which
+/// is a profile's id and its database primary key. Changing one re-keys every
+/// stored profile that uses it. Every [wireName] must be lowercase and unique —
+/// [tryParse] lowercases before matching. `profile_test.dart` locks all of this in.
 enum BeverageType {
   espresso('espresso'),
   calibrate('calibrate'),
@@ -146,16 +151,30 @@ enum BeverageType {
   const BeverageType(this.wireName);
 
   final String wireName;
+
+  /// de1app spellings that are not themselves beverage types but map onto one.
+  /// `tools/ingest_profiles.py` applies the same mapping; the two ingest paths
+  /// must agree, or a descale profile imported at runtime becomes an espresso
+  /// and starts demanding a scale.
+  static const _aliases = {'descale': cleaning};
+
+  /// The type for a de1app wire value, or null if it is not one.
+  ///
+  /// Callers that can log should prefer this over the espresso fallback in
+  /// [Profile.fromJson], so an unrecognised value is visible rather than silent.
+  static BeverageType? tryParse(dynamic value) {
+    if (value == null) return null;
+    final name = value.toString().trim().toLowerCase();
+    if (name.isEmpty) return null;
+    for (final type in values) {
+      if (type.wireName == name) return type;
+    }
+    return _aliases[name];
+  }
 }
 
-BeverageType _parseBeverageType(dynamic value) {
-  if (value == null || value.toString().isEmpty) return BeverageType.espresso;
-  final name = value.toString().toLowerCase();
-  for (final type in BeverageType.values) {
-    if (type.wireName == name) return type;
-  }
-  return BeverageType.espresso;
-}
+BeverageType _parseBeverageType(dynamic value) =>
+    BeverageType.tryParse(value) ?? BeverageType.espresso;
 
 enum TransitionType { fast, smooth }
 

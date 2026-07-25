@@ -129,7 +129,7 @@
       "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
     },
     "Cleaning__Forward_Flush_x5_2.json": {
-      "source": "de1plus/profiles/cleaning_forward_flush_x5.tcl",
+      "source": "de1plus/profiles/Cleaning_forward_flush_x5.tcl",
       "repository": "https://github.com/skialpine/de1app.git",
       "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
     },

@@ -22,6 +22,13 @@ Usage:
 
     # Also update manifest.json
     python3 tools/ingest_profiles.py profiles/*.json -o assets/defaultProfiles/ --update-manifest
+
+    # Scan a directory. A de1app de1plus/ root expands to profiles/,
+    # plugins/*/profiles/ and profile_editors/*/profiles/, and a profile found in
+    # more than one of them with differing output is an error naming every path.
+    # Note this means a de1plus root cannot emit the four shadowed A-Flow profiles
+    # (de1app issue #350) — pass de1plus/plugins/A_Flow/profiles explicitly for those.
+    python3 tools/ingest_profiles.py <de1app>/de1plus -o assets/defaultProfiles/
 """
 
 import argparse
@@ -111,7 +118,12 @@ def _required_number(fields, key):
 def _preinfusion_frame_lengths(fields):
     """Return (first_frame_len, second_frame_len) and the four frame temperatures."""
     preinfusion_time = _required_number(fields, "preinfusion_time")
-    steps_enabled = fields.get("espresso_temperature_steps_enabled", "").strip() == "1"
+    # de1app compares numerically (`[ifexists ...] == 1` in Tcl), so "1.0" and "01"
+    # enable stepping there. A string compare here would silently pick the
+    # single-temperature layout instead - different frames, different temperatures.
+    steps_enabled = (
+        _optional_number(fields, "espresso_temperature_steps_enabled", 0.0) == 1
+    )
 
     if steps_enabled:
         bump = _optional_number(fields, "temp_bump_time_seconds", TEMP_BUMP_TIME_SECONDS)
@@ -129,11 +141,15 @@ def _preinfusion_frame_lengths(fields):
 
 
 def _preinfusion_steps(fields, first_len, second_len, temps, boost_name):
-    """The one or two flow-pump preinfusion frames both generators share."""
-    flow_rate = _required_number(fields, "preinfusion_flow_rate")
-    stop_pressure = _required_number(fields, "preinfusion_stop_pressure")
+    """The one or two flow-pump preinfusion frames both generators share.
+
+    The scalars are read lazily: de1app reads them inside the same `if` that emits
+    the frame, so a profile with no preinfusion is derivable without them.
+    """
 
     def frame(name, temperature, seconds):
+        flow_rate = _required_number(fields, "preinfusion_flow_rate")
+        stop_pressure = _required_number(fields, "preinfusion_stop_pressure")
         return {
             "name": name,
             "pump": "flow",
@@ -332,7 +348,7 @@ def parse_tcl_profile(content):
     result = {}
 
     # Extract advanced_shot first (it's a TCL nested list on one line)
-    advanced_match = re.match(r'^advanced_shot\s+(.*)', content, re.MULTILINE)
+    advanced_match = re.search(r'^advanced_shot\s+(.*)', content, re.MULTILINE)
     raw_steps_str = ""
     if advanced_match:
         raw_steps_str = advanced_match.group(1).strip()
@@ -384,18 +400,25 @@ def parse_tcl_profile(content):
         # that is not settings_2c.
         profile["target_weight"] = _required_number(result, "final_desired_shot_weight")
         profile["target_volume"] = _required_number(result, "final_desired_shot_volume")
+        profile["frames_derived"] = True
     else:
         steps = _parse_tcl_steps(raw_steps_str)
-        if not steps and raw_steps_str not in ("", "{}"):
-            raise ValueError("Failed to parse advanced_shot steps")
         preinfuse_frames = int(
             result.get("final_desired_shot_volume_advanced_count_start", 0)
         )
-        profile["target_weight"] = float(
-            result.get("final_desired_shot_weight_advanced", 0)
+        # The _advanced spellings are authoritative for settings_2c. An explicit 0
+        # means "no stop"; an absent field means the profile cannot say, and
+        # defaulting it to 0 would silently remove the stop.
+        profile["target_weight"] = _required_number(
+            result, "final_desired_shot_weight_advanced"
         )
-        profile["target_volume"] = float(
-            result.get("final_desired_shot_volume_advanced", 0)
+        profile["target_volume"] = _required_number(
+            result, "final_desired_shot_volume_advanced"
+        )
+
+    if not steps:
+        raise ValueError(
+            f"Profile '{profile['title']}' would be emitted with no frames"
         )
 
     profile["number_of_preinfuse_frames"] = preinfuse_frames
@@ -422,10 +445,17 @@ def _parse_tcl_steps(raw):
     # But step values can contain {braces} too (e.g. name {Extraction start})
     step_strings = _split_tcl_list(raw)
 
-    for step_str in step_strings:
+    for index, step_str in enumerate(step_strings):
         step = _parse_tcl_step(step_str)
-        if step:
-            steps.append(step)
+        if not step:
+            raise ValueError(
+                f"advanced_shot element {index} did not parse into a frame; "
+                "refusing to emit a profile that has silently lost one"
+            )
+        steps.append(step)
+
+    if not steps:
+        raise ValueError("Failed to parse advanced_shot steps")
 
     return steps
 
@@ -522,6 +552,11 @@ def _parse_tcl_step(step_str):
                 "condition": "under",
                 "value": float(raw.get("exit_flow_under", 0)),
             }
+        else:
+            raise ValueError(
+                f"Frame '{step['name']}' sets exit_if but carries an unhandled "
+                f"exit_type '{exit_type}'; refusing to drop its stop condition"
+            )
 
     # Limiter (max_flow_or_pressure)
     max_val = float(raw.get("max_flow_or_pressure", 0))
@@ -580,30 +615,44 @@ def _tokenize_tcl(s):
 # JSON/common conversion
 # ---------------------------------------------------------------------------
 
+# de1app's profile editor leaves float artefacts in its own .tcl files - a pressure
+# written as 5.999999999999996 rather than 6.0. The DE1 takes these values as one
+# byte in 1/16 steps, so the extra digits carry no information; they only make the
+# corpus noisy and defeat a byte-level diff against other de1app-derived corpora.
+# Snapping here rather than in a one-off pass means a later harvest cannot bring
+# the noise back.
+FLOAT_PRECISION = 6
+
+
+def _number(value):
+    """Serialise a numeric field, dropping meaningless float-representation noise."""
+    return str(round(float(value), FLOAT_PRECISION))
+
+
 def convert_step(step):
     """Convert a parsed profile step to Decent format."""
     converted = {
         "name": step["name"],
         "pump": step["pump"],
         "transition": step["transition"],
-        "temperature": str(float(step["temperature"])),
+        "temperature": _number(step["temperature"]),
         "sensor": step["sensor"],
-        "seconds": str(float(step["seconds"])),
-        "volume": str(float(step.get("volume", 0))),
-        "weight": str(float(step.get("weight", 0))),
+        "seconds": _number(step["seconds"]),
+        "volume": _number(step.get("volume", 0)),
+        "weight": _number(step.get("weight", 0)),
     }
 
     # Add flow or pressure based on pump type
     if step["pump"] == "flow":
-        converted["flow"] = str(float(step.get("flow", 0)))
+        converted["flow"] = _number(step.get("flow", 0))
     else:
-        converted["pressure"] = str(float(step.get("pressure", 0)))
+        converted["pressure"] = _number(step.get("pressure", 0))
 
     # Preserve the other target value too (our format includes both)
     if step["pump"] == "flow":
-        converted["pressure"] = str(float(step.get("pressure", 0)))
+        converted["pressure"] = _number(step.get("pressure", 0))
     else:
-        converted["flow"] = str(float(step.get("flow", 0)))
+        converted["flow"] = _number(step.get("flow", 0))
 
     # Exit condition
     if "exit" in step and step["exit"]:
@@ -611,7 +660,7 @@ def convert_step(step):
         converted["exit"] = {
             "type": exit_cond["type"],
             "condition": exit_cond["condition"],
-            "value": str(float(exit_cond["value"])),
+            "value": _number(exit_cond["value"]),
         }
 
     # Limiter
@@ -620,8 +669,8 @@ def convert_step(step):
         lim_value = float(limiter.get("value", 0))
         lim_range = float(limiter.get("range", 0))
         converted["limiter"] = {
-            "value": str(lim_value),
-            "range": str(lim_range),
+            "value": _number(lim_value),
+            "range": _number(lim_range),
         }
 
     return converted
@@ -629,6 +678,18 @@ def convert_step(step):
 
 def convert_profile(source):
     """Convert a parsed profile dict to Decent format."""
+    # A v2 JSON export of a legacy profile carries de1app's *stored* frames and a
+    # target_weight taken from final_desired_shot_weight_advanced — the two things
+    # the TCL path deliberately refuses. The scalars needed to derive from it are
+    # not in the export, so there is nothing to fall back to but a refusal.
+    legacy_type = source.get("legacy_profile_type", "")
+    if legacy_type in LEGACY_TYPES and not source.get("frames_derived"):
+        raise ValueError(
+            f"'{source.get('title', '')}' is a {legacy_type} v2 JSON export: its "
+            "frames are stored, not derived, and de1app does not read them back "
+            "for this type. Ingest the .tcl source instead."
+        )
+
     # Resolve beverage type
     beverage_type = strip_tcl_braces(source.get("beverage_type", "espresso"))
     beverage_type = BEVERAGE_TYPE_MAP.get(beverage_type, beverage_type)
@@ -660,9 +721,9 @@ def convert_profile(source):
         "notes": source.get("notes", ""),
         "beverage_type": beverage_type,
         "steps": steps,
-        "tank_temperature": str(float(tank_temp)),
-        "target_weight": str(float(source.get("target_weight", 0))),
-        "target_volume": str(float(source.get("target_volume", 0))),
+        "tank_temperature": _number(tank_temp),
+        "target_weight": _number(source.get("target_weight", 0)),
+        "target_volume": _number(source.get("target_volume", 0)),
         "target_volume_count_start": str(int(vol_count_start)),
         "type": source.get("type", "advanced"),
         "hidden": "0",
@@ -775,20 +836,42 @@ def source_provenance(input_path):
         return out.stdout.strip()
 
     top = git("rev-parse", "--show-toplevel")
-    revision = git("rev-parse", "HEAD")
+    if not top:
+        print(
+            f"WARN  {input_path}: not inside a git checkout; recording provenance "
+            "without a revision",
+            file=sys.stderr,
+        )
+        return {
+            "source": "unknown",
+            "note": (
+                f"ingested from {os.path.basename(input_path)} outside a git "
+                "checkout; no revision to record"
+            ),
+        }
 
-    if top:
-        source = os.path.relpath(os.path.abspath(input_path), top)
-        origin = git("remote", "get-url", "origin")
-    else:
-        source = os.path.abspath(input_path)
-        origin = None
-
+    source = os.path.relpath(os.path.abspath(input_path), top)
     provenance = {"source": source}
+
+    origin = git("remote", "get-url", "origin")
     if origin:
         provenance["repository"] = origin
-    if revision:
+
+    # A revision only describes the content if the file is tracked and clean.
+    # Recording HEAD for a modified or untracked file is confidently wrong, which
+    # is worse than saying nothing — the whole point of D6 is that this record can
+    # be trusted without re-deriving it.
+    status = git("status", "--porcelain", "--", source)
+    revision = git("rev-parse", "HEAD")
+    if status:
+        print(
+            f"WARN  {source}: modified or untracked, so no revision is recorded",
+            file=sys.stderr,
+        )
+        provenance["note"] = "source was modified or untracked at ingest time"
+    elif revision:
         provenance["revision"] = revision
+
     return provenance
 
 
@@ -840,7 +923,17 @@ def update_manifest(output_dir, new_filenames, provenance_by_filename=None):
 
     if provenance_by_filename:
         provenance = manifest.get("provenance", {})
-        provenance.update(provenance_by_filename)
+        for name, entry in provenance_by_filename.items():
+            # Merge rather than replace: `verified` and `note` on existing entries
+            # are hand-written and describe how the shipped file relates to its
+            # source. A re-ingest that reproduces the file should not silently
+            # discard them, and one that changes it should drop only the stale
+            # `verified` claim.
+            existing = dict(provenance.get(name, {}))
+            existing.pop("verified", None)
+            existing.pop("note", None)
+            existing.update(entry)
+            provenance[name] = existing
         manifest["provenance"] = dict(sorted(provenance.items()))
 
     write_manifest(output_dir, manifest)
@@ -872,30 +965,59 @@ def main_with_args(argv=None):
 
     args = parser.parse_args(argv)
 
+    if args.update_manifest and not args.output_dir:
+        parser.error("--update-manifest requires -o/--output-dir")
+
     inputs = resolve_inputs(args.profiles)
+    if not inputs:
+        print(
+            f"FAIL  no profile files found in: {', '.join(args.profiles)}",
+            file=sys.stderr,
+        )
+        return 1
 
     # Convert everything before writing anything, so a source collision is caught
     # while it can still stop the output file being produced.
     converted_by_output = {}
+    sources_by_output = {}
     errors = []
     for input_path in inputs:
+        out_filename = output_filename_for(input_path)
+        sources_by_output.setdefault(out_filename, []).append(input_path)
         try:
             converted = convert_profile(load_profile(input_path))
         except Exception as e:
             errors.append((os.path.basename(input_path), str(e)))
             print(f"FAIL  {os.path.basename(input_path)}: {e}", file=sys.stderr)
             continue
-        converted_by_output.setdefault(output_filename_for(input_path), []).append(
+        converted_by_output.setdefault(out_filename, []).append(
             (input_path, converted)
         )
 
     collisions = find_collisions(converted_by_output)
+    # A source that failed to convert never reaches converted_by_output, so without
+    # this the surviving copy of a disagreeing pair would be written as if it were
+    # the only one — precedence by parseability, which is what D4 rejects.
+    for out_filename, paths in sources_by_output.items():
+        if len(paths) > 1 and len(converted_by_output.get(out_filename, [])) != len(paths):
+            collisions[out_filename] = paths
     for out_filename, paths in collisions.items():
-        del converted_by_output[out_filename]
+        converted_by_output.pop(out_filename, None)
         detail = "\n".join(f"      {p}" for p in paths)
         message = f"same profile in {len(paths)} source directories, and they disagree:\n{detail}"
         errors.append((out_filename, message))
         print(f"FAIL  {out_filename}: {message}", file=sys.stderr)
+
+    # A corpus rebuild is all-or-nothing: a half-written corpus with a half-updated
+    # manifest is harder to reason about than one that did not run.
+    if errors and args.output_dir and not args.dry_run:
+        print(
+            f"\n{len(errors)} error(s); nothing written. Fix the sources and re-run.",
+            file=sys.stderr,
+        )
+        for name, err in errors:
+            print(f"  {name}: {err}", file=sys.stderr)
+        return 1
 
     converted_filenames = []
     provenance_by_filename = {}
@@ -919,7 +1041,7 @@ def main_with_args(argv=None):
         else:
             print(json.dumps(converted, indent=2))
 
-    if args.update_manifest and args.output_dir and converted_filenames:
+    if args.update_manifest and converted_filenames:
         added = update_manifest(
             args.output_dir, converted_filenames, provenance_by_filename
         )

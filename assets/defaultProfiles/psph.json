@@ -58,7 +58,7 @@
         "value": "2.0"
       },
       "seconds": "60.00",
-      "pressure": "6.0000000000000036",
+      "pressure": "6.0",
       "transition": "fast",
       "temperature": "61.5"
     }

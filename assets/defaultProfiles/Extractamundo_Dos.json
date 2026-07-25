@@ -72,7 +72,7 @@
       "seconds": "60.0",
       "volume": "100.0",
       "weight": "0.0",
-      "pressure": "6.0000000000000036",
+      "pressure": "6.0",
       "flow": "2.2",
       "exit": {
         "type": "flow",
