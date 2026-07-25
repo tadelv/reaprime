@@ -52,36 +52,29 @@ Ordered before the corpus rebuild on purpose — see design D5. The enum must ac
 - [x] 5.1 Add a test asserting no bundled `settings_2a`/`2b` profile ships frames contradicting its own scalars, failing with the profile name and the contradicting field. Added to `test/profiles/default_profiles_bundled_test.dart` as three checks over the 12 `pressure`/`flow` typed profiles: frame names must come from the generator vocabulary, temperature spread must stay within the four presets, and each frame's pump must match the profile type. The shipped `Default1.json` failed all three.
 - [x] 5.2 Add a test that the ingest tool ignores a populated `advanced_shot` on a legacy-type profile, using a fixture with deliberately mismatched stored frames. `tools/ingest_profiles_test.py`, `LegacyStepSynthesisTest` — fixture ships two pour-over frames at 75 °C / 54 °C against a 90 °C `settings_2a` profile.
 - [x] 5.3 Add a test that two disagreeing source directories cause a failure naming both paths. `SourceCollisionTest`, including that identical copies are not an error and that a collision writes no output file.
-- [ ] 5.4 `flutter test` and `flutter analyze` clean. **Blocked — no Flutter SDK on this machine** (`flutter` is not on `PATH`, not in `brew list`, and no SDK exists on disk). `python3 -m unittest ingest_profiles_test` passes 19/19. The Dart changes are unverified by a compiler; see the handover note below.
+- [x] 5.4 `flutter test` and `flutter analyze` clean. Verified under Flutter 3.44.8. `analyze` reports one warning — a missing `assets/plugins/dye2.reaplugin/` directory — which reproduces unchanged on `main`. `flutter test` is 2496/2498; the two failures are local-network-interface tests in `test/webui_support/webui_token_injection_test.dart` that fail identically on `main`. The changed test files pass in full (63/63), and `python3 -m unittest ingest_profiles_test` passes 37/37.
 
 ## 6. Decisions this change cannot make alone
 
 - [x] 6.1 Decide whether corrected profiles are pushed to users who already hold a copy (design open question 1). Check first whether the local copy tracks modification — the recommendation depends on it. **Resolved: no decision needed.** A bundled default cannot be modified in place — `ProfileController.update` rejects it (`profile_controller.dart:272`), so a user's variant is always a separate `isDefault: false` record that `_retireStaleDefaults` skips. Corrected profiles reach existing installs through the mechanism already in place: the new content is stored under its new hash and the superseded record is hidden, never deleted. Full analysis, including the one real side effect (a user who *hid* a bundled default sees the corrected version reappear), in `migration-impact.md`.
 
-## Handover: what is not verified
+## Verification
 
-There is no Flutter SDK on this machine, so `flutter test` and `flutter analyze` never
-ran. Everything below is verified; everything Dart is not.
+Run under Flutter 3.44.8 (installed for this purpose and removed afterwards).
 
-**Verified:**
-- `python3 -m unittest ingest_profiles_test` — 19/19 pass.
-- The synthesis port agrees with Decenza's real `profile_sync` binary on all five
-  simple profiles, and across all 89 de1app profiles the only disagreements are the
-  four A-Flow source-path cases, four float-literal precision differences in de1app's
-  own files, and one profile absent from this corpus. See `baseline.md`.
-- The port reproduces, value-for-value, seven corpus profiles that de1app's own
-  generator produced via the Visualizer route.
-- The new bundled-corpus assertions were run against the actual 71 corpus files in
-  Python before being written as Dart: 12 derived profiles, zero failures.
-
-**Not verified — needs `flutter test` and `flutter analyze`:**
-- `lib/src/models/data/profile.dart` — `BeverageType` gains a `wireName` field.
-- `lib/src/models/data/profile_hash.dart`, `lib/src/controllers/profile_controller.dart`
-  — the two other `.name` call sites switched to `.wireName`. A repo-wide search
-  confirms no `beverageType.name` remains and nothing switches over `BeverageType`.
-- `test/profile_test.dart` — new `beverage type` group.
-- `test/profiles/default_profiles_bundled_test.dart` — new `derived profiles agree with
-  their own scalars` group and the provenance check.
+- `flutter analyze` — clean. The single warning, a missing
+  `assets/plugins/dye2.reaplugin/` asset directory, reproduces on `main`.
+- `flutter test` — 2496/2498. Both failures are in
+  `test/webui_support/webui_token_injection_test.dart` and fail identically on
+  `main`; they enumerate local network interfaces and are environment-dependent.
+- `flutter test test/profile_test.dart test/profiles/` — 63/63.
+- `cd tools && python3 -m unittest ingest_profiles_test` — 37/37.
+- The port agrees with Decenza's `profile_sync` binary on all five simple
+  profiles, and across all 89 de1app profiles the only divergences are the four
+  A-Flow source-path cases and one profile that now refuses to convert rather
+  than emit a zero stop target.
+- The corpus reaches 63/63 machine-equivalence with Decenza, and no DE1 byte
+  moves except in the eleven deliberately-corrected profiles.
 
 ## 7. Close out
 
