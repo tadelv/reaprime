@@ -1,89 +1,110 @@
 {
+  "version": "2",
   "title": "Advanced spring lever",
-  "author": "John Weiss",
-  "notes": "An advanced spring lever profile by John Weiss that addresses a problem with simple spring lever profiles, by using both pressure and flow control. The last two steps keep pressure/flow under control as the puck erodes, if the shot has not finished by the end of step 3. Please consider this as a starting point for tweaking.",
+  "author": "Decent",
+  "notes": "Advanced spring lever profile, with additional constant flow step to salvage overly slow and fast flowing shots.",
   "beverage_type": "espresso",
   "steps": [
     {
+      "name": "2s infuse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "2.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "8.0",
+      "pressure": "0.0",
       "exit": {
         "type": "pressure",
-        "value": "3.0",
-        "condition": "over"
+        "condition": "over",
+        "value": "6.0"
       },
-      "flow": "6.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
       "name": "infuse",
       "pump": "flow",
-      "sensor": "coffee",
-      "volume": "100.0",
-      "weight": "0.0",
-      "seconds": "20.0",
       "transition": "fast",
-      "temperature": "90.0"
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "8.0",
+      "pressure": "0.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "6.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
     },
     {
       "name": "rise and hold",
       "pump": "pressure",
-      "sensor": "coffee",
-      "volume": "100.0",
-      "weight": "0.0",
-      "seconds": "10.0",
-      "pressure": "9.0",
       "transition": "fast",
-      "temperature": "90.0"
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "3.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "pressure": "9.0",
+      "flow": "8.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
     },
     {
-      "exit": {
-        "type": "pressure",
-        "value": "4.0",
-        "condition": "under"
-      },
       "name": "decline",
       "pump": "pressure",
-      "sensor": "coffee",
-      "volume": "100.0",
-      "weight": "0.0",
-      "seconds": "20.0",
-      "pressure": "4.0",
       "transition": "smooth",
-      "temperature": "90.0"
-    },
-    {
-      "exit": {
-        "type": "flow",
-        "value": "1.0",
-        "condition": "over"
-      },
-      "name": "pressure limit",
-      "pump": "pressure",
+      "temperature": "88.0",
       "sensor": "coffee",
-      "volume": "100.0",
-      "weight": "0.0",
-      "seconds": "10.0",
-      "pressure": "4.0",
-      "transition": "smooth",
-      "temperature": "90.0"
-    },
-    {
-      "flow": "1.0",
-      "name": "flow limit",
-      "pump": "flow",
-      "sensor": "coffee",
-      "volume": "100.0",
-      "weight": "0.0",
       "seconds": "30.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "pressure": "6.0",
+      "flow": "8.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "under",
+        "value": "6.0"
+      },
+      "limiter": {
+        "value": "1.5",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "maintain flow",
+      "pump": "flow",
       "transition": "smooth",
-      "temperature": "90.0"
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "1.5",
+      "pressure": "3.0",
+      "limiter": {
+        "value": "6.0",
+        "range": "0.6"
+      }
     }
   ],
-  "tank_temperature": 0.0,
-  "target_weight": 36.0,
-  "target_volume": 0.0,
-  "target_volume_count_start": 2.0,
-  "legacy_profile_type": "settings_2c",
+  "tank_temperature": "0.0",
+  "target_weight": "32.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
   "type": "advanced",
-  "lang": "en",
-  "hidden": null,
-  "reference_file": null,
-  "changes_since_last_espresso": null,
-  "version": null
+  "hidden": "0"
 }

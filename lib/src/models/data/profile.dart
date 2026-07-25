@@ -85,7 +85,7 @@ class Profile extends Equatable {
       'title': title,
       'notes': notes,
       'author': author,
-      'beverage_type': beverageType.name,
+      'beverage_type': beverageType.wireName,
       'steps': steps.map((step) => step.toJson()).toList(),
       'target_volume': targetVolume,
       'target_weight': targetWeight,
@@ -130,13 +130,29 @@ class Profile extends Equatable {
   }
 }
 
-enum BeverageType { espresso, calibrate, cleaning, manual, pourover }
+/// de1app's beverage types. [wireName] is the spelling de1app and Visualizer use;
+/// it is not always the Dart enum name, so serialise through [wireName] rather
+/// than `.name` or `tea_portafilter` becomes `teaPortafilter` on the wire.
+enum BeverageType {
+  espresso('espresso'),
+  calibrate('calibrate'),
+  cleaning('cleaning'),
+  manual('manual'),
+  pourover('pourover'),
+  tea('tea'),
+  teaPortafilter('tea_portafilter'),
+  filter('filter');
+
+  const BeverageType(this.wireName);
+
+  final String wireName;
+}
 
 BeverageType _parseBeverageType(dynamic value) {
   if (value == null || value.toString().isEmpty) return BeverageType.espresso;
   final name = value.toString().toLowerCase();
   for (final type in BeverageType.values) {
-    if (type.name == name) return type;
+    if (type.wireName == name) return type;
   }
   return BeverageType.espresso;
 }

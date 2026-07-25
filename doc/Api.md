@@ -165,6 +165,11 @@ in-app stop will trigger on.
 | POST | `/api/v1/profiles/import` | Import profiles from JSON | |
 | POST | `/api/v1/profiles/restore/:filename` | Restore a bundled default by manifest filename | |
 
+`beverage_type` (and `beverageType` on `/profiles/defaults`) uses de1app's wire
+spelling: `espresso`, `pourover`, `cleaning`, `calibrate`, `manual`, `tea`,
+`tea_portafilter`, `filter`. Note the underscore in `tea_portafilter`. Unrecognised
+values still fall back to `espresso`. See [`Profiles.md`](Profiles.md).
+
 ### Workflow
 
 | Method | Path | Description | Handler |

@@ -3,7 +3,7 @@
   "title": "Tea portafilter/Oolong 1st extraction",
   "author": "Decent",
   "notes": "This profile requires the Decent Espresso tea portafilter and is optimized for the tea named \"Black Phoenix\" from Blue Willow Tea https://www.bluewillowtea.com/ - Taste wise, this profile created a 6oz/180ml mug that tasted the similar, but a little bit different, as the second gongfu-style infusion. Very delicate with faint chocolate notes.  We use a 4 gram dose of leaves for this profile.",
-  "beverage_type": "pourover",
+  "beverage_type": "tea_portafilter",
   "steps": [
     {
       "name": "Fill",

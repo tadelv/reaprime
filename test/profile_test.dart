@@ -899,5 +899,68 @@ void main() {
 
       expect(() => Profile.fromJson(json), throwsArgumentError);
     });
+
+    group('beverage type', () {
+      test('parses de1app tea, tea_portafilter and filter distinctly', () {
+        for (final entry in {
+          'tea': BeverageType.tea,
+          'tea_portafilter': BeverageType.teaPortafilter,
+          'filter': BeverageType.filter,
+          'espresso': BeverageType.espresso,
+          'pourover': BeverageType.pourover,
+          'cleaning': BeverageType.cleaning,
+          'calibrate': BeverageType.calibrate,
+          'manual': BeverageType.manual,
+        }.entries) {
+          final json = validJson()..['beverage_type'] = entry.key;
+
+          expect(
+            Profile.fromJson(json).beverageType,
+            equals(entry.value),
+            reason: '${entry.key} should not fall back to espresso',
+          );
+        }
+      });
+
+      test('round-trips the de1app wire spelling, underscore included', () {
+        for (final wireName in const [
+          'tea',
+          'tea_portafilter',
+          'filter',
+          'espresso',
+          'pourover',
+          'cleaning',
+          'calibrate',
+          'manual',
+        ]) {
+          final json = validJson()..['beverage_type'] = wireName;
+
+          final reserialised = Profile.fromJson(json).toJson();
+
+          expect(reserialised['beverage_type'], equals(wireName));
+        }
+      });
+
+      test('does not accept the Dart enum name as a wire value', () {
+        final json = validJson()..['beverage_type'] = 'teaPortafilter';
+
+        expect(Profile.fromJson(json).beverageType,
+            equals(BeverageType.espresso));
+      });
+
+      test('hashes tea_portafilter apart from pourover', () {
+        final tea = Profile.fromJson(
+          validJson()..['beverage_type'] = 'tea_portafilter',
+        );
+        final pourover = Profile.fromJson(
+          validJson()..['beverage_type'] = 'pourover',
+        );
+
+        expect(
+          ProfileHash.calculateProfileHash(tea),
+          isNot(equals(ProfileHash.calculateProfileHash(pourover))),
+        );
+      });
+    });
   });
 }

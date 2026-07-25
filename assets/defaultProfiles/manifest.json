@@ -5,6 +5,7 @@
     "7g_basket.json",
     "80s_Espresso.json",
     "A-Flow____default-dark.json",
+    "A-Flow____default-light.json",
     "A-Flow____default-like-dflow.json",
     "A-Flow____default-medium.json",
     "A-Flow____default-very-dark.json",
@@ -72,5 +73,390 @@
     "v60-15g.json",
     "v60-20g.json",
     "v60-22g.json"
-  ]
+  ],
+  "provenance": {
+    "7g_basket.json": {
+      "source": "de1plus/profiles/7g basket.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "80s_Espresso.json": {
+      "source": "de1plus/profiles/80s_Espresso.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "A-Flow____default-dark.json": {
+      "source": "profiles/A-Flow____default-dark.tcl",
+      "repository": "https://github.com/Jan3kJ/A_Flow.git",
+      "revision": "e1a4d871272e20e7b9e3d904389f472c757be683"
+    },
+    "A-Flow____default-light.json": {
+      "source": "profiles/A-Flow____default-light.tcl",
+      "repository": "https://github.com/Jan3kJ/A_Flow.git",
+      "revision": "e1a4d871272e20e7b9e3d904389f472c757be683"
+    },
+    "A-Flow____default-like-dflow.json": {
+      "source": "profiles/A-Flow____default-like-dflow.tcl",
+      "repository": "https://github.com/Jan3kJ/A_Flow.git",
+      "revision": "e1a4d871272e20e7b9e3d904389f472c757be683"
+    },
+    "A-Flow____default-medium.json": {
+      "source": "profiles/A-Flow____default-medium.tcl",
+      "repository": "https://github.com/Jan3kJ/A_Flow.git",
+      "revision": "e1a4d871272e20e7b9e3d904389f472c757be683"
+    },
+    "A-Flow____default-very-dark.json": {
+      "source": "profiles/A-Flow____default-very-dark.tcl",
+      "repository": "https://github.com/Jan3kJ/A_Flow.git",
+      "revision": "e1a4d871272e20e7b9e3d904389f472c757be683"
+    },
+    "Blooming_allonge.json": {
+      "source": "de1plus/profiles/Blooming allonge.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Blooming_espresso.json": {
+      "source": "de1plus/profiles/Blooming espresso.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Classic_Italian_espresso.json": {
+      "source": "de1plus/profiles/Classic Italian espresso.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Cleaning__Forward_Flush_x5_2.json": {
+      "source": "de1plus/profiles/cleaning_forward_flush_x5.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "D-Flow____default.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "Damian_s_LM_Leva.json": {
+      "source": "de1plus/profiles/Damian's LM Leva.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in author; carries curation edits applied after ingest"
+    },
+    "Damian_s_LRv2.json": {
+      "source": "de1plus/profiles/Damian's LRv2.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in author; carries curation edits applied after ingest"
+    },
+    "Damian_s_LRv3.json": {
+      "source": "de1plus/profiles/Damian's LRv3.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in author; carries curation edits applied after ingest"
+    },
+    "Damians_Q.json": {
+      "source": "de1plus/profiles/Damians_Q.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in author; carries curation edits applied after ingest"
+    },
+    "Default1.json": {
+      "source": "de1plus/profiles/default.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "EspressoForge_Dark.json": {
+      "source": "de1plus/profiles/EspressoForge_Dark.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "EspressoForge_Light.json": {
+      "source": "de1plus/profiles/EspressoForge_Light.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Extractamundo_Dos.json": {
+      "source": "de1plus/profiles/Extractamundo_Dos.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Filter_20.json": {
+      "source": "de1plus/profiles/Filter_20.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Filter_21.json": {
+      "source": "de1plus/profiles/Filter_21.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Flow_profile_for_milky_drinks.json": {
+      "source": "de1plus/profiles/Flow profile for milky drinks.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "Flow_profile_for_straight_espresso.json": {
+      "source": "de1plus/profiles/Flow profile for straight espresso.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "Gentle_and_sweet1.json": {
+      "source": "de1plus/profiles/Gentle and sweet.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "I_got_your_back.json": {
+      "source": "de1plus/profiles/I_got_your_back.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Londonium.json": {
+      "source": "de1plus/profiles/Londonium.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Pour_over.json": {
+      "source": "de1plus/profiles/Pour over.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Preinfuse_then_45ml_of_water.json": {
+      "source": "de1plus/profiles/Preinfuse then 45ml of water.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Tea_portafilter__Blue_Willow_Tsuyuhikari_Sencha.json": {
+      "source": "de1plus/profiles/Tea_portafilter__Blue_Willow_Tsuyuhikari_Sencha.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Tea_portafilter__Blue_Willow_black_phoenix_1.json": {
+      "source": "de1plus/profiles/Tea_portafilter__Blue_Willow_black_phoenix_1.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Tea_portafilter__Blue_Willow_black_phoenix_2.json": {
+      "source": "de1plus/profiles/Tea_portafilter__Blue_Willow_black_phoenix_2.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Tea_portafilter__Blue_Willow_lunar_winter.json": {
+      "source": "de1plus/profiles/Tea_portafilter__Blue_Willow_lunar_winter.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "Traditional_lever_machine.json": {
+      "source": "de1plus/profiles/Traditional lever machine.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "Trendy_6_bar_low_pressure_shot.json": {
+      "source": "de1plus/profiles/Trendy 6 bar low pressure shot.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "TurboBloom.json": {
+      "source": "de1plus/profiles/TurboBloom.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "TurboTurbo.json": {
+      "source": "de1plus/profiles/TurboTurbo.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "Two_spring_lever_machine_to_9_bar.json": {
+      "source": "de1plus/profiles/Two spring lever machine to 9 bar.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "Weiss_advanced_spring_lever.json": {
+      "source": "de1plus/profiles/Weiss_advanced_spring_lever.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "adaptive_allonge.json": {
+      "source": "de1plus/profiles/adaptive_allonge.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "adaptive_espresso.json": {
+      "source": "de1plus/profiles/adaptive_espresso.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "advanced_spring_lever.json": {
+      "source": "de1plus/profiles/Advanced spring lever.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "baseline_hc.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "baseline_lc.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "baseline_mc.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "baseline_ulc.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "best_practice.json": {
+      "source": "de1plus/profiles/best_practice.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "best_practice_light.json": {
+      "source": "de1plus/profiles/best_practice_light.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "cold_brew.json": {
+      "source": "de1plus/profiles/cold_brew.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "cremina.json": {
+      "source": "de1plus/profiles/Cremina.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in author, changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume; carries curation edits applied after ingest"
+    },
+    "easy_blooming_active_pressure_decline.json": {
+      "source": "de1plus/profiles/easy_blooming_active_pressure_decline.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "filter3.json": {
+      "source": "de1plus/profiles/filter3.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "icbinf.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "kalita_20.json": {
+      "source": "de1plus/profiles/kalita_20.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "manual_flow.json": {
+      "source": "de1plus/profiles/manual_flow.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "manual_pressure.json": {
+      "source": "de1plus/profiles/manual_pressure.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "psph.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "rao_allonge.json": {
+      "source": "de1plus/profiles/rao_allonge.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in changes_since_last_espresso, lang, legacy_profile_type, reference_file, steps, tank_temperature, target_volume, target_weight; carries curation edits applied after ingest"
+    },
+    "rohan-soup.json": {
+      "source": "unknown",
+      "note": "Predates provenance recording. No de1app profile carries this title; assembled from the Visualizer / copy-export route."
+    },
+    "tea_in_a_basket.json": {
+      "source": "de1plus/profiles/tea_in_a_basket.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter.json": {
+      "source": "de1plus/profiles/tea_portafilter.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_chinese_green.json": {
+      "source": "de1plus/profiles/tea_portafilter_chinese_green.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_japanese_green.json": {
+      "source": "de1plus/profiles/tea_portafilter_japanese_green.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_no_pressure.json": {
+      "source": "de1plus/profiles/tea_portafilter_no_pressure.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_oolong.json": {
+      "source": "de1plus/profiles/tea_portafilter_oolong.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_oolong_dark.json": {
+      "source": "de1plus/profiles/tea_portafilter_oolong_dark.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_pressurized.json": {
+      "source": "de1plus/profiles/tea_portafilter_pressurized.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "tea_portafilter_tisane.json": {
+      "source": "de1plus/profiles/tea_portafilter_tisane.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2"
+    },
+    "v60-15g.json": {
+      "source": "de1plus/profiles/v60-15g.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "v60-20g.json": {
+      "source": "de1plus/profiles/v60-20g.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    },
+    "v60-22g.json": {
+      "source": "de1plus/profiles/v60-22g.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "reproduces byte-identically from this source"
+    }
+  }
 }

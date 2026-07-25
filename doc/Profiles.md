@@ -180,9 +180,30 @@ Manifest structure:
     "best_practice.json",
     "cremina.json",
     "manual_flow.json"
-  ]
+  ],
+  "provenance": {
+    "cremina.json": {
+      "source": "de1plus/profiles/Cremina.tcl",
+      "repository": "https://github.com/skialpine/de1app.git",
+      "revision": "fe5cf40ca1da20ea6ed5622827b6736db39ac2d2",
+      "verified": "differs from this source in author, ...; carries curation edits applied after ingest"
+    }
+  }
 }
 ```
+
+`provenance` records where each bundled profile came from, so "which source produced
+this?" is a lookup rather than an experiment. Every manifest entry has one; a profile
+that cannot be attributed to a de1app source is recorded as `"source": "unknown"`
+rather than omitted. The corpus is built by `tools/ingest_profiles.py` — see
+`doc/AI_STORAGE_NOTES.md` for how legacy `settings_2a`/`2b` frames are derived rather
+than copied, and why A-Flow is harvested from the plugin directory.
+
+Beverage types use de1app's wire spelling: `espresso`, `pourover`, `cleaning`,
+`calibrate`, `manual`, `tea`, `tea_portafilter`, `filter`. Note the underscore in
+`tea_portafilter` — the Dart enum case is `teaPortafilter`, and `BeverageType.wireName`
+is what serialises. Only `cleaning` and `calibrate` change app behaviour (they skip the
+no-scale guard); tea and filter are brewed to weight like espresso.
 
 #### Migration from Old Installations
 

@@ -4711,8 +4711,10 @@ components:
           description: Optional; defaults to an empty string when omitted.
         beverage_type:
           type: string
-          enum: [espresso, calibrate, cleaning, manual, pourover]
-          description: Optional; defaults to `espresso` when omitted or unrecognized.
+          enum: [espresso, calibrate, cleaning, manual, pourover, tea, tea_portafilter, filter]
+          description: >
+            Optional; defaults to `espresso` when omitted or unrecognized. Values use
+            de1app's wire spelling, so the tea-portafilter value is `tea_portafilter`.
         steps:
           type: array
           minItems: 1
@@ -5754,7 +5756,10 @@ components:
           description: Free-form description; may be empty.
         beverageType:
           type: string
-          description: Beverage type enum value (e.g. `espresso`, `filter`).
+          enum: [espresso, calibrate, cleaning, manual, pourover, tea, tea_portafilter, filter]
+          description: >
+            Beverage type in de1app's wire spelling, so the tea-portafilter value is
+            `tea_portafilter`.
           example: "espresso"
 
     WebUISkin:

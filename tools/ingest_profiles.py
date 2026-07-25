@@ -4,8 +4,10 @@
 Supports:
   - de1app TCL profiles with advanced_shot steps (e.g. from de1app/de1plus/profiles/)
   - v2 JSON profiles that already have steps
-  - Legacy TCL profiles (settings_2a/2b) without steps are rejected — these need
-    step synthesis which is not implemented here
+  - Legacy TCL profiles (settings_2a/2b), whose frames are derived from the profile's
+    scalar fields the way de1app derives them at load time. The stored advanced_shot
+    array is ignored for those types — de1app writes it out of the global ::settings,
+    so it routinely describes a different profile entirely.
 
 Usage:
     # Convert specific profiles (auto-detects format by extension)
@@ -23,21 +25,45 @@ Usage:
 """
 
 import argparse
+import glob
 import json
 import os
 import re
+import subprocess
 import sys
 
-# Valid beverage types in Decent
-VALID_BEVERAGE_TYPES = {"espresso", "calibrate", "cleaning", "manual", "pourover"}
+# Valid beverage types in Decent, in de1app's wire spelling
+VALID_BEVERAGE_TYPES = {
+    "espresso",
+    "calibrate",
+    "cleaning",
+    "manual",
+    "pourover",
+    "tea",
+    "tea_portafilter",
+    "filter",
+}
 
 # Mapping from source beverage types to ours
 BEVERAGE_TYPE_MAP = {
-    "filter": "pourover",
-    "tea": "pourover",
-    "tea_portafilter": "pourover",
     "descale": "cleaning",
 }
+
+LEGACY_PRESSURE_TYPE = "settings_2a"
+LEGACY_FLOW_TYPE = "settings_2b"
+LEGACY_TYPES = (LEGACY_PRESSURE_TYPE, LEGACY_FLOW_TYPE)
+
+# de1app's editor type, from legacy_profile_to_v2 in de1plus/profile.tcl
+EDITOR_TYPE_BY_SETTINGS_TYPE = {
+    LEGACY_PRESSURE_TYPE: "pressure",
+    LEGACY_FLOW_TYPE: "flow",
+}
+
+# de1app global ::settings defaults, from de1plus/machine.tcl. A legacy profile that
+# omits one of these is generated against the default, exactly as de1app does.
+TEMP_BUMP_TIME_SECONDS = 2.0
+MAXIMUM_FLOW_RANGE_DEFAULT = 1.0
+MAXIMUM_PRESSURE_RANGE_DEFAULT = 0.9
 
 
 def strip_tcl_braces(value):
@@ -45,6 +71,249 @@ def strip_tcl_braces(value):
     if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
         return value[1:-1]
     return value
+
+
+# ---------------------------------------------------------------------------
+# Legacy step synthesis
+#
+# A port of pressure_to_advanced_list / flow_to_advanced_list from de1app's
+# de1plus/profile.tcl. Rationale and the de1app line references live in
+# doc/AI_STORAGE_NOTES.md.
+# ---------------------------------------------------------------------------
+
+def _optional_number(fields, key, default):
+    """Read a numeric TCL field, falling back to a de1app global default."""
+    raw = fields.get(key, "")
+    if isinstance(raw, str):
+        raw = raw.strip()
+    if raw in ("", "{}", None):
+        return default
+    return float(raw)
+
+
+def _required_number(fields, key):
+    """Read a numeric TCL field that has no meaningful default."""
+    raw = fields.get(key, "")
+    if isinstance(raw, str):
+        raw = raw.strip()
+    if raw in ("", "{}", None):
+        raise ValueError(
+            f"Cannot derive frames: required field '{key}' is missing or empty"
+        )
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(
+            f"Cannot derive frames: field '{key}' is not a number (got '{raw}')"
+        ) from None
+
+
+def _preinfusion_frame_lengths(fields):
+    """Return (first_frame_len, second_frame_len) and the four frame temperatures."""
+    preinfusion_time = _required_number(fields, "preinfusion_time")
+    steps_enabled = fields.get("espresso_temperature_steps_enabled", "").strip() == "1"
+
+    if steps_enabled:
+        bump = _optional_number(fields, "temp_bump_time_seconds", TEMP_BUMP_TIME_SECONDS)
+        first_len = bump
+        second_len = max(preinfusion_time - bump, 0.0)
+        temps = [
+            _required_number(fields, f"espresso_temperature_{i}") for i in range(4)
+        ]
+    else:
+        first_len = 0.0
+        second_len = preinfusion_time
+        temps = [_required_number(fields, "espresso_temperature")] * 4
+
+    return first_len, second_len, temps
+
+
+def _preinfusion_steps(fields, first_len, second_len, temps, boost_name):
+    """The one or two flow-pump preinfusion frames both generators share."""
+    flow_rate = _required_number(fields, "preinfusion_flow_rate")
+    stop_pressure = _required_number(fields, "preinfusion_stop_pressure")
+
+    def frame(name, temperature, seconds):
+        return {
+            "name": name,
+            "pump": "flow",
+            "transition": "fast",
+            "temperature": temperature,
+            "sensor": "coffee",
+            "seconds": seconds,
+            "volume": 0.0,
+            "weight": 0.0,
+            "flow": flow_rate,
+            "pressure": 1.0,
+            "exit": {"type": "pressure", "condition": "over", "value": stop_pressure},
+        }
+
+    steps = []
+    if first_len > 0:
+        steps.append(frame(boost_name, temps[0], first_len))
+    if second_len > 0:
+        steps.append(frame("preinfusion", temps[1], second_len))
+    return steps
+
+
+def _empty_step():
+    """de1app's fallback when every duration is zero."""
+    return {
+        "name": "empty",
+        "pump": "flow",
+        "transition": "smooth",
+        "temperature": 90.0,
+        "sensor": "coffee",
+        "seconds": 0.0,
+        "volume": 0.0,
+        "weight": 0.0,
+        "flow": 0.0,
+        "pressure": 0.0,
+    }
+
+
+def pressure_to_advanced_list(fields):
+    """Derive frames for a settings_2a profile. Returns (steps, preinfuse_count)."""
+    first_len, second_len, temps = _preinfusion_frame_lengths(fields)
+    steps = _preinfusion_steps(
+        fields, first_len, second_len, temps, "preinfusion temp boost"
+    )
+    preinfuse_count = len(steps)
+
+    hold_time = _required_number(fields, "espresso_hold_time")
+    decline_time = _required_number(fields, "espresso_decline_time")
+    pressure = _required_number(fields, "espresso_pressure")
+    maximum_flow = _optional_number(fields, "maximum_flow", 0.0)
+    flow_range = _optional_number(
+        fields, "maximum_flow_range_default", MAXIMUM_FLOW_RANGE_DEFAULT
+    )
+
+    def limited(step):
+        if maximum_flow != 0:
+            step["limiter"] = {"value": maximum_flow, "range": flow_range}
+        return step
+
+    def forced_rise(temperature):
+        return {
+            "name": "forced rise without limit",
+            "pump": "pressure",
+            "transition": "fast",
+            "temperature": temperature,
+            "sensor": "coffee",
+            "seconds": 3.0,
+            "volume": 0.0,
+            "weight": 0.0,
+            "flow": 0.0,
+            "pressure": pressure,
+        }
+
+    if hold_time > 0:
+        if hold_time > 3:
+            steps.append(forced_rise(temps[2]))
+            hold_time -= 3
+        steps.append(
+            limited(
+                {
+                    "name": "rise and hold",
+                    "pump": "pressure",
+                    "transition": "fast",
+                    "temperature": temps[2],
+                    "sensor": "coffee",
+                    "seconds": hold_time,
+                    "volume": 0.0,
+                    "weight": 0.0,
+                    "flow": 0.0,
+                    "pressure": pressure,
+                }
+            )
+        )
+
+    if decline_time > 0:
+        if hold_time < 3 and decline_time > 3:
+            steps.append(forced_rise(temps[3]))
+            decline_time -= 3
+        steps.append(
+            limited(
+                {
+                    "name": "decline",
+                    "pump": "pressure",
+                    "transition": "smooth",
+                    "temperature": temps[3],
+                    "sensor": "coffee",
+                    "seconds": decline_time,
+                    "volume": 0.0,
+                    "weight": 0.0,
+                    "flow": 0.0,
+                    "pressure": _required_number(fields, "pressure_end"),
+                }
+            )
+        )
+
+    if not steps:
+        steps.append(_empty_step())
+
+    return steps, preinfuse_count
+
+
+def flow_to_advanced_list(fields):
+    """Derive frames for a settings_2b profile. Returns (steps, preinfuse_count)."""
+    first_len, second_len, temps = _preinfusion_frame_lengths(fields)
+    steps = _preinfusion_steps(
+        fields, first_len, second_len, temps, "preinfusion boost"
+    )
+    preinfuse_count = len(steps)
+
+    hold_time = _required_number(fields, "espresso_hold_time")
+    maximum_pressure = _optional_number(fields, "maximum_pressure", 0.0)
+    pressure_range = _optional_number(
+        fields, "maximum_pressure_range_default", MAXIMUM_PRESSURE_RANGE_DEFAULT
+    )
+
+    def limited(step):
+        if maximum_pressure != 0:
+            step["limiter"] = {"value": maximum_pressure, "range": pressure_range}
+        return step
+
+    # de1app gates the decline frame on espresso_hold_time, not espresso_decline_time.
+    # Reproduced deliberately; see doc/AI_STORAGE_NOTES.md.
+    if hold_time > 0:
+        steps.append(
+            limited(
+                {
+                    "name": "hold",
+                    "pump": "flow",
+                    "transition": "fast",
+                    "temperature": temps[2],
+                    "sensor": "coffee",
+                    "seconds": hold_time,
+                    "volume": 0.0,
+                    "weight": 0.0,
+                    "flow": _required_number(fields, "flow_profile_hold"),
+                    "pressure": 0.0,
+                }
+            )
+        )
+        steps.append(
+            limited(
+                {
+                    "name": "decline",
+                    "pump": "flow",
+                    "transition": "smooth",
+                    "temperature": temps[3],
+                    "sensor": "coffee",
+                    "seconds": _required_number(fields, "espresso_decline_time"),
+                    "volume": 0.0,
+                    "weight": 0.0,
+                    "flow": _required_number(fields, "flow_profile_decline"),
+                    "pressure": 0.0,
+                }
+            )
+        )
+
+    if not steps:
+        steps.append(_empty_step())
+
+    return steps, preinfuse_count
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +352,8 @@ def parse_tcl_profile(content):
                 val = val[1:-1]
             result[key] = val
 
+    settings_type = result.get("settings_profile_type", "")
+
     # Map TCL field names to our expected names
     profile = {
         "title": result.get("profile_title", ""),
@@ -93,31 +364,41 @@ def parse_tcl_profile(content):
         "tank_desired_water_temperature": float(
             result.get("tank_desired_water_temperature", 0)
         ),
-        "target_weight": float(
-            result.get("final_desired_shot_weight_advanced", 0)
-        ),
-        "target_volume": float(
-            result.get("final_desired_shot_volume_advanced", 0)
-        ),
-        "number_of_preinfuse_frames": int(
-            result.get("final_desired_shot_volume_advanced_count_start", 0)
-        ),
+        "type": EDITOR_TYPE_BY_SETTINGS_TYPE.get(settings_type, "advanced"),
+        "legacy_profile_type": settings_type,
     }
 
-    # Parse advanced_shot steps
-    steps = _parse_tcl_steps(raw_steps_str)
-    if not steps and raw_steps_str not in ("", "{}"):
-        raise ValueError("Failed to parse advanced_shot steps")
+    if settings_type in LEGACY_TYPES:
+        # de1app never reads the stored advanced_shot back for these types — it
+        # regenerates from the scalars at load time. The stored array is whatever
+        # was in the global ::settings when the file was last saved, so it is
+        # ignored here whether it is empty or populated.
+        if settings_type == LEGACY_PRESSURE_TYPE:
+            steps, preinfuse_frames = pressure_to_advanced_list(result)
+        else:
+            steps, preinfuse_frames = flow_to_advanced_list(result)
 
-    settings_type = result.get("settings_profile_type", "")
-    if not steps and settings_type in ("settings_2a", "settings_2b"):
-        raise ValueError(
-            f"Legacy {settings_type} profile with no advanced_shot steps. "
-            "These require step synthesis from flat fields, which is not "
-            "implemented. See de1app's profile.tcl sync_from_legacy for "
-            "the synthesis logic."
+        # The plain fields are authoritative for these types: the generators
+        # overwrite the _advanced spellings from them, and de1app's stop switches
+        # (de1plus/device_scale.tcl, de1plus/de1_de1.tcl) read them for anything
+        # that is not settings_2c.
+        profile["target_weight"] = _required_number(result, "final_desired_shot_weight")
+        profile["target_volume"] = _required_number(result, "final_desired_shot_volume")
+    else:
+        steps = _parse_tcl_steps(raw_steps_str)
+        if not steps and raw_steps_str not in ("", "{}"):
+            raise ValueError("Failed to parse advanced_shot steps")
+        preinfuse_frames = int(
+            result.get("final_desired_shot_volume_advanced_count_start", 0)
+        )
+        profile["target_weight"] = float(
+            result.get("final_desired_shot_weight_advanced", 0)
+        )
+        profile["target_volume"] = float(
+            result.get("final_desired_shot_volume_advanced", 0)
         )
 
+    profile["number_of_preinfuse_frames"] = preinfuse_frames
     profile["steps"] = steps
     return profile
 
@@ -383,7 +664,7 @@ def convert_profile(source):
         "target_weight": str(float(source.get("target_weight", 0))),
         "target_volume": str(float(source.get("target_volume", 0))),
         "target_volume_count_start": str(int(vol_count_start)),
-        "type": "advanced",
+        "type": source.get("type", "advanced"),
         "hidden": "0",
     }
 
@@ -401,18 +682,152 @@ def load_profile(input_path):
         return json.loads(content)
 
 
-def update_manifest(output_dir, new_filenames):
-    """Add new filenames to manifest.json if not already present."""
+# ---------------------------------------------------------------------------
+# Source resolution and provenance
+# ---------------------------------------------------------------------------
+
+PROFILE_EXTENSIONS = (".tcl", ".json")
+
+# Directories under a de1app `de1plus/` root that hold ingestible profiles.
+# de1app ships stale copies of four A-Flow profiles in `profiles/` that shadow the
+# plugin's newer ones (de1app issue #350), so all three are scanned and disagreements
+# are reported rather than resolved.
+SOURCE_DIR_GLOBS = (
+    "profiles",
+    "plugins/*/profiles",
+    "profile_editors/*/profiles",
+)
+
+
+def _profile_files_in(directory):
+    return sorted(
+        os.path.join(directory, name)
+        for name in os.listdir(directory)
+        if name.endswith(PROFILE_EXTENSIONS)
+    )
+
+
+def source_dirs_under(root):
+    """The profile directories a de1app `de1plus` root contributes, or none."""
+    dirs = []
+    for pattern in SOURCE_DIR_GLOBS:
+        dirs.extend(
+            sub
+            for sub in sorted(glob.glob(os.path.join(root, pattern)))
+            if os.path.isdir(sub)
+        )
+    return dirs
+
+
+def expand_source_dir(path):
+    """Expand a directory argument into the profile files it contributes.
+
+    A de1app `de1plus` root contributes its base, plugin and profile-editor profile
+    directories. Any other directory contributes its own profile files.
+    """
+    source_dirs = source_dirs_under(path)
+    if not source_dirs:
+        return _profile_files_in(path)
+
+    files = []
+    for directory in source_dirs:
+        files.extend(_profile_files_in(directory))
+    return files
+
+
+def resolve_inputs(paths):
+    """Turn the positional arguments into a de-duplicated list of profile files."""
+    resolved = []
+    for path in paths:
+        if os.path.isdir(path):
+            resolved.extend(expand_source_dir(path))
+        else:
+            resolved.append(path)
+
+    seen = set()
+    unique = []
+    for path in resolved:
+        key = os.path.realpath(path)
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def source_provenance(input_path):
+    """Describe where a profile came from: repo-relative path plus commit.
+
+    `git -C` inside a submodule reports the submodule's own HEAD, which is what a
+    plugin profile's provenance should name.
+    """
+    directory = os.path.dirname(os.path.abspath(input_path)) or "."
+
+    def git(*args):
+        try:
+            out = subprocess.run(
+                ["git", "-C", directory, *args],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
+        return out.stdout.strip()
+
+    top = git("rev-parse", "--show-toplevel")
+    revision = git("rev-parse", "HEAD")
+
+    if top:
+        source = os.path.relpath(os.path.abspath(input_path), top)
+        origin = git("remote", "get-url", "origin")
+    else:
+        source = os.path.abspath(input_path)
+        origin = None
+
+    provenance = {"source": source}
+    if origin:
+        provenance["repository"] = origin
+    if revision:
+        provenance["revision"] = revision
+    return provenance
+
+
+def find_collisions(converted_by_output):
+    """Report output filenames claimed by more than one disagreeing source.
+
+    Identical copies in two directories are not an error — de1app's plugin and
+    profile_editor submodules are the same upstream repo at the same commit, so a
+    profile legitimately appears twice.
+    """
+    collisions = {}
+    for out_filename, entries in converted_by_output.items():
+        distinct = {json.dumps(c, sort_keys=True) for _, c in entries}
+        if len(distinct) > 1:
+            collisions[out_filename] = [path for path, _ in entries]
+    return collisions
+
+
+def load_manifest(output_dir):
     manifest_path = os.path.join(output_dir, "manifest.json")
     if os.path.exists(manifest_path):
         with open(manifest_path) as f:
-            manifest = json.load(f)
-    else:
-        manifest = {
-            "version": "1.0.0",
-            "description": "Default espresso profiles bundled with Decent",
-            "profiles": [],
-        }
+            return json.load(f)
+    return {
+        "version": "1.0.0",
+        "description": "Default espresso profiles bundled with Decent",
+        "profiles": [],
+    }
+
+
+def write_manifest(output_dir, manifest):
+    with open(os.path.join(output_dir, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+
+
+def update_manifest(output_dir, new_filenames, provenance_by_filename=None):
+    """Add new filenames to manifest.json and record where each one came from."""
+    manifest = load_manifest(output_dir)
 
     existing = set(manifest["profiles"])
     added = []
@@ -423,61 +838,96 @@ def update_manifest(output_dir, new_filenames):
 
     manifest["profiles"].sort()
 
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=2)
-        f.write("\n")
+    if provenance_by_filename:
+        provenance = manifest.get("provenance", {})
+        provenance.update(provenance_by_filename)
+        manifest["provenance"] = dict(sorted(provenance.items()))
+
+    write_manifest(output_dir, manifest)
 
     return added
 
 
-def main():
+def output_filename_for(input_path):
+    filename = os.path.basename(input_path)
+    if filename.endswith(".tcl"):
+        return filename.rsplit(".", 1)[0] + ".json"
+    return filename
+
+
+def main_with_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Ingest de1app TCL or v2 JSON profiles into Decent format"
     )
-    parser.add_argument("profiles", nargs="+", help="Input profile files (.json or .tcl)")
+    parser.add_argument(
+        "profiles",
+        nargs="+",
+        help="Input profile files (.json or .tcl), or directories to scan. A de1app "
+        "de1plus/ root also contributes plugins/*/profiles and "
+        "profile_editors/*/profiles.",
+    )
     parser.add_argument("-o", "--output-dir", help="Output directory for converted profiles")
     parser.add_argument("--dry-run", action="store_true", help="Print to stdout instead of writing")
     parser.add_argument("--update-manifest", action="store_true", help="Update manifest.json")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    inputs = resolve_inputs(args.profiles)
+
+    # Convert everything before writing anything, so a source collision is caught
+    # while it can still stop the output file being produced.
+    converted_by_output = {}
+    errors = []
+    for input_path in inputs:
+        try:
+            converted = convert_profile(load_profile(input_path))
+        except Exception as e:
+            errors.append((os.path.basename(input_path), str(e)))
+            print(f"FAIL  {os.path.basename(input_path)}: {e}", file=sys.stderr)
+            continue
+        converted_by_output.setdefault(output_filename_for(input_path), []).append(
+            (input_path, converted)
+        )
+
+    collisions = find_collisions(converted_by_output)
+    for out_filename, paths in collisions.items():
+        del converted_by_output[out_filename]
+        detail = "\n".join(f"      {p}" for p in paths)
+        message = f"same profile in {len(paths)} source directories, and they disagree:\n{detail}"
+        errors.append((out_filename, message))
+        print(f"FAIL  {out_filename}: {message}", file=sys.stderr)
 
     converted_filenames = []
-    errors = []
+    provenance_by_filename = {}
 
-    for input_path in args.profiles:
+    for out_filename, entries in converted_by_output.items():
+        input_path, converted = entries[0]
         filename = os.path.basename(input_path)
-        # Output is always .json
-        out_filename = (
-            filename.rsplit(".", 1)[0] + ".json" if filename.endswith(".tcl") else filename
-        )
-        try:
-            source = load_profile(input_path)
-            converted = convert_profile(source)
 
-            if args.dry_run:
-                print(f"=== {filename} -> {out_filename} ===")
-                print(json.dumps(converted, indent=2))
-                print()
-            elif args.output_dir:
-                output_path = os.path.join(args.output_dir, out_filename)
-                with open(output_path, "w") as f:
-                    json.dump(converted, f, indent=2)
-                    f.write("\n")
-                print(f"  OK  {filename} -> {output_path}")
-                converted_filenames.append(out_filename)
-            else:
-                print(json.dumps(converted, indent=2))
-
-        except Exception as e:
-            errors.append((filename, str(e)))
-            print(f"FAIL  {filename}: {e}", file=sys.stderr)
+        if args.dry_run:
+            print(f"=== {filename} -> {out_filename} ===")
+            print(json.dumps(converted, indent=2))
+            print()
+        elif args.output_dir:
+            output_path = os.path.join(args.output_dir, out_filename)
+            with open(output_path, "w") as f:
+                json.dump(converted, f, indent=2)
+                f.write("\n")
+            print(f"  OK  {filename} -> {output_path}")
+            converted_filenames.append(out_filename)
+            provenance_by_filename[out_filename] = source_provenance(input_path)
+        else:
+            print(json.dumps(converted, indent=2))
 
     if args.update_manifest and args.output_dir and converted_filenames:
-        added = update_manifest(args.output_dir, converted_filenames)
+        added = update_manifest(
+            args.output_dir, converted_filenames, provenance_by_filename
+        )
         if added:
             print(f"\nAdded {len(added)} profiles to manifest.json")
         else:
             print("\nNo new profiles added to manifest (all already present)")
+        print(f"Recorded provenance for {len(provenance_by_filename)} profiles")
 
     if errors:
         print(f"\n{len(errors)} error(s):", file=sys.stderr)
@@ -490,4 +940,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main_with_args())

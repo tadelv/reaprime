@@ -182,7 +182,7 @@ class ProfileController {
             'title': profile.title,
             'author': profile.author,
             'notes': profile.notes,
-            'beverageType': profile.beverageType.name,
+            'beverageType': profile.beverageType.wireName,
           });
         } catch (e) {
           _log.warning('Failed to parse default profile: $filename', e);

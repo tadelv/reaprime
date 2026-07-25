@@ -3,7 +3,7 @@
   "title": "Filter3",
   "author": "Decent",
   "notes": "Set your grinder as coarsely as it can be set (11am setting on a Niche Zero).  Center a 58.5mm filter paper in the bottom of a Filter3 basket. Wet it with Flush water. Add 22 grams of coffee and shake to level the grounds.  Gently lock the portafilter in.  Place a cup, tap the COFFEE icon on the Group Head to start.  Optional: 30 seconds into the extraction, unlock the portafilter, swirl and check for 2cm-4cm of water on the grounds.  Adjust the grind if necessary for next time: finer if you saw not enough water, coarser if there was too much water on the grounds.  If water comes out of the holes at the top of the basket, your grind is too fine.",
-  "beverage_type": "pourover",
+  "beverage_type": "filter",
   "steps": [
     {
       "name": "Prewet",

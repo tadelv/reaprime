@@ -3,7 +3,7 @@
   "title": "Tea portafilter/Yunnan green",
   "author": "Decent",
   "notes": "This profile requires the Decent Espresso tea portafilter and is optimized for the tea named \"Lunar Winter\" from Blue Willow Tea https://www.bluewillowtea.com/ - Taste wise, this profile created a 6oz/180ml mug that tastes similar as the second gongfu-style infusion.  We use a 4 gram dose of leaves for this profile.",
-  "beverage_type": "pourover",
+  "beverage_type": "tea_portafilter",
   "steps": [
     {
       "name": "Fill",

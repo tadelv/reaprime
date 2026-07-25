@@ -3,7 +3,7 @@
   "title": "Tea portafilter/Oolong 2nd extraction",
   "author": "Decent",
   "notes": "This profile requires the Decent Espresso tea portafilter and is optimized for the tea named \"Black Phoenix Oolong\" from Blue Willow Tea https://www.bluewillowtea.com/ - This is an optional second extraction you can do with the same already-extracted leaves that you made a first extraction from. Taste wise, this profile created a 2oz/60ml cup that tastes similar to a single gongfu-style infusion made several minutes after the first. Chocolate notes dominate.  You can start this profile any time (up to five minutes) after running the first extraction.",
-  "beverage_type": "pourover",
+  "beverage_type": "tea_portafilter",
   "steps": [
     {
       "name": "Fill",

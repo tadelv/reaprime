@@ -3,7 +3,7 @@
   "title": "Tea/in a basket",
   "author": "Decent",
   "notes": "This profile makes an acceptable mug of tea using a regular portafilter espresso basket.  Place half a teaspoon of loose leaf tea, or a teabag, into a basket of any size.  Works best of teas that prefer high brewing temperatures, such as English Breakfast.  For better quality brews, use a tea portafilter, but this technique works well enough if you don't own that.",
-  "beverage_type": "pourover",
+  "beverage_type": "tea",
   "steps": [
     {
       "name": "preinfusion boost",

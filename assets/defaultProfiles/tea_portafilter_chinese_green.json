@@ -3,7 +3,7 @@
   "title": "Tea portafilter/Chinese green",
   "author": "Decent",
   "notes": "This profile requires a specially designed tea portafilter that opens its valve at pressures of 3 bar or above.  Put a tea bag or loose leaf tea into the basket.  Makes about 230ml of tea in 3 minutes.  The 2 bar of pressure extract a stronger brew, with different flavors.  You can up the pressure during the infusion steps, if you tighten the screw on your tea portafilter.",
-  "beverage_type": "pourover",
+  "beverage_type": "tea_portafilter",
   "steps": [
     {
       "name": "Fill",

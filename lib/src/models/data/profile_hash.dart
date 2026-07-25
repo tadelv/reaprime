@@ -21,7 +21,7 @@ class ProfileHash {
     // Create a stable JSON representation of execution-relevant fields
     final data = {
       'version': profile.version,
-      'beverage_type': profile.beverageType.name,
+      'beverage_type': profile.beverageType.wireName,
       'steps': profile.steps.map((step) => step.toJson()).toList(),
       'tank_temperature': profile.tankTemperature,
       'target_weight': profile.targetWeight,

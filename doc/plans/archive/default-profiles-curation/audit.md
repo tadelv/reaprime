@@ -46,6 +46,20 @@ as an identical-signature dup.)
   pour-over step pattern found only the 3 levers + `Preinfuse_then_45ml_of_water`
   (the latter is legitimately a water profile). Other espresso profiles imported
   with sensible steps.
+
+  > **Superseded — this scoping was too narrow.** A scan for one known step
+  > *pattern* only finds profiles whose stale `advanced_shot` happens to be that
+  > pour-over list; it cannot see a profile whose stale frames are merely the wrong
+  > temperature or whose stop target is wrong. Five more profiles were in the same
+  > class: `7g basket`, `Classic Italian espresso`, `Preinfuse then 45ml of water`
+  > (identified here but not fixed), `Default` and `Gentle and sweet`. `Default`
+  > was shipping 75 °C and 54 °C frames against a declared 90 °C, and `Classic
+  > Italian espresso` was stopping at 60 g where de1app stops at 36 g.
+  >
+  > The "importer implication" noted below turned out to be the root cause for the
+  > whole class, not a side note. See the `fix-legacy-profile-ingest` change, which
+  > ports de1app's `pressure_to_advanced_list` / `flow_to_advanced_list` so legacy
+  > `settings_2a`/`2b` frames are derived rather than copied.
 - **Fix is a re-port, not a param edit:** de1app's `advanced_shot` is the garbage,
   so it can't be the source. Correct lever JSON must be authored from the
   simple-pressure settings (9 / 6 / two-spring) or sourced from Visualizer, then
