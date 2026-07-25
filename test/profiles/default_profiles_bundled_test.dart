@@ -75,37 +75,79 @@ void main() {
 
   // A `pressure`/`flow` typed profile is settings_2a/2b in de1app, and its frames
   // are derived from the profile's scalars rather than copied from the stored
-  // `advanced_shot`. de1app writes that array out of the global ::settings, so a
-  // copied one routinely describes a different shot entirely — which is how
-  // `Default` came to ship 75 C and 54 C frames against a declared 90 C.
-  //
-  // Two things follow from derivation, and both are checked here: the frames can
-  // only be the ones the generator emits, and their temperatures can only be the
-  // profile's own four temperature presets, which sit within a few degrees.
+  // `advanced_shot`. Rationale in doc/AI_STORAGE_NOTES.md.
   group('derived profiles agree with their own scalars', () {
+    // The full vocabulary either generator can emit. `empty` is de1app's
+    // all-durations-zero fallback and is deliberately absent: no bundled profile
+    // should ship one, and whitelisting it here would bless a corpus that did.
     const pressureFrameNames = {
       'preinfusion temp boost',
       'preinfusion',
       'forced rise without limit',
       'rise and hold',
       'decline',
-      'empty',
     };
     const flowFrameNames = {
       'preinfusion boost',
       'preinfusion',
       'hold',
       'decline',
-      'empty',
     };
     const maxTemperatureSpread = 10.0;
+    const brewTemperatureRange = (min: 75.0, max: 100.0);
+
+    // Pinned, not discovered. `derived()` reads the profile's own `type`, so a
+    // profile misclassified as `advanced` would silently exempt itself from every
+    // check below — which is exactly the shape of the bug being guarded against.
+    const expectedDerived = {
+      '7g_basket.json',
+      'Classic_Italian_espresso.json',
+      'Default1.json',
+      'Flow_profile_for_milky_drinks.json',
+      'Flow_profile_for_straight_espresso.json',
+      'Gentle_and_sweet1.json',
+      'Preinfuse_then_45ml_of_water.json',
+      'Traditional_lever_machine.json',
+      'Trendy_6_bar_low_pressure_shot.json',
+      'Two_spring_lever_machine_to_9_bar.json',
+      'manual_flow.json',
+      'manual_pressure.json',
+    };
+
+    // The stop target each of these must brew to. de1app resolves these from the
+    // plain `final_desired_shot_weight`/`_volume` for legacy types; reading the
+    // `_advanced` spelling instead is what made Classic Italian stop at 60 g.
+    const expectedTargets = {
+      '7g_basket.json': (weight: 35.0, volume: 36.0),
+      'Classic_Italian_espresso.json': (weight: 36.0, volume: 36.0),
+      'Default1.json': (weight: 36.0, volume: 36.0),
+      'Gentle_and_sweet1.json': (weight: 36.0, volume: 36.0),
+      'Preinfuse_then_45ml_of_water.json': (weight: 36.0, volume: 36.0),
+    };
 
     Iterable<MapEntry<String, Map<String, dynamic>>> derived(String type) =>
         raw.entries.where((e) => e.value['type'] == type);
 
-    test('bundled corpus contains derived profiles to check', () {
-      expect(derived('pressure').isNotEmpty || derived('flow').isNotEmpty, isTrue,
-          reason: 'no pressure/flow typed profile found — has `type` moved?');
+    test('exactly the expected profiles are derived', () {
+      final actual = {
+        ...derived('pressure').map((e) => e.key),
+        ...derived('flow').map((e) => e.key),
+      };
+
+      expect(actual, equals(expectedDerived),
+          reason: 'a profile entering or leaving the derived set changes which '
+              'files the checks below cover; update the list deliberately');
+    });
+
+    test('derived profiles stop where de1app stops', () {
+      for (final entry in expectedTargets.entries) {
+        final profile = profiles[entry.key];
+        expect(profile, isNotNull, reason: '${entry.key} is not bundled');
+        expect(profile!.targetWeight, equals(entry.value.weight),
+            reason: '${entry.key} target weight');
+        expect(profile.targetVolume, equals(entry.value.volume),
+            reason: '${entry.key} target volume');
+      }
     });
 
     test('frames come only from the generator vocabulary', () {
@@ -122,7 +164,10 @@ void main() {
       }
     });
 
-    test('no frame temperature contradicts the declared brew temperature', () {
+    // Two independent bounds. The spread catches a stale array mixing hot and cold
+    // frames (`Default` spanned 36 C); the absolute range catches one that is
+    // uniformly wrong, which a spread check alone would pass.
+    test('no two frames differ by more than 10 C', () {
       for (final type in const ['pressure', 'flow']) {
         for (final entry in derived(type)) {
           final temperatures =
@@ -133,8 +178,21 @@ void main() {
 
           expect(hottest - coldest, lessThanOrEqualTo(maxTemperatureSpread),
               reason: '${entry.key} spans ${coldest}C to ${hottest}C across its '
-                  'frames; a derived profile only uses its four temperature '
-                  'presets, so this frame temperature contradicts the profile');
+                  'frames, which no set of temperature presets produces');
+        }
+      }
+    });
+
+    test('every frame brews within a plausible temperature range', () {
+      for (final type in const ['pressure', 'flow']) {
+        for (final entry in derived(type)) {
+          for (final step in profiles[entry.key]!.steps) {
+            expect(step.temperature,
+                inInclusiveRange(
+                    brewTemperatureRange.min, brewTemperatureRange.max),
+                reason: '${entry.key} frame "${step.name}" brews at '
+                    '${step.temperature}C');
+          }
         }
       }
     });
@@ -145,8 +203,7 @@ void main() {
       // never leaves the flow pump.
       for (final entry in derived('pressure')) {
         for (final step in profiles[entry.key]!.steps) {
-          final flowPumped =
-              step.name.startsWith('preinfusion') || step.name == 'empty';
+          final flowPumped = step.name.startsWith('preinfusion');
           expect(step is ProfileStepFlow, equals(flowPumped),
               reason: '${entry.key} frame "${step.name}" is driven by the '
                   'wrong pump for a derived pressure profile');
@@ -160,6 +217,33 @@ void main() {
         }
       }
     });
+  });
+
+  // D5's ordering hazard: `_parseBeverageType` falls back to espresso, so shipping a
+  // corpus value the enum does not know turns 13 tea profiles into espresso silently.
+  // Asserting the raw string round-trips catches that for every bundled profile,
+  // rather than only for the values this change happened to add.
+  test('every bundled beverage type survives parsing', () {
+    for (final entry in raw.entries) {
+      final wire = entry.value['beverage_type'] as String;
+
+      expect(BeverageType.tryParse(wire), isNotNull,
+          reason: '${entry.key} carries beverage_type "$wire", which no '
+              'BeverageType accepts — it would parse as espresso');
+      expect(profiles[entry.key]!.beverageType.wireName, equals(wire),
+          reason: '${entry.key} does not round-trip its beverage type');
+    }
+  });
+
+  test('the tea and filter profiles kept their de1app types', () {
+    final byType = <String, int>{};
+    for (final p in profiles.values) {
+      byType[p.beverageType.wireName] = (byType[p.beverageType.wireName] ?? 0) + 1;
+    }
+
+    expect(byType['tea_portafilter'], equals(12));
+    expect(byType['tea'], equals(1));
+    expect(byType['filter'], equals(2));
   });
 
   test('every manifest entry has recorded provenance', () async {

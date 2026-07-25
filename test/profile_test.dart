@@ -948,6 +948,57 @@ void main() {
             equals(BeverageType.espresso));
       });
 
+      // Iterating `values` rather than a hardcoded list is the point: a ninth case
+      // added with a typo'd, duplicated or capitalised wireName fails here rather
+      // than silently parsing as espresso forever.
+      test('every value round-trips through its own wire name', () {
+        for (final type in BeverageType.values) {
+          final json = validJson()..['beverage_type'] = type.wireName;
+
+          expect(Profile.fromJson(json).beverageType, equals(type),
+              reason: '${type.name} does not parse back from "${type.wireName}"');
+          expect(Profile.fromJson(json).toJson()['beverage_type'],
+              equals(type.wireName));
+        }
+      });
+
+      test('wire names are unique and lowercase', () {
+        final wireNames = BeverageType.values.map((t) => t.wireName).toList();
+
+        expect(wireNames.toSet(), hasLength(wireNames.length),
+            reason: 'two values share a wire name; the later one is unparseable');
+        for (final name in wireNames) {
+          expect(name, equals(name.toLowerCase()),
+              reason: 'tryParse lowercases before matching, so "$name" would '
+                  'never match');
+        }
+      });
+
+      test('maps de1app descale onto cleaning, as the ingest tool does', () {
+        final json = validJson()..['beverage_type'] = 'descale';
+
+        expect(Profile.fromJson(json).beverageType,
+            equals(BeverageType.cleaning));
+      });
+
+      test('tolerates surrounding whitespace and mixed case', () {
+        for (final wire in const [' tea_portafilter', 'Tea_Portafilter  ']) {
+          final json = validJson()..['beverage_type'] = wire;
+
+          expect(Profile.fromJson(json).beverageType,
+              equals(BeverageType.teaPortafilter),
+              reason: 'input "$wire"');
+        }
+      });
+
+      test('tryParse reports an unknown value instead of defaulting', () {
+        expect(BeverageType.tryParse('teaPortafilter'), isNull);
+        expect(BeverageType.tryParse(''), isNull);
+        expect(BeverageType.tryParse(null), isNull);
+        expect(BeverageType.tryParse('tea_portafilter'),
+            equals(BeverageType.teaPortafilter));
+      });
+
       test('hashes tea_portafilter apart from pourover', () {
         final tea = Profile.fromJson(
           validJson()..['beverage_type'] = 'tea_portafilter',
