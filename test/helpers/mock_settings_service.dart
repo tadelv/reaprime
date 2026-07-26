@@ -17,6 +17,7 @@ class MockSettingsService extends SettingsService {
   double _hotWaterFlowMultiplier = 0.3;
   ScalePowerMode _scalePowerMode = ScalePowerMode.disabled;
   bool _blockOnNoScale = false;
+  bool _blockTareDuringShot = false;
   bool _stopHotWaterAtWeight = true;
   String? _preferredMachineId;
   String? _preferredScaleId;
@@ -87,6 +88,11 @@ class MockSettingsService extends SettingsService {
   Future<bool> blockOnNoScale() async => _blockOnNoScale;
   @override
   Future<void> setBlockOnNoScale(bool value) async => _blockOnNoScale = value;
+  @override
+  Future<bool> blockTareDuringShot() async => _blockTareDuringShot;
+  @override
+  Future<void> setBlockTareDuringShot(bool value) async =>
+      _blockTareDuringShot = value;
   @override
   Future<bool> stopHotWaterAtWeight() async => _stopHotWaterAtWeight;
   @override

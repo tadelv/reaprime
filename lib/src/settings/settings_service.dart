@@ -29,6 +29,8 @@ abstract class SettingsService {
   Future<void> setScalePowerMode(ScalePowerMode mode);
   Future<bool> blockOnNoScale();
   Future<void> setBlockOnNoScale(bool value);
+  Future<bool> blockTareDuringShot();
+  Future<void> setBlockTareDuringShot(bool value);
   Future<bool> stopHotWaterAtWeight();
   Future<void> setStopHotWaterAtWeight(bool value);
   Future<String?> preferredMachineId();
@@ -188,15 +190,25 @@ class SharedPreferencesSettingsService extends SettingsService {
         ) ??
         ScalePowerMode.disconnect;
   }
-  
+
   @override
   Future<bool> blockOnNoScale() async {
     return await prefs.getBool(SettingsKeys.blockOnNoScale.name) ?? false;
   }
-  
+
   @override
   Future<void> setBlockOnNoScale(bool value) async {
     return await prefs.setBool(SettingsKeys.blockOnNoScale.name, value);
+  }
+
+  @override
+  Future<bool> blockTareDuringShot() async {
+    return await prefs.getBool(SettingsKeys.blockTareDuringShot.name) ?? false;
+  }
+
+  @override
+  Future<void> setBlockTareDuringShot(bool value) async {
+    return await prefs.setBool(SettingsKeys.blockTareDuringShot.name, value);
   }
 
   @override
@@ -506,6 +518,7 @@ enum SettingsKeys {
   hotWaterFlowMultiplier,
   scalePowerMode,
   blockOnNoScale,
+  blockTareDuringShot,
   stopHotWaterAtWeight,
   preferredMachineId,
   preferredScaleId,

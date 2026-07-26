@@ -162,7 +162,11 @@ Future<void> startWebServer(
     controller: de1Controller,
     catalog: BundledFirmwareCatalog(bundle: rootBundle),
   );
-  final scaleHandler = ScaleHandler(controller: scaleController);
+  final scaleHandler = ScaleHandler(
+    controller: scaleController,
+    de1Controller: de1Controller,
+    settingsController: settingsController,
+  );
   final deviceHandler = DevicesHandler(
     controller: deviceController,
     batteryController: batteryController,

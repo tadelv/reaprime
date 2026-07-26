@@ -2,17 +2,36 @@ part of '../webserver_service.dart';
 
 class ScaleHandler {
   final ScaleController _controller;
+  final De1Controller _de1Controller;
+  final SettingsController _settingsController;
 
   final Logger _log = Logger("Scale handler");
 
-  ScaleHandler({required ScaleController controller})
-      : _controller = controller;
+  ScaleHandler({
+    required ScaleController controller,
+    required De1Controller de1Controller,
+    required SettingsController settingsController,
+  }) : _controller = controller,
+       _de1Controller = de1Controller,
+       _settingsController = settingsController;
 
   void addRoutes(RouterPlus app) {
     app.put('/api/v1/scale/<command>', (request, command) async {
       switch (command) {
         case 'tare':
           _log.fine("handling api tare command");
+          final shotState = _de1Controller.currentShotState.state;
+          final shotActive =
+              shotState != ShotState.idle && shotState != ShotState.finished;
+          if (_settingsController.blockTareDuringShot && shotActive) {
+            _log.warning(
+              "Blocking tare request because blockTareDuringShot is enabled and a shot is active ($shotState)",
+            );
+            return jsonBadRequest({
+              'details': 'Tare blocked: a shot is in progress',
+              'type': 'block_tare_during_shot',
+            });
+          }
           try {
             await _controller.tare();
           } catch (e) {
@@ -49,7 +68,10 @@ class ScaleHandler {
     app.get('/ws/v1/scale/snapshot', sws.webSocketHandler(_handleSnapshot));
   }
 
-  Future<void> _handleSnapshot(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleSnapshot(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
     _log.fine("handling websocket connection");
 
     StreamSubscription<WeightSnapshot>? snapshotSub;

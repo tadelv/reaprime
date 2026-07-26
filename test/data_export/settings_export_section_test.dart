@@ -47,6 +47,7 @@ void main() {
       expect(settings['volumeFlowMultiplier'], equals(0.3));
       expect(settings['hotWaterFlowMultiplier'], equals(0.3));
       expect(settings['scalePowerMode'], equals('disabled'));
+      expect(settings['blockTareDuringShot'], isFalse);
       expect(settings['stopHotWaterAtWeight'], isTrue);
       expect(settings['automaticUpdateCheck'], isTrue);
       expect(settings['chargingMode'], equals('disabled'));
@@ -89,6 +90,7 @@ void main() {
       await controller.setNightModeEnabled(true);
       await controller.setStopHotWaterAtWeight(false);
       await controller.setHotWaterFlowMultiplier(0.5);
+      await controller.setBlockTareDuringShot(true);
       final exported = await section.export();
 
       // Reset to defaults
@@ -97,9 +99,9 @@ void main() {
       await controller.setNightModeEnabled(false);
       await controller.setStopHotWaterAtWeight(true);
       await controller.setHotWaterFlowMultiplier(0.3);
+      await controller.setBlockTareDuringShot(false);
 
-      final result =
-          await section.import(exported, ConflictStrategy.overwrite);
+      final result = await section.import(exported, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(result.imported, greaterThan(0));
@@ -108,6 +110,7 @@ void main() {
       expect(controller.nightModeEnabled, isTrue);
       expect(controller.stopHotWaterAtWeight, isFalse);
       expect(controller.hotWaterFlowMultiplier, equals(0.5));
+      expect(controller.blockTareDuringShot, isTrue);
     });
 
     test('imports device preferences', () async {
@@ -120,8 +123,7 @@ void main() {
         },
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(controller.preferredMachineId, equals('DE1-XYZ'));
@@ -135,12 +137,13 @@ void main() {
         'devicePreferences': <String, dynamic>{},
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
-      expect(controller.wakeSchedules,
-          equals('[{"time": 420, "enabled": true}]'));
+      expect(
+        controller.wakeSchedules,
+        equals('[{"time": 420, "enabled": true}]'),
+      );
     });
 
     test('reports errors for invalid enum values', () async {
@@ -153,8 +156,7 @@ void main() {
         'devicePreferences': <String, dynamic>{},
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, hasLength(2));
       expect(result.errors[0], contains('Invalid gatewayMode'));
@@ -179,8 +181,7 @@ void main() {
         },
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(result.imported, equals(1));
@@ -203,8 +204,7 @@ void main() {
       // Reset
       await controller.loadSettings();
 
-      final result =
-          await section.import(exported, ConflictStrategy.overwrite);
+      final result = await section.import(exported, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(controller.gatewayMode, equals(GatewayMode.tracking));

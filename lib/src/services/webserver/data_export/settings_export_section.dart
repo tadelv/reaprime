@@ -25,6 +25,7 @@ class SettingsExportSection implements DataExportSection {
         'hotWaterFlowMultiplier': _controller.hotWaterFlowMultiplier,
         'scalePowerMode': _controller.scalePowerMode.name,
         'blockOnNoScale': _controller.blockOnNoScale,
+        'blockTareDuringShot': _controller.blockTareDuringShot,
         'stopHotWaterAtWeight': _controller.stopHotWaterAtWeight,
         'defaultSkinId': _controller.defaultSkinId,
         'automaticUpdateCheck': _controller.automaticUpdateCheck,
@@ -119,6 +120,13 @@ class SettingsExportSection implements DataExportSection {
         if (settings.containsKey('blockOnNoScale')) {
           await _controller.setBlockOnNoScale(
             settings['blockOnNoScale'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('blockTareDuringShot')) {
+          await _controller.setBlockTareDuringShot(
+            settings['blockTareDuringShot'] as bool,
           );
           imported++;
         }

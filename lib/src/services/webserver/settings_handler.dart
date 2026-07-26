@@ -27,6 +27,7 @@ class SettingsHandler {
       final hotWaterFlowMultiplier = _controller.hotWaterFlowMultiplier;
       final scalePowerMode = _controller.scalePowerMode.name;
       final blockOnNoScale = _controller.blockOnNoScale;
+      final blockTareDuringShot = _controller.blockTareDuringShot;
       final stopHotWaterAtWeight = _controller.stopHotWaterAtWeight;
       final preferredMachineId = _controller.preferredMachineId;
       final preferredScaleId = _controller.preferredScaleId;
@@ -41,6 +42,7 @@ class SettingsHandler {
         'hotWaterFlowMultiplier': hotWaterFlowMultiplier,
         'scalePowerMode': scalePowerMode,
         'blockOnNoScale': blockOnNoScale,
+        'blockTareDuringShot': blockTareDuringShot,
         'stopHotWaterAtWeight': stopHotWaterAtWeight,
         'preferredMachineId': preferredMachineId,
         'preferredScaleId': preferredScaleId,
@@ -51,11 +53,14 @@ class SettingsHandler {
         'nightModeSleepTime': _controller.nightModeSleepTime,
         'nightModeMorningTime': _controller.nightModeMorningTime,
         'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
-        'simulatedDevices': _controller.simulatedDevices.map((e) => e.name).toList(),
+        'simulatedDevices': _controller.simulatedDevices
+            .map((e) => e.name)
+            .toList(),
         'themeMode': _controller.themeMode.name,
       };
       if (_batteryController?.currentChargingState != null) {
-        result['chargingState'] = _batteryController!.currentChargingState!.toJson();
+        result['chargingState'] = _batteryController!.currentChargingState!
+            .toJson();
       }
       return result;
     });
@@ -131,6 +136,16 @@ class SettingsHandler {
         } else {
           return jsonBadRequest(
             {'message': 'blockOnNoScale must be a boolean'},
+          );
+        }
+      }
+      if (json.containsKey('blockTareDuringShot')) {
+        final value = json['blockTareDuringShot'];
+        if (value is bool) {
+          await _controller.setBlockTareDuringShot(value);
+        } else {
+          return jsonBadRequest(
+            {'message': 'blockTareDuringShot must be a boolean'},
           );
         }
       }
@@ -247,11 +262,15 @@ class SettingsHandler {
         final devices = <SimulatedDevicesTypes>{};
         for (final item in value) {
           if (item is! String) {
-            return jsonBadRequest({'message': 'Invalid simulated device type: $item'});
+            return jsonBadRequest({
+              'message': 'Invalid simulated device type: $item',
+            });
           }
           final type = SimulatedDevicesTypesFromString.fromString(item);
           if (type == null) {
-            return jsonBadRequest({'message': 'Invalid simulated device type: $item'});
+            return jsonBadRequest({
+              'message': 'Invalid simulated device type: $item',
+            });
           }
           devices.add(type);
         }

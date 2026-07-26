@@ -69,8 +69,7 @@ void main() {
         SimulatedDevicesTypes.machine,
         SimulatedDevicesTypes.sensor,
       });
-      final nameList =
-          controller.simulatedDevices.map((e) => e.name).toList();
+      final nameList = controller.simulatedDevices.map((e) => e.name).toList();
       expect(nameList, containsAll(['machine', 'sensor']));
       expect(nameList.length, 2);
     });
@@ -88,20 +87,37 @@ void main() {
     });
   });
 
+  group('blockTareDuringShot', () {
+    test('defaults to false', () {
+      expect(controller.blockTareDuringShot, isFalse);
+    });
+
+    test('can be toggled on and persists', () async {
+      await controller.setBlockTareDuringShot(true);
+      expect(controller.blockTareDuringShot, isTrue);
+      expect(await mockService.blockTareDuringShot(), isTrue);
+    });
+  });
+
   group('hotWaterFlowMultiplier', () {
     test('defaults to 0.3, separate from weightFlowMultiplier (1.0)', () {
       expect(controller.hotWaterFlowMultiplier, 0.3);
       expect(controller.weightFlowMultiplier, 1.0);
     });
 
-    test('can be set independently of the shot multiplier and persists',
-        () async {
-      await controller.setHotWaterFlowMultiplier(0.5);
-      expect(controller.hotWaterFlowMultiplier, 0.5);
-      expect(controller.weightFlowMultiplier, 1.0,
-          reason: 'shot multiplier is untouched');
-      expect(await mockService.hotWaterFlowMultiplier(), 0.5);
-    });
+    test(
+      'can be set independently of the shot multiplier and persists',
+      () async {
+        await controller.setHotWaterFlowMultiplier(0.5);
+        expect(controller.hotWaterFlowMultiplier, 0.5);
+        expect(
+          controller.weightFlowMultiplier,
+          1.0,
+          reason: 'shot multiplier is untouched',
+        );
+        expect(await mockService.hotWaterFlowMultiplier(), 0.5);
+      },
+    );
   });
 
   group('themeMode', () {
@@ -137,8 +153,9 @@ void main() {
     });
 
     test('ThemeMode lookup returns null for invalid name', () {
-      final mode =
-          ThemeMode.values.where((e) => e.name == 'invalid').firstOrNull;
+      final mode = ThemeMode.values
+          .where((e) => e.name == 'invalid')
+          .firstOrNull;
       expect(mode, isNull);
     });
   });

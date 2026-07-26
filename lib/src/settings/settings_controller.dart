@@ -41,6 +41,8 @@ class SettingsController with ChangeNotifier {
 
   bool _blockOnNoScale = false;
 
+  bool _blockTareDuringShot = false;
+
   bool _stopHotWaterAtWeight = true;
 
   String? _preferredMachineId;
@@ -87,6 +89,7 @@ class SettingsController with ChangeNotifier {
   double get hotWaterFlowMultiplier => _hotWaterFlowMultiplier;
   ScalePowerMode get scalePowerMode => _scalePowerMode;
   bool get blockOnNoScale => _blockOnNoScale;
+  bool get blockTareDuringShot => _blockTareDuringShot;
   bool get stopHotWaterAtWeight => _stopHotWaterAtWeight;
   String? get preferredMachineId => _preferredMachineId;
   String? get preferredScaleId => _preferredScaleId;
@@ -128,6 +131,7 @@ class SettingsController with ChangeNotifier {
     _hotWaterFlowMultiplier = await _settingsService.hotWaterFlowMultiplier();
     _scalePowerMode = await _settingsService.scalePowerMode();
     _blockOnNoScale = await _settingsService.blockOnNoScale();
+    _blockTareDuringShot = await _settingsService.blockTareDuringShot();
     _stopHotWaterAtWeight = await _settingsService.stopHotWaterAtWeight();
     _preferredMachineId = await _settingsService.preferredMachineId();
     _preferredScaleId = await _settingsService.preferredScaleId();
@@ -309,6 +313,15 @@ class SettingsController with ChangeNotifier {
     }
     _stopHotWaterAtWeight = value;
     await _settingsService.setStopHotWaterAtWeight(value);
+    notifyListeners();
+  }
+
+  Future<void> setBlockTareDuringShot(bool value) async {
+    if (value == _blockTareDuringShot) {
+      return;
+    }
+    _blockTareDuringShot = value;
+    await _settingsService.setBlockTareDuringShot(value);
     notifyListeners();
   }
 

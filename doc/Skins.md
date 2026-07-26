@@ -377,7 +377,7 @@ PUT /api/v1/scale/tare
 
 Zeros the connected scale.
 
-**Response:** 200 OK if successful, 404 if scale not connected.
+**Response:** 200 OK if successful, 404 if scale not connected, 400 (`type: "block_tare_during_shot"`) if the `blockTareDuringShot` setting is enabled and an espresso shot is actively brewing. Skins should surface this as a non-fatal notice rather than retrying — the block is intentional.
 
 ---
 
@@ -1226,6 +1226,7 @@ GET /api/v1/settings
   "hotWaterFlowMultiplier": 0.3,
   "scalePowerMode": "disabled",
   "blockOnNoScale": false,
+  "blockTareDuringShot": false,
   "stopHotWaterAtWeight": true,
   "preferredMachineId": "F4:12:FA:5C:3D:8E"
 }
@@ -1240,6 +1241,7 @@ GET /api/v1/settings
 - `hotWaterFlowMultiplier`: Look-ahead seconds for projected weight when stopping hot water at weight (default: 0.3). Separate from `weightFlowMultiplier` because hot water dispenses with a different pump/flow profile
 - `scalePowerMode`: Automatic scale power management (`disabled`, `displayOff`, `disconnect`)
 - `blockOnNoScale`: When true, shots are blocked from starting if no scale is connected (default: false)
+- `blockTareDuringShot`: When true, `PUT /api/v1/scale/tare` is rejected (400, `type: "block_tare_during_shot"`) while an espresso shot is actively brewing, so a stray programmatic tare can't wreck stop-at-weight mid-pour (default: false). Manual tare via the scale's physical button is unaffected.
 - `stopHotWaterAtWeight`: When true and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams (default: true). Ignored in full gateway mode
 - `preferredMachineId`: Device ID for auto-connect on startup
 - `lowBatteryBrightnessLimit` (boolean): When enabled, caps brightness at 20 when battery drops below 30%
