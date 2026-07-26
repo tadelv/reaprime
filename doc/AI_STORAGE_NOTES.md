@@ -44,6 +44,14 @@ Content-based hash IDs for deduplication. `ProfileController` manages the profil
 - Deduplication: two profiles with identical content get the same hash ID.
 - `ProfileStorageService` interface with `DriftProfileStorageService` implementation.
 
+### Legacy Profile Corpus Ingestion
+
+`tools/ingest_profiles.py` rejects de1app TCL profiles whose type is `settings_2a`
+or `settings_2b`, whether `advanced_shot` is empty or populated. de1app's stored
+`advanced_shot` is not authoritative for these simple-profile types. Reaprime does
+not maintain a duplicate implementation of de1app's frame generators; maintainers
+must generate final advanced-profile JSON externally before adding such a profile.
+
 ## SharedPreferences Keys
 
 Settings persist via `SharedPreferencesSettingsService`. Key prefixes are flat strings. Feature flags use the `FeatureFlag` enum + `SettingsService.featureFlag/setFeatureFlag` + `SettingsController.isFeatureFlagEnabled/setFeatureFlag`.

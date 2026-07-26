@@ -42,17 +42,18 @@ carries a **stale `advanced_shot`** field full of pour-over steps
 contain pour-over steps, not lever-pressure behavior. (That's why they grouped
 as an identical-signature dup.)
 
-- **Scope: contained to the 3 levers.** A scan of all espresso profiles for the
-  pour-over step pattern found only the 3 levers + `Preinfuse_then_45ml_of_water`
-  (the latter is legitimately a water profile). Other espresso profiles imported
-  with sensible steps.
+- **Superseded: the scope was not contained to the 3 levers.** The scan looked
+  only for one stale pour-over step pattern, so it missed simple profiles carrying
+  different stale frames. The same problem affected `7g basket`, `Classic Italian
+  espresso`, `Preinfuse then 45ml of water`, `Default`, and `Gentle and sweet`.
 - **Fix is a re-port, not a param edit:** de1app's `advanced_shot` is the garbage,
   so it can't be the source. Correct lever JSON must be authored from the
   simple-pressure settings (9 / 6 / two-spring) or sourced from Visualizer, then
   verified via `sb-dev`. → blocked on sourcing decision.
-- **Importer implication:** whatever produced these defaults preferred de1app's
-  `advanced_shot` even for `settings_2a` profiles where it's stale. Worth a look
-  at the import path separately (out of scope for this curation).
+- **Importer policy:** de1app's stored `advanced_shot` is unreliable for both
+  `settings_2a` and `settings_2b`, whether empty or populated. Reaprime rejects
+  those TCL profiles rather than duplicating de1app's generators. Generate final
+  advanced-profile JSON externally before adding one to the bundled corpus.
 
 By contrast, **milky (G5)** has a structurally-sound pressure profile
 (preinfusion/rise-and-hold/decline) — only the params need aligning to
