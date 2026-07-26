@@ -4,8 +4,8 @@
 Supports:
   - de1app TCL profiles with advanced_shot steps (e.g. from de1app/de1plus/profiles/)
   - v2 JSON profiles that already have steps
-  - Legacy TCL profiles (settings_2a/2b) without steps are rejected — these need
-    step synthesis which is not implemented here
+  - Legacy TCL profiles (settings_2a/2b) are rejected because their stored frames
+    are not authoritative
 
 Usage:
     # Convert specific profiles (auto-detects format by extension)
@@ -104,19 +104,19 @@ def parse_tcl_profile(content):
         ),
     }
 
+    settings_type = result.get("settings_profile_type", "")
+    if settings_type in ("settings_2a", "settings_2b"):
+        raise ValueError(
+            f"de1app's stored advanced_shot is not authoritative for {settings_type} "
+            "profiles. Reaprime intentionally does not regenerate those frames. "
+            "Convert this profile externally into final advanced-profile JSON before "
+            "ingestion."
+        )
+
     # Parse advanced_shot steps
     steps = _parse_tcl_steps(raw_steps_str)
     if not steps and raw_steps_str not in ("", "{}"):
         raise ValueError("Failed to parse advanced_shot steps")
-
-    settings_type = result.get("settings_profile_type", "")
-    if not steps and settings_type in ("settings_2a", "settings_2b"):
-        raise ValueError(
-            f"Legacy {settings_type} profile with no advanced_shot steps. "
-            "These require step synthesis from flat fields, which is not "
-            "implemented. See de1app's profile.tcl sync_from_legacy for "
-            "the synthesis logic."
-        )
 
     profile["steps"] = steps
     return profile
