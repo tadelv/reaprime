@@ -68,8 +68,12 @@ class TestScale implements Scale {
   @override
   Future<void> disconnect() async {}
 
+  int tareCallCount = 0;
+
   @override
-  Future<void> tare() async {}
+  Future<void> tare() async {
+    tareCallCount++;
+  }
 
   @override
   Future<void> sleepDisplay() async {}
