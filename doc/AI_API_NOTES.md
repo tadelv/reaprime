@@ -109,6 +109,12 @@ A machine power-cycle drops the De1 object and builds a new one under the same d
 
 All four machine sockets: `/ws/v1/machine/snapshot`, `/ws/v1/machine/shotSettings`, `/ws/v1/machine/waterLevels`, `/ws/v1/machine/raw`.
 
+## Tare Lockout During Shot (issue #499)
+
+`PUT /api/v1/scale/tare` rejects with `400` (`type: "block_tare_during_shot"`) when the `blockTareDuringShot` setting is on and `De1Controller.currentShotState.state` is not `idle`/`finished`. The gate lives in `ScaleHandler`, not `ScaleController.tare()` — `ShotSequencer`/`HotWaterSequencer` call the controller method directly for legitimate in-app tares (arm-before-pour, stop-at-weight), and gating the controller method would break the shot itself.
+
+**Full gateway mode is explicitly exempt**, checked via `settingsController.gatewayMode == GatewayMode.full` alongside the shot-state check — not left implicit. In `full` mode the skin owns the shot and `De1StateManager` normally never starts its own `ShotSequencer` for it, so `currentShotState` would usually stay idle anyway; but the launcher/home-screen path in `De1StateManager._handleEspressoState` starts an app-owned `ShotSequencer` "regardless of mode" whenever the app's own home screen is foregrounded, even under `full` gateway mode. Relying on ShotSequencer-absence alone would make the lockout accidentally engage in that edge case, which is out of scope for the setting's intent (it exists to protect app-tracked shots, not skin-owned ones) — hence the explicit gateway-mode check rather than an inferred one.
+
 ## Keeping Notes Fresh
 
 Add protocol compatibility rules, API versioning decisions, and endpoint design rationale. Prune when specs are updated.

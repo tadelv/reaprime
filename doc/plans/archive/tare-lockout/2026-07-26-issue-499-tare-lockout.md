@@ -27,6 +27,17 @@ plumbing, same REST-handler-level gate, same typed-error convention).
   `de1_state_manager.dart` already uses for "shot active"). `ShotState` is
   specific to the espresso `ShotSequencer`, so steam/hot-water/rinse are
   unaffected — matches the issue's actual scenario (an espresso pour).
+- **Full gateway mode is explicitly exempt**, via an explicit
+  `gatewayMode == GatewayMode.full` check alongside the shot-state check —
+  not left implicit. In `full` mode the skin owns the shot and the app
+  normally never starts its own `ShotSequencer` for it, so `currentShotState`
+  would usually stay idle anyway; but `De1StateManager._handleEspressoState`
+  starts an app-owned `ShotSequencer` "regardless of mode" whenever the app's
+  own home screen is foregrounded, even under `full` gateway mode. Relying on
+  ShotSequencer-absence alone would let the lockout accidentally engage in
+  that edge case, which is out of scope for the setting's intent (protecting
+  app-tracked shots, not skin-owned ones) — hence the explicit check.
+  (Maintainer feedback on the initial PR — see `doc/AI_API_NOTES.md`.)
 - Blocked request returns `400` with
   `{"type": "block_tare_during_shot", "details": "..."}`, following the
   `block_no_scale` convention.
@@ -55,9 +66,11 @@ plumbing, same REST-handler-level gate, same typed-error convention).
    `settings_handler_test.dart`, export/import), and a new
    `scale_handler_tare_lockout_test.dart` covering blocked/allowed states
    (idle, preheating, pouring, stopping, finished) crossed with the flag
-   on/off.
+   on/off, plus a full-gateway-mode regression case.
+10. `assets/plugins/settings.reaplugin/plugin.js` — Enabled/Disabled control
+    for `blockTareDuringShot`, mirroring `blockOnNoScale`.
 
 No Flutter settings-page UI toggle — `blockOnNoScale` and
 `stopHotWaterAtWeight` set this precedent already: these scale-behavior
-settings are configured via the REST API (consumed by skins), not the
-native settings pages.
+settings are configured via the REST API and the bundled settings skin, not
+the native Flutter settings pages.

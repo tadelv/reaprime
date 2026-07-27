@@ -23,7 +23,13 @@ class ScaleHandler {
           final shotState = _de1Controller.currentShotState.state;
           final shotActive =
               shotState != ShotState.idle && shotState != ShotState.finished;
-          if (_settingsController.blockTareDuringShot && shotActive) {
+          // Full gateway mode leaves shot ownership to the skin — the app
+          // does not track shot state there, so the lockout never applies.
+          final isFullGateway =
+              _settingsController.gatewayMode == GatewayMode.full;
+          if (_settingsController.blockTareDuringShot &&
+              shotActive &&
+              !isFullGateway) {
             _log.warning(
               "Blocking tare request because blockTareDuringShot is enabled and a shot is active ($shotState)",
             );
