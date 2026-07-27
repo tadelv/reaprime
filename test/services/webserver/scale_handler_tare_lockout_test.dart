@@ -121,9 +121,6 @@ void main() {
       );
 
       test('allows tare even while a tracked shot looks active', () async {
-        // Full gateway mode leaves shot ownership to the skin; the app does
-        // not track shot state there, so the lockout must never engage even
-        // if a stale/spurious non-idle event is on record.
         de1Controller.publishShotEvent(_event(ShotState.pouring));
         final res = await requestTare();
         expect(res.statusCode, 200);
