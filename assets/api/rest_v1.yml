@@ -717,10 +717,10 @@ paths:
         sequencer itself (e.g. arm-before-pour) are unaffected; only
         externally-issued tare requests are blocked.
 
-        This only applies to shots the app itself tracks. In `full` gateway
-        mode the skin owns the shot and the app never runs its own shot
-        sequencer, so there is no tracked shot state to check against — the
-        lockout is a no-op there regardless of the setting.
+        This only applies to shots the app itself tracks. `full` gateway mode
+        is an explicit policy exemption: the skin owns the shot there, so the
+        lockout never blocks a tare, regardless of any app-tracked (including
+        stale or unexpected) shot state.
       tags: [Scale]
       responses:
         "200":
@@ -728,8 +728,9 @@ paths:
         "400":
           description: >
             Blocked: `blockTareDuringShot` is enabled and an app-tracked shot
-            is currently brewing (never triggered in `full` gateway mode).
-            Response body has `type: "block_tare_during_shot"`.
+            is currently brewing. Explicitly exempted in `full` gateway mode
+            regardless of tracked shot state. Response body has
+            `type: "block_tare_during_shot"`.
           content:
             application/json:
               schema:
@@ -5104,7 +5105,7 @@ components:
           description: When true, shots will be blocked from starting if no scale is connected.
           type: boolean
         blockTareDuringShot:
-          description: When true, PUT /api/v1/scale/tare is rejected (400) while an app-tracked espresso shot is actively brewing, to prevent a stray programmatic tare from ruining stop-at-weight mid-pour. Default false. Does not affect the shot sequencer's own arm-before-pour tare, nor a manual tare via the scale's physical button. Ignored in full gateway mode, where the app does not track shot state.
+          description: When true, PUT /api/v1/scale/tare is rejected (400) while an app-tracked espresso shot is actively brewing, to prevent a stray programmatic tare from ruining stop-at-weight mid-pour. Default false. Does not affect the shot sequencer's own arm-before-pour tare, nor a manual tare via the scale's physical button. Full gateway mode is an explicit policy exemption — the skin owns the shot there, so this is ignored regardless of any app-tracked shot state.
           type: boolean
         stopHotWaterAtWeight:
           description: When true (default) and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams. The machine's own volume/time stop remains a backstop. Ignored in full gateway mode (a skin owns the machine). Set false to use only the machine's native volume/time stop.
@@ -5199,7 +5200,7 @@ components:
           description: When true, shots will be blocked from starting if no scale is connected.
           type: boolean
         blockTareDuringShot:
-          description: When true, PUT /api/v1/scale/tare is rejected (400) while an app-tracked espresso shot is actively brewing, to prevent a stray programmatic tare from ruining stop-at-weight mid-pour. Default false. Does not affect the shot sequencer's own arm-before-pour tare, nor a manual tare via the scale's physical button. Ignored in full gateway mode, where the app does not track shot state.
+          description: When true, PUT /api/v1/scale/tare is rejected (400) while an app-tracked espresso shot is actively brewing, to prevent a stray programmatic tare from ruining stop-at-weight mid-pour. Default false. Does not affect the shot sequencer's own arm-before-pour tare, nor a manual tare via the scale's physical button. Full gateway mode is an explicit policy exemption — the skin owns the shot there, so this is ignored regardless of any app-tracked shot state.
           type: boolean
         stopHotWaterAtWeight:
           description: When true (default) and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams. The machine's own volume/time stop remains a backstop. Ignored in full gateway mode (a skin owns the machine).

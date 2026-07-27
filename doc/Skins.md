@@ -377,7 +377,7 @@ PUT /api/v1/scale/tare
 
 Zeros the connected scale.
 
-**Response:** 200 OK if successful, 404 if scale not connected, 400 (`type: "block_tare_during_shot"`) if the `blockTareDuringShot` setting is enabled and an app-tracked espresso shot is actively brewing. Skins should surface this as a non-fatal notice rather than retrying — the block is intentional. **Full gateway mode is exempt**: the app doesn't track shot state there (the skin owns the shot), so this 400 is never returned regardless of the setting.
+**Response:** 200 OK if successful, 404 if scale not connected, 400 (`type: "block_tare_during_shot"`) if the `blockTareDuringShot` setting is enabled and an app-tracked espresso shot is actively brewing. Skins should surface this as a non-fatal notice rather than retrying — the block is intentional. **Full gateway mode is an explicit policy exemption**: the skin owns the shot there, so this 400 is never returned in that mode, regardless of any app-tracked shot state.
 
 ---
 
@@ -1241,7 +1241,7 @@ GET /api/v1/settings
 - `hotWaterFlowMultiplier`: Look-ahead seconds for projected weight when stopping hot water at weight (default: 0.3). Separate from `weightFlowMultiplier` because hot water dispenses with a different pump/flow profile
 - `scalePowerMode`: Automatic scale power management (`disabled`, `displayOff`, `disconnect`)
 - `blockOnNoScale`: When true, shots are blocked from starting if no scale is connected (default: false)
-- `blockTareDuringShot`: When true, `PUT /api/v1/scale/tare` is rejected (400, `type: "block_tare_during_shot"`) while an app-tracked espresso shot is actively brewing, so a stray programmatic tare can't wreck stop-at-weight mid-pour (default: false). Manual tare via the scale's physical button is unaffected. Ignored in full gateway mode — the app doesn't track shot state there, so the lockout never engages.
+- `blockTareDuringShot`: When true, `PUT /api/v1/scale/tare` is rejected (400, `type: "block_tare_during_shot"`) while an app-tracked espresso shot is actively brewing, so a stray programmatic tare can't wreck stop-at-weight mid-pour (default: false). Manual tare via the scale's physical button is unaffected. `full` gateway mode is an explicit policy exemption — the skin owns the shot there, so the lockout never engages in that mode, regardless of any app-tracked shot state.
 - `stopHotWaterAtWeight`: When true and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams (default: true). Ignored in full gateway mode
 - `preferredMachineId`: Device ID for auto-connect on startup
 - `lowBatteryBrightnessLimit` (boolean): When enabled, caps brightness at 20 when battery drops below 30%

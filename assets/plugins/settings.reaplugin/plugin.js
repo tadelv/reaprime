@@ -486,7 +486,7 @@ function createPlugin(host) {
                                 <option value="true" ${reaSettings.blockTareDuringShot ? 'selected' : ''}>Enabled</option>
                                 <option value="false" ${!reaSettings.blockTareDuringShot ? 'selected' : ''}>Disabled</option>
                             </select>
-                            <span id="blockTareDuringShot-desc" class="visually-hidden">When enabled, a tare request is rejected while an app-tracked espresso shot is actively brewing, preventing a stray programmatic tare from ruining stop-at-weight mid-pour. Does not affect a manual tare via the scale's physical button. Ignored in full gateway mode, where the app does not track shot state.</span>
+                            <span id="blockTareDuringShot-desc" class="visually-hidden">When enabled, a tare request is rejected while an app-tracked espresso shot is actively brewing, preventing a stray programmatic tare from ruining stop-at-weight mid-pour. Does not affect a manual tare via the scale's physical button. Full gateway mode is an explicit exemption — the skin owns the shot there, so this never applies in that mode, regardless of any app-tracked shot state.</span>
                             <button class="btn btn-primary" onclick="updateReaSetting('blockTareDuringShot', document.getElementById('blockTareDuringShot').value === 'true')" aria-label="Save block tare during shot setting">Save</button>
                         </div>
                     </div>
