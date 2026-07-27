@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/data/shot_state_event.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -24,13 +25,17 @@ void main() {
   late TestScale testScale;
   late De1Controller de1Controller;
 
-  Future<void> wire({required bool blockTareDuringShot}) async {
+  Future<void> wire({
+    required bool blockTareDuringShot,
+    GatewayMode gatewayMode = GatewayMode.disabled,
+  }) async {
     final deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
     de1Controller = De1Controller(controller: deviceController);
 
     final mockSettings = MockSettingsService();
     await mockSettings.setBlockTareDuringShot(blockTareDuringShot);
+    await mockSettings.updateGatewayMode(gatewayMode);
     final settingsController = SettingsController(mockSettings);
     await settingsController.loadSettings();
 
@@ -104,4 +109,26 @@ void main() {
       expect(testScale.tareCallCount, 0);
     });
   });
+
+  group(
+    'PUT /api/v1/scale/tare — blockTareDuringShot enabled, full gateway mode',
+    () {
+      setUp(
+        () => wire(
+          blockTareDuringShot: true,
+          gatewayMode: GatewayMode.full,
+        ),
+      );
+
+      test('allows tare even while a tracked shot looks active', () async {
+        // Full gateway mode leaves shot ownership to the skin; the app does
+        // not track shot state there, so the lockout must never engage even
+        // if a stale/spurious non-idle event is on record.
+        de1Controller.publishShotEvent(_event(ShotState.pouring));
+        final res = await requestTare();
+        expect(res.statusCode, 200);
+        expect(testScale.tareCallCount, 1);
+      });
+    },
+  );
 }

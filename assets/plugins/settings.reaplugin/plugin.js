@@ -480,6 +480,17 @@ function createPlugin(host) {
                         </div>
                     </div>
                     <div class="setting-item">
+                        <label class="setting-label" for="blockTareDuringShot">Block Tare During Shot</label>
+                        <div class="setting-control">
+                            <select id="blockTareDuringShot" aria-describedby="blockTareDuringShot-desc">
+                                <option value="true" ${reaSettings.blockTareDuringShot ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${!reaSettings.blockTareDuringShot ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <span id="blockTareDuringShot-desc" class="visually-hidden">When enabled, a tare request is rejected while an app-tracked espresso shot is actively brewing, preventing a stray programmatic tare from ruining stop-at-weight mid-pour. Does not affect a manual tare via the scale's physical button. Ignored in full gateway mode, where the app does not track shot state.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('blockTareDuringShot', document.getElementById('blockTareDuringShot').value === 'true')" aria-label="Save block tare during shot setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
                         <label class="setting-label" for="stopHotWaterAtWeight">Stop Hot Water at Weight</label>
                         <div class="setting-control">
                             <select id="stopHotWaterAtWeight" aria-describedby="stopHotWaterAtWeight-desc">
