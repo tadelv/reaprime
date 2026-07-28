@@ -206,7 +206,7 @@ class DecentScale implements Scale, TransportHandoffScale {
               "No BLE notifications for ${_watchdogWarningTicks * 4}s "
               "(total=$_totalNotifications), re-subscribing",
             );
-            _registerNotifications();
+            _retryNotifications();
           }
         }
 
@@ -423,6 +423,18 @@ class DecentScale implements Scale, TransportHandoffScale {
     );
   }
 
+  void _retryNotifications() {
+    unawaited(
+      _registerNotifications().catchError((Object error, StackTrace stackTrace) {
+        _log.warning(
+          'BLE notification re-subscribe failed',
+          error,
+          stackTrace,
+        );
+      }),
+    );
+  }
+
   void _resetNotificationWatchdog() {
     _notificationWatchdog?.cancel();
     if (!_isSleeping && !_isDisconnecting) {
@@ -431,7 +443,7 @@ class DecentScale implements Scale, TransportHandoffScale {
           'No BLE notifications for ${_notificationWatchdogTimeout.inMilliseconds}ms '
           '(total=$_totalNotifications), re-subscribing',
         );
-        _registerNotifications();
+        _retryNotifications();
       });
     }
   }
