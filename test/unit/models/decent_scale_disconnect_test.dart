@@ -131,6 +131,7 @@ class _RecordingBleTransport extends BLETransport {
   int disconnectCalls = 0;
   int subscribeCalls = 0;
   bool failWrites = false;
+  bool failSubscriptions = false;
 
   @override
   String get id => 'recording-decent-scale';
@@ -182,6 +183,9 @@ class _RecordingBleTransport extends BLETransport {
     void Function(Uint8List) callback,
   ) async {
     subscribeCalls++;
+    if (failSubscriptions) {
+      throw StateError('subscription failed');
+    }
     notificationCallback = callback;
   }
 
@@ -344,6 +348,30 @@ void main() {
       expect(_hasCommand(transport, 0x0A, 0x02), isFalse);
       expect(transport.disconnectCalls, 1);
       expect(states.last, ConnectionState.disconnected);
+      transport.dispose();
+    });
+  });
+
+  test('watchdog re-subscribe failures are handled', () {
+    fakeAsync((async) {
+      final transport = _RecordingBleTransport();
+      final scale = DecentScale(transport: transport);
+      var connected = false;
+      scale.onConnect().then((_) => connected = true);
+
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 100));
+      async.flushMicrotasks();
+      expect(connected, isTrue);
+      transport.failSubscriptions = true;
+
+      async.elapse(const Duration(seconds: 12));
+      async.flushMicrotasks();
+
+      expect(transport.subscribeCalls, 3);
+      expect(transport.disconnectCalls, 0);
+      scale.disconnectForHandoff();
+      async.flushMicrotasks();
       transport.dispose();
     });
   });
