@@ -122,6 +122,7 @@ class _RecordingBleTransport extends BLETransport {
 
   final BehaviorSubject<ConnectionState> _connectionState;
   final writes = <Uint8List>[];
+  void Function(Uint8List)? notificationCallback;
   int connectCalls = 0;
   int subscribeCalls = 0;
   bool failWrites = false;
@@ -170,6 +171,7 @@ class _RecordingBleTransport extends BLETransport {
     void Function(Uint8List) callback,
   ) async {
     subscribeCalls++;
+    notificationCallback = callback;
   }
 
   @override
@@ -192,6 +194,10 @@ class _RecordingBleTransport extends BLETransport {
 
   void emitDisconnected() {
     _connectionState.add(ConnectionState.disconnected);
+  }
+
+  void emitNotification(List<int> data) {
+    notificationCallback!(Uint8List.fromList(data));
   }
 
   @override
@@ -303,6 +309,33 @@ void main() {
       await explicitTransport.dispose();
     },
   );
+
+  test('status responses require seven bytes and update battery', () async {
+    final transport = _RecordingBleTransport();
+    final scale = DecentScale(transport: transport);
+    await scale.onConnect();
+
+    for (final data in [
+      [0x03, 0x0A, 0x00, 0x00],
+      [0x03, 0x0A, 0x00, 0x00, 0x01],
+      [0x03, 0x0A, 0x00, 0x00, 0x01, 0x03],
+    ]) {
+      expect(() => transport.emitNotification(data), returnsNormally);
+    }
+
+    var snapshot = scale.currentSnapshot.first;
+    transport.emitNotification([0x03, 0xCE, 0x00, 100, 0x00, 0x00, 0x00]);
+    expect((await snapshot).batteryLevel, 100);
+
+    snapshot = scale.currentSnapshot.first;
+    transport.emitNotification([0x03, 0x0A, 0x00, 0x00, 73, 0x03, 0x1D]);
+    transport.emitNotification([0x03, 0xCE, 0x00, 100, 0x00, 0x00, 0x00]);
+
+    expect((await snapshot).batteryLevel, 73);
+
+    await scale.disconnectForHandoff();
+    await transport.dispose();
+  });
 
   test(
     'disconnect() does not leak an uncaught async error when the '

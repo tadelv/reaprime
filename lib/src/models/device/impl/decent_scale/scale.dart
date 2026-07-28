@@ -458,7 +458,9 @@ class DecentScale implements Scale, TransportHandoffScale {
         _parseWeight(data);
       case 0x0A:
         // battery
-        _parseHeartbeat(data);
+        if (data.length >= 7) {
+          _parseStatusResponse(data);
+        }
     }
   }
 
@@ -477,9 +479,9 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   int _batteryLevel = 100;
-  void _parseHeartbeat(List<int> data) {
+  void _parseStatusResponse(List<int> data) {
     final level = data[4];
-    _log.fine("heartbeat: ${data.map((e) => e.toRadixString(16))}");
+    _log.fine("status response: ${data.map((e) => e.toRadixString(16))}");
     _batteryLevel = min(level, 100);
   }
 }
