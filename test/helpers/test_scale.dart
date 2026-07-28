@@ -69,10 +69,17 @@ class TestScale implements Scale {
   Future<void> disconnect() async {}
 
   int tareCallCount = 0;
+  final List<String> commandCalls = [];
+  Future<void> Function()? tareHandler;
+  Future<void> Function()? resetTimerHandler;
+  Future<void> Function()? startTimerHandler;
+  Future<void> Function()? stopTimerHandler;
 
   @override
   Future<void> tare() async {
     tareCallCount++;
+    commandCalls.add('tare');
+    await tareHandler?.call();
   }
 
   @override
@@ -82,11 +89,20 @@ class TestScale implements Scale {
   Future<void> wakeDisplay() async {}
 
   @override
-  Future<void> startTimer() async {}
+  Future<void> startTimer() async {
+    commandCalls.add('start');
+    await startTimerHandler?.call();
+  }
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> stopTimer() async {
+    commandCalls.add('stop');
+    await stopTimerHandler?.call();
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> resetTimer() async {
+    commandCalls.add('reset');
+    await resetTimerHandler?.call();
+  }
 }
