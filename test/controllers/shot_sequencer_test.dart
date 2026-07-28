@@ -263,6 +263,9 @@ void main() {
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
       scaleController = _TestScaleController(testScale);
+      testScale.tareHandler = () async {
+        if (testScale.tareCallCount == 2) scaleController.emitWeight(0);
+      };
       persistenceController = PersistenceController(
         storageService: _NullStorageService(),
       );
@@ -406,6 +409,12 @@ void main() {
 
         async.elapse(Duration(milliseconds: 10));
         driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+        scaleController.emitWeight(
+          35.0,
+          weightFlow: 0.0,
+          controlWeightFlow: 2.0,
+        );
         scaleController.emitWeight(
           35.0,
           weightFlow: 0.0,
@@ -503,6 +512,7 @@ void main() {
 
         // Scale stays connected; emit weight above target
         scaleController.emitWeight(40.0);
+        scaleController.emitWeight(40.0);
 
         // Emit a machine snapshot to trigger combined stream processing
         testDe1.emitStateAndSubstate(
@@ -557,8 +567,9 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        scaleController.emitWeight(12.0);
         emitPouringFrame(0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -608,8 +619,9 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         // Emit weight above step threshold with pressure near firmware exit.
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -621,12 +633,13 @@ void main() {
         );
 
         // After max deferral frames (3), fires regardless.
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.2);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.4);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -673,8 +686,9 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        scaleController.emitWeight(12.0);
         emitPouringFrame(0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -711,8 +725,9 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        scaleController.emitWeight(12.0);
         emitPouringFrame(0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(testDe1.requestedStates, contains(MachineState.skipStep));
@@ -757,15 +772,17 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         // Frame 0: near firmware exit → defers
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(testDe1.requestedStates, isNot(contains(MachineState.skipStep)));
 
         // Frame 1: pure weight step → fires
-        scaleController.emitWeight(22.0);
         emitPouringFrame(1);
+        scaleController.emitWeight(22.0);
+        scaleController.emitWeight(22.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(testDe1.requestedStates, contains(MachineState.skipStep));
@@ -809,8 +826,9 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         // Frame 0: weight reached, near firmware exit → defers
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -821,8 +839,8 @@ void main() {
 
         // Firmware advances to frame 1 (firmware handled the exit itself).
         // Weight 12.0 is below frame 1's weight threshold (50), so no skip.
-        scaleController.emitWeight(12.0);
         emitPouringFrame(1);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -872,8 +890,9 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         // Weight above threshold, flow near firmware exit.
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithFlow(0, 2.5);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -883,12 +902,13 @@ void main() {
         );
 
         // After max deferral frames (3), fires regardless.
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithFlow(0, 2.3);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
-        scaleController.emitWeight(12.0);
         emitPouringFrameWithFlow(0, 2.1);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -1334,6 +1354,9 @@ void main() {
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
       scaleController = _TestScaleController(testScale);
+      testScale.tareHandler = () async {
+        if (testScale.tareCallCount == 2) scaleController.emitWeight(0);
+      };
       persistenceController = PersistenceController(
         storageService: _NullStorageService(),
       );
@@ -1446,6 +1469,9 @@ void main() {
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
       scaleController = _TestScaleController(testScale);
+      testScale.tareHandler = () async {
+        if (testScale.tareCallCount == 2) scaleController.emitWeight(0);
+      };
       persistenceController = PersistenceController(
         storageService: _NullStorageService(),
       );
@@ -1521,9 +1547,10 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         // Weight exceeds step threshold (12 > 10)
-        scaleController.emitWeight(12.0);
         // Pressure near threshold (4.0, exit at 5.0)
         emitPouringFrameWithPressure(0, 4.0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         // With arbiter disabled, skipStep fires immediately despite
@@ -1553,6 +1580,9 @@ void main() {
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
       scaleController = _TestScaleController(testScale);
+      testScale.tareHandler = () async {
+        if (testScale.tareCallCount == 2) scaleController.emitWeight(0);
+      };
       persistenceController = PersistenceController(
         storageService: _NullStorageService(),
       );
@@ -1621,6 +1651,7 @@ void main() {
         driveToPouring();
         async.elapse(Duration(milliseconds: 10));
 
+        scaleController.emitWeight(40.0);
         scaleController.emitWeight(40.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1824,8 +1855,9 @@ void main() {
         driveToPouring();
         async.elapse(Duration(milliseconds: 10));
 
-        scaleController.emitWeight(12.0);
         emitPouringFrame(0);
+        scaleController.emitWeight(12.0);
+        scaleController.emitWeight(12.0);
         async.elapse(Duration(milliseconds: 10));
 
         final skip = decisions.singleWhere(

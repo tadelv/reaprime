@@ -201,7 +201,7 @@ class _NullStorageService implements StorageService {
   Future<SteamRecord?> getLatestSteamMeta() async => null;
 }
 
-Profile _simpleProfile() => Profile(
+Profile _simpleProfile({double? stepWeight}) => Profile(
   version: '2',
   title: 'T',
   notes: '',
@@ -216,6 +216,7 @@ Profile _simpleProfile() => Profile(
       transition: TransitionType.fast,
       volume: 0,
       seconds: 30,
+      weight: stepWeight,
       temperature: 93,
       sensor: TemperatureSensor.coffee,
       pressure: 9,
@@ -239,6 +240,9 @@ void main() {
         de1Controller = _BengleDe1Controller(bengle);
         testScale = TestScale();
         scaleController = _TestScaleController(testScale);
+        testScale.tareHandler = () async {
+          if (testScale.tareCallCount == 2) scaleController.emitWeight(0);
+        };
         persistence = PersistenceController(
           storageService: _NullStorageService(),
         );
@@ -305,6 +309,62 @@ void main() {
           });
         },
       );
+
+      test('keeps machine cadence and app-side step exits', () {
+        fakeAsync((async) {
+          final shot = ShotSequencer(
+            scaleController: scaleController,
+            de1controller: de1Controller,
+            persistenceController: persistence,
+            targetProfile: _simpleProfile(stepWeight: 10),
+            targetYield: 30,
+            bypassSAW: false,
+            blockOnNoScale: false,
+            weightFlowMultiplier: 0,
+            volumeFlowMultiplier: 0,
+            stepExitArbiterEnabled: true,
+          );
+          final states = <ShotState>[];
+          final raw = <Object>[];
+          final persisted = <Object>[];
+          shot.state.listen(states.add);
+          shot.rawData.listen(raw.add);
+          shot.shotData.listen(persisted.add);
+
+          bengle.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.preparingForShot,
+          );
+          bengle.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
+          async.flushMicrotasks();
+          final rawBefore = raw.length;
+          final persistedBefore = persisted.length;
+
+          scaleController.emitWeight(12);
+          scaleController.emitWeight(12);
+          async.flushMicrotasks();
+          expect(bengle.requestedStates, [MachineState.skipStep]);
+          expect(raw, hasLength(rawBefore));
+          expect(persisted, hasLength(persistedBefore));
+          expect(
+            states.where((state) => state == ShotState.pouring),
+            hasLength(1),
+          );
+
+          bengle.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
+          async.flushMicrotasks();
+          expect(raw, hasLength(rawBefore + 1));
+          expect(persisted, hasLength(persistedBefore + 1));
+          expect(bengle.requestedStates, isNot(contains(MachineState.idle)));
+          shot.dispose();
+        });
+      });
     },
   );
 }
