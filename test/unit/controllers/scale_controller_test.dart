@@ -100,6 +100,43 @@ class _FailingScale extends _TrackingScale {
 }
 
 void main() {
+  test('connect forwards connected once', () async {
+    final controller = ScaleController();
+    final scale = _TrackingScale('A');
+    final states = <ConnectionState>[];
+    final subscription = controller.connectionState.listen(states.add);
+
+    await controller.connectToScale(scale);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      states.where((state) => state == ConnectionState.connected),
+      hasLength(1),
+    );
+
+    await subscription.cancel();
+    controller.dispose();
+  });
+
+  test('adopt forwards connected once', () async {
+    final controller = ScaleController();
+    final scale = _TrackingScale('A');
+    final states = <ConnectionState>[];
+    final subscription = controller.connectionState.listen(states.add);
+    await scale.onConnect();
+
+    await controller.adoptScale(scale);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      states.where((state) => state == ConnectionState.connected),
+      hasLength(1),
+    );
+
+    await subscription.cancel();
+    controller.dispose();
+  });
+
   test('a scale whose onConnect throws surfaces as disconnected and leaks no '
       'snapshot subscription', () async {
     final controller = ScaleController();
