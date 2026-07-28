@@ -152,7 +152,7 @@ class DecentScale implements Scale, TransportHandoffScale {
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
             _log.info("Transport disconnected");
-            disconnect();
+            unawaited(_disconnect(powerOff: false));
           });
 
       final services = await _device.discoverServices();
@@ -317,7 +317,7 @@ class DecentScale implements Scale, TransportHandoffScale {
         withResponse: true,
       );
       if (!sent) {
-        await disconnect();
+        await _disconnect(powerOff: false);
       }
       return sent;
     } catch (e) {
