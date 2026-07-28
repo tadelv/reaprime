@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/errors.dart';
+import 'package:reaprime/src/services/telemetry/crashlytics_error_filter.dart';
 
 const _webUiStorageLoggerName = 'WebUIStorage';
 const _skinAlreadyExistsPrefix = 'Skin already exists';
@@ -44,6 +45,9 @@ bool shouldForwardToTelemetry(LogRecord record) {
   // bounded MMR-read timeouts — not crash signals.
   if (record.error is DeviceNotConnectedException) return false;
   if (record.error is MmrTimeoutException) return false;
+  if (record.error case final error? when isBenignFrameworkError(error)) {
+    return false;
+  }
 
   if (record.loggerName == _webUiStorageLoggerName &&
       record.message.startsWith(_skinAlreadyExistsPrefix)) {

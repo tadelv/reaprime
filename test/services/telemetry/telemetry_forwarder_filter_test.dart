@@ -54,6 +54,19 @@ void main() {
       });
     });
 
+    test('drops SEVERE operationCancelled errors', () {
+      final record = _record(
+        Level.SEVERE,
+        'BLETransport-device',
+        'queued write failed',
+        _FakeUniversalBleException(
+          'Code: UniversalBleErrorCode.operationCancelled',
+        ),
+      );
+
+      expect(shouldForwardToTelemetry(record), isFalse);
+    });
+
     group('drops noise from WebUIStorage', () {
       test('"Skin already exists: ..." is dropped', () {
         final record = _record(
@@ -248,4 +261,13 @@ void main() {
       });
     });
   });
+}
+
+class _FakeUniversalBleException implements Exception {
+  _FakeUniversalBleException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'UniversalBleException: $message';
 }
