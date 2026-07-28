@@ -27,20 +27,21 @@ class UniversalBleTransport implements BLETransport {
   // Android after a DE1 power outage: writes time out forever while the
   // app believes it is connected). Two independent detectors feed
   // [_declareLinkDead]:
-  //  1. GATT operation timeouts trigger an OS-level connection-state probe;
-  //     [_maxConsecutiveOpTimeouts] in a row force a teardown even when the
-  //     OS still claims connected.
+  //  1. GATT operation timeouts fault their queue generation. Recovery waits
+  //     for the unresolved native operation, then clears the queue; if it does
+  //     not settle within a grace period, the link is disconnected instead.
   //  2. Advertisements for our own deviceId while we believe we are
-  //     connected trigger the same probe (throttled) — probe-confirmed
-  //     only, because some peripherals legitimately advertise while
-  //     connected (this transport is shared by scales and sensors).
-  int _consecutiveOpTimeouts = 0;
+  //     connected trigger an OS-level connection-state probe (throttled) —
+  //     probe-confirmed only, because some peripherals legitimately advertise
+  //     while connected (this transport is shared by scales and sensors).
   bool _linkDeadDeclared = false;
+  int _connectionGeneration = 0;
+  int? _recoveringQueueGeneration;
   DateTime? _lastAdvertProbe;
   StreamSubscription<BleDevice>? _advertSub;
 
-  static const int _maxConsecutiveOpTimeouts = 3;
   static const Duration _linkProbeTimeout = Duration(seconds: 2);
+  static const Duration _faultRecoveryPollInterval = Duration(milliseconds: 50);
 
   /// Minimum spacing between advert-triggered OS probes. A disconnected
   /// peripheral advertises ~1/s during a scan; one probe per window is
@@ -68,11 +69,13 @@ class UniversalBleTransport implements BLETransport {
     bool requestLargeMtuNonAndroid = false,
     bool? isAndroidOverride,
     bool? isLinuxOverride,
+    Duration faultRecoveryGrace = const Duration(seconds: 2),
   })  : _device = device,
         _stopScan = stopScan,
         _requestLargeMtuNonAndroid = requestLargeMtuNonAndroid,
         _isAndroidOverride = isAndroidOverride,
-        _isLinuxOverride = isLinuxOverride {
+        _isLinuxOverride = isLinuxOverride,
+        _faultRecoveryGrace = faultRecoveryGrace {
 
     _log = Logger("BLETransport-${device.deviceId}");
   }
@@ -87,6 +90,7 @@ class UniversalBleTransport implements BLETransport {
   final bool _requestLargeMtuNonAndroid;
   final bool? _isAndroidOverride;
   final bool? _isLinuxOverride;
+  final Duration _faultRecoveryGrace;
 
   Future<void> _stopScanViaOwner() =>
       _stopScan?.call() ?? UniversalBle.stopScan();
@@ -104,8 +108,9 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> connect() async {
+    _connectionGeneration++;
+    _recoveringQueueGeneration = null;
     _linkDeadDeclared = false;
-    _consecutiveOpTimeouts = 0;
     _lastAdvertProbe = null;
     // Use connectionUpdateStream (from our universal_ble fork) to get
     // native disconnect reason codes (GATT error, HCI status) — the
@@ -246,17 +251,13 @@ class UniversalBleTransport implements BLETransport {
     UniversalBleErrorCode.deviceDisconnected,
   };
 
-  // universal_ble 2.2.0 compatibility; replace with typed cancellation in #497.
-  static bool _isLegacyQueueCancellation(Object error) =>
-      error.toString().contains('Queue Cancelled');
-
   Never _handleGattError(UniversalBleException e, String operation, String path) {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
       _connectionStateSubject.add(device.ConnectionState.disconnected);
       // Drain pending writes — the device is gone, queued writes will
       // only fail with deviceNotFound and flood logs.
-      UniversalBle.clearQueue(_device.deviceId);
+      _clearQueue(UniversalBleErrorCode.deviceDisconnected);
       throw const DeviceNotConnectedException.unknown();
     }
     // GATT-133 (gattError): transient Android BLE stack error. Often
@@ -265,7 +266,7 @@ class UniversalBleTransport implements BLETransport {
     // Do NOT declare the link dead or emit disconnected.
     if (e.code == UniversalBleErrorCode.gattError) {
       _log.warning('GATT $operation($path) failed — GATT error 133 (transient): $e');
-      UniversalBle.clearQueue(_device.deviceId);
+      _clearQueue(UniversalBleErrorCode.operationCancelled);
       throw BleTimeoutException('GATT $operation($path)', e);
     }
     // Also treat unknownError as likely device-gone on Bluetooth-off / macOS
@@ -275,7 +276,7 @@ class UniversalBleTransport implements BLETransport {
         'GATT $operation($path) failed — unknown error (likely BT off): $e',
       );
       _connectionStateSubject.add(device.ConnectionState.disconnected);
-      UniversalBle.clearQueue(_device.deviceId);
+      _clearQueue(UniversalBleErrorCode.deviceDisconnected);
       throw const DeviceNotConnectedException.unknown();
     }
     // All other codes: throw as-is (caller's problem).
@@ -303,6 +304,8 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> disconnect() async {
+    _connectionGeneration++;
+    _recoveringQueueGeneration = null;
     _advertSub?.cancel();
     _advertSub = null;
     try {
@@ -388,7 +391,6 @@ class UniversalBleTransport implements BLETransport {
         characteristicUUID,
         timeout: timeout
       );
-      _noteOperationSuccess();
       return value;
     } on TimeoutException {
       // Fail fast (see write() — a read-timeout reconnect mid profile-upload
@@ -398,43 +400,71 @@ class UniversalBleTransport implements BLETransport {
       rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'read', '$serviceUUID/$characteristicUUID');
-    } catch (e) {
-      if (_isLegacyQueueCancellation(e)) {
-        _log.fine('read($serviceUUID/$characteristicUUID) cancelled by clearQueue');
-      }
-      rethrow;
     }
   }
 
-  /// universal_ble's internal operation queue throws a bare [TimeoutException]
-  /// (not a [UniversalBleException]) when a GATT op never completes — e.g. the
-  /// DE1 stops servicing ops on a flaky link. Clear the stuck queue entry so it
-  /// doesn't block (and time out) every following operation, then let the plain
-  /// timeout propagate. Do NOT convert it to a [BleTimeoutException]: that would
-  /// trigger a disconnect/reconnect+single-write retry, which corrupts an
-  /// in-flight profile upload (a stateful multi-write sequence).
-  ///
-  /// A timeout is also a zombie-link symptom: verify the link async (never
-  /// blocking the caller). A single timeout with a healthy OS link changes
-  /// nothing; an OS-confirmed drop — or [_maxConsecutiveOpTimeouts] in a
-  /// row — declares the link dead so recovery can start instead of the app
-  /// staying "connected" to a corpse forever.
+  /// universal_ble faults a queue generation when its Dart timeout fires
+  /// because the underlying native Future cannot be cancelled. Keep that
+  /// barrier in place until the native operation settles. If it does not settle
+  /// within the grace period, disconnect the physical link before clearing the
+  /// generation so a replacement connection cannot overlap the old operation.
   void _onOperationTimeout(String operation, String path) {
-    _log.warning('GATT $operation($path) timed out — clearing BLE queue');
-    UniversalBle.clearQueue(_device.deviceId);
-    _consecutiveOpTimeouts++;
-    if (_consecutiveOpTimeouts >= _maxConsecutiveOpTimeouts) {
-      _declareLinkDead(
-        '$_consecutiveOpTimeouts consecutive GATT timeouts',
-        forceOsDisconnect: true,
-      );
-    } else {
-      unawaited(_probeAndDeclareIfDead('GATT $operation timeout'));
+    _log.warning('GATT $operation($path) timed out — BLE queue faulted');
+    final generation = _connectionGeneration;
+    unawaited(_probeAndDeclareIfDead('GATT $operation timeout'));
+    if (_recoveringQueueGeneration == generation) return;
+    _recoveringQueueGeneration = generation;
+    unawaited(_recoverFaultedQueue(generation, 'GATT $operation($path)'));
+  }
+
+  Future<void> _recoverFaultedQueue(int generation, String context) async {
+    final deadline = DateTime.now().add(_faultRecoveryGrace);
+    try {
+      while (generation == _connectionGeneration && !_linkDeadDeclared) {
+        final diagnostics = UniversalBle.getQueueDiagnostics(_device.deviceId);
+        if (diagnostics.state != QueueDiagnosticsState.faulted) return;
+        if (diagnostics.activeOperations == 0) {
+          _clearQueue(UniversalBleErrorCode.operationCancelled);
+          return;
+        }
+        if (!DateTime.now().isBefore(deadline)) {
+          _log.warning(
+            '$context native operation remained unresolved for '
+            '${_faultRecoveryGrace.inMilliseconds}ms — disconnecting',
+          );
+          try {
+            await UniversalBle.disconnect(
+              _device.deviceId,
+              timeout: const Duration(seconds: 5),
+            );
+          } catch (e) {
+            _log.fine('Fault-recovery disconnect failed: $e');
+          }
+          if (generation == _connectionGeneration) {
+            _clearQueue(UniversalBleErrorCode.deviceDisconnected);
+            _declareLinkDead('$context did not settle after queue timeout');
+          }
+          return;
+        }
+        await Future<void>.delayed(_faultRecoveryPollInterval);
+      }
+    } finally {
+      if (_recoveringQueueGeneration == generation) {
+        _recoveringQueueGeneration = null;
+      }
     }
   }
 
-  void _noteOperationSuccess() {
-    _consecutiveOpTimeouts = 0;
+  void _clearQueue(UniversalBleErrorCode code) {
+    UniversalBle.clearQueueWithError(
+      _device.deviceId,
+      error: UniversalBleException(
+        code: code,
+        message: code == UniversalBleErrorCode.operationCancelled
+            ? 'Cancelled after a preceding BLE operation timed out'
+            : 'Cancelled because the BLE device disconnected',
+      ),
+    );
   }
 
   /// Listen for advertisements carrying our own deviceId while we believe
@@ -485,26 +515,17 @@ class UniversalBleTransport implements BLETransport {
 
   /// Emit `disconnected` so the normal recovery cascade runs (device impl →
   /// controller reset → DisconnectSupervisor → machine auto-reconnect).
-  /// Idempotent per connection. [forceOsDisconnect] additionally releases
-  /// the OS-level GATT handle (best-effort) so it can't block the next
-  /// connect — used when the OS still claims the dead link is connected.
-  void _declareLinkDead(String reason, {bool forceOsDisconnect = false}) {
+  /// Idempotent per connection.
+  void _declareLinkDead(String reason) {
     if (_linkDeadDeclared) return;
     _linkDeadDeclared = true;
     _log.warning('Declaring BLE link dead: $reason');
     _advertSub?.cancel();
     _advertSub = null;
-    UniversalBle.clearQueue(_device.deviceId);
-    _connectionStateSubject.add(device.ConnectionState.disconnected);
-    if (forceOsDisconnect) {
-      unawaited(
-        UniversalBle.disconnect(
-          _device.deviceId,
-          timeout: const Duration(seconds: 5),
-        ).catchError((Object e) {
-          _log.fine('Best-effort OS disconnect failed: $e');
-        }),
-      );
+    _clearQueue(UniversalBleErrorCode.deviceDisconnected);
+    if (_connectionStateSubject.valueOrNull !=
+        device.ConnectionState.disconnected) {
+      _connectionStateSubject.add(device.ConnectionState.disconnected);
     }
   }
 
@@ -556,7 +577,6 @@ class UniversalBleTransport implements BLETransport {
         withoutResponse: !withResponse,
         timeout: timeout
       );
-      _noteOperationSuccess();
     } on TimeoutException {
       // Fail fast — do NOT map this to a BleTimeoutException. Doing so routes it
       // into the DE1 transport's reconnect-and-retry-this-one-write recovery,
@@ -570,13 +590,6 @@ class UniversalBleTransport implements BLETransport {
       rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'write', '$serviceUUID/$characteristicUUID');
-    } catch (e) {
-      if (_isLegacyQueueCancellation(e)) {
-        _log.fine(
-            'write($serviceUUID/$characteristicUUID) cancelled by clearQueue',
-        );
-      }
-      rethrow;
     }
   }
 
@@ -599,6 +612,8 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> dispose() async {
+    _connectionGeneration++;
+    _recoveringQueueGeneration = null;
     _advertSub?.cancel();
     _advertSub = null;
     _connectionStateSubscription?.cancel();

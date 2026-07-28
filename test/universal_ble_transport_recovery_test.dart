@@ -18,7 +18,9 @@ const _writeTimeout = Duration(milliseconds: 50);
 class _FakeBlePlatform extends UniversalBlePlatform {
   BleConnectionState connectionStateResult = BleConnectionState.connected;
   bool hangWrites = false;
+  Completer<void>? writeBlocker;
   UniversalBleException? writeError;
+  int writeCalls = 0;
   int getConnectionStateCalls = 0;
   final List<String> disconnectCalls = [];
 
@@ -108,9 +110,10 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     Uint8List value,
     BleOutputProperty bleOutputProperty,
   ) async {
+    writeCalls++;
     if (writeError case final error?) throw error;
     if (hangWrites) {
-      await Completer<void>().future;
+      await (writeBlocker ?? Completer<void>()).future;
     }
   }
 
@@ -171,7 +174,10 @@ void main() {
     UniversalBle.queueType = QueueType.perDevice;
     // Unique id per test so per-device queue state can't bleed over.
     deviceId = 'AA:BB:CC:DD:EE:${(deviceCounter++).toString().padLeft(2, '0')}';
-    transport = UniversalBleTransport(device: bleDevice(deviceId));
+    transport = UniversalBleTransport(
+      device: bleDevice(deviceId),
+      faultRecoveryGrace: const Duration(milliseconds: 200),
+    );
     observedStates = [];
     stateSub = transport.connectionState.listen(observedStates.add);
     await transport.connect();
@@ -229,56 +235,71 @@ void main() {
           reason: 'the timeout should have probed the OS link state');
     });
 
-    test(
-        'three consecutive timeouts with OS claiming connected → forced '
-        'teardown', () async {
+    test('unresolved native write past grace period forces teardown', () async {
       platform.hangWrites = true;
       platform.connectionStateResult = BleConnectionState.connected;
 
       await timedOutWrite();
-      await timedOutWrite();
-      expect(observedStates,
-          isNot(contains(device.ConnectionState.disconnected)));
-
-      await timedOutWrite();
-      await pump();
+      await pump(250);
 
       expect(observedStates, contains(device.ConnectionState.disconnected));
       expect(platform.disconnectCalls, contains(deviceId),
           reason: 'forced teardown must release the OS-level handle');
     });
 
-    test('successful write resets the consecutive-timeout counter', () async {
+    test('late native completion clears the faulted queue without disconnecting',
+        () async {
+      platform.hangWrites = true;
+      platform.writeBlocker = Completer<void>();
       platform.connectionStateResult = BleConnectionState.connected;
 
-      platform.hangWrites = true;
       await timedOutWrite();
-      await timedOutWrite();
+      platform.writeBlocker!.complete();
+      await pump(100);
 
       platform.hangWrites = false;
       await transport.write(
         _serviceUuid,
         _charUuid,
-        Uint8List.fromList([1]),
+        Uint8List.fromList([2]),
         timeout: _writeTimeout,
       );
 
-      platform.hangWrites = true;
-      await timedOutWrite();
-      await timedOutWrite();
-      await pump();
-
+      expect(platform.writeCalls, 2);
       expect(
         observedStates,
         isNot(contains(device.ConnectionState.disconnected)),
-        reason: 'counter must reset on success — only 2 consecutive '
-            'timeouts since',
       );
     });
   });
 
   group('queue reset error handling', () {
-    test('timeout-cleared pending write does not emit disconnected', () async {
+    test('post-timeout write is not dispatched while native write is unresolved',
+        () async {
+      platform.hangWrites = true;
+
+      await timedOutWrite();
+      await expectLater(
+        transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([2]),
+          timeout: _writeTimeout,
+        ),
+        throwsA(
+          isA<UniversalBleException>().having(
+            (e) => e.code,
+            'code',
+            UniversalBleErrorCode.operationCancelled,
+          ),
+        ),
+      );
+      await pump(100);
+
+      expect(platform.writeCalls, 1);
+    });
+
+    test('faulted queue cancels pending writes without disconnecting', () async {
       platform.hangWrites = true;
 
       final active = expectLater(

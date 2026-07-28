@@ -1,17 +1,17 @@
 import 'package:reaprime/src/models/errors.dart';
 
-/// Error codes from universal_ble that indicate the device is gone and the
-/// error is already handled by [UniversalBleTransport._handleGattError].
+/// Expected universal_ble errors that are already handled by the transport.
 /// When these escape to the framework error handler (e.g., from a
-/// fire-and-forget timer callback or a cancelled queue item), they are
-/// not crash signals — the transport already emitted `disconnected` and
-/// the device impl's disconnect cascade handles cleanup.
-const _goneDeviceBleErrorCodes = <String>{
+/// fire-and-forget timer callback or a cancelled queue item), they are not
+/// crash signals. Gone-device errors trigger disconnect cleanup;
+/// `operationCancelled` is a local queue-recovery result.
+const _benignBleErrorCodes = <String>{
   'characteristicNotFound',
   'deviceNotFound',
   'serviceNotFound',
   'connectionTerminated',
   'deviceDisconnected',
+  'operationCancelled',
   'unknownError',
 };
 
@@ -44,18 +44,13 @@ bool isBenignFrameworkError(Object error) {
   final errorString = error.toString();
   if (errorString.startsWith('UniversalBleException:') ||
       errorString.contains('UniversalBleException:')) {
-    for (final code in _goneDeviceBleErrorCodes) {
+    for (final code in _benignBleErrorCodes) {
       if (errorString.contains('UniversalBleErrorCode.$code') ||
           errorString.contains('Code: $code')) {
         return true;
       }
     }
   }
-
-  // Exception('Queue Cancelled') — thrown by universal_ble's Queue.dispose()
-  // when clearQueue cancels pending items. Not a UniversalBleException, so
-  // _handleGattError can't catch it.
-  if (errorString.contains('Queue Cancelled')) return true;
 
   // PlatformException from bonsoir DNS-SD plugin — ServiceNotRunning means
   // the mDNS daemon isn't available on the platform (iOS/macOS transient
