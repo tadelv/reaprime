@@ -101,7 +101,6 @@ class ScaleController {
     _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
-    _connectionController.add(ConnectionState.connected);
   }
 
   /// Adopt a scale that has already been connected and had [onConnect]
@@ -137,7 +136,6 @@ class ScaleController {
     _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
-    _connectionController.add(ConnectionState.connected);
   }
 
   void _onDisconnect() {
