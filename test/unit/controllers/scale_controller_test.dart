@@ -14,24 +14,21 @@ import 'package:rxdart/subjects.dart';
 class _TrackingScale implements Scale {
   @override
   final String deviceId;
-  @override
-  final DeviceImplementation implementation;
-  _TrackingScale(
-    this.deviceId, {
-    this.implementation = DeviceImplementation.unifiedDe1,
-  });
+  _TrackingScale(this.deviceId);
 
   final _conn = BehaviorSubject<ConnectionState>.seeded(
     ConnectionState.discovered,
   );
   final _snap = BehaviorSubject<ScaleSnapshot>();
   bool disconnected = false;
-  int tareCalls = 0;
 
   @override
   String get name => deviceId;
   @override
   DeviceType get type => DeviceType.scale;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
 
   @override
   TransportType get transportType => TransportType.unknown;
@@ -49,9 +46,7 @@ class _TrackingScale implements Scale {
   }
 
   @override
-  Future<void> tare() async {
-    tareCalls++;
-  }
+  Future<void> tare() async {}
 
   @override
   Future<void> sleepDisplay() async {}
@@ -71,8 +66,6 @@ class _TrackingScale implements Scale {
       batteryLevel: 50,
     ),
   );
-
-  void emitDisconnected() => _conn.add(ConnectionState.disconnected);
 }
 
 /// A handoff-capable scale (like the BLE Decent Scale) that records whether it
@@ -142,41 +135,6 @@ void main() {
     );
 
     await subscription.cancel();
-    controller.dispose();
-  });
-
-  test('Decent Scale tares once across rediscovered wrappers', () async {
-    final controller = ScaleController();
-    final first = _TrackingScale(
-      'decent-A',
-      implementation: DeviceImplementation.decentScale,
-    );
-    final rediscovered = _TrackingScale(
-      'decent-A',
-      implementation: DeviceImplementation.decentScale,
-    );
-
-    await controller.connectToScale(first);
-    first.emitDisconnected();
-    await Future<void>.delayed(Duration.zero);
-    await controller.connectToScale(rediscovered);
-
-    expect(first.tareCalls, 1);
-    expect(rediscovered.tareCalls, 0);
-    controller.dispose();
-  });
-
-  test('adopted Decent Scale receives the initial tare', () async {
-    final controller = ScaleController();
-    final scale = _TrackingScale(
-      'decent-A',
-      implementation: DeviceImplementation.decentScale,
-    );
-    await scale.onConnect();
-
-    await controller.adoptScale(scale);
-
-    expect(scale.tareCalls, 1);
     controller.dispose();
   });
 

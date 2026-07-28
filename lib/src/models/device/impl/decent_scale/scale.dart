@@ -322,7 +322,7 @@ class DecentScale implements Scale, TransportHandoffScale {
   /// is to turn on the display (OledOn)
   Future<bool> _requestBatteryData() async {
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
-    return _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
+    return _writeCommand([0x0A, 0x01, 0x01, 0x00, heartbeatByte]);
   }
 
   Future<bool> _sendOledOn() async {
