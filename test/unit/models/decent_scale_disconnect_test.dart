@@ -190,6 +190,10 @@ class _RecordingBleTransport extends BLETransport {
     }
   }
 
+  void emitDisconnected() {
+    _connectionState.add(ConnectionState.disconnected);
+  }
+
   @override
   Future<void> dispose() async {
     await _connectionState.close();
@@ -270,6 +274,35 @@ void main() {
     await scale.disconnectForHandoff();
     await transport.dispose();
   });
+
+  test(
+    'remote disconnect is non-destructive but explicit disconnect powers off',
+    () async {
+      final remoteTransport = _RecordingBleTransport();
+      final remoteScale = DecentScale(transport: remoteTransport);
+      await remoteScale.onConnect();
+      remoteTransport.writes.clear();
+      final remoteDisconnected = remoteScale.connectionState
+          .where((state) => state == ConnectionState.disconnected)
+          .first;
+
+      remoteTransport.emitDisconnected();
+      await remoteDisconnected;
+
+      expect(_hasCommand(remoteTransport, 0x0A, 0x02), isFalse);
+      await remoteTransport.dispose();
+
+      final explicitTransport = _RecordingBleTransport();
+      final explicitScale = DecentScale(transport: explicitTransport);
+      await explicitScale.onConnect();
+      explicitTransport.writes.clear();
+
+      await explicitScale.disconnect();
+
+      expect(_hasCommand(explicitTransport, 0x0A, 0x02), isTrue);
+      await explicitTransport.dispose();
+    },
+  );
 
   test(
     'disconnect() does not leak an uncaught async error when the '
