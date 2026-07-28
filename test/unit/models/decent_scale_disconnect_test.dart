@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Regression coverage for four Crashlytics FATAL paths that all traced
@@ -114,7 +115,94 @@ class _HangingBleTransport extends _DisconnectedBleTransport {
   }
 }
 
+class _RecordingBleTransport extends BLETransport {
+  final BehaviorSubject<ConnectionState> _connectionState =
+      BehaviorSubject.seeded(ConnectionState.disconnected);
+
+  @override
+  String get id => 'recording-decent-scale';
+
+  @override
+  String get name => 'Recording Decent Scale';
+
+  @override
+  Stream<ConnectionState> get connectionState => _connectionState.stream;
+
+  @override
+  Future<ConnectionState> getConnectionState() async =>
+      _connectionState.value;
+
+  @override
+  Future<void> connect() async {
+    _connectionState.add(ConnectionState.connected);
+  }
+
+  @override
+  Future<void> disconnect() async {
+    _connectionState.add(ConnectionState.disconnected);
+  }
+
+  @override
+  Future<List<String>> discoverServices() async => [
+    DecentScale.serviceIdentifier.long,
+  ];
+
+  @override
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async =>
+      Uint8List(0);
+
+  @override
+  Future<void> subscribe(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) async {}
+
+  @override
+  Future<void> setTransportPriority(bool prioritized) async {}
+
+  @override
+  Future<void> write(
+    String serviceUUID,
+    String characteristicUUID,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) async {
+    _connectionState.add(ConnectionState.disconnected);
+    throw const DeviceNotConnectedException.scale();
+  }
+
+  @override
+  Future<void> dispose() async {
+    await _connectionState.close();
+  }
+}
+
 void main() {
+  test('disconnected initialization write never publishes connected', () async {
+    final transport = _RecordingBleTransport();
+    final scale = DecentScale(transport: transport);
+    final states = <ConnectionState>[];
+    final subscription = scale.connectionState.listen(states.add);
+
+    await expectLater(
+      scale.onConnect(),
+      throwsA(isA<DeviceNotConnectedException>()),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(states, isNot(contains(ConnectionState.connected)));
+    expect(await scale.connectionState.first, ConnectionState.disconnected);
+
+    await subscription.cancel();
+    await transport.dispose();
+  });
+
   test(
     'disconnect() does not leak an uncaught async error when the '
     'power-off write throws because the device is already disconnected',
