@@ -116,8 +116,14 @@ class _HangingBleTransport extends _DisconnectedBleTransport {
 }
 
 class _RecordingBleTransport extends BLETransport {
-  final BehaviorSubject<ConnectionState> _connectionState =
-      BehaviorSubject.seeded(ConnectionState.disconnected);
+  _RecordingBleTransport({
+    ConnectionState initialState = ConnectionState.disconnected,
+  }) : _connectionState = BehaviorSubject.seeded(initialState);
+
+  final BehaviorSubject<ConnectionState> _connectionState;
+  int connectCalls = 0;
+  int subscribeCalls = 0;
+  bool failWrites = false;
 
   @override
   String get id => 'recording-decent-scale';
@@ -134,6 +140,7 @@ class _RecordingBleTransport extends BLETransport {
 
   @override
   Future<void> connect() async {
+    connectCalls++;
     _connectionState.add(ConnectionState.connected);
   }
 
@@ -160,7 +167,9 @@ class _RecordingBleTransport extends BLETransport {
     String serviceUUID,
     String characteristicUUID,
     void Function(Uint8List) callback,
-  ) async {}
+  ) async {
+    subscribeCalls++;
+  }
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
@@ -173,8 +182,10 @@ class _RecordingBleTransport extends BLETransport {
     bool withResponse = true,
     Duration? timeout,
   }) async {
-    _connectionState.add(ConnectionState.disconnected);
-    throw const DeviceNotConnectedException.scale();
+    if (failWrites) {
+      _connectionState.add(ConnectionState.disconnected);
+      throw const DeviceNotConnectedException.scale();
+    }
   }
 
   @override
@@ -185,7 +196,7 @@ class _RecordingBleTransport extends BLETransport {
 
 void main() {
   test('disconnected initialization write never publishes connected', () async {
-    final transport = _RecordingBleTransport();
+    final transport = _RecordingBleTransport()..failWrites = true;
     final scale = DecentScale(transport: transport);
     final states = <ConnectionState>[];
     final subscription = scale.connectionState.listen(states.add);
@@ -200,6 +211,22 @@ void main() {
     expect(await scale.connectionState.first, ConnectionState.disconnected);
 
     await subscription.cancel();
+    await transport.dispose();
+  });
+
+  test('fresh wrapper initializes an already-connected transport', () async {
+    final transport = _RecordingBleTransport(
+      initialState: ConnectionState.connected,
+    );
+    final scale = DecentScale(transport: transport);
+
+    await scale.onConnect();
+
+    expect(transport.connectCalls, 0);
+    expect(transport.subscribeCalls, 1);
+    expect(await scale.connectionState.first, ConnectionState.connected);
+
+    await scale.disconnectForHandoff();
     await transport.dispose();
   });
 
