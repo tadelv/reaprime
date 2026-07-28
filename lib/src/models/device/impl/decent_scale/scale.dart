@@ -133,6 +133,8 @@ class DecentScale implements Scale, TransportHandoffScale {
     // DecentScale instance — it cannot detect an already-live
     // connection created by a prior transport instance.
     final nativeState = await _device.getConnectionState();
+    final isFirstConnection =
+        _connectionStateController.value == ConnectionState.discovered;
     if (nativeState == ConnectionState.connected &&
         _connectionStateController.value == ConnectionState.connected) {
       _log.info('Already connected, skipping');
@@ -218,7 +220,7 @@ class DecentScale implements Scale, TransportHandoffScale {
       if (isUsingHeartBeat && !await _sendHeartBeat()) {
         throw const DeviceNotConnectedException.scale();
       }
-      if (!isUsingHeartBeat && !await _sendTare()) {
+      if (!isUsingHeartBeat && isFirstConnection && !await _sendTare()) {
         throw const DeviceNotConnectedException.scale();
       }
       if (!_isSleeping && !await _sendOledOn()) {

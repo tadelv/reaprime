@@ -121,6 +121,7 @@ class _RecordingBleTransport extends BLETransport {
   }) : _connectionState = BehaviorSubject.seeded(initialState);
 
   final BehaviorSubject<ConnectionState> _connectionState;
+  final writes = <Uint8List>[];
   int connectCalls = 0;
   int subscribeCalls = 0;
   bool failWrites = false;
@@ -182,6 +183,7 @@ class _RecordingBleTransport extends BLETransport {
     bool withResponse = true,
     Duration? timeout,
   }) async {
+    writes.add(Uint8List.fromList(data));
     if (failWrites) {
       _connectionState.add(ConnectionState.disconnected);
       throw const DeviceNotConnectedException.scale();
@@ -193,6 +195,17 @@ class _RecordingBleTransport extends BLETransport {
     await _connectionState.close();
   }
 }
+
+bool _hasCommand(
+  _RecordingBleTransport transport,
+  int command, [
+  int? subcommand,
+]) => transport.writes.any(
+  (data) =>
+      data.length == 7 &&
+      data[1] == command &&
+      (subcommand == null || data[2] == subcommand),
+);
 
 void main() {
   test('disconnected initialization write never publishes connected', () async {
@@ -225,6 +238,34 @@ void main() {
     expect(transport.connectCalls, 0);
     expect(transport.subscribeCalls, 1);
     expect(await scale.connectionState.first, ConnectionState.connected);
+    expect(_hasCommand(transport, 0x0F), isTrue);
+
+    await scale.disconnectForHandoff();
+    await transport.dispose();
+  });
+
+  test('first connect tares once and reconnect does not tare', () async {
+    final transport = _RecordingBleTransport();
+    final scale = DecentScale(transport: transport);
+
+    await scale.onConnect();
+
+    expect(
+      transport.writes.where((data) => data[1] == 0x0F),
+      hasLength(1),
+    );
+    expect(
+      transport.writes
+          .where((data) => data[1] == 0x0A && {0x01, 0x04}.contains(data[2]))
+          .every((data) => data[5] == 0x00),
+      isTrue,
+    );
+
+    await scale.disconnectForHandoff();
+    transport.writes.clear();
+    await scale.onConnect();
+
+    expect(_hasCommand(transport, 0x0F), isFalse);
 
     await scale.disconnectForHandoff();
     await transport.dispose();
