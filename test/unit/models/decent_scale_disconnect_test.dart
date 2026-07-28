@@ -248,21 +248,20 @@ void main() {
     expect(transport.connectCalls, 0);
     expect(transport.subscribeCalls, 1);
     expect(await scale.connectionState.first, ConnectionState.connected);
-    expect(_hasCommand(transport, 0x0F), isTrue);
 
     await scale.disconnectForHandoff();
     await transport.dispose();
   });
 
-  test('first connect tares once and reconnect does not tare', () async {
+  test('connection and rediscovery never apply transport-level tare', () async {
     final transport = _RecordingBleTransport();
     final scale = DecentScale(transport: transport);
 
     await scale.onConnect();
 
     expect(
-      transport.writes.where((data) => data[1] == 0x0F),
-      hasLength(1),
+      _hasCommand(transport, 0x0F),
+      isFalse,
     );
     expect(
       transport.writes

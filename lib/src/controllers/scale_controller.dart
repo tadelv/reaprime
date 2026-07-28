@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/util/kalman_flow_estimator.dart';
 import 'package:reaprime/src/util/moving_average.dart';
@@ -20,6 +21,7 @@ class ScaleController {
   /// device went away. Overwritten on the next successful connect.
   String? _lastConnectedDeviceId;
   String? get lastConnectedDeviceId => _lastConnectedDeviceId;
+  final Set<String> _initializedDecentScaleIds = {};
 
   final Logger log = Logger('ScaleController');
 
@@ -98,9 +100,10 @@ class ScaleController {
     // Subscribe to connection state AFTER onConnect succeeds, so we don't
     // get poisoned by a BehaviorSubject replaying a stale 'disconnected'
     // state from before reconnection.
-    _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
+    await _tareFirstDecentScaleConnection(scale);
+    _scaleConnection = scale.connectionState.listen(_processConnection);
   }
 
   /// Adopt a scale that has already been connected and had [onConnect]
@@ -133,9 +136,19 @@ class ScaleController {
       _connectionController.add(ConnectionState.disconnected);
       throw StateError('Adopted scale not connected (state: ${state.name})');
     }
-    _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
+    await _tareFirstDecentScaleConnection(scale);
+    _scaleConnection = scale.connectionState.listen(_processConnection);
+  }
+
+  Future<void> _tareFirstDecentScaleConnection(Scale scale) async {
+    if (scale.implementation != DeviceImplementation.decentScale ||
+        _initializedDecentScaleIds.contains(scale.deviceId)) {
+      return;
+    }
+    await tare();
+    _initializedDecentScaleIds.add(scale.deviceId);
   }
 
   void _onDisconnect() {
