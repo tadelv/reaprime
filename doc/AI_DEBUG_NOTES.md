@@ -132,6 +132,8 @@ An Acaia shot that stops at a weight far above the scale display can be a timer-
 
 An Acaia scale that is linked but publishes no weight must not be reported connected. Identification and configuration writes, settings frames, timer frames, and information frames do not establish readiness. Initialization must observe a valid weight frame or tear down and leave retry ownership with ConnectionManager.
 
+A shot can otherwise reuse the last scale value forever after notifications stall. Shot-scale freshness is supervised by accepted native callback arrival, not device timestamps. Once a shot marks the scale stale, scale actuation stays disabled, later scale frames cannot re-arm it, and machine-cadence snapshots stop repeating the stale weight.
+
 ## Keeping Notes Fresh
 
 Add debugging patterns with: symptom, root cause, fix pattern, prevention. Prune when fixes ship and patterns are no longer current.
