@@ -12,8 +12,10 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   /// When true, [requestMtu] throws — simulating a stack that rejects the
   /// negotiation.
   bool throwOnRequestMtu = false;
-  BleConnectionState connectionState = BleConnectionState.connected;
+  bool systemConnected = true;
+  bool attached = false;
   int connectCalls = 0;
+  int physicalConnectCalls = 0;
 
   @override
   Future<int> requestMtu(String deviceId, int expectedMtu) async {
@@ -57,13 +59,16 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
     ConnectionPlatformConfig? platformConfig,
   }) async {
     connectCalls++;
-    connectionState = BleConnectionState.connected;
+    attached = true;
+    if (!systemConnected) physicalConnectCalls++;
+    systemConnected = true;
     updateConnection(deviceId, true);
   }
 
   @override
   Future<void> disconnect(String deviceId) async {
-    connectionState = BleConnectionState.disconnected;
+    systemConnected = false;
+    attached = false;
     updateConnection(deviceId, false);
   }
 
@@ -71,7 +76,10 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   Future<List<BleService>> discoverServices(
     String deviceId,
     bool withDescriptors,
-  ) async => [];
+  ) async {
+    if (!attached) throw StateError('Peripheral is not attached');
+    return [];
+  }
 
   @override
   Future<void> setNotifiable(
@@ -117,8 +125,11 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   Future<void> unpair(String deviceId) async {}
 
   @override
-  Future<BleConnectionState> getConnectionState(String deviceId) async =>
-      connectionState;
+  Future<BleConnectionState> getConnectionState(String deviceId) async {
+    return systemConnected
+        ? BleConnectionState.connected
+        : BleConnectionState.disconnected;
+  }
 
   @override
   Future<List<BleDevice>> getSystemDevices(
@@ -126,7 +137,8 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   ) async => [];
 
   void emitDisconnected(String deviceId) {
-    connectionState = BleConnectionState.disconnected;
+    systemConnected = false;
+    attached = false;
     updateConnection(deviceId, false);
   }
 }
@@ -201,14 +213,17 @@ void main() {
     await value.dispose();
   });
 
-  test('preconnected transport attaches without a native reconnect', () async {
+  test('system-connected transport attaches before service discovery', () async {
     final value = transport(android: false, linux: false);
     final states = <device.ConnectionState>[];
     final subscription = value.connectionState.listen(states.add);
 
     await value.connect();
+    await value.discoverServices();
     await Future<void>.delayed(Duration.zero);
-    expect(platform.connectCalls, 0);
+    expect(platform.connectCalls, 1);
+    expect(platform.physicalConnectCalls, 0);
+    expect(platform.attached, isTrue);
     expect(states, contains(device.ConnectionState.connected));
 
     platform.emitDisconnected(deviceId);
@@ -220,12 +235,13 @@ void main() {
   });
 
   test('disconnected transport performs a native connect', () async {
-    platform.connectionState = BleConnectionState.disconnected;
+    platform.systemConnected = false;
     final value = transport(android: false, linux: false);
 
     await value.connect();
 
     expect(platform.connectCalls, 1);
+    expect(platform.physicalConnectCalls, 1);
     await value.dispose();
   });
 }

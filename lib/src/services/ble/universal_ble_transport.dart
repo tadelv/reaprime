@@ -130,15 +130,8 @@ class UniversalBleTransport implements BLETransport {
         _connectionStateSubject.add(device.ConnectionState.disconnected);
       }
     });
-    final alreadyConnected =
-        await getConnectionState() == device.ConnectionState.connected;
-    if (alreadyConnected) {
-      _connectionStateSubject.add(device.ConnectionState.connected);
-    }
-    if (_isLinux && !alreadyConnected) {
-      await _connectBlueZ();
-    }
     if (_isLinux) {
+      await _connectBlueZ();
       _startAdvertWatch();
       return;
     }
@@ -147,7 +140,7 @@ class UniversalBleTransport implements BLETransport {
     // as the BlueZ le-connection-abort-by-local mitigation above; observed
     // 2026-07-15 as repeated 10s connect timeouts to an advertising scale
     // mid-scan). The ConnectionManager retry loop restarts scanning.
-    if (!alreadyConnected && _isAndroid) {
+    if (_isAndroid) {
       try {
         _log.fine("stopping scan before connect");
         await _stopScanViaOwner();
@@ -156,19 +149,17 @@ class UniversalBleTransport implements BLETransport {
       }
       await Future.delayed(_androidPreConnectSettleDelay);
     }
-    if (!alreadyConnected) {
-      try {
-        // 20s: connectGatt on a busy radio (live DE1 link, recent scan) can
-        // legitimately need more than 10s — fbp defaults to 35s. Must stay
-        // comfortably under ConnectionManager's 30s end-to-end guard so the
-        // richer transport-level error wins over the generic outer timeout.
-        await UniversalBle.connect(
-          _device.deviceId,
-          timeout: Duration(seconds: 20),
-        );
-      } on UniversalBleException catch (e) {
-        throw mapUniversalConnectError(e);
-      }
+    try {
+      // 20s: connectGatt on a busy radio (live DE1 link, recent scan) can
+      // legitimately need more than 10s — fbp defaults to 35s. Must stay
+      // comfortably under ConnectionManager's 30s end-to-end guard so the
+      // richer transport-level error wins over the generic outer timeout.
+      await UniversalBle.connect(
+        _device.deviceId,
+        timeout: Duration(seconds: 20),
+      );
+    } on UniversalBleException catch (e) {
+      throw mapUniversalConnectError(e);
     }
     _startAdvertWatch();
 
