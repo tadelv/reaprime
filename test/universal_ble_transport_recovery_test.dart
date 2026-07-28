@@ -55,6 +55,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     String deviceId, {
     Duration? connectionTimeout,
     bool autoConnect = false,
+    ConnectionPlatformConfig? platformConfig,
   }) async {
     updateConnection(deviceId, true);
   }
@@ -296,7 +297,13 @@ void main() {
           Uint8List.fromList([2]),
           timeout: const Duration(milliseconds: 100),
         ),
-        throwsA(isA<TimeoutException>()),
+        throwsA(
+          isA<UniversalBleException>().having(
+            (e) => e.code,
+            'code',
+            UniversalBleErrorCode.operationCancelled,
+          ),
+        ),
       );
       final pending = expectLater(
         transport.write(
@@ -305,7 +312,13 @@ void main() {
           Uint8List.fromList([3]),
           timeout: const Duration(seconds: 5),
         ),
-        throwsA(predicate((e) => e.toString().contains('Queue Cancelled'))),
+        throwsA(
+          isA<UniversalBleException>().having(
+            (e) => e.code,
+            'code',
+            UniversalBleErrorCode.operationCancelled,
+          ),
+        ),
       );
 
       await active;
