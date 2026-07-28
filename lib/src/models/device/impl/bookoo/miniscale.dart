@@ -4,6 +4,7 @@ import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -22,6 +23,7 @@ class BookooScale implements Scale {
 
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
+  int _batteryLevel = 0;
 
   BookooScale({required BLETransport transport}) : _transport = transport;
   @override
@@ -93,11 +95,7 @@ class BookooScale implements Scale {
 
   @override
   Future<void> tare() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]),
-    );
+    await _write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
   }
 
   @override
@@ -122,47 +120,45 @@ class BookooScale implements Scale {
   }
 
   void _parseNotification(List<int> data) {
-    int weight = 0;
-    if (data.length == 20) {
-      weight = (data[7] << 16) + (data[8] << 8) + data[9];
-      if (data[6] == 45) {
-        weight = weight * -1;
-      }
+    if (data.length < 10 || data[0] != 0x03 || data[1] != 0x0B) return;
+    var weight = (data[7] << 16) | (data[8] << 8) | data[9];
+    if (data[6] == 0x2D) weight *= -1;
+    if (data.length >= 14 && data[13] <= 100) {
+      _batteryLevel = data[13];
     }
-    var battery = data[13];
     _streamController.add(
       ScaleSnapshot(
         timestamp: DateTime.now(),
         weight: weight / 100,
-        batteryLevel: battery,
+        batteryLevel: _batteryLevel,
       ),
     );
   }
 
+  Future<void> _write(List<int> command) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        Uint8List.fromList(command),
+      );
+    } on DeviceNotConnectedException {
+      return;
+    }
+  }
+
   @override
   Future<void> startTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x03, 0x0A, 0x04, 0x00, 0x00, 0x0A]),
-    );
+    await _write([0x03, 0x0A, 0x04, 0x00, 0x00, 0x0A]);
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x03, 0x0A, 0x05, 0x00, 0x00, 0x0D]),
-    );
+    await _write([0x03, 0x0A, 0x05, 0x00, 0x00, 0x0D]);
   }
 
   @override
   Future<void> resetTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x03, 0x0A, 0x06, 0x00, 0x00, 0x0C]),
-    );
+    await _write([0x03, 0x0A, 0x06, 0x00, 0x00, 0x0C]);
   }
 }

@@ -4,32 +4,19 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
-import 'package:reaprime/src/models/device/device.dart';
-
-import '../../scale.dart';
-
-/// Detected Acaia BLE protocol variant.
 enum AcaiaProtocol { ips, pyxis }
 
-/// Unified Acaia scale implementation supporting both IPS (older ACAIA/PROCH
-/// models) and Pyxis (newer LUNAR/PEARL/PYXIS models) protocols.
-///
-/// Protocol is auto-detected at connection time based on discovered BLE
-/// services, matching the Decenza approach.
-///
-/// Reference: de1app bluetooth.tcl (acaia_parse_response, acaia_encode)
 class AcaiaScale implements Scale {
-  // IPS protocol identifiers
   static final _ipsService = BleServiceIdentifier.short('1820');
   static final _ipsCharacteristic = BleServiceIdentifier.short('2a80');
-
-  // Pyxis protocol identifiers
   static final _pyxisService = BleServiceIdentifier.long(
     '49535343-fe7d-4ae5-8fa9-9fafd205e455',
   );
@@ -40,33 +27,64 @@ class AcaiaScale implements Scale {
     '49535343-8841-43f4-a8d4-ecbe34729bb3',
   );
 
-  /// Service UUIDs advertised by Acaia scales (all Pyxis protocol variants).
-  /// Used for filtered BLE scans. The IPS protocol service (1820) is excluded
-  /// because it overlaps with other BLE devices (heart rate monitors, etc.).
   static const advertisedServiceUuids = [
     '49535343-fe7d-4ae5-8fa9-9fafd205e455',
     '49535343-1e4d-4bd9-ba61-23c647249616',
     '49535343-8841-43f4-a8d4-ecbe34729bb3',
   ];
 
-  static const int _maxInitRetries = 10;
+  static const _maxInitRetries = 10;
+  static const _header1 = 0xEF;
+  static const _header2 = 0xDD;
+  static const _metadataLength = 5;
+  static const _maxPayloadLength = 64;
+  static const _identPayload = [
+    0x30,
+    0x31,
+    0x32,
+    0x33,
+    0x34,
+    0x35,
+    0x36,
+    0x37,
+    0x38,
+    0x39,
+    0x30,
+    0x31,
+    0x32,
+    0x33,
+    0x34,
+  ];
+  static const _configPayload = [
+    0x09,
+    0x00,
+    0x01,
+    0x01,
+    0x02,
+    0x02,
+    0x01,
+    0x03,
+    0x04,
+  ];
+  static const _heartbeatPayload = [0x02, 0x00];
 
   final Logger _log = Logger('AcaiaScale');
+  final BLETransport _transport;
   final String _deviceId;
-
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
-
-  final BLETransport _transport;
+  final BehaviorSubject<ConnectionState> _connectionStateController =
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   AcaiaProtocol? _protocol;
-  Timer? _heartbeatTimer;
-  Timer? _configTimer;
-  Timer? _watchdogTimer;
+  StreamSubscription<ConnectionState>? _disconnectSubscription;
+  Timer? _maintenanceTimer;
+  List<int> _buffer = [];
+  DateTime _lastValidFrame = DateTime.now();
   int _batteryLevel = 0;
-  List<int> _commandBuffer = [];
-  DateTime _lastResponse = DateTime.now();
-  bool _receivingNotifications = false;
+  int _generation = 0;
+  bool _hasValidWeight = false;
+  bool _badBatteryLogged = false;
 
   AcaiaScale({required BLETransport transport})
     : _transport = transport,
@@ -88,373 +106,205 @@ class AcaiaScale implements Scale {
   String get name =>
       _transport.name.isNotEmpty ? _transport.name : 'Acaia Scale';
 
-  final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.discovered);
-
   @override
   Stream<ConnectionState> get connectionState =>
       _connectionStateController.stream;
 
-  // --- Protocol-dependent helpers ---
+  @override
+  DeviceType get type => DeviceType.scale;
 
   String get _serviceUuid =>
       _protocol == AcaiaProtocol.pyxis ? _pyxisService.long : _ipsService.long;
 
-  String get _notifyCharUuid => _protocol == AcaiaProtocol.pyxis
+  String get _notifyCharacteristic => _protocol == AcaiaProtocol.pyxis
       ? _pyxisStatusChar.long
       : _ipsCharacteristic.long;
 
-  String get _writeCharUuid => _protocol == AcaiaProtocol.pyxis
+  String get _writeCharacteristic => _protocol == AcaiaProtocol.pyxis
       ? _pyxisCmdChar.long
       : _ipsCharacteristic.long;
 
-  bool get _useWriteResponse => _protocol == AcaiaProtocol.pyxis;
+  bool get _withResponse => _protocol == AcaiaProtocol.pyxis;
 
   @override
   Future<void> onConnect() async {
-    if (await _transport.connectionState.first == ConnectionState.connected) {
+    if (_connectionStateController.value == ConnectionState.connected &&
+        await _transport.getConnectionState() == ConnectionState.connected) {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
-
-    StreamSubscription<ConnectionState>? disconnectSub;
+    _invalidateMaintenance();
 
     try {
       await _transport.connect();
-
-      disconnectSub = _transport.connectionState
+      await _disconnectSubscription?.cancel();
+      _disconnectSubscription = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-            _log.info('Transport disconnected');
+            _invalidateMaintenance();
             _connectionStateController.add(ConnectionState.disconnected);
-            disconnectSub?.cancel();
-            _cancelTimers();
           });
 
       final services = await _transport.discoverServices();
-
-      // Auto-detect protocol from discovered services
       if (_pyxisService.matchesAny(services)) {
         _protocol = AcaiaProtocol.pyxis;
-        _log.info('Detected Pyxis protocol');
       } else if (_ipsService.matchesAny(services)) {
         _protocol = AcaiaProtocol.ips;
-        _log.info('Detected IPS protocol');
       } else {
-        throw Exception(
-          'No Acaia service found. Expected ${_pyxisService.long} or '
-          '${_ipsService.long}. Discovered: $services',
-        );
+        throw StateError('No supported Acaia service found');
       }
 
-      await _initScale();
+      await _initialize();
       _connectionStateController.add(ConnectionState.connected);
-      _log.info('Scale initialized successfully (protocol: $_protocol)');
-    } catch (e) {
-      _log.warning('Failed to initialize scale: $e');
-      disconnectSub?.cancel();
-      _cancelTimers();
+      _startMaintenance();
+    } catch (error, stackTrace) {
+      _log.warning('Failed to initialize scale', error, stackTrace);
+      _invalidateMaintenance();
       _connectionStateController.add(ConnectionState.disconnected);
+      final cancellation = _disconnectSubscription?.cancel();
+      _disconnectSubscription = null;
       try {
         await _transport.disconnect();
       } catch (_) {}
+      await cancellation;
     }
   }
 
-  @override
-  disconnect() async {
-    _cancelTimers();
-    _connectionStateController.add(ConnectionState.disconnected);
-    await _transport.disconnect();
+  Future<void> _initialize() async {
+    _hasValidWeight = false;
+    _badBatteryLogged = false;
+    _buffer = [];
+    await _transport.subscribe(
+      _serviceUuid,
+      _notifyCharacteristic,
+      _parseNotification,
+    );
+    await Future<void>.delayed(
+      Duration(milliseconds: _protocol == AcaiaProtocol.pyxis ? 500 : 100),
+    );
+
+    for (
+      var attempt = 0;
+      attempt < _maxInitRetries && !_hasValidWeight;
+      attempt++
+    ) {
+      if (!await _write(_encode(0x0B, _identPayload))) {
+        throw StateError('Acaia ident write failed');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (!await _write(_encode(0x0C, _configPayload))) {
+        throw StateError('Acaia config write failed');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+
+    if (!_hasValidWeight) {
+      throw StateError('Acaia scale produced no valid weight');
+    }
   }
 
-  void _cancelTimers() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-    _configTimer?.cancel();
-    _configTimer = null;
-    _watchdogTimer?.cancel();
-    _watchdogTimer = null;
-  }
-
-  @override
-  DeviceType get type => DeviceType.scale;
-
-  // --- Protocol encoding (matches de1app acaia_encode) ---
-
-  static const int _header1 = 0xEF;
-  static const int _header2 = 0xDD;
-
-  static const List<int> _identPayload = [
-    0x30,
-    0x31,
-    0x32,
-    0x33,
-    0x34,
-    0x35,
-    0x36,
-    0x37,
-    0x38,
-    0x39,
-    0x30,
-    0x31,
-    0x32,
-    0x33,
-    0x34,
-  ];
-
-  static const List<int> _configPayload = [
-    0x09,
-    0x00,
-    0x01,
-    0x01,
-    0x02,
-    0x02,
-    0x01,
-    0x03,
-    0x04,
-  ];
-
-  static const List<int> _heartbeatPayload = [0x02, 0x00];
-
-  static Uint8List _encode(int msgType, List<int> payload) {
-    int cksum1 = 0;
-    int cksum2 = 0;
-    for (int i = 0; i < payload.length; i++) {
-      if (i % 2 == 0) {
-        cksum1 = (cksum1 + payload[i]) & 0xFF;
+  static Uint8List _encode(int messageType, List<int> payload) {
+    var evenChecksum = 0;
+    var oddChecksum = 0;
+    for (var i = 0; i < payload.length; i++) {
+      if (i.isEven) {
+        evenChecksum = (evenChecksum + payload[i]) & 0xFF;
       } else {
-        cksum2 = (cksum2 + payload[i]) & 0xFF;
+        oddChecksum = (oddChecksum + payload[i]) & 0xFF;
       }
     }
     return Uint8List.fromList([
       _header1,
       _header2,
-      msgType,
+      messageType,
       ...payload,
-      cksum1,
-      cksum2,
+      evenChecksum,
+      oddChecksum,
     ]);
   }
 
-  // --- Initialization with retry loop (matches de1app/Decenza) ---
-
-  Future<void> _initScale() async {
-    _receivingNotifications = false;
-
-    // Notification enable delay: IPS=100ms, Pyxis=500ms
-    final notifyDelay = _protocol == AcaiaProtocol.pyxis ? 500 : 100;
-
-    await _transport.subscribe(
-      _serviceUuid,
-      _notifyCharUuid,
-      _parseNotification,
-    );
-    await Future.delayed(Duration(milliseconds: notifyDelay));
-
-    // Retry ident+config up to _maxInitRetries times until scale responds
-    for (int attempt = 1; attempt <= _maxInitRetries; attempt++) {
-      if (_receivingNotifications) break;
-
-      _log.fine('Init attempt $attempt/$_maxInitRetries');
-
-      // Send ident
-      await _transport.write(
-        _serviceUuid,
-        _writeCharUuid,
-        _encode(0x0B, _identPayload),
-        withResponse: _useWriteResponse,
-      );
-
-      await Future.delayed(const Duration(milliseconds: 200));
-
-      // Send config
-      await _transport.write(
-        _serviceUuid,
-        _writeCharUuid,
-        _encode(0x0C, _configPayload),
-        withResponse: _useWriteResponse,
-      );
-
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
-
-    if (!_receivingNotifications) {
-      _log.warning(
-        'Scale did not respond after $_maxInitRetries init attempts',
-      );
-    }
-
-    // Start heartbeat (3s interval, matching Decenza)
-    _lastResponse = DateTime.now();
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      _sendHeartbeat();
-    });
-
-    // Watchdog for Pyxis only (5s timeout)
-    if (_protocol == AcaiaProtocol.pyxis) {
-      _watchdogTimer?.cancel();
-      _watchdogTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        _checkWatchdog();
-      });
-    }
-  }
-
-  void _sendHeartbeat() {
-    // Heartbeat runs from Timer.periodic — fire-and-forget. The write
-    // returns a Future; if the scale has disconnected, _handleGattError
-    // throws DeviceNotConnectedException inside that Future. Without a
-    // catch, it propagates to the Flutter zone error handler → Crashlytics
-    // records it as FATAL (iOS cdd48b30, 28ev). Catch it here and let the
-    // watchdog/disconnect cascade handle cleanup.
-    unawaited(_doHeartbeatWrite());
-  }
-
-  Future<void> _doHeartbeatWrite() async {
+  Future<bool> _write(Uint8List data) async {
     try {
       await _transport.write(
         _serviceUuid,
-        _writeCharUuid,
-        _encode(0x00, _heartbeatPayload),
-        withResponse: _useWriteResponse,
+        _writeCharacteristic,
+        data,
+        withResponse: _withResponse,
       );
+      return true;
     } on DeviceNotConnectedException {
-      _log.fine('Heartbeat write failed — scale disconnected');
-      return;
+      _log.fine('Acaia write skipped because the device disconnected');
+      return false;
     }
-    _configTimer?.cancel();
-    _configTimer = Timer(const Duration(seconds: 1), () {
-      unawaited(_doConfigWrite());
+  }
+
+  void _startMaintenance() {
+    _lastValidFrame = DateTime.now();
+    final generation = ++_generation;
+    _scheduleMaintenance(generation);
+  }
+
+  void _scheduleMaintenance(int generation) {
+    _maintenanceTimer?.cancel();
+    _maintenanceTimer = Timer(const Duration(seconds: 3), () {
+      unawaited(_runMaintenance(generation));
     });
   }
 
-  Future<void> _doConfigWrite() async {
+  Future<void> _runMaintenance(int generation) async {
+    if (!_isCurrent(generation)) return;
     try {
-      await _transport.write(
-        _serviceUuid,
-        _writeCharUuid,
-        _encode(0x0C, _configPayload),
-        withResponse: _useWriteResponse,
-      );
-    } on DeviceNotConnectedException {
-      _log.fine('Config write failed — scale disconnected');
+      if (_protocol == AcaiaProtocol.pyxis &&
+          DateTime.now().difference(_lastValidFrame) >
+              const Duration(seconds: 5)) {
+        await disconnect();
+        return;
+      }
+      await _write(_encode(0x00, _heartbeatPayload));
+    } on TimeoutException catch (error) {
+      _log.warning('Acaia heartbeat timed out: $error');
+    } catch (error, stackTrace) {
+      _log.warning('Acaia heartbeat failed', error, stackTrace);
+    } finally {
+      if (_isCurrent(generation)) _scheduleMaintenance(generation);
     }
   }
 
-  void _checkWatchdog() {
-    final elapsed = DateTime.now().difference(_lastResponse).inMilliseconds;
-    if (elapsed > 5000) {
-      _log.warning('Watchdog timeout: no response for ${elapsed}ms');
-      disconnect();
-    }
+  bool _isCurrent(int generation) =>
+      generation == _generation &&
+      _connectionStateController.value == ConnectionState.connected;
+
+  void _invalidateMaintenance() {
+    _generation++;
+    _maintenanceTimer?.cancel();
+    _maintenanceTimer = null;
   }
 
-  // --- Tare: 3x with 100ms spacing (de1app/Decenza workaround) ---
+  @override
+  Future<void> disconnect() async {
+    _invalidateMaintenance();
+    await _disconnectSubscription?.cancel();
+    _disconnectSubscription = null;
+    _connectionStateController.add(ConnectionState.disconnected);
+    await _transport.disconnect();
+  }
 
   @override
   Future<void> tare() async {
-    final cmd = _encode(0x04, List.filled(15, 0x00));
-    await _transport.write(
-      _serviceUuid,
-      _writeCharUuid,
-      cmd,
-      withResponse: _useWriteResponse,
-    );
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _transport.write(
-      _serviceUuid,
-      _writeCharUuid,
-      cmd,
-      withResponse: _useWriteResponse,
-    );
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _transport.write(
-      _serviceUuid,
-      _writeCharUuid,
-      cmd,
-      withResponse: _useWriteResponse,
-    );
+    final command = _encode(0x04, List<int>.filled(15, 0));
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (!await _write(command)) throw StateError('Acaia tare write failed');
+      if (attempt < 2) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
   }
-
-  // --- Display control ---
 
   @override
-  Future<void> sleepDisplay() async {
-    await disconnect();
-  }
+  Future<void> sleepDisplay() => disconnect();
 
   @override
   Future<void> wakeDisplay() async {}
-
-  // --- Notification parsing (matches de1app acaia_parse_response) ---
-
-  static const int _metadataLen = 5;
-
-  void _parseNotification(List<int> data) {
-    _lastResponse = DateTime.now();
-    _commandBuffer.addAll(data);
-
-    while (_commandBuffer.length >= _metadataLen + 1) {
-      if (_commandBuffer[0] != _header1 || _commandBuffer[1] != _header2) {
-        _commandBuffer.removeAt(0);
-        continue;
-      }
-
-      int msgType = _commandBuffer[2];
-      int length = _commandBuffer[3];
-      int eventType = _commandBuffer[4];
-
-      int msgLen = _metadataLen + length;
-
-      if (_commandBuffer.length < msgLen) break;
-
-      if (msgType != 7) {
-        _receivingNotifications = true;
-      }
-
-      if (msgType == 8 && _commandBuffer.length > 4) {
-        _batteryLevel = _commandBuffer[4];
-      }
-
-      if (msgType == 12 &&
-          (eventType == 5 || eventType == 11) &&
-          length <= 64) {
-        final payloadOffset = eventType == 5 ? _metadataLen : _metadataLen + 3;
-        _decodeWeight(_commandBuffer, payloadOffset);
-      }
-
-      if (msgLen <= _commandBuffer.length) {
-        _commandBuffer = _commandBuffer.sublist(msgLen);
-      } else {
-        _commandBuffer.clear();
-      }
-    }
-  }
-
-  void _decodeWeight(List<int> buffer, int offset) {
-    if (offset + 6 > buffer.length) return;
-
-    int value =
-        ((buffer[offset + 2] & 0xFF) << 16) +
-        ((buffer[offset + 1] & 0xFF) << 8) +
-        (buffer[offset] & 0xFF);
-
-    int unit = buffer[offset + 4] & 0xFF;
-    double weight = value / pow(10, unit);
-
-    if ((buffer[offset + 5] & 0xFF) > 1) {
-      weight *= -1;
-    }
-
-    _streamController.add(
-      ScaleSnapshot(
-        timestamp: DateTime.now(),
-        weight: weight,
-        batteryLevel: _batteryLevel,
-      ),
-    );
-  }
 
   @override
   Future<void> startTimer() async {}
@@ -464,4 +314,85 @@ class AcaiaScale implements Scale {
 
   @override
   Future<void> resetTimer() async {}
+
+  void _parseNotification(List<int> data) {
+    _buffer.addAll(data);
+    while (true) {
+      var headerIndex = -1;
+      for (var i = 0; i + 1 < _buffer.length; i++) {
+        if (_buffer[i] == _header1 && _buffer[i + 1] == _header2) {
+          headerIndex = i;
+          break;
+        }
+      }
+
+      if (headerIndex < 0) {
+        _buffer = _buffer.isNotEmpty && _buffer.last == _header1
+            ? [_header1]
+            : [];
+        return;
+      }
+      if (headerIndex > 0) _buffer = _buffer.sublist(headerIndex);
+      if (_buffer.length < _metadataLength) return;
+
+      final payloadLength = _buffer[3];
+      if (payloadLength > _maxPayloadLength) {
+        _buffer = _buffer.sublist(2);
+        continue;
+      }
+
+      final frameLength = _metadataLength + payloadLength;
+      if (_buffer.length < frameLength) return;
+      final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
+      _buffer = _buffer.sublist(frameLength);
+      if (_processFrame(frame)) _lastValidFrame = DateTime.now();
+    }
+  }
+
+  bool _processFrame(List<int> frame) {
+    final messageType = frame[2];
+    final eventType = frame[4];
+
+    if (messageType == 0x08) {
+      final battery = frame[4] & 0x7F;
+      if (battery <= 100) {
+        _batteryLevel = battery;
+      } else if (!_badBatteryLogged) {
+        _badBatteryLogged = true;
+        _log.warning('Ignoring out-of-range Acaia battery value $battery');
+      }
+      return true;
+    }
+    if (messageType == 0x07) return true;
+    if (messageType != 0x0C) return false;
+
+    if (eventType == 5) {
+      if (frame.length < _metadataLength + 6) return false;
+      _decodeWeight(frame, _metadataLength);
+      return true;
+    }
+    if (eventType != 11 || frame.length <= 7) return eventType != 11;
+    if (frame[7] == 7) return true;
+    if (frame[7] != 5 || frame.length < _metadataLength + 3 + 6) {
+      return false;
+    }
+    _decodeWeight(frame, _metadataLength + 3);
+    return true;
+  }
+
+  void _decodeWeight(List<int> frame, int offset) {
+    final magnitude =
+        (frame[offset + 2] << 16) | (frame[offset + 1] << 8) | frame[offset];
+    final exponent = frame[offset + 4];
+    var weight = magnitude / pow(10, exponent);
+    if (frame[offset + 5] > 1) weight *= -1;
+    _hasValidWeight = true;
+    _streamController.add(
+      ScaleSnapshot(
+        timestamp: DateTime.now(),
+        weight: weight,
+        batteryLevel: _batteryLevel,
+      ),
+    );
+  }
 }
