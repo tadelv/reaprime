@@ -4,19 +4,32 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/shot_scale_command_queue.dart';
 import 'package:reaprime/src/controllers/step_exit_arbiter.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/shot_state_event.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
 
-// The shot-state vocabulary lived here before it gained wire serialization;
-// re-export so existing importers keep working.
 export 'package:reaprime/src/models/data/shot_state_event.dart'
     show ShotState, ShotDecision, ShotDecisionKind, ShotDecisionReason;
+
+enum _ScaleAvailability { unavailable, awaitingPourTare, ready, stale }
+
+class _CrossingGate {
+  int _samples = 0;
+
+  bool add(bool crossed) {
+    _samples = crossed ? _samples + 1 : 0;
+    return _samples >= 2;
+  }
+
+  void reset() => _samples = 0;
+}
 
 class ShotSequencer {
   final De1Controller de1controller;
@@ -31,54 +44,25 @@ class ShotSequencer {
   final double _weightFlowMultiplier;
   final double _volumeFlowMultiplier;
   final bool _stepExitArbiterEnabled;
+  final Duration _tareConfirmationTimeout;
+  final Duration _scaleFreshnessTimeout;
 
-  /// `true` when the connected machine runs its own autonomous SAW
-  /// (currently only Bengle). The app's SAW loop must defer to FW to
-  /// avoid double-stop.
-  ///
-  /// Captured once at construction. A sequencer's lifetime is bound
-  /// to a single shot (owned + recreated per shot by [De1StateManager])
-  /// and machines can't be swapped mid-shot — if the connection dies
-  /// the shot is already over and a stale flag is the least of our
-  /// problems. Don't try to make this reactive.
-  ///
-  /// Only the FINAL target-yield stop is bypassed for autonomous-SAW
-  /// machines. Per-step weight exits (`ProfileStep.weight`) still run
-  /// app-side: FW only exposes one SAW target, not per-frame weight
-  /// transitions. Wiring per-step skips into FW would need a new
-  /// `ProfileStepFrame` data object and likely a separate endpoint —
-  /// out of scope until that exists.
   final bool _machineHasAutonomousSAW;
 
-  // Skip step on weight specific
-  List<int> skippedSteps = [];
+  Set<int> skippedSteps = const {};
   final StepExitArbiter _stepExitArbiter = StepExitArbiter();
   int _lastProfileFrame = -1;
 
-  /// Highest profile frame reported so far this shot, for one-shot
-  /// `profileAdvance` emission that survives BLE frame reordering. See
-  /// [_trackFrameAdvance].
   int _maxFrameSeen = -1;
 
-  // Volume counting state
   double _accumulatedVolume = 0.0;
   DateTime? _lastVolumeUpdateTime;
   bool _volumeCountingActive = false;
 
-  // Final beverage weight on weighed shots. After the machine-reported stop the
-  // pump is off, so flow onto the scale can only decay — the post-stop window
-  // keeps taking the rising weight (turbo catch-up included, with no flow or
-  // gram cap) and locks the yield on the first of three events: the scale
-  // settles, the cup is removed (a sharp drop), or a touch spikes the flow back
-  // up against the decay. The saved trace stops at the stop boundary, so only
-  // this value follows the tail, not the graph. Null when no scale weighs the
-  // shot.
-  static const double _settleFlowThreshold = 0.4; // g/s; |flow| below = still
-  static const int _settleSampleCount =
-      10; // consecutive still samples = settled (was 3; raised for Kalman smoothness — 3 samples at ~10 Hz ≈ 0.3s misses trailing drips)
-  static const double _removalFlowThreshold =
-      3.0; // g/s; flow < -this = removal
-  static const double _spikeFlowJump = 3.0; // g/s; flow rising vs prev = spike
+  static const double _settleFlowThreshold = 0.4;
+  static const int _settleSampleCount = 10;
+  static const double _removalFlowThreshold = 3.0;
+  static const double _spikeFlowJump = 3.0;
   static const Duration _stoppingBackstop = Duration(seconds: 4);
   double? _trustedFinalYield;
   bool _stoppingYieldLocked = false;
@@ -100,29 +84,26 @@ class ShotSequencer {
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,
     required bool stepExitArbiterEnabled,
+    Duration tareConfirmationTimeout = const Duration(seconds: 2),
+    Duration scaleFreshnessTimeout = const Duration(seconds: 2),
   }) : _bypassSAW = bypassSAW,
        _blockOnNoScale = blockOnNoScale,
        _weightFlowMultiplier = weightFlowMultiplier,
        _volumeFlowMultiplier = volumeFlowMultiplier,
        _stepExitArbiterEnabled = stepExitArbiterEnabled,
+       _tareConfirmationTimeout = tareConfirmationTimeout,
+       _scaleFreshnessTimeout = scaleFreshnessTimeout,
        _machineHasAutonomousSAW =
            de1controller.connectedDe1() is BengleInterface {
     _log.info(
       "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW, stepExitArbiterEnabled: $_stepExitArbiterEnabled)",
     );
 
-    // When the app won't tare (SAW bypass), trust the scale's readings as-is —
-    // there's no app-side tare to gate on.
-    _scaleTared = _bypassSAW;
-
     final scaleConnected =
         scaleController.currentConnectionState ==
         device.ConnectionState.connected;
 
     if (_blockOnNoScale && !scaleConnected) {
-      // The sequencer is created reactively, after the machine has already
-      // entered espresso (incl. GHC / physical starts), so "block" means abort
-      // the shot in progress and publish the reason rather than prevent it.
       _emitDecision(
         ShotDecisionKind.abort,
         ShotDecisionReason.noScale,
@@ -138,60 +119,52 @@ class ShotSequencer {
       return;
     }
 
-    if (!scaleConnected) {
-      _log.info("Continuing without scale");
-      _snapshotSubscription = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .map((snapshot) => ShotSnapshot(machine: snapshot))
-          .listen(
-            _processSnapshot,
-            onError: (error) =>
-                _log.warning("Error processing DE1 snapshot: $error"),
-          );
-    } else {
-      _log.info("Scale connected, combining streams");
-      final combinedStream = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .withLatestFrom(
-            scaleController.weightSnapshot,
-            (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
-          );
-
-      _snapshotSubscription = combinedStream.listen(
-        _processSnapshot,
-        onError: (error) =>
-            _log.warning("Error processing combined snapshot: $error"),
+    if (scaleConnected) {
+      _commandQueue = ShotScaleCommandQueue(
+        scaleController.connectedScale(),
+        logger: _log,
       );
-
-      // Monitor scale connection during shot
-      _scaleConnectionSubscription = scaleController.connectionState.listen((
-        state,
-      ) {
-        if (state == device.ConnectionState.disconnected && !_scaleLost) {
-          if (_state != ShotState.idle && _state != ShotState.finished) {
-            _scaleLost = true;
-            _log.warning(
-              'Scale disconnected during shot (state: ${_state.name}). '
-              'Stop-at-weight disabled for remainder of this shot.',
-            );
-          }
-        }
-      });
+      _scaleAvailability = _bypassSAW
+          ? _ScaleAvailability.ready
+          : _ScaleAvailability.awaitingPourTare;
     }
+
+    _machineSubscription = de1controller.connectedDe1().currentSnapshot.listen(
+      _processMachineSnapshot,
+      onError: (error, stackTrace) =>
+          _log.warning('Error processing machine snapshot', error, stackTrace),
+    );
+    _scaleSubscription = scaleController.weightSnapshot.listen(
+      _processScaleSnapshot,
+      onError: (error, stackTrace) =>
+          _log.warning('Error processing scale snapshot', error, stackTrace),
+    );
+    _scaleConnectionSubscription = scaleController.connectionState.listen(
+      _processScaleConnection,
+      onError: (error, stackTrace) =>
+          _log.warning('Error processing scale connection', error, stackTrace),
+    );
   }
 
   void dispose() {
     _log.fine("dispose");
-    _snapshotSubscription?.cancel();
+    _disposed = true;
+    _tareConfirmationTimer?.cancel();
+    _freshnessTimer?.cancel();
+    _stoppingTimer?.cancel();
+    _commandQueue?.dispose();
+    _machineSubscription?.cancel();
+    _scaleSubscription?.cancel();
     _scaleConnectionSubscription?.cancel();
     _rawShotDataStream.close();
     _shotDataStream.close();
     _decisionStream.close();
+    _resetCommand.close();
+    _stateStream.close();
   }
 
-  StreamSubscription<ShotSnapshot>? _snapshotSubscription;
+  StreamSubscription<MachineSnapshot>? _machineSubscription;
+  StreamSubscription<WeightSnapshot>? _scaleSubscription;
 
   final StreamController<ShotSnapshot> _rawShotDataStream =
       StreamController.broadcast();
@@ -210,36 +183,19 @@ class ShotSequencer {
   );
   Stream<ShotState> get state => _stateStream.stream;
 
-  /// Sequencer decisions (e.g. why a shot was stopped). Groundwork for a
-  /// future `/ws/v1/shotState` topic. BehaviorSubject so consumers that
-  /// subscribe after construction still receive a decision emitted in the
-  /// constructor (e.g. the blockOnNoScale abort).
   final BehaviorSubject<ShotDecision> _decisionStream = BehaviorSubject();
   Stream<ShotDecision> get decisions => _decisionStream.stream;
 
-  /// Dedicated logger for the decision trail: one consistent, greppable line
-  /// per decision, regardless of who owns this sequencer (De1StateManager or
-  /// a route-constructed instance). The per-site `_log.info` lines this
-  /// replaces were deleted — do not re-add them, or every decision double-logs.
   static final Logger _decisionLog = Logger('ShotState');
 
-  /// The reason the shot stopped, retained for persistence onto the
-  /// ShotRecord. Set by the stop/abort/terminal decision sites; `finalize`
-  /// decisions (e.g. the stopping backstop) never overwrite it — they close
-  /// the settling window, they are not why the shot stopped.
   ShotDecisionReason? _finalStopReason;
   ShotDecisionReason? get finalStopReason => _finalStopReason;
 
-  /// Current shot phase — lets the owner distinguish a natural finish from a
-  /// mid-shot teardown (disconnect) without subscribing to [state].
   ShotState get currentState => _state;
 
   bool get scaleLost => _scaleLost;
   bool get machineHasAutonomousSAW => _machineHasAutonomousSAW;
 
-  /// Emits a decision on [decisions] and writes the single consolidated log
-  /// line. Abort/terminal log at WARNING (abnormal endings, telemetry-worthy
-  /// and rare); finalize at FINE (window bookkeeping); the rest at INFO.
   void _emitDecision(
     ShotDecisionKind kind,
     ShotDecisionReason reason, {
@@ -273,46 +229,225 @@ class ShotSequencer {
   ShotState _state = ShotState.idle;
   bool _scaleLost = false;
 
-  /// Whether this shot's scale has been tared for the pour yet. Flips `true`
-  /// when the app issues the pour-time tare (the preheating→pouring
-  /// transition). Until then the scale's absolute reading is whatever sits on
-  /// the platter (cup, portafilter, residual drips) and the derived flow is
-  /// noise — so we report 0 for both rather than feed pre-tare garbage into the
-  /// recorded trace and the visualizer upload. Gating through the whole
-  /// preheat (rather than flipping at the earlier preparing-for-shot tare)
-  /// also sidesteps the in-flight-tare race: by the pour the scale has
-  /// physically settled to zero. Seeded `true` when the app won't tare (SAW
-  /// bypass, e.g. Bengle's autonomous SAW) — there's no app-side tare to wait
-  /// for, so the scale's own readings are trusted as-is.
-  bool _scaleTared = false;
+  bool _disposed = false;
+  bool _pourTareStarted = false;
+  bool _pourTareSucceeded = false;
+  bool _pourTareZeroObserved = false;
+  bool _stopRequested = false;
+  _ScaleAvailability _scaleAvailability = _ScaleAvailability.unavailable;
+  MachineSnapshot? _latestMachine;
+  WeightSnapshot? _latestScale;
+  ShotScaleCommandQueue? _commandQueue;
+  Timer? _tareConfirmationTimer;
+  Timer? _freshnessTimer;
+  Timer? _stoppingTimer;
+  final _finalCrossing = _CrossingGate();
+  final _stepCrossing = _CrossingGate();
   StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
 
-  void _processSnapshot(ShotSnapshot snapshot) {
-    _log.finest("Processing snapshot");
-
-    // Until the scale is tared for this shot, suppress its weight and flow:
-    // the pre-tare reading reflects whatever is resting on the scale, not the
-    // beverage, and the flow derived from it is noise.
-    if (!_scaleTared && snapshot.scale != null) {
-      final raw = snapshot.scale!;
-      snapshot = snapshot.copyWith(
-        scale: WeightSnapshot(
-          timestamp: raw.timestamp,
-          weight: 0,
-          weightFlow: 0,
-          battery: raw.battery,
-          timerValue: raw.timerValue,
-        ),
-      );
-    }
-
-    // Update volume calculation
-    final snapshotWithVolume = _updateVolume(snapshot);
+  void _processMachineSnapshot(MachineSnapshot machine) {
+    if (_disposed) return;
+    _latestMachine = machine;
+    final snapshotWithVolume = _updateVolume(
+      ShotSnapshot(machine: machine, scale: _visibleScale()),
+    );
 
     _rawShotDataStream.add(snapshotWithVolume);
-    _handleStateTransition(snapshotWithVolume);
+    _handleMachineState(snapshotWithVolume);
     if (dataCollectionEnabled) {
       _shotDataStream.add(snapshotWithVolume);
+    }
+  }
+
+  WeightSnapshot? _visibleScale() {
+    final scale = _latestScale;
+    if (scale == null ||
+        _scaleAvailability == _ScaleAvailability.unavailable ||
+        _scaleAvailability == _ScaleAvailability.stale) {
+      return null;
+    }
+    if (_scaleAvailability == _ScaleAvailability.ready) return scale;
+    return WeightSnapshot(
+      timestamp: scale.timestamp,
+      weight: 0,
+      weightFlow: 0,
+      controlWeightFlow: 0,
+      battery: scale.battery,
+      timerValue: scale.timerValue,
+    );
+  }
+
+  void _processScaleConnection(device.ConnectionState state) {
+    if (_disposed || state != device.ConnectionState.disconnected) return;
+    if (_commandQueue == null) return;
+    _commandQueue?.dispose();
+    _disableScale(_ScaleAvailability.unavailable, 'Scale disconnected');
+  }
+
+  void _processScaleSnapshot(WeightSnapshot scale) {
+    if (_disposed ||
+        _scaleAvailability == _ScaleAvailability.unavailable ||
+        _scaleAvailability == _ScaleAvailability.stale) {
+      return;
+    }
+    _latestScale = scale;
+    if (_pourTareStarted ||
+        _state == ShotState.pouring ||
+        _state == ShotState.stopping) {
+      _resetFreshnessTimer();
+    }
+    if (_scaleAvailability == _ScaleAvailability.awaitingPourTare) {
+      if (_pourTareStarted && scale.weight.abs() <= 3) {
+        _pourTareZeroObserved = true;
+        _tryArmScaleControl();
+      }
+      return;
+    }
+    if (_state == ShotState.pouring) {
+      _evaluateScaleControl(scale);
+    } else if (_state == ShotState.stopping) {
+      _refineStoppingYield(scale);
+      if (_stoppingYieldLocked) _finishStopping();
+    }
+  }
+
+  void _resetFreshnessTimer() {
+    _freshnessTimer?.cancel();
+    _freshnessTimer = Timer(_scaleFreshnessTimeout, () {
+      if (_state != ShotState.pouring && _state != ShotState.stopping) return;
+      if (_scaleAvailability != _ScaleAvailability.awaitingPourTare &&
+          _scaleAvailability != _ScaleAvailability.ready) {
+        return;
+      }
+      _disableScale(_ScaleAvailability.stale, 'Scale feed became stale');
+    });
+  }
+
+  void _disableScale(_ScaleAvailability availability, String reason) {
+    if (_scaleAvailability == _ScaleAvailability.unavailable ||
+        _scaleAvailability == _ScaleAvailability.stale) {
+      return;
+    }
+    _scaleAvailability = availability;
+    _scaleLost = true;
+    _latestScale = null;
+    _tareConfirmationTimer?.cancel();
+    _freshnessTimer?.cancel();
+    _finalCrossing.reset();
+    _stepCrossing.reset();
+    _log.warning('$reason; scale control disabled for this shot');
+  }
+
+  void _enqueuePreparingCommands() {
+    final queue = _commandQueue;
+    if (queue == null || _bypassSAW) return;
+    queue.enqueue(ShotScaleCommand.preparingTare, _tareCapturedScale);
+    queue.enqueue(ShotScaleCommand.timerReset, (scale) => scale.resetTimer());
+  }
+
+  void _enqueuePourCommands() {
+    final queue = _commandQueue;
+    if (queue == null || _bypassSAW) {
+      if (_scaleAvailability == _ScaleAvailability.ready &&
+          _latestScale != null) {
+        _resetFreshnessTimer();
+      }
+      return;
+    }
+    queue.enqueue(
+      ShotScaleCommand.pourTare,
+      _tareCapturedScale,
+      onStart: _beginPourTare,
+      onSuccess: _completePourTare,
+      onFailure: (_) =>
+          _disableScale(_ScaleAvailability.unavailable, 'Pour tare failed'),
+    );
+    queue.enqueue(ShotScaleCommand.timerStart, (scale) => scale.startTimer());
+  }
+
+  Future<void> _tareCapturedScale(Scale scale) async {
+    if (!identical(scaleController.connectedScale(), scale)) {
+      throw StateError('Shot scale changed');
+    }
+    await scaleController.tare();
+  }
+
+  void _enqueueTimerStop() {
+    _commandQueue?.enqueue(
+      ShotScaleCommand.timerStop,
+      (scale) => scale.stopTimer(),
+    );
+  }
+
+  void _beginPourTare() {
+    if (_state != ShotState.pouring ||
+        _scaleAvailability != _ScaleAvailability.awaitingPourTare) {
+      return;
+    }
+    _pourTareStarted = true;
+    _pourTareSucceeded = false;
+    _pourTareZeroObserved = false;
+    _finalCrossing.reset();
+    _stepCrossing.reset();
+    _tareConfirmationTimer?.cancel();
+    _tareConfirmationTimer = Timer(_tareConfirmationTimeout, () {
+      if (_scaleAvailability == _ScaleAvailability.awaitingPourTare) {
+        _disableScale(
+          _ScaleAvailability.unavailable,
+          'Pour tare confirmation timed out',
+        );
+      }
+    });
+  }
+
+  void _completePourTare() {
+    if (_scaleAvailability != _ScaleAvailability.awaitingPourTare) return;
+    _pourTareSucceeded = true;
+    _tryArmScaleControl();
+  }
+
+  void _tryArmScaleControl() {
+    if (!_pourTareSucceeded || !_pourTareZeroObserved) return;
+    _tareConfirmationTimer?.cancel();
+    _scaleAvailability = _ScaleAvailability.ready;
+    _resetFreshnessTimer();
+  }
+
+  void _evaluateScaleControl(WeightSnapshot scale) {
+    final machine = _latestMachine;
+    if (machine == null || _stopRequested || _bypassSAW) return;
+    final projected =
+        scale.weight + scale.controlWeightFlow * _weightFlowMultiplier;
+    _handleStepWeightExit(machine.profileFrame, projected, machine);
+    if (_machineHasAutonomousSAW || targetYield <= 0) return;
+    if (!_finalCrossing.add(projected >= targetYield)) return;
+    _requestStop(
+      ShotDecisionReason.targetWeight,
+      'Target weight ${targetYield}g reached (projected: $projected).',
+      {'targetYield': targetYield, 'projectedWeight': projected},
+    );
+  }
+
+  void _requestStop(
+    ShotDecisionReason reason,
+    String details,
+    Map<String, dynamic> data,
+  ) {
+    if (_stopRequested) return;
+    _stopRequested = true;
+    _finalStopReason = reason;
+    _emitDecision(ShotDecisionKind.stop, reason, details: details, data: data);
+    unawaited(_requestMachineState(MachineState.idle, 'stop shot'));
+  }
+
+  Future<void> _requestMachineState(
+    MachineState state,
+    String operation,
+  ) async {
+    try {
+      await de1controller.connectedDe1().requestState(state);
+    } catch (error, stackTrace) {
+      _log.warning('Failed to $operation', error, stackTrace);
     }
   }
 
@@ -320,18 +455,14 @@ class ShotSequencer {
     final MachineSnapshot machine = snapshot.machine;
     final int currentFrame = machine.profileFrame;
 
-    // Check if we should be counting volume
     if (_volumeCountingActive &&
         currentFrame >= targetProfile.targetVolumeCountStart) {
       final now = snapshot.machine.timestamp;
 
       if (_lastVolumeUpdateTime != null) {
-        // Calculate time delta in seconds
         final timeDelta =
             now.difference(_lastVolumeUpdateTime!).inMilliseconds / 1000.0;
 
-        // Integrate flow over time to get volume
-        // Flow is in ml/s, timeDelta is in seconds
         final volumeDelta = machine.flow * timeDelta;
         _accumulatedVolume += volumeDelta;
 
@@ -344,16 +475,13 @@ class ShotSequencer {
       _lastVolumeUpdateTime = now;
     }
 
-    // Return snapshot with volume data
     return snapshot.copyWith(volume: _accumulatedVolume);
   }
 
   bool dataCollectionEnabled = false;
-  Future<void>? _stoppingStateFuture;
 
-  void _handleStateTransition(ShotSnapshot snapshot) {
+  void _handleMachineState(ShotSnapshot snapshot) {
     final MachineSnapshot machine = snapshot.machine;
-    final WeightSnapshot? scale = snapshot.scale;
 
     _log.finest(
       "recv: ${machine.state.substate.name}, ${machine.state.state.name}",
@@ -361,10 +489,6 @@ class ShotSequencer {
 
     _log.finest("State in: ${_state.name}");
 
-    // Terminal arm: a machine fault ends the shot from any active phase.
-    // Without this the sequencer would sit in `pouring` forever — the DE1
-    // reports MachineState.error, not espresso/pouringDone, so the regular
-    // stop detection below never fires.
     if (machine.state.state == MachineState.error &&
         _state != ShotState.idle &&
         _state != ShotState.finished) {
@@ -389,7 +513,6 @@ class ShotSequencer {
           _resetCommand.add(true);
           _shotStartTime = DateTime.now();
 
-          // Reset volume counting for new shot
           _accumulatedVolume = 0.0;
           _lastVolumeUpdateTime = null;
           _volumeCountingActive = false;
@@ -397,21 +520,19 @@ class ShotSequencer {
           _stoppingYieldLocked = false;
           _settleSamples = 0;
           _prevStoppingFlow = null;
-          skippedSteps.clear();
+          skippedSteps = const {};
           _stepExitArbiter.reset();
           _lastProfileFrame = -1;
           _maxFrameSeen = -1;
           _finalStopReason = null;
+          _stopRequested = false;
+          _pourTareStarted = false;
+          _pourTareSucceeded = false;
+          _pourTareZeroObserved = false;
+          _finalCrossing.reset();
+          _stepCrossing.reset();
 
-          if (_bypassSAW == false && scale != null && !_scaleLost) {
-            _log.info(
-              "Machine getting ready. Taring scale and resetting timer...",
-            );
-            scaleController.tare().catchError(
-              (e) => _log.warning("Failed to tare scale at shot start", e),
-            );
-            scaleController.connectedScale().resetTimer();
-          }
+          _enqueuePreparingCommands();
           _state = ShotState.preheating;
           _stateStream.add(_state);
           dataCollectionEnabled = true;
@@ -419,18 +540,8 @@ class ShotSequencer {
         break;
 
       case ShotState.preheating:
-        // Abort arm: the machine left espresso before the pour began (GHC /
-        // app / REST stop during preheat, or a mode change). End the shot as
-        // an abort so De1StateManager tears the sequencer down — otherwise it
-        // sits in `preheating` forever, hangs the shotState feed on a stale
-        // frame, and gets recycled into the next espresso/steam/hot-water
-        // session. A steam session (De1SubState.steaming also maps to the
-        // `pouring` substate) is caught here by the state check, not the
-        // substate check below.
         if (machine.state.state != MachineState.espresso) {
           final intent = de1controller.consumeStopIntent();
-          // No _finalStopReason: an aborted shot is never persisted — the
-          // abort decision itself carries the reason to the feed.
           _emitDecision(
             ShotDecisionKind.abort,
             intent ?? ShotDecisionReason.machineEnded,
@@ -440,149 +551,74 @@ class ShotSequencer {
         }
         if (machine.state.substate == MachineSubstate.preinfusion ||
             machine.state.substate == MachineSubstate.pouring) {
-          if (_bypassSAW == false && scale != null && !_scaleLost) {
-            _log.info("Taring scale again and starting timer.");
-            scaleController.tare().catchError(
-              (e) => _log.warning("Failed to tare scale for pour", e),
-            );
-            scaleController.connectedScale().startTimer();
-            _scaleTared = true;
-          }
-
-          // Start volume counting when shot begins
           _volumeCountingActive = true;
           _log.info(
             "Volume counting activated. Will start from frame ${targetProfile.targetVolumeCountStart}",
           );
 
-          // TODO: Settings control, whether reset should happen here or not
-          //_resetCommand.add(true);
           _state = ShotState.pouring;
           _stateStream.add(_state);
+          _enqueuePourCommands();
         }
         break;
 
       case ShotState.pouring:
         _trackFrameAdvance(machine.profileFrame);
-        if (_bypassSAW == false && scale != null && !_scaleLost) {
-          double currentWeight = scale.weight;
-          double weightFlow = scale.controlWeightFlow;
-          double projectedWeight =
-              currentWeight + (weightFlow * _weightFlowMultiplier);
-
-          _handleStepWeightExit(machine.profileFrame, projectedWeight, machine);
-          if (!_machineHasAutonomousSAW &&
-              targetYield > 0 &&
-              projectedWeight >= targetYield) {
-            _finalStopReason = ShotDecisionReason.targetWeight;
+        if (machine.state.substate == MachineSubstate.pouringDone ||
+            machine.state.substate == MachineSubstate.idle) {
+          if (!_stopRequested) {
+            final intent = de1controller.consumeStopIntent();
+            final reason = intent ?? ShotDecisionReason.machineEnded;
+            _finalStopReason ??= reason;
             _emitDecision(
               ShotDecisionKind.stop,
-              ShotDecisionReason.targetWeight,
-              details:
-                  'Target weight ${targetYield}g reached '
-                  '(projected: $projectedWeight). Stopping shot.',
-              data: {
-                'targetYield': targetYield,
-                'projectedWeight': projectedWeight,
+              reason,
+              details: switch (reason) {
+                ShotDecisionReason.apiStop =>
+                  'Shot stopped via REST API request',
+                ShotDecisionReason.appStop => 'Shot stopped from the app UI',
+                _ =>
+                  'Machine reported shot end '
+                      '(${machine.state.substate.name})',
               },
             );
-            de1controller.connectedDe1().requestState(
-              MachineState.idle,
-            ); // Send stop command to machine
-            _enterStopping(scale);
-            break;
           }
+          _enterStopping(
+            _scaleAvailability == _ScaleAvailability.ready
+                ? _latestScale
+                : null,
+          );
+          break;
         }
-        if (!_bypassSAW &&
+        if (!_stopRequested &&
+            !_bypassSAW &&
             !_machineHasAutonomousSAW &&
-            (scale == null || _scaleLost) &&
+            (_scaleAvailability == _ScaleAvailability.unavailable ||
+                _scaleAvailability == _ScaleAvailability.stale) &&
             (targetProfile.targetVolume ?? 0) > 0) {
-          // Use volumeFlowMultiplier to project future volume and stop at the right time
           final projectedVolume =
               _accumulatedVolume + (machine.flow * _volumeFlowMultiplier);
           if (projectedVolume > targetProfile.targetVolume!) {
-            _finalStopReason = ShotDecisionReason.targetVolume;
-            _emitDecision(
-              ShotDecisionKind.stop,
+            _requestStop(
               ShotDecisionReason.targetVolume,
-              details:
-                  'Target volume ${targetProfile.targetVolume}ml reached '
-                  '(projected: $projectedVolume). Stopping shot.',
-              data: {
+              'Target volume ${targetProfile.targetVolume}ml reached '
+              '(projected: $projectedVolume).',
+              {
                 'targetVolume': targetProfile.targetVolume,
                 'projectedVolume': projectedVolume,
               },
             );
-            de1controller.connectedDe1().requestState(
-              MachineState.idle,
-            ); // Send stop command to machine
-            _enterStopping(scale);
-            break;
           }
-        }
-        if (machine.state.substate == MachineSubstate.pouringDone ||
-            machine.state.substate == MachineSubstate.idle) {
-          // The machine reported the end without an app-side target firing.
-          // If a stop command recently passed through this app (REST client
-          // or the in-app Stop button), attribute it to that source; the
-          // unmarked remainder is the GHC or natural profile completion,
-          // indistinguishable from the substate stream alone.
-          final intent = de1controller.consumeStopIntent();
-          final reason = intent ?? ShotDecisionReason.machineEnded;
-          _finalStopReason ??= reason;
-          _emitDecision(
-            ShotDecisionKind.stop,
-            reason,
-            details: switch (reason) {
-              ShotDecisionReason.apiStop => 'Shot stopped via REST API request',
-              ShotDecisionReason.appStop => 'Shot stopped from the app UI',
-              _ =>
-                'Machine reported shot end '
-                    '(${machine.state.substate.name})',
-            },
-          );
-          _enterStopping(scale);
         }
         break;
 
       case ShotState.stopping:
-        // Stop volume counting and scale timer
-        _volumeCountingActive = false;
-        if (_bypassSAW == false && scale != null && !_scaleLost) {
-          scaleController.connectedScale().stopTimer();
-        }
-
-        _refineStoppingYield(scale);
-        if (_stoppingYieldLocked) {
-          _log.info(
-            "Final yield ${trustedFinalYield}g locked. "
-            "Final volume: ${_accumulatedVolume}ml",
-          );
-          _finishStopping();
-          break;
-        }
-
-        // Safety backstop: a noisy scale might never produce a settle / removal
-        // / spike event. Guarantee the shot still finalizes.
-        _stoppingStateFuture ??= Future.delayed(_stoppingBackstop, () {
-          if (_state == ShotState.stopping) {
-            _emitDecision(
-              ShotDecisionKind.finalize,
-              ShotDecisionReason.stoppingBackstop,
-              details:
-                  'Stopping backstop fired. '
-                  'Final volume: ${_accumulatedVolume}ml',
-              data: {'finalVolume': _accumulatedVolume},
-            );
-            _finishStopping();
-          }
-        });
         break;
 
       case ShotState.finished:
-        // Reset or prepare for next shot
         dataCollectionEnabled = false;
-        _stoppingStateFuture = null;
+        _stoppingTimer?.cancel();
+        _stoppingTimer = null;
         _state = ShotState.idle;
         _stateStream.add(_state);
         break;
@@ -590,20 +626,10 @@ class ShotSequencer {
     _log.finest("State out: ${_state.name}");
   }
 
-  /// Tracks profile-frame changes during pouring and reports firmware-natural
-  /// advances (frames the app did NOT skip) as `profileAdvance` decisions.
-  ///
-  /// `skippedSteps` records the *vacated* frame at the moment the app
-  /// requests a skip, so an increment whose previous frame is in that set is
-  /// the firmware acknowledging our skip — already reported as `profileSkip`.
-  /// The frame index is a raw byte off the BLE shot sample with no
-  /// monotonicity guarantee, so advances are emitted against a high-water
-  /// mark ([_maxFrameSeen]): a jump >1 reports each vacated frame once, and a
-  /// regression followed by recovery does not re-report frames already
-  /// emitted. The arbiter still tracks the true current frame separately.
   void _trackFrameAdvance(int profileFrame) {
     if (profileFrame != _lastProfileFrame) {
       _stepExitArbiter.onFrameAdvanced(profileFrame);
+      _stepCrossing.reset();
       _lastProfileFrame = profileFrame;
     }
     if (_maxFrameSeen < 0) {
@@ -639,18 +665,19 @@ class ShotSequencer {
     final step = targetProfile.steps[profileFrame];
     final stepExitWeight = step.weight;
     if (stepExitWeight == null || stepExitWeight <= 0) {
+      _stepCrossing.reset();
       return;
     }
 
     if (skippedSteps.contains(profileFrame)) {
+      _stepCrossing.reset();
       return;
     }
 
-    if (projectedWeight < stepExitWeight) {
+    if (!_stepCrossing.add(projectedWeight >= stepExitWeight)) {
       return;
     }
 
-    // Mixed step: consult the arbiter to avoid racing firmware.
     if (_stepExitArbiterEnabled && step.exit != null) {
       final verdict = _stepExitArbiter.evaluate(
         profileFrame: profileFrame,
@@ -675,22 +702,32 @@ class ShotSequencer {
         'projectedWeight': projectedWeight,
       },
     );
-    skippedSteps.add(profileFrame);
-    de1controller.connectedDe1().requestState(MachineState.skipStep);
+    skippedSteps = {...skippedSteps, profileFrame};
+    unawaited(_requestMachineState(MachineState.skipStep, 'skip profile step'));
   }
 
   void _enterStopping(WeightSnapshot? scale) {
     _latchTrustedFinalYield(scale);
-    // Recording stops at the machine-reported shot end.
+    _prevStoppingFlow = scale?.controlWeightFlow;
+    _volumeCountingActive = false;
     dataCollectionEnabled = false;
-    // The post-stop window exists solely to catch the final drips on the scale
-    // and fold them into the yield (see _refineStoppingYield). With a scale,
-    // hold in `stopping` until the yield locks; without one there is nothing to
-    // catch, so end the shot immediately — no settling window, no waiting.
+    if (!_bypassSAW) _enqueueTimerStop();
     _state = _trustedFinalYield != null
         ? ShotState.stopping
         : ShotState.finished;
     _stateStream.add(_state);
+    if (_state != ShotState.stopping) return;
+    _stoppingTimer?.cancel();
+    _stoppingTimer = Timer(_stoppingBackstop, () {
+      if (_state != ShotState.stopping) return;
+      _emitDecision(
+        ShotDecisionKind.finalize,
+        ShotDecisionReason.stoppingBackstop,
+        details: 'Stopping backstop fired. Final volume: $_accumulatedVolume',
+        data: {'finalVolume': _accumulatedVolume},
+      );
+      _finishStopping();
+    });
   }
 
   void _latchTrustedFinalYield(WeightSnapshot? scale) {
@@ -699,20 +736,6 @@ class ShotSequencer {
     _trustedFinalYield = weight;
   }
 
-  /// Refines the final yield during the post-stop window.
-  ///
-  /// The pump is off, so flow onto the scale can only decay. We keep taking the
-  /// rising weight — turbo catch-up included, with no flow or gram cap — and
-  /// lock the yield on the first of:
-  ///   * removal: a sharp drop (flow below -[_removalFlowThreshold]) — keep the
-  ///     peak from before it;
-  ///   * spike: flow jumping up vs the previous sample (a touch/bump rising
-  ///     against the decay) — keep the prior value;
-  ///   * settle: [_settleSampleCount] consecutive near-still samples — trust the
-  ///     settled reading itself.
-  ///
-  /// Magnitude is never gated, so a high-flow turbo tail is not mistaken for a
-  /// spike; only flow rising *against* the decay is.
   void _refineStoppingYield(WeightSnapshot? scale) {
     if (_stoppingYieldLocked) return;
     final weight = scale?.weight;
@@ -723,25 +746,19 @@ class ShotSequencer {
     final prevFlow = _prevStoppingFlow;
     _prevStoppingFlow = flow;
 
-    // Cup removal — a sharp drop. Keep the peak from before it.
     if (flow < -_removalFlowThreshold) {
       _stoppingYieldLocked = true;
       return;
     }
-    // Touch/bump — flow jumps up against the post-stop decay. Keep the prior
-    // value. Skipped on the first sample, which has no decay baseline yet.
     if (prevFlow != null && flow > prevFlow + _spikeFlowJump) {
       _stoppingYieldLocked = true;
       return;
     }
 
-    // Still filling — take the rising weight.
     if (_trustedFinalYield == null || weight > _trustedFinalYield!) {
       _trustedFinalYield = weight;
     }
 
-    // Settled — trust the settled reading (authoritative over any earlier
-    // transient peak) and lock.
     if (flow.abs() < _settleFlowThreshold) {
       if (++_settleSamples >= _settleSampleCount) {
         _trustedFinalYield = weight;
@@ -753,11 +770,9 @@ class ShotSequencer {
   }
 
   void _finishStopping() {
+    _freshnessTimer?.cancel();
+    _stoppingTimer?.cancel();
     _state = ShotState.finished;
     _stateStream.add(_state);
   }
 }
-
-// ShotState, ShotDecision, ShotDecisionKind and ShotDecisionReason moved to
-// lib/src/models/data/shot_state_event.dart (re-exported above) when the
-// decision stream gained wire serialization for /ws/v1/machine/shotState.

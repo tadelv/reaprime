@@ -34,18 +34,27 @@ class TestScaleController extends ScaleController {
     return testScale;
   }
 
-  void emitWeight(double weight, {double weightFlow = 0.0}) {
+  void emitWeight(
+    double weight, {
+    double weightFlow = 0.0,
+    double? controlWeightFlow,
+  }) {
     _weight.add(
       WeightSnapshot(
         timestamp: DateTime(2026, 1, 15, 8, 0),
         weight: weight,
         weightFlow: weightFlow,
+        controlWeightFlow: controlWeightFlow,
       ),
     );
   }
 
   void simulateDisconnect() {
     _connectionState.add(device.ConnectionState.disconnected);
+  }
+
+  void simulateConnect() {
+    _connectionState.add(device.ConnectionState.connected);
   }
 
   @override

@@ -83,6 +83,7 @@ class TestDe1 implements De1Interface {
 
   /// Records every [MachineState] passed to [requestState].
   final List<MachineState> requestedStates = [];
+  Future<void> Function(MachineState state)? requestStateHandler;
 
   /// Emit an arbitrary [MachineSnapshot].
   void emitSnapshot(MachineSnapshot snapshot) {
@@ -133,6 +134,7 @@ class TestDe1 implements De1Interface {
   @override
   Future<void> requestState(MachineState newState) async {
     requestedStates.add(newState);
+    await requestStateHandler?.call(newState);
   }
 
   @override
