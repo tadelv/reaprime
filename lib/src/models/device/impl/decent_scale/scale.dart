@@ -71,7 +71,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     return Uint8List.fromList(bytes);
   }
 
-  Future<void> _writeCommand(
+  Future<bool> _writeCommand(
     List<int> commandBytes, {
     Duration? timeout,
     bool withResponse = true,
@@ -84,6 +84,7 @@ class DecentScale implements Scale, TransportHandoffScale {
         timeout: timeout,
         withResponse: withResponse,
       );
+      return true;
     } on DeviceNotConnectedException {
       _log.info('Write failed: device not connected');
       // Don't call disconnect() here — the transport already emitted
@@ -92,6 +93,7 @@ class DecentScale implements Scale, TransportHandoffScale {
       // disconnect from a write path risks a re-entrant teardown.
       // The _isDisconnecting guard would catch it, but the extra
       // log noise is confusing.
+      return false;
     }
   }
 
@@ -209,13 +211,17 @@ class DecentScale implements Scale, TransportHandoffScale {
 
         await _sendHeartBeat();
       });
-      if (isUsingHeartBeat) {
-        await _sendHeartBeat();
-      } else {
-        await tare();
+      if (isUsingHeartBeat && !await _sendHeartBeat()) {
+        throw const DeviceNotConnectedException.scale();
       }
-      if (!_isSleeping) {
-        await _sendOledOn();
+      if (!isUsingHeartBeat && !await _sendTare()) {
+        throw const DeviceNotConnectedException.scale();
+      }
+      if (!_isSleeping && !await _sendOledOn()) {
+        throw const DeviceNotConnectedException.scale();
+      }
+      if (await _device.getConnectionState() != ConnectionState.connected) {
+        throw const DeviceNotConnectedException.scale();
       }
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
@@ -285,43 +291,49 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   @override
   Future<void> tare() async {
-    await _writeCommand([0x0F, 0x00, 0x00, 0x00, 0x01]);
+    await _sendTare();
   }
 
-  Future<void> _sendHeartBeat() async {
+  Future<bool> _sendTare() => _writeCommand([0x0F, 0x00, 0x00, 0x00, 0x01]);
+
+  Future<bool> _sendHeartBeat() async {
     if (!isUsingHeartBeat) {
-      return;
+      return true;
     }
     _log.finest("send hb");
     // Heartbeat ping: tells the scale the app is still alive so it won't
     // auto-sleep or disconnect. Send even when _isSleeping — without it
     // HDS firmware times out and disconnects BLE, which wakes the display.
     try {
-      await _writeCommand(
+      final sent = await _writeCommand(
         [0x0A, 0x03, 0xFF, 0xFF, 0x00],
         timeout: const Duration(seconds: 2),
         withResponse: true,
       );
-    } on DeviceNotConnectedException {
-      _log.info('Heartbeat write failed: device not connected');
-      await disconnect();
+      if (!sent) {
+        await disconnect();
+      }
+      return sent;
     } catch (e) {
       _log.warning('Heartbeat write failed (transient): $e');
+      return true;
     }
   }
 
   /// Causes the scale to respond with battery level, while the actual request
   /// is to turn on the display (OledOn)
-  Future<void> _requestBatteryData() async {
+  Future<bool> _requestBatteryData() async {
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
-    await _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
+    return _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
   }
 
-  Future<void> _sendOledOn() async {
+  Future<bool> _sendOledOn() async {
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
-    await _requestBatteryData();
+    if (!await _requestBatteryData()) {
+      return false;
+    }
     await Future.delayed(Duration(milliseconds: 100));
-    await _writeCommand([0x0A, 0x04, 0x00, 0x00, heartbeatByte]);
+    return _writeCommand([0x0A, 0x04, 0x00, 0x00, heartbeatByte]);
   }
 
   Future<void> _sendOledOff() async {
