@@ -2,12 +2,35 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:logging/logging.dart';
+import 'package:saf_stream/saf_stream.dart';
+import 'package:saf_util/saf_util.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 
 // LucideIcons is exported by shadcn_ui
+
+Future<void> copyPluginDirectoryFromSaf(
+  String sourceUri,
+  Directory destination,
+) async {
+  await destination.create(recursive: true);
+  for (final entry in await SafUtil().list(sourceUri)) {
+    if (entry.name == '.' ||
+        entry.name == '..' ||
+        entry.name.contains('/') ||
+        entry.name.contains(r'\')) {
+      throw FormatException('Invalid plugin entry name: ${entry.name}');
+    }
+    final destinationPath = '${destination.path}/${entry.name}';
+    if (entry.isDir) {
+      await copyPluginDirectoryFromSaf(entry.uri, Directory(destinationPath));
+    } else {
+      await SafStream().copyToLocalFile(entry.uri, destinationPath);
+    }
+  }
+}
 
 // Plugins list and settings
 // Shows a list of all available plugins,
@@ -368,42 +391,42 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
 
   Future<void> _installPlugin(BuildContext context) async {
     final logger = Logger('PluginsSettingsView');
+    Directory? tempDir;
     try {
-      final result = await FilePicker.getDirectoryPath(
-        // type: FileType.custom,
-        // allowedExtensions: ['reaplugin'],
-        // allowMultiple: false,
-      );
-
-      if (result == null) {
-        return;
+      tempDir = await Directory.systemTemp.createTemp();
+      if (Platform.isAndroid) {
+        final selected = await SafUtil().pickDirectory(
+          writePermission: false,
+          persistablePermission: false,
+        );
+        if (selected == null) return;
+        if (!selected.name.endsWith('.reaplugin')) {
+          throw Exception('selection is not a .reaplugin');
+        }
+        await copyPluginDirectoryFromSaf(selected.uri, tempDir);
+      } else {
+        final selected = await FilePicker.getDirectoryPath();
+        if (selected == null) return;
+        if (!selected.endsWith('.reaplugin')) {
+          throw Exception('selection is not a .reaplugin');
+        }
+        await _copyDirectoryRecursively(Directory(selected), tempDir);
       }
-      if (result.endsWith(".reaplugin") == false) {
-        throw Exception("selection is not a .reaplugin");
-      }
-      final tempDir = await Directory.systemTemp.createTemp();
 
-      final srcDir = Directory(result);
-
-      // Recursively copy the plugin directory to temp directory
-      await _copyDirectoryRecursively(srcDir, tempDir);
-
-      // Install the plugin from the temp directory
       await widget.pluginLoaderService.addPlugin(tempDir.path);
 
       if (context.mounted) {
         _showSnackBar(context, 'Plugin installed successfully');
       }
-
-      // Refresh the plugin list
       _refreshPlugins();
-
-      // Clean up temp directory
-      await tempDir.delete(recursive: true);
     } catch (e, st) {
       logger.warning('Failed to install plugin', e, st);
       if (context.mounted) {
         _showSnackBar(context, 'Failed to install plugin: $e', isError: true);
+      }
+    } finally {
+      if (await tempDir?.exists() ?? false) {
+        await tempDir!.delete(recursive: true);
       }
     }
   }
