@@ -11,12 +11,45 @@ import 'package:reaprime/src/plugins/plugin_manifest.dart';
 
 // LucideIcons is exported by shadcn_ui
 
+const _maxPluginSafDepth = 32;
+const _maxPluginSafEntries = 10000;
+
+class _PluginSafCopyState {
+  final visitedDirectoryUris = <String>{};
+  int entriesSeen = 0;
+}
+
 Future<void> copyPluginDirectoryFromSaf(
   String sourceUri,
   Directory destination,
+) => _copyPluginDirectoryFromSaf(
+  sourceUri,
+  destination,
+  0,
+  _PluginSafCopyState(),
+);
+
+Future<void> _copyPluginDirectoryFromSaf(
+  String sourceUri,
+  Directory destination,
+  int depth,
+  _PluginSafCopyState state,
 ) async {
+  if (depth > _maxPluginSafDepth) {
+    throw const FormatException('Plugin directory exceeds maximum depth');
+  }
+  if (!state.visitedDirectoryUris.add(sourceUri)) {
+    throw FormatException('Plugin contains repeated directory URI: $sourceUri');
+  }
+
+  final entries = await SafUtil().list(sourceUri);
+  state.entriesSeen += entries.length;
+  if (state.entriesSeen > _maxPluginSafEntries) {
+    throw const FormatException('Plugin contains too many entries');
+  }
+
   await destination.create(recursive: true);
-  for (final entry in await SafUtil().list(sourceUri)) {
+  for (final entry in entries) {
     if (entry.name == '.' ||
         entry.name == '..' ||
         entry.name.contains('/') ||
@@ -25,7 +58,12 @@ Future<void> copyPluginDirectoryFromSaf(
     }
     final destinationPath = '${destination.path}/${entry.name}';
     if (entry.isDir) {
-      await copyPluginDirectoryFromSaf(entry.uri, Directory(destinationPath));
+      await _copyPluginDirectoryFromSaf(
+        entry.uri,
+        Directory(destinationPath),
+        depth + 1,
+        state,
+      );
     } else {
       await SafStream().copyToLocalFile(entry.uri, destinationPath);
     }
@@ -425,8 +463,12 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
         _showSnackBar(context, 'Failed to install plugin: $e', isError: true);
       }
     } finally {
-      if (await tempDir?.exists() ?? false) {
-        await tempDir!.delete(recursive: true);
+      try {
+        if (await tempDir?.exists() ?? false) {
+          await tempDir!.delete(recursive: true);
+        }
+      } catch (e, st) {
+        logger.warning('Failed to clean up plugin staging directory', e, st);
       }
     }
   }

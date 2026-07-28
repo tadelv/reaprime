@@ -76,4 +76,82 @@ void main() {
       '<html></html>',
     );
   });
+
+  test('rejects a self-referencing SAF directory', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(safUtil, (call) async {
+          if (call.method != 'list') return null;
+          return [
+            {
+              'uri': 'content://cycle',
+              'name': 'cycle',
+              'isDir': true,
+            },
+          ];
+        });
+
+    await expectLater(
+      copyPluginDirectoryFromSaf('content://cycle', destination),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('repeated directory'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects excessive SAF directory nesting', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(safUtil, (call) async {
+          if (call.method != 'list') return null;
+          final uri = (call.arguments as Map)['uri'] as String;
+          final depth = int.parse(uri.split('/').last);
+          return [
+            {
+              'uri': 'content://depth/${depth + 1}',
+              'name': 'nested',
+              'isDir': true,
+            },
+          ];
+        });
+
+    await expectLater(
+      copyPluginDirectoryFromSaf('content://depth/0', destination),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('maximum depth'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects excessive SAF directory entries', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(safUtil, (call) async {
+          if (call.method != 'list') return null;
+          return List.generate(
+            10001,
+            (index) => {
+              'uri': 'content://file/$index',
+              'name': '$index.txt',
+              'isDir': false,
+            },
+          );
+        });
+
+    await expectLater(
+      copyPluginDirectoryFromSaf('content://plugin', destination),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('too many entries'),
+        ),
+      ),
+    );
+  });
 }
