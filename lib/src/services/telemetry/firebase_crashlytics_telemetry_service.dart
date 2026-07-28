@@ -39,8 +39,8 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
     }
 
     // TELE-04: Set up global error handlers to route through TelemetryService.
-    // Filter known-benign exceptions (DeviceNotConnectedException, gone-device
-    // UniversalBleException, Queue Cancelled) that escape from fire-and-forget
+    // Filter known-benign exceptions (DeviceNotConnectedException and typed
+    // UniversalBleException disconnect/cancellation errors) from fire-and-forget
     // contexts (Timer callbacks, unawaited Futures). These are handled by upper
     // layers but can reach the framework error handler without being caught —
     // recording them as FATAL creates false crash signals in Crashlytics

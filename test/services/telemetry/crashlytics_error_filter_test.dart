@@ -25,7 +25,7 @@ void main() {
       });
     });
 
-    group('UniversalBleException with gone-device codes', () {
+    group('UniversalBleException with expected BLE codes', () {
       // We match by toString() prefix + error code string because we can't
       // import universal_ble in the telemetry layer (would create a layer
       // dependency). The crash events use both formats:
@@ -74,6 +74,13 @@ void main() {
         expect(isBenignFrameworkError(e), isTrue);
       });
 
+      test('operationCancelled is benign', () {
+        final e = _FakeUniversalBleException(
+          'Code: UniversalBleErrorCode.operationCancelled',
+        );
+        expect(isBenignFrameworkError(e), isTrue);
+      });
+
       test('short format "Code: deviceNotFound" is benign', () {
         final e = _FakeUniversalBleException(
           'Code: deviceNotFound, Message: Unknown deviceId',
@@ -82,11 +89,6 @@ void main() {
       });
     });
 
-    group('Queue Cancelled exception', () {
-      test('Exception("Queue Cancelled") is benign', () {
-        expect(isBenignFrameworkError(Exception('Queue Cancelled')), isTrue);
-      });
-    });
 
     group('non-benign errors (should crash)', () {
       test('StateError is NOT benign', () {
