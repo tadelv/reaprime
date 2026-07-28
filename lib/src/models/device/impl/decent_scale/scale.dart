@@ -197,7 +197,7 @@ class DecentScale implements Scale, TransportHandoffScale {
               "No BLE notifications for ${_watchdogDisconnectTicks * 4}s "
               "(total=$_totalNotifications, uptime=${_heartbeatTotalTicks * 4}s), disconnecting",
             );
-            disconnect();
+            unawaited(_disconnect(powerOff: false));
             return;
           } else if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
               !_watchdogRetryAttempted) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
@@ -304,6 +305,32 @@ void main() {
 
     await rediscoveredScale.disconnectForHandoff();
     await transport.dispose();
+    await rediscoveredTransport.dispose();
+  });
+
+  test('notification watchdog disconnects without powering off', () {
+    fakeAsync((async) {
+      final transport = _RecordingBleTransport();
+      final scale = DecentScale(transport: transport);
+      final states = <ConnectionState>[];
+      scale.connectionState.listen(states.add);
+      var connected = false;
+      scale.onConnect().then((_) => connected = true);
+
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 100));
+      async.flushMicrotasks();
+      expect(connected, isTrue);
+      transport.writes.clear();
+
+      async.elapse(const Duration(seconds: 20));
+      async.flushMicrotasks();
+
+      expect(_hasCommand(transport, 0x0A, 0x02), isFalse);
+      expect(transport.disconnectCalls, 1);
+      expect(states.last, ConnectionState.disconnected);
+      transport.dispose();
+    });
   });
 
   test(
