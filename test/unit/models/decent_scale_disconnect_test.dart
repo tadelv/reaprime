@@ -271,42 +271,57 @@ void main() {
     await transport.dispose();
   });
 
-  test('connection and rediscovery never apply transport-level tare', () async {
-    final transport = _RecordingBleTransport();
-    final scale = DecentScale(transport: transport);
+  test(
+    'connection and rediscovery use heartbeat-off LED-on without tare',
+    () async {
+      final transport = _RecordingBleTransport();
+      final scale = DecentScale(transport: transport);
 
-    await scale.onConnect();
+      await scale.onConnect();
 
-    expect(
-      _hasCommand(transport, 0x0F),
-      isFalse,
-    );
-    expect(
-      transport.writes
-          .where((data) => data[1] == 0x0A && {0x01, 0x04}.contains(data[2]))
-          .every((data) => data[5] == 0x00),
-      isTrue,
-    );
+      expect(
+        _hasCommand(transport, 0x0F),
+        isFalse,
+      );
+      expect(
+        transport.writes,
+        contains(orderedEquals([0x03, 0x0A, 0x01, 0x01, 0x00, 0x00, 0x09])),
+      );
+      expect(
+        transport.writes
+            .where((data) => data[1] == 0x0A && {0x01, 0x04}.contains(data[2]))
+            .every((data) => data[5] == 0x00),
+        isTrue,
+      );
 
-    await scale.disconnectForHandoff();
-    transport.writes.clear();
-    await scale.onConnect();
+      await scale.disconnectForHandoff();
+      transport.writes.clear();
+      await scale.onConnect();
 
-    expect(_hasCommand(transport, 0x0F), isFalse);
+      expect(_hasCommand(transport, 0x0F), isFalse);
+      expect(
+        transport.writes,
+        contains(orderedEquals([0x03, 0x0A, 0x01, 0x01, 0x00, 0x00, 0x09])),
+      );
 
-    await scale.disconnectForHandoff();
-    final rediscoveredTransport = _RecordingBleTransport(
-      nativeState: ConnectionState.connected,
-    );
-    final rediscoveredScale = DecentScale(transport: rediscoveredTransport);
-    await rediscoveredScale.onConnect();
+      await scale.disconnectForHandoff();
+      final rediscoveredTransport = _RecordingBleTransport(
+        nativeState: ConnectionState.connected,
+      );
+      final rediscoveredScale = DecentScale(transport: rediscoveredTransport);
+      await rediscoveredScale.onConnect();
 
-    expect(_hasCommand(rediscoveredTransport, 0x0F), isFalse);
+      expect(_hasCommand(rediscoveredTransport, 0x0F), isFalse);
+      expect(
+        rediscoveredTransport.writes,
+        contains(orderedEquals([0x03, 0x0A, 0x01, 0x01, 0x00, 0x00, 0x09])),
+      );
 
-    await rediscoveredScale.disconnectForHandoff();
-    await transport.dispose();
-    await rediscoveredTransport.dispose();
-  });
+      await rediscoveredScale.disconnectForHandoff();
+      await transport.dispose();
+      await rediscoveredTransport.dispose();
+    },
+  );
 
   test('notification watchdog disconnects without powering off', () {
     fakeAsync((async) {
