@@ -141,12 +141,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
       );
 
       if (result != null && mounted) {
-        // On some platforms saveFile with bytes writes the file,
-        // on others it only returns the path and we need to write.
-        final file = File(result);
-        if (!await file.exists() || await file.length() == 0) {
-          await file.writeAsBytes(bytes);
-        }
         setState(
           () => _validationMessage = 'Report saved to: $result',
         );
