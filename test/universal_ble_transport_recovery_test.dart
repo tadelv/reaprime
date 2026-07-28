@@ -17,6 +17,8 @@ const _writeTimeout = Duration(milliseconds: 50);
 /// `connectionStateResult` is what the OS-level probe reports.
 class _FakeBlePlatform extends UniversalBlePlatform {
   BleConnectionState connectionStateResult = BleConnectionState.connected;
+  Completer<BleConnectionState>? connectionStateBlocker;
+  bool emitDisconnectEvent = true;
   bool hangWrites = false;
   Completer<void>? writeBlocker;
   UniversalBleException? writeError;
@@ -65,7 +67,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   @override
   Future<void> disconnect(String deviceId) async {
     disconnectCalls.add(deviceId);
-    updateConnection(deviceId, false);
+    if (emitDisconnectEvent) updateConnection(deviceId, false);
   }
 
   @override
@@ -141,7 +143,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   @override
   Future<BleConnectionState> getConnectionState(String deviceId) async {
     getConnectionStateCalls++;
-    return connectionStateResult;
+    return connectionStateBlocker?.future ?? connectionStateResult;
   }
 
   @override
@@ -177,6 +179,7 @@ void main() {
     transport = UniversalBleTransport(
       device: bleDevice(deviceId),
       faultRecoveryGrace: const Duration(milliseconds: 200),
+      faultRecoveryDisconnectTimeout: const Duration(milliseconds: 20),
     );
     observedStates = [];
     stateSub = transport.connectionState.listen(observedStates.add);
@@ -245,6 +248,24 @@ void main() {
       expect(observedStates, contains(device.ConnectionState.disconnected));
       expect(platform.disconnectCalls, contains(deviceId),
           reason: 'forced teardown must release the OS-level handle');
+    });
+
+    test('failed disconnect leaves unresolved queue faulted', () async {
+      platform.hangWrites = true;
+      platform.emitDisconnectEvent = false;
+
+      await timedOutWrite();
+      await pump(300);
+
+      expect(platform.disconnectCalls, contains(deviceId));
+      expect(
+        UniversalBle.getQueueDiagnostics(deviceId).state,
+        QueueDiagnosticsState.faulted,
+      );
+      expect(
+        observedStates,
+        isNot(contains(device.ConnectionState.disconnected)),
+      );
     });
 
     test('late native completion clears the faulted queue without disconnecting',
@@ -425,6 +446,43 @@ void main() {
 
       expect(platform.getConnectionStateCalls, probesBefore,
           reason: 'no probe when we already know we are disconnected');
+    });
+
+    test('probe completing after reconnect cannot tear down new connection',
+        () async {
+      platform.connectionStateBlocker = Completer<BleConnectionState>();
+      platform.updateScanResult(bleDevice(deviceId));
+      await pump(10);
+      expect(platform.getConnectionStateCalls, 1);
+
+      await transport.connect();
+      platform.hangWrites = true;
+      platform.writeBlocker = Completer<void>();
+      final active = transport.write(
+        _serviceUuid,
+        _charUuid,
+        Uint8List.fromList([1]),
+        timeout: const Duration(seconds: 1),
+      );
+      final pending = transport.write(
+        _serviceUuid,
+        _charUuid,
+        Uint8List.fromList([2]),
+        timeout: const Duration(seconds: 1),
+      );
+      await pump(10);
+
+      platform.connectionStateBlocker!.complete(BleConnectionState.disconnected);
+      await pump(10);
+      expect(
+        observedStates.last,
+        device.ConnectionState.connected,
+      );
+
+      platform.hangWrites = false;
+      platform.writeBlocker!.complete();
+      await Future.wait([active, pending]);
+      expect(platform.writeCalls, 2);
     });
 
     test('advert probes are throttled', () async {

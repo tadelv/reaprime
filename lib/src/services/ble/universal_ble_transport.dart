@@ -70,12 +70,14 @@ class UniversalBleTransport implements BLETransport {
     bool? isAndroidOverride,
     bool? isLinuxOverride,
     Duration faultRecoveryGrace = const Duration(seconds: 2),
+    Duration faultRecoveryDisconnectTimeout = const Duration(seconds: 5),
   })  : _device = device,
         _stopScan = stopScan,
         _requestLargeMtuNonAndroid = requestLargeMtuNonAndroid,
         _isAndroidOverride = isAndroidOverride,
         _isLinuxOverride = isLinuxOverride,
-        _faultRecoveryGrace = faultRecoveryGrace {
+        _faultRecoveryGrace = faultRecoveryGrace,
+        _faultRecoveryDisconnectTimeout = faultRecoveryDisconnectTimeout {
 
     _log = Logger("BLETransport-${device.deviceId}");
   }
@@ -91,6 +93,7 @@ class UniversalBleTransport implements BLETransport {
   final bool? _isAndroidOverride;
   final bool? _isLinuxOverride;
   final Duration _faultRecoveryGrace;
+  final Duration _faultRecoveryDisconnectTimeout;
 
   Future<void> _stopScanViaOwner() =>
       _stopScan?.call() ?? UniversalBle.stopScan();
@@ -411,7 +414,9 @@ class UniversalBleTransport implements BLETransport {
   void _onOperationTimeout(String operation, String path) {
     _log.warning('GATT $operation($path) timed out — BLE queue faulted');
     final generation = _connectionGeneration;
-    unawaited(_probeAndDeclareIfDead('GATT $operation timeout'));
+    unawaited(
+      _probeAndDeclareIfDead('GATT $operation timeout', generation),
+    );
     if (_recoveringQueueGeneration == generation) return;
     _recoveringQueueGeneration = generation;
     unawaited(_recoverFaultedQueue(generation, 'GATT $operation($path)'));
@@ -432,18 +437,10 @@ class UniversalBleTransport implements BLETransport {
             '$context native operation remained unresolved for '
             '${_faultRecoveryGrace.inMilliseconds}ms — disconnecting',
           );
-          try {
-            await UniversalBle.disconnect(
-              _device.deviceId,
-              timeout: const Duration(seconds: 5),
-            );
-          } catch (e) {
-            _log.fine('Fault-recovery disconnect failed: $e');
-          }
-          if (generation == _connectionGeneration) {
-            _clearQueue(UniversalBleErrorCode.deviceDisconnected);
-            _declareLinkDead('$context did not settle after queue timeout');
-          }
+          await UniversalBle.disconnect(
+            _device.deviceId,
+            timeout: _faultRecoveryDisconnectTimeout,
+          );
           return;
         }
         await Future<void>.delayed(_faultRecoveryPollInterval);
@@ -489,13 +486,18 @@ class UniversalBleTransport implements BLETransport {
     _log.warning(
       'Received advertisement while believed connected — probing OS link state',
     );
-    unawaited(_probeAndDeclareIfDead('advertising while believed connected'));
+    unawaited(
+      _probeAndDeclareIfDead(
+        'advertising while believed connected',
+        _connectionGeneration,
+      ),
+    );
   }
 
   /// Ask the OS for the actual connection state. Declares the link dead
   /// only on an explicit disconnected/disconnecting answer — a probe
   /// error is inconclusive and must not tear down a possibly-live link.
-  Future<void> _probeAndDeclareIfDead(String context) async {
+  Future<void> _probeAndDeclareIfDead(String context, int generation) async {
     final BleConnectionState state;
     try {
       state = await UniversalBle.getConnectionState(
@@ -503,10 +505,12 @@ class UniversalBleTransport implements BLETransport {
         timeout: _linkProbeTimeout,
       );
     } catch (e) {
+      if (generation != _connectionGeneration) return;
       _log.fine('Link probe inconclusive ($context): $e');
       return;
     }
-    if (state == BleConnectionState.connected ||
+    if (generation != _connectionGeneration ||
+        state == BleConnectionState.connected ||
         state == BleConnectionState.connecting) {
       return;
     }

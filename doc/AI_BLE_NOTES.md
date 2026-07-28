@@ -157,9 +157,9 @@ Dart `Future.timeout()` does not cancel the native BLE Future. When a queued ope
 `UniversalBleTransport._onOperationTimeout()` must never immediately clear this barrier. Recovery follows one of two safe paths:
 
 1. Poll payload-free queue diagnostics. Once `activeOperations == 0`, clear the faulted generation with `clearQueueWithError(... operationCancelled)`; the next command creates a clean generation.
-2. If the native operation is still unresolved after the 2-second grace period, call unqueued `disconnect()`, then clear with `deviceDisconnected` and let the normal disconnect/reconnect cascade replace the physical connection.
+2. If the native operation is still unresolved after the 2-second grace period, request an unqueued `disconnect()`. Keep the queue faulted unless the native disconnect event confirms teardown; `UniversalBle.disconnect()` swallows timeout/failure, so its returned Future is not confirmation. The native event clears with `deviceDisconnected` and starts the normal reconnect cascade.
 
-A queue can produce only one wrapper timeout per faulted generation; followers are cancelled rather than dispatched. Therefore the old "three consecutive operation timeouts" policy is invalid under 2.2.1. The bounded unresolved-operation grace period is now the dead-link policy. Recovery tasks carry the transport connection generation so late completion from an old connection cannot clear a replacement queue.
+A queue can produce only one wrapper timeout per faulted generation; followers are cancelled rather than dispatched. Therefore the old "three consecutive operation timeouts" policy is invalid under 2.2.1. The bounded unresolved-operation grace period is now the dead-link policy. Recovery tasks and asynchronous OS probes carry the transport connection generation so late completion from an old connection cannot clear a replacement queue or emit stale state.
 
 `operationCancelled` means local queue recovery, never physical disconnect. It is benign Crashlytics noise. `deviceDisconnected` remains reserved for a confirmed or forced physical disconnect. The legacy `Exception('Queue Cancelled')` string sentinel is not part of the 2.2.1 path.
 
@@ -188,7 +188,7 @@ Three reusable idioms from the comms-harden effort:
 | Duplicate state messages | Listener stacking. Check `CharSubscriptions` is cancel-before-replace. |
 | Scale write exceptions escaping to framework | Scale write path missing `DeviceNotConnectedException` catch. Add at `_writeCommand` / `_safeWrite`. |
 | BLE scan overlaps | `ScanStateGuardian` — check adapter state tracking. |
-| `TimeoutException` in `universal_ble/queue.dart` | Queue generation must stay faulted until the native Future settles or the 2-second grace forces disconnect; never clear immediately. May relate to zombie-link (#431) or concurrent BLE write contention (#423). |
+| `TimeoutException` in `universal_ble/queue.dart` | Queue generation must stay faulted until the native Future settles or a native event confirms disconnect; a disconnect request timing out is not confirmation. May relate to zombie-link (#431) or concurrent BLE write contention (#423). |
 | `PlatformException: Location services required` | Android location permissions not granted. Onboarding check or troubleshooting wizard (#125/#126). |
 
 ## Android USB Attach Recovery
