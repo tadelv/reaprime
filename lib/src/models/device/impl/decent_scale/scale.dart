@@ -51,9 +51,11 @@ class DecentScale implements Scale, TransportHandoffScale {
   // dropping (GATT busy-window, Android radio starvation, etc).
   // Resets on every notification (_parseNotification).
   Timer? _notificationWatchdog;
+  Future<void>? _notificationRecovery;
   Future<void>? _displayOperation;
   Completer<void>? _initializationNotification;
   static const Duration _notificationWatchdogTimeout = Duration(seconds: 5);
+  int _maintenanceGeneration = 0;
   int _displayGeneration = 0;
   bool _desiredDisplaySleeping = false;
 
@@ -144,6 +146,7 @@ class DecentScale implements Scale, TransportHandoffScale {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
+    _stopMaintenance();
 
     try {
       await _device.connect();
@@ -186,53 +189,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       _totalNotifications = 0;
       _heartbeatTotalTicks = 0;
       _resetNotificationWatchdog();
-      _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {
-        // Use .value (BehaviorSubject current state). .stream.first
-        // returns the seed (discovered) — caused 4s disconnect on every
-        // first connect. Don't call disconnect() here — the state change
-        // already emitted disconnected; re-disconnecting is re-entrant.
-        if (_connectionStateController.value != ConnectionState.connected) {
-          timer.cancel();
-          return;
-        }
-        _heartbeatTotalTicks++;
-
-        // Periodic battery level request every 2 ticks (8s) when awake
-        if (_heartbeatTotalTicks % 2 == 0) {
-          final uptimeMin = (_heartbeatTotalTicks * 4) ~/ 60;
-          _log.fine(
-            "heartbeat: ${uptimeMin}m uptime, $_totalNotifications notifications",
-          );
-          if (!_isSleeping) {
-            await _requestBatteryData();
-          }
-        }
-
-        // Watchdog: only active when scale is awake (weight notifications
-        // flowing). When sleeping, scale sends nothing — skip checks.
-        if (!_isSleeping) {
-          _ticksSinceLastNotification++;
-
-          if (_ticksSinceLastNotification >= _watchdogDisconnectTicks) {
-            _log.severe(
-              "No BLE notifications for ${_watchdogDisconnectTicks * 4}s "
-              "(total=$_totalNotifications, uptime=${_heartbeatTotalTicks * 4}s), disconnecting",
-            );
-            unawaited(_disconnect(powerOff: false));
-            return;
-          } else if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
-              !_watchdogRetryAttempted) {
-            _watchdogRetryAttempted = true;
-            _log.warning(
-              "No BLE notifications for ${_watchdogWarningTicks * 4}s "
-              "(total=$_totalNotifications), re-subscribing",
-            );
-            _retryNotifications();
-          }
-        }
-
-        await _sendHeartBeat();
-      });
       if (isUsingHeartBeat && !await _sendHeartBeat()) {
         throw const DeviceNotConnectedException.scale();
       }
@@ -240,13 +196,12 @@ class DecentScale implements Scale, TransportHandoffScale {
         throw const DeviceNotConnectedException.scale();
       }
       _connectionStateController.add(ConnectionState.connected);
+      _startMaintenance();
     } catch (e, stackTrace) {
       _log.warning('Failed to initialize scale: $e');
       await subscription?.cancel();
       subscription = null;
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
-      _notificationWatchdog?.cancel();
+      _stopMaintenance();
       try {
         await _device.disconnect();
       } catch (disconnectError, disconnectStackTrace) {
@@ -260,6 +215,62 @@ class DecentScale implements Scale, TransportHandoffScale {
       _connectionStateController.add(ConnectionState.disconnected);
       Error.throwWithStackTrace(e, stackTrace);
     }
+  }
+
+  void _startMaintenance() {
+    final generation = ++_maintenanceGeneration;
+    _scheduleMaintenance(generation);
+  }
+
+  void _scheduleMaintenance(int generation) {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer(const Duration(seconds: 4), () {
+      unawaited(_runMaintenance(generation));
+    });
+  }
+
+  Future<void> _runMaintenance(int generation) async {
+    if (!_isCurrentMaintenance(generation)) return;
+    try {
+      _heartbeatTotalTicks++;
+      if (_heartbeatTotalTicks.isEven && !_isSleeping) {
+        await _requestBatteryData();
+      }
+      if (!_isSleeping) {
+        _ticksSinceLastNotification++;
+        if (_ticksSinceLastNotification >= _watchdogDisconnectTicks) {
+          await _disconnect(powerOff: false);
+          return;
+        }
+        if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
+            !_watchdogRetryAttempted) {
+          _watchdogRetryAttempted = true;
+          _retryNotifications();
+        }
+      }
+      await _sendHeartBeat();
+    } on TimeoutException catch (error) {
+      _log.warning('Scale maintenance timed out: $error');
+    } catch (error, stackTrace) {
+      _log.warning('Scale maintenance failed', error, stackTrace);
+    } finally {
+      if (_isCurrentMaintenance(generation)) {
+        _scheduleMaintenance(generation);
+      }
+    }
+  }
+
+  bool _isCurrentMaintenance(int generation) =>
+      generation == _maintenanceGeneration &&
+      _connectionStateController.value == ConnectionState.connected &&
+      !_isDisconnecting;
+
+  void _stopMaintenance() {
+    _maintenanceGeneration++;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _notificationWatchdog?.cancel();
+    _notificationWatchdog = null;
   }
 
   Future<bool> _confirmDataChannel({bool Function()? isCurrent}) async {
@@ -343,9 +354,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     final activeSubscription = subscription;
     subscription = null;
     activeSubscription?.cancel();
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-    _notificationWatchdog?.cancel();
+    _stopMaintenance();
     if (powerOff) {
       try {
         // Best-effort: `disconnect()` often fires *on* a transport-state
@@ -530,13 +539,23 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   void _retryNotifications() {
+    if (_notificationRecovery != null || _isDisconnecting) return;
+    final operation = _registerNotifications();
+    _notificationRecovery = operation;
     unawaited(
-      _registerNotifications().catchError((
-        Object error,
-        StackTrace stackTrace,
-      ) {
-        _log.warning('BLE notification re-subscribe failed', error, stackTrace);
-      }),
+      operation
+          .catchError((Object error, StackTrace stackTrace) {
+            _log.warning(
+              'BLE notification re-subscribe failed',
+              error,
+              stackTrace,
+            );
+          })
+          .whenComplete(() {
+            if (identical(_notificationRecovery, operation)) {
+              _notificationRecovery = null;
+            }
+          }),
     );
   }
 
@@ -554,26 +573,20 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   void _parseNotification(List<int> data) {
-    if (_dataFrameType(data) != null &&
-        !(_initializationNotification?.isCompleted ?? true)) {
+    final frameType = _dataFrameType(data);
+    if (frameType == null) return;
+    if (!(_initializationNotification?.isCompleted ?? true)) {
       _initializationNotification!.complete();
     }
     _ticksSinceLastNotification = 0;
     _watchdogRetryAttempted = false;
     _totalNotifications++;
     _resetNotificationWatchdog();
-    if (data.length < 4) return;
     _log.finest("$hashCode recv: ${data[1].toHex()}");
-    switch (data[1]) {
-      case 0xCE:
-      case 0xCA:
-        // weight
-        _parseWeight(data);
-      case 0x0A:
-        // battery
-        if (data.length >= 7) {
-          _parseStatusResponse(data);
-        }
+    if (frameType == 'weight') {
+      _parseWeight(data);
+    } else {
+      _parseStatusResponse(data);
     }
   }
 
@@ -589,14 +602,12 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   void _parseWeight(List<int> data) {
-    var d = ByteData(2);
-    d.setInt8(0, data[2]);
-    d.setInt8(1, data[3]);
-    var weight = d.getInt16(0) / 10;
+    var raw = (data[2] << 8) | data[3];
+    if ((raw & 0x8000) != 0) raw -= 0x10000;
     _streamController.add(
       ScaleSnapshot(
         timestamp: DateTime.now(),
-        weight: weight,
+        weight: raw / 10,
         batteryLevel: _batteryLevel.toInt(),
       ),
     );

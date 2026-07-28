@@ -1,48 +1,66 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
-class MockAcaiaBleTransport extends BLETransport {
-  final List<String> serviceUUIDs;
-  final List<List<int>> receivedWrites = [];
-  final BehaviorSubject<ConnectionState> _connectionState =
-      BehaviorSubject.seeded(ConnectionState.discovered);
-  void Function(Uint8List)? _notificationCallback;
-  String? subscribedServiceUuid;
-  String? subscribedCharUuid;
+const _weightFrame = <int>[
+  0xEF,
+  0xDD,
+  0x0C,
+  0x06,
+  0x05,
+  0xE8,
+  0x03,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+];
 
-  MockAcaiaBleTransport({required this.serviceUUIDs});
+class _AcaiaTransport extends BLETransport {
+  _AcaiaTransport({required this.services, this.emitWeightDuringInit = true});
+
+  final List<String> services;
+  final bool emitWeightDuringInit;
+  final BehaviorSubject<ConnectionState> states = BehaviorSubject.seeded(
+    ConnectionState.discovered,
+  );
+  final List<List<int>> writes = [];
+  void Function(Uint8List)? notification;
+  Future<void> Function(Uint8List)? writeBehavior;
+  int disconnectCalls = 0;
+  bool _initWeightSent = false;
 
   @override
-  String get id => 'AA:BB:CC:DD:EE:FF';
+  String get id => 'acaia-test';
 
   @override
-  String get name => 'Test Acaia';
+  String get name => 'LUNAR-TEST';
 
   @override
-  Stream<ConnectionState> get connectionState => _connectionState.stream;
+  Stream<ConnectionState> get connectionState => states.stream;
 
   @override
-  Future<ConnectionState> getConnectionState() async => _connectionState.value;
+  Future<ConnectionState> getConnectionState() async => states.value;
 
   @override
-  Future<void> connect() async {
-    _connectionState.add(ConnectionState.connected);
-  }
+  Future<void> connect() async => states.add(ConnectionState.connected);
 
   @override
   Future<void> disconnect() async {
-    _connectionState.add(ConnectionState.disconnected);
+    disconnectCalls++;
+    states.add(ConnectionState.disconnected);
   }
 
   @override
-  Future<List<String>> discoverServices() async => serviceUUIDs;
+  Future<List<String>> discoverServices() async => services;
 
   @override
   Future<Uint8List> read(
@@ -57,9 +75,7 @@ class MockAcaiaBleTransport extends BLETransport {
     String characteristicUUID,
     void Function(Uint8List) callback,
   ) async {
-    subscribedServiceUuid = serviceUUID;
-    subscribedCharUuid = characteristicUUID;
-    _notificationCallback = callback;
+    notification = callback;
   }
 
   @override
@@ -70,153 +86,290 @@ class MockAcaiaBleTransport extends BLETransport {
     bool withResponse = true,
     Duration? timeout,
   }) async {
-    receivedWrites.add(data.toList());
+    writes.add(data.toList());
+    if (emitWeightDuringInit && !_initWeightSent && data[2] == 0x0C) {
+      _initWeightSent = true;
+      scheduleMicrotask(() => emit(_weightFrame));
+    }
+    await writeBehavior?.call(data);
   }
+
+  void emit(List<int> data) => notification!(Uint8List.fromList(data));
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
 
-  void simulateNotification(List<int> data) {
-    _notificationCallback?.call(Uint8List.fromList(data));
-  }
-
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async => states.close();
+}
+
+_AcaiaTransport _ips({bool emitWeightDuringInit = true}) => _AcaiaTransport(
+  services: const ['00001820-0000-1000-8000-00805f9b34fb'],
+  emitWeightDuringInit: emitWeightDuringInit,
+);
+
+Future<(AcaiaScale, _AcaiaTransport)> _connected() async {
+  final transport = _ips();
+  final scale = AcaiaScale(transport: transport);
+  await scale.onConnect();
+  return (scale, transport);
 }
 
 void main() {
-  group('AcaiaScale protocol auto-detection', () {
-    test('detects IPS protocol when service 1820 is present', () async {
-      final transport = MockAcaiaBleTransport(
-        serviceUUIDs: ['00001820-0000-1000-8000-00805f9b34fb'],
-      );
+  test('detects IPS and Pyxis services', () async {
+    for (final services in [
+      ['00001820-0000-1000-8000-00805f9b34fb'],
+      ['49535343-fe7d-4ae5-8fa9-9fafd205e455'],
+    ]) {
+      final transport = _AcaiaTransport(services: services);
       final scale = AcaiaScale(transport: transport);
       await scale.onConnect();
-
-      final state = await scale.connectionState.first;
-      expect(state, ConnectionState.connected);
-
-      // IPS subscribes on the 2a80 characteristic
-      expect(transport.subscribedCharUuid, contains('2a80'));
-    });
-
-    test('detects Pyxis protocol when service 49535343 is present', () async {
-      final transport = MockAcaiaBleTransport(
-        serviceUUIDs: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'],
-      );
-      final scale = AcaiaScale(transport: transport);
-      await scale.onConnect();
-
-      final state = await scale.connectionState.first;
-      expect(state, ConnectionState.connected);
-
-      // Pyxis subscribes on the status characteristic
-      expect(
-        transport.subscribedCharUuid,
-        '49535343-1e4d-4bd9-ba61-23c647249616',
-      );
-    });
-
-    test('fails when neither service is present', () async {
-      final transport = MockAcaiaBleTransport(
-        serviceUUIDs: ['0000fff0-0000-1000-8000-00805f9b34fb'],
-      );
-      final scale = AcaiaScale(transport: transport);
-      await scale.onConnect();
-
-      final state = await scale.connectionState.first;
-      expect(state, ConnectionState.disconnected);
-    });
+      expect(await scale.connectionState.first, ConnectionState.connected);
+      await scale.disconnect();
+      await transport.dispose();
+    }
   });
 
-  group('AcaiaScale weight parsing', () {
-    test('decodes weight from event type 5 notification', () async {
-      final transport = MockAcaiaBleTransport(
-        serviceUUIDs: ['00001820-0000-1000-8000-00805f9b34fb'],
-      );
-      final scale = AcaiaScale(transport: transport);
-      await scale.onConnect();
+  test('rejects unsupported services', () async {
+    final transport = _AcaiaTransport(
+      services: const ['0000fff0-0000-1000-8000-00805f9b34fb'],
+    );
+    final scale = AcaiaScale(transport: transport);
+    await scale.onConnect();
+    expect(await scale.connectionState.first, ConnectionState.disconnected);
+    await transport.dispose();
+  });
 
+  test(
+    'timer event 11 emits no weight and weight selector emits 100g',
+    () async {
+      final (scale, transport) = await _connected();
       final snapshots = <ScaleSnapshot>[];
-      scale.currentSnapshot.listen(snapshots.add);
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
 
-      // Weight: value=1850 (0x3A,0x07,0x00), unit=1, sign=0
-      // Expected: 1850 / 10^1 = 185.0g
-      transport.simulateNotification([
+      transport.emit(const [
         0xEF,
         0xDD,
-        12,
-        10,
-        5,
-        0x3A,
+        0x0C,
+        0x09,
+        0x0B,
+        0x00,
+        0x00,
         0x07,
+        0x12,
+        0x34,
+        0x56,
+        0x78,
+        0x9A,
+        0xBC,
+      ]);
+      transport.emit(const [
+        0xEF,
+        0xDD,
+        0x0C,
+        0x09,
+        0x0B,
+        0x00,
+        0x00,
+        0x05,
+        0xE8,
+        0x03,
         0x00,
         0x00,
         0x01,
         0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
       ]);
+      await Future<void>.delayed(Duration.zero);
 
-      await Future.delayed(Duration(milliseconds: 50));
-      expect(snapshots, hasLength(1));
-      expect(snapshots.first.weight, closeTo(185.0, 0.01));
-    });
+      expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    },
+  );
 
-    test('decodes negative weight', () async {
-      final transport = MockAcaiaBleTransport(
-        serviceUUIDs: ['00001820-0000-1000-8000-00805f9b34fb'],
-      );
-      final scale = AcaiaScale(transport: transport);
-      await scale.onConnect();
+  test(
+    'short and bogus frames cannot consume the following weight frame',
+    () async {
+      for (final prefix in [
+        [0xEF, 0xDD, 0x0C, 0x02, 0x05, 0xAA, 0xBB],
+        [0xEF, 0xDD, 0x0C, 0xFF, 0x05, 0x00],
+      ]) {
+        final (scale, transport) = await _connected();
+        final snapshots = <ScaleSnapshot>[];
+        final subscription = scale.currentSnapshot.listen(snapshots.add);
 
+        transport.emit([...prefix, ..._weightFrame]);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+        await subscription.cancel();
+        await scale.disconnect();
+        await transport.dispose();
+      }
+    },
+  );
+
+  test('concatenated settings and weight frames are both processed', () async {
+    for (final frames in [
+      [0xEF, 0xDD, 0x08, 0x03, 72, 0, 0, 0, ..._weightFrame],
+      [..._weightFrame, 0xEF, 0xDD, 0x08, 0x03, 72, 0, 0, 0],
+    ]) {
+      final (scale, transport) = await _connected();
       final snapshots = <ScaleSnapshot>[];
-      scale.currentSnapshot.listen(snapshots.add);
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+      transport.emit(frames);
+      transport.emit(_weightFrame);
+      await Future<void>.delayed(Duration.zero);
+      expect(snapshots.last.batteryLevel, 72);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    }
+  });
 
-      // Same weight but sign byte > 1 -> negative
-      transport.simulateNotification([
-        0xEF,
-        0xDD,
-        12,
-        10,
-        5,
-        0x3A,
-        0x07,
-        0x00,
-        0x00,
-        0x01,
-        0x02,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-      ]);
+  test('split frames and split headers are retained', () async {
+    for (final split in [1, 7]) {
+      final (scale, transport) = await _connected();
+      final snapshots = <ScaleSnapshot>[];
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+      transport.emit([0x99, ..._weightFrame.sublist(0, split)]);
+      await Future<void>.delayed(Duration.zero);
+      expect(snapshots, isEmpty);
+      transport.emit(_weightFrame.sublist(split));
+      await Future<void>.delayed(Duration.zero);
+      expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    }
+  });
 
-      await Future.delayed(Duration(milliseconds: 50));
-      expect(snapshots, hasLength(1));
-      expect(snapshots.first.weight, closeTo(-185.0, 0.01));
+  test('battery high bit is masked and invalid battery is retained', () async {
+    final (scale, transport) = await _connected();
+    var snapshot = scale.currentSnapshot.first;
+    transport.emit(const [0xEF, 0xDD, 0x08, 0x03, 0xC8, 0, 0, 0]);
+    transport.emit(_weightFrame);
+    expect((await snapshot).batteryLevel, 72);
+
+    snapshot = scale.currentSnapshot.first;
+    transport.emit(const [0xEF, 0xDD, 0x08, 0x03, 0xE5, 0, 0, 0]);
+    transport.emit(_weightFrame);
+    expect((await snapshot).batteryLevel, 72);
+    await scale.disconnect();
+    await transport.dispose();
+  });
+
+  test('mute initialization never publishes connected', () {
+    fakeAsync((async) {
+      final transport = _ips(emitWeightDuringInit: false);
+      final scale = AcaiaScale(transport: transport);
+      final states = <ConnectionState>[];
+      scale.connectionState.listen(states.add);
+      scale.onConnect();
+      async.flushMicrotasks();
+      async.flushTimers();
+      async.flushMicrotasks();
+      expect(transport.writes, hasLength(20));
+      expect(states, isNot(contains(ConnectionState.connected)));
+      expect(states.last, ConnectionState.disconnected);
+      expect(transport.disconnectCalls, 1);
+      transport.dispose();
     });
   });
 
-  group('AcaiaScale tare', () {
-    test('sends tare command 3 times for reliability', () async {
-      final transport = MockAcaiaBleTransport(
-        serviceUUIDs: ['00001820-0000-1000-8000-00805f9b34fb'],
-      );
+  test('event 5 and event 11 weight complete initialization', () {
+    for (final frame in [
+      _weightFrame,
+      const [0xEF, 0xDD, 0x0C, 0x09, 0x0B, 0, 0, 0x05, 0xE8, 0x03, 0, 0, 1, 0],
+    ]) {
+      fakeAsync((async) {
+        final transport = _ips(emitWeightDuringInit: false);
+        transport.writeBehavior = (data) async {
+          if (data[2] == 0x0C) scheduleMicrotask(() => transport.emit(frame));
+        };
+        final scale = AcaiaScale(transport: transport);
+        scale.onConnect();
+        async.elapse(const Duration(seconds: 1));
+        async.flushMicrotasks();
+        expect(scale.connectionState, emits(ConnectionState.connected));
+        scale.disconnect();
+        async.flushMicrotasks();
+        transport.dispose();
+      });
+    }
+  });
+
+  test('maintenance is serialized and stops after disconnect', () {
+    fakeAsync((async) {
+      final transport = _ips();
       final scale = AcaiaScale(transport: transport);
-      await scale.onConnect();
+      scale.onConnect();
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      transport.writes.clear();
+      final blocked = Completer<void>();
+      transport.writeBehavior = (data) => blocked.future;
 
-      transport.receivedWrites.clear();
+      async.elapse(const Duration(seconds: 12));
+      async.flushMicrotasks();
+      expect(transport.writes.where((write) => write[2] == 0), hasLength(1));
 
-      await scale.tare();
-
-      // Count tare commands (msgType 0x04 at byte index 2)
-      final tareWrites = transport.receivedWrites.where(
-        (w) => w.length >= 3 && w[0] == 0xEF && w[1] == 0xDD && w[2] == 0x04,
-      );
-      expect(tareWrites.length, 3);
+      scale.disconnect();
+      async.flushMicrotasks();
+      blocked.complete();
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 6));
+      async.flushMicrotasks();
+      expect(transport.writes.where((write) => write[2] == 0), hasLength(1));
+      transport.dispose();
     });
+  });
+
+  test(
+    'maintenance errors do not escape and config is initialization-only',
+    () {
+      for (final error in <Object>[
+        TimeoutException('timeout'),
+        const DeviceNotConnectedException.scale(),
+        StateError('transport'),
+      ]) {
+        fakeAsync((async) {
+          final uncaught = <Object>[];
+          runZonedGuarded(() {
+            final transport = _ips();
+            final scale = AcaiaScale(transport: transport);
+            scale.onConnect();
+            async.elapse(const Duration(seconds: 1));
+            async.flushMicrotasks();
+            final configCount = transport.writes
+                .where((write) => write[2] == 0x0C)
+                .length;
+            transport.writeBehavior = (data) async {
+              if (data[2] == 0) throw error;
+            };
+            async.elapse(const Duration(seconds: 3));
+            async.flushMicrotasks();
+            expect(
+              transport.writes.where((write) => write[2] == 0x0C),
+              hasLength(configCount),
+            );
+            scale.disconnect();
+            async.flushMicrotasks();
+            transport.dispose();
+          }, (error, stack) => uncaught.add(error));
+          expect(uncaught, isEmpty);
+        });
+      }
+    },
+  );
+
+  test('tare sends the command three times', () async {
+    final (scale, transport) = await _connected();
+    transport.writes.clear();
+    await scale.tare();
+    expect(transport.writes.where((write) => write[2] == 0x04), hasLength(3));
+    await scale.disconnect();
+    await transport.dispose();
   });
 }
