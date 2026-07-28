@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:universal_ble/universal_ble.dart';
 
@@ -11,6 +12,8 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   /// When true, [requestMtu] throws — simulating a stack that rejects the
   /// negotiation.
   bool throwOnRequestMtu = false;
+  BleConnectionState connectionState = BleConnectionState.connected;
+  int connectCalls = 0;
 
   @override
   Future<int> requestMtu(String deviceId, int expectedMtu) async {
@@ -53,11 +56,14 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
     bool autoConnect = false,
     ConnectionPlatformConfig? platformConfig,
   }) async {
+    connectCalls++;
+    connectionState = BleConnectionState.connected;
     updateConnection(deviceId, true);
   }
 
   @override
   Future<void> disconnect(String deviceId) async {
+    connectionState = BleConnectionState.disconnected;
     updateConnection(deviceId, false);
   }
 
@@ -112,12 +118,17 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
 
   @override
   Future<BleConnectionState> getConnectionState(String deviceId) async =>
-      BleConnectionState.connected;
+      connectionState;
 
   @override
   Future<List<BleDevice>> getSystemDevices(
     List<String>? withServices,
   ) async => [];
+
+  void emitDisconnected(String deviceId) {
+    connectionState = BleConnectionState.disconnected;
+    updateConnection(deviceId, false);
+  }
 }
 
 void main() {
@@ -187,6 +198,34 @@ void main() {
     await value.disconnect();
     await value.connect();
     expect(platform.mtuRequests, [(deviceId, 517), (deviceId, 517)]);
+    await value.dispose();
+  });
+
+  test('preconnected transport attaches without a native reconnect', () async {
+    final value = transport(android: false, linux: false);
+    final states = <device.ConnectionState>[];
+    final subscription = value.connectionState.listen(states.add);
+
+    await value.connect();
+    await Future<void>.delayed(Duration.zero);
+    expect(platform.connectCalls, 0);
+    expect(states, contains(device.ConnectionState.connected));
+
+    platform.emitDisconnected(deviceId);
+    await Future<void>.delayed(Duration.zero);
+    expect(states.last, device.ConnectionState.disconnected);
+
+    await subscription.cancel();
+    await value.dispose();
+  });
+
+  test('disconnected transport performs a native connect', () async {
+    platform.connectionState = BleConnectionState.disconnected;
+    final value = transport(android: false, linux: false);
+
+    await value.connect();
+
+    expect(platform.connectCalls, 1);
     await value.dispose();
   });
 }
