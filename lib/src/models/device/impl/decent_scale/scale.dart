@@ -132,18 +132,15 @@ class DecentScale implements Scale, TransportHandoffScale {
     // BehaviorSubject is freshly seeded (discovered) on each new
     // DecentScale instance — it cannot detect an already-live
     // connection created by a prior transport instance.
-    final nativeState = await _device.getConnectionState();
-    if (nativeState == ConnectionState.connected &&
-        _connectionStateController.value == ConnectionState.connected) {
+    if (_connectionStateController.value == ConnectionState.connected &&
+        await _device.getConnectionState() == ConnectionState.connected) {
       _log.info('Already connected, skipping');
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
 
     try {
-      if (nativeState != ConnectionState.connected) {
-        await _device.connect();
-      }
+      await _device.connect();
 
       await subscription?.cancel();
       subscription = _device.connectionState

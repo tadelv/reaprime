@@ -117,13 +117,17 @@ class _HangingBleTransport extends _DisconnectedBleTransport {
 
 class _RecordingBleTransport extends BLETransport {
   _RecordingBleTransport({
-    ConnectionState initialState = ConnectionState.disconnected,
-  }) : _connectionState = BehaviorSubject.seeded(initialState);
+    ConnectionState nativeState = ConnectionState.disconnected,
+  }) : _nativeState = nativeState;
 
-  final BehaviorSubject<ConnectionState> _connectionState;
+  final BehaviorSubject<ConnectionState> _connectionState =
+      BehaviorSubject.seeded(ConnectionState.discovered);
+  ConnectionState _nativeState;
   final writes = <Uint8List>[];
   void Function(Uint8List)? notificationCallback;
   int connectCalls = 0;
+  int nativeConnectCalls = 0;
+  int disconnectCalls = 0;
   int subscribeCalls = 0;
   bool failWrites = false;
 
@@ -138,16 +142,22 @@ class _RecordingBleTransport extends BLETransport {
 
   @override
   Future<ConnectionState> getConnectionState() async =>
-      _connectionState.value;
+      _nativeState;
 
   @override
   Future<void> connect() async {
     connectCalls++;
+    if (_nativeState != ConnectionState.connected) {
+      nativeConnectCalls++;
+      _nativeState = ConnectionState.connected;
+    }
     _connectionState.add(ConnectionState.connected);
   }
 
   @override
   Future<void> disconnect() async {
+    disconnectCalls++;
+    _nativeState = ConnectionState.disconnected;
     _connectionState.add(ConnectionState.disconnected);
   }
 
@@ -193,6 +203,7 @@ class _RecordingBleTransport extends BLETransport {
   }
 
   void emitDisconnected() {
+    _nativeState = ConnectionState.disconnected;
     _connectionState.add(ConnectionState.disconnected);
   }
 
@@ -237,19 +248,25 @@ void main() {
     await transport.dispose();
   });
 
-  test('fresh wrapper initializes an already-connected transport', () async {
+  test('fresh wrapper attaches to an already-connected transport', () async {
     final transport = _RecordingBleTransport(
-      initialState: ConnectionState.connected,
+      nativeState: ConnectionState.connected,
     );
     final scale = DecentScale(transport: transport);
 
     await scale.onConnect();
 
-    expect(transport.connectCalls, 0);
+    expect(transport.connectCalls, 1);
+    expect(transport.nativeConnectCalls, 0);
     expect(transport.subscribeCalls, 1);
     expect(await scale.connectionState.first, ConnectionState.connected);
 
-    await scale.disconnectForHandoff();
+    final disconnected = scale.connectionState
+        .where((state) => state == ConnectionState.disconnected)
+        .first;
+    transport.emitDisconnected();
+    await disconnected;
+
     await transport.dispose();
   });
 
@@ -277,6 +294,15 @@ void main() {
     expect(_hasCommand(transport, 0x0F), isFalse);
 
     await scale.disconnectForHandoff();
+    final rediscoveredTransport = _RecordingBleTransport(
+      nativeState: ConnectionState.connected,
+    );
+    final rediscoveredScale = DecentScale(transport: rediscoveredTransport);
+    await rediscoveredScale.onConnect();
+
+    expect(_hasCommand(rediscoveredTransport, 0x0F), isFalse);
+
+    await rediscoveredScale.disconnectForHandoff();
     await transport.dispose();
   });
 
