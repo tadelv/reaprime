@@ -21,6 +21,12 @@ abstract class BLETransport extends DataTransport {
     void Function(Uint8List) callback,
   );
 
+  Future<void> resetSubscription(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) => subscribe(serviceUUID, characteristicUUID, callback);
+
   Future<Uint8List> read(
     String serviceUUID,
     String characteristicUUID, {

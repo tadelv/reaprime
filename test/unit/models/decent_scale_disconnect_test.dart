@@ -129,11 +129,14 @@ class _RecordingBleTransport extends BLETransport {
   int nativeConnectCalls = 0;
   int disconnectCalls = 0;
   int subscribeCalls = 0;
+  int resetSubscriptionCalls = 0;
+  int readCalls = 0;
   int respondedSubscribeCall = 0;
   bool failWrites = false;
   int? disconnectOnWrite;
   bool failSubscriptions = false;
   final List<int> responseSubscribeCalls;
+  Uint8List diagnosticRead = Uint8List(0);
 
   @override
   String get id => 'recording-decent-scale';
@@ -174,7 +177,10 @@ class _RecordingBleTransport extends BLETransport {
     String serviceUUID,
     String characteristicUUID, {
     Duration? timeout,
-  }) async => Uint8List(0);
+  }) async {
+    readCalls++;
+    return diagnosticRead;
+  }
 
   @override
   Future<void> subscribe(
@@ -187,6 +193,16 @@ class _RecordingBleTransport extends BLETransport {
       throw StateError('subscription failed');
     }
     notificationCallback = callback;
+  }
+
+  @override
+  Future<void> resetSubscription(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) async {
+    resetSubscriptionCalls++;
+    await subscribe(serviceUUID, characteristicUUID, callback);
   }
 
   @override
@@ -300,6 +316,7 @@ void main() {
       _elapse(async, const Duration(milliseconds: 100));
 
       expect(transport.subscribeCalls, 2);
+      expect(transport.resetSubscriptionCalls, 1);
       expect(completed, isTrue);
       expect(states.last, ConnectionState.connected);
       scale.disconnectForHandoff();
@@ -311,9 +328,8 @@ void main() {
   test(
     'silent FFF4 initialization fails without publishing connected',
     () async {
-      final transport = _RecordingBleTransport(
-        responseSubscribeCalls: const [],
-      );
+      final transport = _RecordingBleTransport(responseSubscribeCalls: const [])
+        ..diagnosticRead = Uint8List.fromList([0x03, 0x0A, 0, 0, 100, 0, 0]);
       final scale = DecentScale(transport: transport);
       final states = <ConnectionState>[];
       scale.connectionState.listen(states.add);
@@ -324,6 +340,8 @@ void main() {
       await expectLater(connection, throwsA(isA<TimeoutException>()));
 
       expect(transport.subscribeCalls, 2);
+      expect(transport.resetSubscriptionCalls, 1);
+      expect(transport.readCalls, 1);
       expect(states, isNot(contains(ConnectionState.connected)));
       expect(states.last, ConnectionState.disconnected);
       expect(_hasCommand(transport, 0x0A, 0x02), isFalse);

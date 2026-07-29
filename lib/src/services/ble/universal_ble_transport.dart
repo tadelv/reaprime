@@ -11,7 +11,7 @@ import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
 
-class UniversalBleTransport implements BLETransport {
+class UniversalBleTransport extends BLETransport {
   final BleDevice _device;
 
   late Logger _log;
@@ -41,6 +41,7 @@ class UniversalBleTransport implements BLETransport {
 
   static const Duration _linkProbeTimeout = Duration(seconds: 2);
   static const Duration _faultRecoveryPollInterval = Duration(milliseconds: 50);
+  static const Duration _notificationResetSettle = Duration(milliseconds: 100);
 
   /// Minimum spacing between advert-triggered OS probes. A disconnected
   /// peripheral advertises ~1/s during a scan; one probe per window is
@@ -441,10 +442,18 @@ class UniversalBleTransport implements BLETransport {
             '$context native operation remained unresolved for '
             '${_faultRecoveryGrace.inMilliseconds}ms — disconnecting',
           );
-          await UniversalBle.disconnect(
-            _device.deviceId,
-            timeout: _faultRecoveryDisconnectTimeout,
-          );
+          try {
+            await UniversalBle.disconnect(
+              _device.deviceId,
+              timeout: _faultRecoveryDisconnectTimeout,
+            );
+          } catch (error, stackTrace) {
+            _log.warning(
+              'Failed to disconnect unresolved BLE link',
+              error,
+              stackTrace,
+            );
+          }
           return;
         }
         await Future<void>.delayed(_faultRecoveryPollInterval);
@@ -565,6 +574,42 @@ class UniversalBleTransport implements BLETransport {
       );
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'subscribe', '$serviceUUID/$characteristicUUID');
+    }
+  }
+
+  @override
+  Future<void> resetSubscription(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) async {
+    final key = "$serviceUUID--$characteristicUUID";
+    if (!_subscriptions.containsKey(key)) {
+      _subscriptions[key] = UniversalBle.characteristicValueStream(
+        _device.deviceId,
+        characteristicUUID,
+      ).listen(callback);
+    }
+    try {
+      await UniversalBle.unsubscribe(
+        _device.deviceId,
+        serviceUUID,
+        characteristicUUID,
+        timeout: const Duration(seconds: 2),
+      );
+      await Future<void>.delayed(_notificationResetSettle);
+      await UniversalBle.subscribeNotifications(
+        _device.deviceId,
+        serviceUUID,
+        characteristicUUID,
+        timeout: const Duration(seconds: 2),
+      );
+    } on UniversalBleException catch (e) {
+      _handleGattError(
+        e,
+        'reset subscription',
+        '$serviceUUID/$characteristicUUID',
+      );
     }
   }
 
