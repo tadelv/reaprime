@@ -78,6 +78,21 @@ After the release is created, you can edit it to:
 - **`.github/workflows/release.yml`**: Builds and publishes releases on tag push
 - **`.github/workflows/develop-builds.yml`**: Development builds on main branch
 
+### Development Artifacts
+
+Development builds use stable GitHub Actions artifact names, while the packaged filename includes the seven-character commit SHA:
+
+| Platform | Actions artifact | Downloaded file |
+| --- | --- | --- |
+| Android | `decent-android-develop` | `decent-android-develop-<short-sha>.apk` |
+| macOS | `decent-macos-develop` | `decent-macos-develop-<short-sha>.zip` |
+| Linux x64 | `decent-linux-x64-develop` | `decent-linux-x64-develop-<short-sha>.tar.gz` |
+| Linux ARM64 | `decent-linux-arm64-develop` | `decent-linux-arm64-develop-<short-sha>.tar.gz` |
+| Windows x64 | `decent-windows-x64-develop` | `decent-windows-x64-develop-<short-sha>.zip` |
+| iOS unsigned | `decent-ios-unsigned-develop` | `decent-ios-unsigned-develop-<short-sha>.ipa` |
+
+Tagged release artifact naming remains unchanged. Development workflow artifacts are retained build outputs, not GitHub Releases or prereleases by themselves.
+
 ## Testing Before Release
 
 ```bash
