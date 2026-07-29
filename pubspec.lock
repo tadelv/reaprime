@@ -1707,7 +1707,7 @@ packages:
     description:
       path: "."
       ref: "2.2.3"
-      resolved-ref: 6ced44211ae8e284b0c095c1a3079a27706e76f7
+      resolved-ref: "6ced44211ae8e284b0c095c1a3079a27706e76f7"
       url: "https://github.com/tadelv/universal_ble.git"
     source: git
     version: "2.2.3"

@@ -225,7 +225,11 @@ runs. The `EarlyConnectWatcher` does its own retry during the scan.
 
 On Apple (iOS/macOS), `getSystemDevices` is used to find the peripheral in
 the system cache. If not cached, returns null immediately (no timeout waste).
-On Android/Linux/Windows, direct `UniversalBle.connect(deviceId)` works.
+A system-connected Apple peripheral must still go through `connect()` so
+`universal_ble` attaches its native callbacks and CoreBluetooth delegate.
+This call is idempotent for an existing link and does not start a second
+physical connection. On Android/Linux/Windows, direct
+`UniversalBle.connect(deviceId)` works.
 
 The identity check happens during `onConnect()` — for machines, `v13Model`
 is read and compared against the expected `DeviceImplementation`.

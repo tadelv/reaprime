@@ -131,6 +131,7 @@ class _RecordingBleTransport extends BLETransport {
   int disconnectCalls = 0;
   int subscribeCalls = 0;
   bool failWrites = false;
+  int? disconnectOnWrite;
   bool failSubscriptions = false;
 
   @override
@@ -201,7 +202,8 @@ class _RecordingBleTransport extends BLETransport {
     Duration? timeout,
   }) async {
     writes.add(Uint8List.fromList(data));
-    if (failWrites) {
+    if (failWrites || writes.length == disconnectOnWrite) {
+      _nativeState = ConnectionState.disconnected;
       _connectionState.add(ConnectionState.disconnected);
       throw const DeviceNotConnectedException.scale();
     }
@@ -252,6 +254,33 @@ void main() {
     await subscription.cancel();
     await transport.dispose();
   });
+
+  test(
+    'native drop on the second initialization write never publishes connected',
+    () async {
+      final transport = _RecordingBleTransport()..disconnectOnWrite = 2;
+      final scale = DecentScale(transport: transport);
+      final states = <ConnectionState>[];
+      final subscription = scale.connectionState.listen(states.add);
+
+      await expectLater(
+        scale.onConnect(),
+        throwsA(isA<DeviceNotConnectedException>()),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(transport.writes, hasLength(2));
+      expect(
+        transport.writes.first,
+        orderedEquals([0x03, 0x0A, 0x01, 0x01, 0x00, 0x00, 0x09]),
+      );
+      expect(states, isNot(contains(ConnectionState.connected)));
+      expect(await scale.connectionState.first, ConnectionState.disconnected);
+
+      await subscription.cancel();
+      await transport.dispose();
+    },
+  );
 
   test('fresh wrapper attaches to an already-connected transport', () async {
     final transport = _RecordingBleTransport(
