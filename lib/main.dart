@@ -72,6 +72,7 @@ import 'src/services/foreground_service.dart';
 import 'src/services/network/multicast_lock_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
+import 'src/settings/update_dialog.dart';
 import 'src/services/serial/serial_service.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -755,8 +756,12 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) =>
-          _AndroidQuickUpdateDialog(updateInfo: updateInfo, updater: updater),
+      builder: (ctx) => AndroidQuickUpdateDialog(
+        updateInfo: updateInfo,
+        onDownload: (info, onProgress) =>
+            updater.downloadUpdate(info, onProgress: onProgress),
+        onInstall: updater.installUpdate,
+      ),
     );
   }
 
@@ -1038,129 +1043,5 @@ class _AppRootState extends State<AppRoot> {
         ],
       ),
     ];
-  }
-}
-
-/// Minimal update dialog that starts downloading immediately.
-/// Used from the persistent SnackBar "Download" action on Android.
-class _AndroidQuickUpdateDialog extends StatefulWidget {
-  final UpdateInfo updateInfo;
-  final AndroidUpdater updater;
-
-  const _AndroidQuickUpdateDialog({
-    required this.updateInfo,
-    required this.updater,
-  });
-
-  @override
-  State<_AndroidQuickUpdateDialog> createState() =>
-      _AndroidQuickUpdateDialogState();
-}
-
-class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
-  bool _isDownloading = true;
-  bool _isInstalling = false;
-  String? _error;
-  double? _downloadProgress;
-
-  @override
-  void initState() {
-    super.initState();
-    _startDownload();
-  }
-
-  Future<void> _startDownload() async {
-    try {
-      final path = await widget.updater.downloadUpdate(
-        widget.updateInfo,
-        onProgress: (progress) {
-          if (mounted) setState(() => _downloadProgress = progress);
-        },
-      );
-      if (!mounted) return;
-      setState(() {
-        _isDownloading = false;
-        _isInstalling = true;
-      });
-      final success = await widget.updater.installUpdate(path);
-      if (!mounted) return;
-      if (success) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Update installation started. Follow the on-screen prompts.',
-            ),
-          ),
-        );
-      } else {
-        setState(() {
-          _isInstalling = false;
-          _error =
-              'Install permission required. Grant permission and try again.';
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Failed: $e';
-        _isDownloading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Update ${widget.updateInfo.version}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_isDownloading) ...[
-            LinearProgressIndicator(value: _downloadProgress),
-            const SizedBox(height: 12),
-            Text(
-              _downloadProgress == null
-                  ? 'Downloading update…'
-                  : 'Downloading update… ${(_downloadProgress! * 100).round()}%',
-            ),
-          ],
-          if (_isInstalling) ...[
-            const LinearProgressIndicator(),
-            const SizedBox(height: 12),
-            const Text('Installing update…'),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isDownloading ? null : () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-        if (_error != null)
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _error = null;
-                _isDownloading = true;
-                _downloadProgress = null;
-              });
-              _startDownload();
-            },
-            child: const Text('Retry'),
-          ),
-      ],
-    );
   }
 }
