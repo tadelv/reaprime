@@ -73,8 +73,8 @@ jobs:
         run: |
           # Extract version from tag (v1.2.3 -> 1.2.3)
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK with version
         run: |
@@ -213,7 +213,7 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create release ZIP
         run: |
@@ -267,7 +267,7 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Linux archive
         run: |
@@ -329,7 +329,7 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Raspberry Pi archive
         run: |
@@ -391,7 +391,7 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Windows archive
         shell: pwsh
@@ -446,6 +446,37 @@ jobs:
           npm ci
           npm run build
 
+      - name: Build IPA
+        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --no-codesign
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/decent-ios-unsigned-${{ steps.version.outputs.version }}.ipa"
+          PACKAGE_DIR="$RUNNER_TEMP/unsigned-ipa"
+
+          test -d "$APP_PATH"
+
+          rm -rf "$PACKAGE_DIR"
+          mkdir -p "$PACKAGE_DIR/Payload"
+          cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
+
+          cd "$PACKAGE_DIR"
+          zip -qry "$OUTPUT_PATH" Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-ipa-unsigned
+          path: decent-ios-unsigned-${{ steps.version.outputs.version }}.ipa
+          if-no-files-found: error
+
       - name: Import distribution certificate
         env:
           CERTIFICATE_P12: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_P12 }}
@@ -485,16 +516,7 @@ jobs:
           # Extract UUID and install with correct filename
           PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
-
-      - name: Switch to manual signing for CI
-        env:
-          PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
-        run: |
-          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PBXPROJ"
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ""/PROVISIONING_PROFILE_SPECIFIER = "'"$PROVISIONING_PROFILE_NAME"'"/g' "$PBXPROJ"
-          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Development"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
+          cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/${PP_UUID}.mobileprovision"
 
       - name: Create ExportOptions.plist
         env:
@@ -507,7 +529,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>app-store-connect</string>
             <key>teamID</key>
             <string>${TEAM_ID}</string>
             <key>signingStyle</key>
@@ -525,10 +547,13 @@ jobs:
           </plist>
           EOF
 
-      - name: Build IPA
-        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --export-options-plist=ExportOptions.plist
-        env:
-          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
+      - name: Export signed IPA
+        run: |
+          rm -rf build/ios/ipa
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist ExportOptions.plist
 
       - name: Upload dSYMs to Firebase Crashlytics
         run: |
@@ -576,7 +601,7 @@ jobs:
         run: |
           # Write the API key to the expected location
           mkdir -p ~/.private_keys
-          echo "$API_KEY_P8" | base64 --decode > ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+          echo "$API_KEY_P8" | base64 --decode > "$HOME/.private_keys/AuthKey_${API_KEY_ID}.p8"
 
           # Find the built IPA
           IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
@@ -601,11 +626,11 @@ jobs:
             --apiIssuer "$API_ISSUER_ID"
 
           # Clean up API key
-          rm -f ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+          rm -f "$HOME/.private_keys/AuthKey_${API_KEY_ID}.p8"
 
   create-release:
     name: Create GitHub Release
-    needs: [build-android, build-macos, build-linux, build-raspberrypi, build-windows]
+    needs: [build-android, build-macos, build-linux, build-raspberrypi, build-windows, build-ios]
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -617,8 +642,8 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -637,6 +662,7 @@ jobs:
             release-artifacts/linux-app/*
             release-artifacts/raspberrypi-linux-arm64-app/*
             release-artifacts/windows-app/*
+            release-artifacts/ios-ipa-unsigned/*
           tag_name: ${{ steps.version.outputs.tag }}
           name: Decent ${{ steps.version.outputs.version }}
           draft: false
@@ -652,6 +678,7 @@ jobs:
             - **Linux x64**: `decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
             - **Linux ARM64 (Raspberry Pi)**: `decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
             - **Windows x64**: `decent-windows-x64-${{ steps.version.outputs.version }}.zip`
+            - **iOS (unsigned)**: `decent-ios-unsigned-${{ steps.version.outputs.version }}.ipa`
             
             ### Installation
             
@@ -665,7 +692,7 @@ jobs:
             
             > **Windows users**: Decent requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
 
-            **iOS**: Available via TestFlight. Check the project's TestFlight page for access.
+            **iOS**: Use TestFlight for the signed build, or download the unsigned IPA above for self-signing and sideloading. The unsigned IPA cannot be installed directly.
             
             ### What's Changed
             <!-- GitHub will auto-generate release notes here -->
