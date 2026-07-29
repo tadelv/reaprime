@@ -679,5 +679,22 @@ void main() {
         ]);
       },
     );
+
+    test('disconnect cancels listeners without writing CCCDs', () async {
+      final received = <int>[];
+      await transport.subscribe(
+        service,
+        chars[0],
+        (data) => received.add(data[0]),
+      );
+
+      await transport.disconnect();
+      push(chars[0], 1);
+      await pump();
+
+      expect(received, isEmpty);
+      expect(platform.notificationProperties, [BleInputProperty.notification]);
+      expect(platform.disconnectCalls, [deviceId]);
+    });
   });
 }
