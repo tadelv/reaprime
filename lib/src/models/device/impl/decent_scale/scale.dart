@@ -22,6 +22,8 @@ class DecentScale implements Scale, TransportHandoffScale {
       BleServiceIdentifier.short('36f5');
 
   static final bool isUsingHeartBeat = false;
+  static const _initializationProbeTimeout = Duration(seconds: 2);
+  static const _weightFrameLengths = {7, 10};
 
   final String _deviceId;
 
@@ -49,7 +51,11 @@ class DecentScale implements Scale, TransportHandoffScale {
   // dropping (GATT busy-window, Android radio starvation, etc).
   // Resets on every notification (_parseNotification).
   Timer? _notificationWatchdog;
+  Future<void>? _displayOperation;
+  Completer<void>? _initializationNotification;
   static const Duration _notificationWatchdogTimeout = Duration(seconds: 5);
+  int _displayGeneration = 0;
+  bool _desiredDisplaySleeping = false;
 
   DecentScale({required BLETransport transport})
     : _deviceId = transport.id,
@@ -157,7 +163,11 @@ class DecentScale implements Scale, TransportHandoffScale {
           'Discovered services: $services',
         );
       }
-      await _registerNotifications();
+      if (_isSleeping) {
+        await _registerNotifications();
+      } else {
+        await _confirmDataChannel();
+      }
       _heartbeatTimer?.cancel();
       _notificationWatchdog?.cancel();
       _ticksSinceLastNotification = 0;
@@ -215,9 +225,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       if (isUsingHeartBeat && !await _sendHeartBeat()) {
         throw const DeviceNotConnectedException.scale();
       }
-      if (!_isSleeping && !await _sendOledOn()) {
-        throw const DeviceNotConnectedException.scale();
-      }
       if (await _device.getConnectionState() != ConnectionState.connected) {
         throw const DeviceNotConnectedException.scale();
       }
@@ -233,6 +240,35 @@ class DecentScale implements Scale, TransportHandoffScale {
         await _device.disconnect();
       } catch (_) {}
       rethrow;
+    }
+  }
+
+  Future<bool> _confirmDataChannel({bool Function()? isCurrent}) async {
+    bool current() => isCurrent?.call() ?? true;
+    final firstNotification = Completer<void>();
+    _initializationNotification = firstNotification;
+    try {
+      for (var attempt = 0; attempt < 2; attempt++) {
+        await _registerNotifications();
+        if (!current()) return false;
+        final requestSent = await _sendOledOn(isCurrent: current);
+        if (!current()) return false;
+        if (!requestSent) {
+          throw const DeviceNotConnectedException.scale();
+        }
+        try {
+          await firstNotification.future.timeout(_initializationProbeTimeout);
+          return current();
+        } on TimeoutException {
+          if (!current()) return false;
+          if (attempt == 1) rethrow;
+        }
+      }
+      return false;
+    } finally {
+      if (identical(_initializationNotification, firstNotification)) {
+        _initializationNotification = null;
+      }
     }
   }
 
@@ -258,7 +294,9 @@ class DecentScale implements Scale, TransportHandoffScale {
       "disconnecting (notifications=$_totalNotifications, "
       "uptime=${uptimeSec}s, powerOff=$powerOff)",
     );
-    subscription?.cancel();
+    final activeSubscription = subscription;
+    subscription = null;
+    activeSubscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _notificationWatchdog?.cancel();
@@ -325,12 +363,14 @@ class DecentScale implements Scale, TransportHandoffScale {
     return _writeCommand([0x0A, 0x01, 0x01, 0x00, heartbeatByte]);
   }
 
-  Future<bool> _sendOledOn() async {
+  Future<bool> _sendOledOn({bool Function()? isCurrent}) async {
+    if (isCurrent?.call() == false) return false;
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
     if (!await _requestBatteryData()) {
       return false;
     }
     await Future.delayed(Duration(milliseconds: 100));
+    if (isCurrent?.call() == false) return false;
     return _writeCommand([0x0A, 0x04, 0x00, 0x00, heartbeatByte]);
   }
 
@@ -341,10 +381,11 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   bool _isSleeping = false;
-  bool _wakeInFlight = false;
 
   @override
   Future<void> sleepDisplay() async {
+    _desiredDisplaySleeping = true;
+    _displayGeneration++;
     _isSleeping = true;
     _notificationWatchdog?.cancel();
     _log.info('Putting Decent Scale display to sleep');
@@ -363,18 +404,37 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   @override
-  Future<void> wakeDisplay() async {
-    _isSleeping = false;
-    _ticksSinceLastNotification = 0;
-    _watchdogRetryAttempted = false;
-    _notificationWatchdog?.cancel();
-    if (_wakeInFlight) return;
-    _wakeInFlight = true;
-    _log.info('Waking Decent Scale display');
+  Future<void> wakeDisplay() {
+    _desiredDisplaySleeping = false;
+    _displayGeneration++;
+    return _displayOperation ??= _runWakeDisplay();
+  }
+
+  Future<void> _runWakeDisplay() async {
     try {
-      await _sendOledOn();
+      while (!_desiredDisplaySleeping) {
+        final generation = _displayGeneration;
+        _isSleeping = false;
+        _notificationWatchdog?.cancel();
+        try {
+          final confirmed = await _confirmDataChannel(
+            isCurrent: () =>
+                generation == _displayGeneration && !_desiredDisplaySleeping,
+          );
+          if (!confirmed) continue;
+          _ticksSinceLastNotification = 0;
+          _watchdogRetryAttempted = false;
+          _resetNotificationWatchdog();
+          return;
+        } catch (_) {
+          if (generation == _displayGeneration && !_desiredDisplaySleeping) {
+            await _disconnect(powerOff: false);
+            rethrow;
+          }
+        }
+      }
     } finally {
-      _wakeInFlight = false;
+      _displayOperation = null;
     }
   }
 
@@ -448,6 +508,17 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   void _parseNotification(List<int> data) {
+    if (data.length >= 2 && data[0] == 0x03) {
+      final command = data[1];
+      final weightFrame =
+          (command == 0xCE || command == 0xCA) &&
+          _weightFrameLengths.contains(data.length);
+      final statusFrame = command == 0x0A && data.length == 7;
+      if ((weightFrame || statusFrame) &&
+          !(_initializationNotification?.isCompleted ?? true)) {
+        _initializationNotification!.complete();
+      }
+    }
     _ticksSinceLastNotification = 0;
     _watchdogRetryAttempted = false;
     _totalNotifications++;
