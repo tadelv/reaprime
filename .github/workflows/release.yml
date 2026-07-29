@@ -634,7 +634,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      models: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -656,27 +655,14 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R release-artifacts
 
-      - name: Generate change list
+      - name: Generate release notes
         run: |
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
             -f tag_name="${{ steps.version.outputs.tag }}" \
-            --jq .body > generated-release-notes.md
+            --jq .body > release-notes.md
+          test -s release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Write user-facing release notes
-        id: release-notes
-        uses: actions/ai-inference@v2
-        with:
-          prompt-file: .github/prompts/release-notes.prompt.yml
-          file_input: |
-            changes: ./generated-release-notes.md
-
-      - name: Validate release notes
-        run: |
-          cp "${{ steps.release-notes.outputs.response-file }}" release-notes.md
-          test -s release-notes.md
-          grep -q "^## What's new$" release-notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
