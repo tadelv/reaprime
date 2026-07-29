@@ -5,9 +5,9 @@ This document describes how to create releases for Decent.app.
 ## Creating a Release
 
 Decent.app uses git tags to trigger automatic releases. When you push a tag, GitHub Actions will:
-1. Build the Android APK
-2. Create a GitHub release
-3. Attach the APK to the release
+1. Build all supported platforms
+2. Export the iOS archive for TestFlight
+3. Create a GitHub release with the desktop, Android, Raspberry Pi, and unsigned iOS artifacts
 4. Auto-generate release notes
 
 ### Step 1: Tag Your Release
@@ -35,8 +35,8 @@ git push origin v1.0.0-alpha.1
 ### Step 3: Verify the Release
 
 1. Go to https://github.com/tadelv/reaprime/releases
-2. Your new release should appear with the APK attached
-3. Download and test the APK
+2. Your new release should appear with all platform artifacts attached
+3. Download and test the relevant artifacts
 
 ## Version Numbering
 
@@ -123,8 +123,11 @@ Then upload via Xcode Organizer (Window → Organizer → Distribute App → Tes
 ### CI/CD
 
 The `build-ios` job in `.github/workflows/release.yml`:
-1. Builds the IPA with manual signing (Apple Distribution certificate + App Store provisioning profile)
-2. Uploads to TestFlight via App Store Connect API
+1. Builds one unsigned Xcode archive and packages an unsigned IPA for the GitHub Release
+2. Exports that archive with the Apple Distribution certificate and App Store provisioning profile
+3. Uploads the signed IPA to TestFlight via the App Store Connect API
+
+The unsigned IPA is intended for self-signing and sideloading; it cannot be installed directly.
 
 Required secrets: `APPLE_DISTRIBUTION_CERTIFICATE_P12`, `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_B64`, `IOS_PROVISIONING_PROFILE_NAME`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_API_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_P8`, `TEAM_ID`.
 
