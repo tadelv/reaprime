@@ -25,6 +25,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   int writeCalls = 0;
   int getConnectionStateCalls = 0;
   final List<String> disconnectCalls = [];
+  final List<BleInputProperty> notificationProperties = [];
 
   /// When true, the second `setNotifiable` call (per device+characteristic)
   /// throws a [UniversalBleException] — used to prove `subscribe()`
@@ -83,6 +84,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     String characteristic,
     BleInputProperty bleInputProperty,
   ) async {
+    notificationProperties.add(bleInputProperty);
     final key = '$deviceId/$characteristic';
     final count = (_setNotifiableCounts[key] ?? 0) + 1;
     _setNotifiableCounts[key] = count;
@@ -652,6 +654,29 @@ void main() {
           transport.subscribe(service, chars[0], (_) {}),
           throwsA(isA<UniversalBleException>()),
         );
+      },
+    );
+
+    test(
+      'reset disables and re-enables CCCD without dropping listener',
+      () async {
+        final received = <int>[];
+        await transport.subscribe(service, chars[0], (data) {
+          received.add(data[0]);
+        });
+
+        final reset = transport.resetSubscription(service, chars[0], (_) {});
+        await pump(20);
+        push(chars[0], 1);
+        await pump(20);
+        await reset;
+
+        expect(received, [1]);
+        expect(platform.notificationProperties, [
+          BleInputProperty.notification,
+          BleInputProperty.disabled,
+          BleInputProperty.notification,
+        ]);
       },
     );
   });

@@ -249,7 +249,15 @@ class DecentScale implements Scale, TransportHandoffScale {
     _initializationNotification = firstNotification;
     try {
       for (var attempt = 0; attempt < 2; attempt++) {
-        await _registerNotifications();
+        if (attempt == 0) {
+          await _registerNotifications();
+        } else {
+          await _device.resetSubscription(
+            serviceIdentifier.long,
+            dataCharacteristic.long,
+            _parseNotification,
+          );
+        }
         if (!current()) return false;
         final requestSent = await _sendOledOn(isCurrent: current);
         if (!current()) return false;
@@ -261,7 +269,10 @@ class DecentScale implements Scale, TransportHandoffScale {
           return current();
         } on TimeoutException {
           if (!current()) return false;
-          if (attempt == 1) rethrow;
+          if (attempt == 1) {
+            await _readSilentDataChannelDiagnostic();
+            rethrow;
+          }
         }
       }
       return false;
@@ -269,6 +280,22 @@ class DecentScale implements Scale, TransportHandoffScale {
       if (identical(_initializationNotification, firstNotification)) {
         _initializationNotification = null;
       }
+    }
+  }
+
+  Future<void> _readSilentDataChannelDiagnostic() async {
+    try {
+      final data = await _device.read(
+        serviceIdentifier.long,
+        dataCharacteristic.long,
+        timeout: const Duration(seconds: 1),
+      );
+      _log.warning(
+        'Silent FFF4 diagnostic read returned ${data.length} bytes '
+        '(${_dataFrameType(data) ?? 'invalid'})',
+      );
+    } catch (error, stackTrace) {
+      _log.warning('Silent FFF4 diagnostic read failed', error, stackTrace);
     }
   }
 
@@ -508,16 +535,9 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   void _parseNotification(List<int> data) {
-    if (data.length >= 2 && data[0] == 0x03) {
-      final command = data[1];
-      final weightFrame =
-          (command == 0xCE || command == 0xCA) &&
-          _weightFrameLengths.contains(data.length);
-      final statusFrame = command == 0x0A && data.length == 7;
-      if ((weightFrame || statusFrame) &&
-          !(_initializationNotification?.isCompleted ?? true)) {
-        _initializationNotification!.complete();
-      }
+    if (_dataFrameType(data) != null &&
+        !(_initializationNotification?.isCompleted ?? true)) {
+      _initializationNotification!.complete();
     }
     _ticksSinceLastNotification = 0;
     _watchdogRetryAttempted = false;
@@ -536,6 +556,17 @@ class DecentScale implements Scale, TransportHandoffScale {
           _parseStatusResponse(data);
         }
     }
+  }
+
+  static String? _dataFrameType(List<int> data) {
+    if (data.length < 2 || data[0] != 0x03) return null;
+    final command = data[1];
+    if ((command == 0xCE || command == 0xCA) &&
+        _weightFrameLengths.contains(data.length)) {
+      return 'weight';
+    }
+    if (command == 0x0A && data.length == 7) return 'status';
+    return null;
   }
 
   void _parseWeight(List<int> data) {
