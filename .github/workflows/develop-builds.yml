@@ -36,6 +36,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -84,11 +88,15 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Package Android APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk decent-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
+
       - name: Upload Android APK
         uses: actions/upload-artifact@v7
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: decent-android-develop
+          path: decent-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
+          if-no-files-found: error
 
   build-macos:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
@@ -98,6 +106,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Install automake and libtool
         run: brew install automake libtool
@@ -217,13 +229,14 @@ jobs:
       - name: Create development ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-develop.zip
+          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
         with:
-          name: macos-app
-          path: decent-macos-develop.zip
+          name: decent-macos-develop
+          path: decent-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          if-no-files-found: error
 
   build-linux:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
@@ -233,6 +246,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev
@@ -264,11 +281,17 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Create Linux archive
+        run: |
+          cd build/linux/x64/release
+          tar -czf ../../../../decent-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
+
       - name: Upload Linux app
         uses: actions/upload-artifact@v7
         with:
-          name: linux-app
-          path: build/linux/x64/release/bundle
+          name: decent-linux-x64-develop
+          path: decent-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
+          if-no-files-found: error
 
   build-raspberrypi:
     name: Build for Raspberry Pi (ARM64 / Pi 4+)
@@ -282,6 +305,10 @@ jobs:
 
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev
+
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         id: flutter-action
@@ -316,11 +343,17 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Create Raspberry Pi archive
+        run: |
+          cd build/linux/arm64/release
+          tar -czf ../../../../decent-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
+
       - name: Upload Raspberry Pi build (ARM64)
         uses: actions/upload-artifact@v7
         with:
-          name: raspberrypi-linux-arm64-app
-          path: build/linux/arm64/release/bundle
+          name: decent-linux-arm64-develop
+          path: decent-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
+          if-no-files-found: error
 
   build-ios:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'ios'
@@ -330,6 +363,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Select latest Xcode
         run: xcodes select 26.3
@@ -367,7 +404,7 @@ jobs:
       - name: Package unsigned IPA
         run: |
           APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
-          OUTPUT_PATH="$GITHUB_WORKSPACE/decent-ios-unsigned.ipa"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/decent-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa"
           PACKAGE_DIR="$RUNNER_TEMP/unsigned-ipa"
 
           test -d "$APP_PATH"
@@ -382,8 +419,8 @@ jobs:
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v7
         with:
-          name: ios-ipa-unsigned
-          path: decent-ios-unsigned.ipa
+          name: decent-ios-unsigned-develop
+          path: decent-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa
           if-no-files-found: error
 
 
@@ -398,6 +435,11 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Set build identifier
+        id: build-id
+        shell: bash
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -432,11 +474,16 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Create Windows archive
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decent-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
+
       - name: Upload Windows app
         uses: actions/upload-artifact@v7
         with:
-          name: windows-app
-          path: build/windows/x64/runner/Release
+          name: decent-windows-x64-develop
+          path: decent-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          if-no-files-found: error
 
 
 
