@@ -293,6 +293,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev
 
       - name: Set up Flutter
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           # Flutter publishes no prebuilt arm64 Linux SDK; the master channel
