@@ -37,9 +37,10 @@ For non-trivial features or fixes, write a plan in `doc/plans/`. Seek approval f
 ### Verification
 
 After every meaningful code change:
-1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
-2. Run full `flutter test` before committing and before claiming done.
-3. Evidence before assertions — show test output, not just "tests pass."
+1. Run `dart format lib test`.
+2. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
+3. Run full `flutter test` before committing and before claiming done.
+4. Evidence before assertions — show test output, not just "tests pass."
 
 For API/spec changes, smoke-test via `scripts/sb-dev.sh` + `curl`/`websocat`. See `.agents/skills/decent-app/verification.md`.
 

@@ -92,6 +92,7 @@ List user-visible changes (including defaults, config, behavior). If none, write
 
 ### Local gates (run before pushing)
 
+- [ ] `dart format lib test` — no remaining changes
 - [ ] `flutter analyze` — clean (no new warnings)
 - [ ] `flutter test` — all pass
 - [ ] `(cd packages/dye2-plugin && npm run build)` — plugin builds
