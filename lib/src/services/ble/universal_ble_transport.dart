@@ -312,24 +312,36 @@ class UniversalBleTransport extends BLETransport {
   Future<void> disconnect() async {
     _connectionGeneration++;
     _recoveringQueueGeneration = null;
-    _advertSub?.cancel();
+    await _advertSub?.cancel();
     _advertSub = null;
+
+    final listeners = _subscriptions.values.toList(growable: false);
+    _subscriptions.clear();
+    for (final listener in listeners) {
+      try {
+        await listener.cancel();
+      } catch (error, stackTrace) {
+        _log.warning(
+          'Failed to cancel BLE notification listener',
+          error,
+          stackTrace,
+        );
+      }
+    }
+
     try {
       _log.fine("disconnect");
-      for (var sub in _subscriptions.keys) {
-        final split = sub.split('--');
-        UniversalBle.unsubscribe(_device.deviceId, split[0], split[1]);
-        _subscriptions[sub]?.cancel();
-      }
       await UniversalBle.disconnect(
         _device.deviceId,
-        timeout: Duration(seconds: 5),
+        timeout: const Duration(seconds: 5),
       );
-    } catch (e) {
-      _log.warning("failed to disconnect", e);
+    } catch (error, stackTrace) {
+      _log.warning("failed to disconnect", error, stackTrace);
       _connectionStateSubject.add(device.ConnectionState.disconnected);
+    } finally {
+      await _connectionStateSubscription?.cancel();
+      _connectionStateSubscription = null;
     }
-    _connectionStateSubscription?.cancel();
   }
 
   @override
