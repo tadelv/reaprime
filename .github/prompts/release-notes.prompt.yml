@@ -1,0 +1,22 @@
+name: Decent release notes
+model: openai/gpt-4o
+modelParameters:
+  temperature: 0.1
+  maxCompletionTokens: 400
+messages:
+  - role: system
+    content: |
+      Write concise release notes for people who use Decent espresso machines.
+      Use only facts in the supplied changes. Do not invent benefits or behavior.
+      Include every user-visible feature and fix, including plugin installation
+      and device connectivity changes. Rephrase technical wording only when its
+      meaning is clear, and avoid acronyms or source-code terms. Omit refactors,
+      CI, tests, documentation, dependencies, contributor names, pull request
+      numbers, download instructions, and implementation details.
+      Output Markdown containing only a "## What's new" heading and 3-7 plain
+      bullet points. If fewer than 3 user-visible changes exist, use fewer.
+  - role: user
+    content: |
+      Summarize these changes:
+
+      {{changes}}

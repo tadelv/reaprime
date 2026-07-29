@@ -716,7 +716,8 @@ class AppLifecycleObserver with WidgetsBindingObserver {
             SnackBarAction(
               label: 'View',
               onPressed: () {
-                _showUpdateDialog(context, updateInfo);
+                final releaseUrl = updateCheckService?.getReleaseUrl();
+                if (releaseUrl != null) launchUrl(Uri.parse(releaseUrl));
               },
             ),
             SnackBarAction(
@@ -746,56 +747,6 @@ class AppLifecycleObserver with WidgetsBindingObserver {
         updateCheckService?.skipCurrentUpdate();
       }
     });
-  }
-
-  void _showUpdateDialog(BuildContext context, dynamic updateInfo) async {
-    if (Platform.isAndroid) {
-      _showAndroidDownloadDialog(context, updateInfo as UpdateInfo);
-    } else {
-      final info = updateInfo as UpdateInfo;
-      final releaseUrl = updateCheckService?.getReleaseUrl();
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Update ${info.version}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Version ${info.version} is available'),
-              const SizedBox(height: 8),
-              Text('Current version: ${BuildInfo.version}'),
-              if (info.releaseNotes.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Release Notes:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: SingleChildScrollView(child: Text(info.releaseNotes)),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Later'),
-            ),
-            if (releaseUrl != null)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  launchUrl(Uri.parse(releaseUrl));
-                },
-                child: const Text('Download'),
-              ),
-          ],
-        ),
-      );
-    }
   }
 
   /// Show a download+install dialog that starts downloading immediately.
@@ -1110,6 +1061,7 @@ class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
   bool _isDownloading = true;
   bool _isInstalling = false;
   String? _error;
+  double? _downloadProgress;
 
   @override
   void initState() {
@@ -1119,7 +1071,12 @@ class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
 
   Future<void> _startDownload() async {
     try {
-      final path = await widget.updater.downloadUpdate(widget.updateInfo);
+      final path = await widget.updater.downloadUpdate(
+        widget.updateInfo,
+        onProgress: (progress) {
+          if (mounted) setState(() => _downloadProgress = progress);
+        },
+      );
       if (!mounted) return;
       setState(() {
         _isDownloading = false;
@@ -1160,9 +1117,13 @@ class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_isDownloading) ...[
-            const LinearProgressIndicator(),
+            LinearProgressIndicator(value: _downloadProgress),
             const SizedBox(height: 12),
-            const Text('Downloading update…'),
+            Text(
+              _downloadProgress == null
+                  ? 'Downloading update…'
+                  : 'Downloading update… ${(_downloadProgress! * 100).round()}%',
+            ),
           ],
           if (_isInstalling) ...[
             const LinearProgressIndicator(),
@@ -1193,6 +1154,7 @@ class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
               setState(() {
                 _error = null;
                 _isDownloading = true;
+                _downloadProgress = null;
               });
               _startDownload();
             },
