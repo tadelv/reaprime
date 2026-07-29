@@ -240,9 +240,10 @@ class UpdateCheckService {
   }
 
   /// Get the specific release URL if an update is available
-  String? getReleaseUrl() {
-    if (_availableUpdate == null) return null;
-    return 'https://github.com/tadelv/reaprime/releases/tag/${_availableUpdate!.tagName}';
+  String? getReleaseUrl([UpdateInfo? update]) {
+    final release = update ?? _availableUpdate;
+    if (release == null) return null;
+    return 'https://github.com/tadelv/reaprime/releases/tag/${release.tagName}';
   }
 
   /// Enable automatic update checks

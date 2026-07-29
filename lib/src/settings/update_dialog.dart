@@ -5,8 +5,9 @@ import 'package:reaprime/src/services/android_updater.dart';
 class UpdateDialog extends StatefulWidget {
   final UpdateInfo updateInfo;
   final String currentVersion;
-  final Future<String> Function(UpdateInfo) onDownload;
+  final Future<String> Function(UpdateInfo, void Function(double)) onDownload;
   final Future<bool> Function(String) onInstall;
+  final VoidCallback onViewReleaseNotes;
 
   const UpdateDialog({
     super.key,
@@ -14,6 +15,7 @@ class UpdateDialog extends StatefulWidget {
     required this.currentVersion,
     required this.onDownload,
     required this.onInstall,
+    required this.onViewReleaseNotes,
   });
 
   @override
@@ -25,6 +27,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
   bool _isInstalling = false;
   String? _downloadedPath;
   String? _error;
+  double? _downloadProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -52,22 +55,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
               ),
             ],
             SizedBox(height: 16),
-            if (widget.updateInfo.releaseNotes.isNotEmpty) ...[
-              Text(
-                'Release Notes:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              SizedBox(height: 8),
-              Container(
-                constraints: BoxConstraints(maxHeight: 200),
-                child: SingleChildScrollView(
-                  child: Text(
-                    widget.updateInfo.releaseNotes,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ),
-            ],
+            TextButton.icon(
+              onPressed: widget.onViewReleaseNotes,
+              icon: const Icon(Icons.open_in_new),
+              label: const Text("What's new"),
+            ),
             if (_error != null) ...[
               SizedBox(height: 16),
               Container(
@@ -81,9 +73,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
             ],
             if (_isDownloading) ...[
               SizedBox(height: 16),
-              LinearProgressIndicator(),
+              LinearProgressIndicator(value: _downloadProgress),
               SizedBox(height: 8),
-              Text('Downloading update...'),
+              Text(
+                _downloadProgress == null
+                    ? 'Downloading update…'
+                    : 'Downloading update… ${(_downloadProgress! * 100).round()}%',
+              ),
             ],
             if (_isInstalling) ...[
               SizedBox(height: 16),
@@ -122,7 +118,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
     });
 
     try {
-      final path = await widget.onDownload(widget.updateInfo);
+      final path = await widget.onDownload(widget.updateInfo, (progress) {
+        if (mounted) setState(() => _downloadProgress = progress);
+      });
+      if (!mounted) return;
       setState(() {
         _downloadedPath = path;
         _isDownloading = false;

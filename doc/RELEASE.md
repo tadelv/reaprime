@@ -7,8 +7,8 @@ This document describes how to create releases for Decent.app.
 Decent.app uses git tags to trigger automatic releases. When you push a tag, GitHub Actions will:
 1. Build all supported platforms
 2. Export the iOS archive for TestFlight
-3. Create a GitHub release with the desktop, Android, Raspberry Pi, and unsigned iOS artifacts
-4. Auto-generate release notes
+3. Generate concise, user-facing release notes from the merged changes using GitHub Models
+4. Create a GitHub release with those notes and the desktop, Android, Raspberry Pi, and unsigned iOS artifacts
 
 ### Step 1: Tag Your Release
 
@@ -67,11 +67,7 @@ Pre-releases are automatically detected by:
 
 ## Editing Release Notes
 
-After the release is created, you can edit it to:
-1. Add detailed changelog
-2. Add screenshots
-3. Highlight important changes
-4. Add upgrade instructions
+The workflow publishes only a short user-facing `What's new` list. After the release is created, review it for accuracy and edit it when screenshots, upgrade instructions, or corrections are needed.
 
 ## Workflow Files
 
@@ -114,7 +110,8 @@ Tagged release artifact naming remains unchanged. Development workflow artifacts
 ### APK Not Attached to Release
 - Check the workflow completed successfully
 - Verify the APK was built (check workflow artifacts)
-- Ensure GITHUB_TOKEN has proper permissions
+- Ensure GITHUB_TOKEN has `contents: write` and `models: read` permissions
+- Check that GitHub Models generated a non-empty `## What's new` section
 
 ### Wrong Version Number
 - Verify your tag follows the format `vX.Y.Z`
@@ -155,5 +152,4 @@ Required secrets: `APPLE_DISTRIBUTION_CERTIFICATE_P12`, `APPLE_DISTRIBUTION_CERT
 
 - [ ] Add multi-platform releases (macOS, Linux, Windows)
 - [ ] Add checksums for security verification
-- [ ] Add automatic changelog generation from commits
 - [ ] Add release approval workflow

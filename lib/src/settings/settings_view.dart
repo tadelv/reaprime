@@ -315,17 +315,22 @@ class SettingsView extends StatelessWidget {
       if (updateInfo != null) {
         if (Platform.isAndroid) {
           final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
+          final releaseUrl = updateCheckService?.getReleaseUrl(updateInfo);
           showDialog(
             context: context,
             builder: (context) => UpdateDialog(
               updateInfo: updateInfo,
               currentVersion: BuildInfo.version,
-              onDownload: (info) => updater.downloadUpdate(info),
+              onViewReleaseNotes: () {
+                if (releaseUrl != null) launchUrl(Uri.parse(releaseUrl));
+              },
+              onDownload: (info, onProgress) =>
+                  updater.downloadUpdate(info, onProgress: onProgress),
               onInstall: (path) => updater.installUpdate(path),
             ),
           );
         } else {
-          final releaseUrl = updateCheckService?.getReleaseUrl();
+          final releaseUrl = updateCheckService?.getReleaseUrl(updateInfo);
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -337,20 +342,6 @@ class SettingsView extends StatelessWidget {
                   Text('Version ${updateInfo.version} is available'),
                   const SizedBox(height: 8),
                   Text('Current version: ${BuildInfo.version}'),
-                  if (updateInfo.releaseNotes.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Release Notes:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: SingleChildScrollView(
-                        child: Text(updateInfo.releaseNotes),
-                      ),
-                    ),
-                  ],
                 ],
               ),
               actions: [
@@ -365,7 +356,7 @@ class SettingsView extends StatelessWidget {
                       await launchUrl(Uri.parse(releaseUrl));
                     }
                   },
-                  child: const Text('Download'),
+                  child: const Text("What's new"),
                 ),
               ],
             ),

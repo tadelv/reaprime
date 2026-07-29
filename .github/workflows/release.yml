@@ -632,6 +632,9 @@ jobs:
     name: Create GitHub Release
     needs: [build-android, build-macos, build-linux, build-raspberrypi, build-windows, build-ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      models: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -653,6 +656,28 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R release-artifacts
 
+      - name: Generate change list
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${{ steps.version.outputs.tag }}" \
+            --jq .body > generated-release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Write user-facing release notes
+        id: release-notes
+        uses: actions/ai-inference@v2
+        with:
+          prompt-file: .github/prompts/release-notes.prompt.yml
+          file_input: |
+            changes: ./generated-release-notes.md
+
+      - name: Validate release notes
+        run: |
+          cp "${{ steps.release-notes.outputs.response-file }}" release-notes.md
+          test -s release-notes.md
+          grep -q "^## What's new$" release-notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -667,37 +692,7 @@ jobs:
           name: Decent ${{ steps.version.outputs.version }}
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'rc') }}
-          generate_release_notes: true
-          body: |
-            ## Decent ${{ steps.version.outputs.version }}
-            
-            ### Downloads
-            
-            - **Android**: `decent-android-${{ steps.version.outputs.version }}.apk`
-            - **macOS**: `decent-macos-${{ steps.version.outputs.version }}.zip`
-            - **Linux x64**: `decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
-            - **Linux ARM64 (Raspberry Pi)**: `decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
-            - **Windows x64**: `decent-windows-x64-${{ steps.version.outputs.version }}.zip`
-            - **iOS (unsigned)**: `decent-ios-unsigned-${{ steps.version.outputs.version }}.ipa`
-            
-            ### Installation
-            
-            **Android**: Download the APK and install it on your device.
-            
-            **macOS**: Download the ZIP, extract it, and move the app to your Applications folder.
-            
-            **Linux**: Download the tar.gz, extract it, and run the executable inside the bundle directory.
-            
-            **Windows**: Download the ZIP, extract it, and run the executable inside the extracted folder.
-            
-            > **Windows users**: Decent requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
-
-            **iOS**: Use TestFlight for the signed build, or download the unsigned IPA above for self-signing and sideloading. The unsigned IPA cannot be installed directly.
-            
-            ### What's Changed
-            <!-- GitHub will auto-generate release notes here -->
-            
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.tag }}
+          body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
