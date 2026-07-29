@@ -67,8 +67,7 @@ class _FakeStorage implements StorageService {
     String? profileTitle,
     String? search,
     bool ascending = false,
-  }) async =>
-      [];
+  }) async => [];
   @override
   Future<int> countShots({
     String? grinderId,
@@ -79,8 +78,7 @@ class _FakeStorage implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<ShotRecord?> getLatestShot() async => null;
   @override
@@ -88,11 +86,11 @@ class _FakeStorage implements StorageService {
 }
 
 SteamRecord _record(String id) => SteamRecord(
-      id: id,
-      timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
-      measurements: const [],
-      workflow: WorkflowController().currentWorkflow,
-    );
+  id: id,
+  timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
+  measurements: const [],
+  workflow: WorkflowController().currentWorkflow,
+);
 
 void main() {
   late _FakeStorage storage;

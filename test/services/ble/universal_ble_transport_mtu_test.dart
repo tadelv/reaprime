@@ -132,9 +132,8 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   }
 
   @override
-  Future<List<BleDevice>> getSystemDevices(
-    List<String>? withServices,
-  ) async => [];
+  Future<List<BleDevice>> getSystemDevices(List<String>? withServices) async =>
+      [];
 
   void emitDisconnected(String deviceId) {
     systemConnected = false;
@@ -213,26 +212,29 @@ void main() {
     await value.dispose();
   });
 
-  test('system-connected transport attaches before service discovery', () async {
-    final value = transport(android: false, linux: false);
-    final states = <device.ConnectionState>[];
-    final subscription = value.connectionState.listen(states.add);
+  test(
+    'system-connected transport attaches before service discovery',
+    () async {
+      final value = transport(android: false, linux: false);
+      final states = <device.ConnectionState>[];
+      final subscription = value.connectionState.listen(states.add);
 
-    await value.connect();
-    await value.discoverServices();
-    await Future<void>.delayed(Duration.zero);
-    expect(platform.connectCalls, 1);
-    expect(platform.physicalConnectCalls, 0);
-    expect(platform.attached, isTrue);
-    expect(states, contains(device.ConnectionState.connected));
+      await value.connect();
+      await value.discoverServices();
+      await Future<void>.delayed(Duration.zero);
+      expect(platform.connectCalls, 1);
+      expect(platform.physicalConnectCalls, 0);
+      expect(platform.attached, isTrue);
+      expect(states, contains(device.ConnectionState.connected));
 
-    platform.emitDisconnected(deviceId);
-    await Future<void>.delayed(Duration.zero);
-    expect(states.last, device.ConnectionState.disconnected);
+      platform.emitDisconnected(deviceId);
+      await Future<void>.delayed(Duration.zero);
+      expect(states.last, device.ConnectionState.disconnected);
 
-    await subscription.cancel();
-    await value.dispose();
-  });
+      await subscription.cancel();
+      await value.dispose();
+    },
+  );
 
   test('disconnected transport performs a native connect', () async {
     platform.systemConnected = false;

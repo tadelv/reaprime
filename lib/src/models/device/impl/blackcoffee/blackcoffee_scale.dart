@@ -36,7 +36,8 @@ class BlackCoffeeScale implements Scale {
   String get deviceId => _deviceId;
 
   @override
-  DeviceImplementation get implementation => DeviceImplementation.blackCoffeeScale;
+  DeviceImplementation get implementation =>
+      DeviceImplementation.blackCoffeeScale;
 
   @override
   TransportType get transportType => _transport.transportType;
@@ -66,9 +67,9 @@ class BlackCoffeeScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -119,7 +120,11 @@ class BlackCoffeeScale implements Scale {
   double _lastRawWeight = 0.0;
 
   Future<void> _registerNotifications() async {
-    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _transport.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
   }
 
   void _parseNotification(List<int> data) {

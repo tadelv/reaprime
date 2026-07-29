@@ -6,20 +6,31 @@ void main() {
   group('isBenignFrameworkError', () {
     group('DeviceNotConnectedException', () {
       test('.machine is benign', () {
-        expect(isBenignFrameworkError(const DeviceNotConnectedException.machine()), isTrue);
+        expect(
+          isBenignFrameworkError(const DeviceNotConnectedException.machine()),
+          isTrue,
+        );
       });
 
       test('.scale is benign', () {
-        expect(isBenignFrameworkError(const DeviceNotConnectedException.scale()), isTrue);
+        expect(
+          isBenignFrameworkError(const DeviceNotConnectedException.scale()),
+          isTrue,
+        );
       });
 
       test('.unknown is benign', () {
-        expect(isBenignFrameworkError(const DeviceNotConnectedException.unknown()), isTrue);
+        expect(
+          isBenignFrameworkError(const DeviceNotConnectedException.unknown()),
+          isTrue,
+        );
       });
 
       test('with positional kind is benign', () {
         expect(
-          isBenignFrameworkError(const DeviceNotConnectedException(DeviceKind.scale)),
+          isBenignFrameworkError(
+            const DeviceNotConnectedException(DeviceKind.scale),
+          ),
           isTrue,
         );
       });
@@ -89,7 +100,6 @@ void main() {
       });
     });
 
-
     group('non-benign errors (should crash)', () {
       test('StateError is NOT benign', () {
         expect(isBenignFrameworkError(StateError('bad state')), isFalse);
@@ -119,10 +129,7 @@ void main() {
       });
 
       test('Null check operator error is NOT benign', () {
-        expect(
-          isBenignFrameworkError(_NullCheckError()),
-          isFalse,
-        );
+        expect(isBenignFrameworkError(_NullCheckError()), isFalse);
       });
     });
   });
@@ -145,5 +152,6 @@ class _NullCheckError implements Exception {
 
 class _LateInitError implements Exception {
   @override
-  String toString() => 'LateInitializationError: Field \'_field\' has not been initialized.';
+  String toString() =>
+      'LateInitializationError: Field \'_field\' has not been initialized.';
 }

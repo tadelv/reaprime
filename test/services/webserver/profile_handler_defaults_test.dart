@@ -15,7 +15,8 @@ class _StubStorage implements ProfileStorageService {
   @override
   Future<ProfileRecord?> get(String id) async => null;
   @override
-  Future<List<ProfileRecord>> getAll({Visibility? visibility}) async => const [];
+  Future<List<ProfileRecord>> getAll({Visibility? visibility}) async =>
+      const [];
   @override
   Future<void> update(ProfileRecord record) async {}
   @override
@@ -35,8 +36,7 @@ class _StubStorage implements ProfileStorageService {
 }
 
 class _ListDefaultsStub extends ProfileController {
-  _ListDefaultsStub({required this.fixture})
-    : super(storage: _StubStorage());
+  _ListDefaultsStub({required this.fixture}) : super(storage: _StubStorage());
 
   final List<Map<String, dynamic>> fixture;
 

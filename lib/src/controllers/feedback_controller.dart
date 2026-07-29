@@ -5,12 +5,7 @@ import 'package:reaprime/src/models/feedback/feedback_result.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
 
 /// State of the feedback submission process
-enum FeedbackState {
-  idle,
-  submitting,
-  success,
-  error,
-}
+enum FeedbackState { idle, submitting, success, error }
 
 /// Controller for managing feedback submission lifecycle.
 ///

@@ -96,30 +96,33 @@ void main() {
       Future<void>.delayed(_debounce + const Duration(milliseconds: 30));
 
   void setStopAtTemp(double value) {
-    final updated = workflow.currentWorkflow.steamSettings
-        .copyWith(stopAtTemperature: value);
+    final updated = workflow.currentWorkflow.steamSettings.copyWith(
+      stopAtTemperature: value,
+    );
     workflow.updateWorkflow(steamSettings: updated);
   }
 
-  test('stopAtTemperature change writes to connected Bengle after debounce',
-      () async {
-    final bengle = _RecordingBengle();
-    await connectBengle(bengle);
+  test(
+    'stopAtTemperature change writes to connected Bengle after debounce',
+    () async {
+      final bengle = _RecordingBengle();
+      await connectBengle(bengle);
 
-    final bridge = BengleSteamStopBridge(
-      workflowController: workflow,
-      de1Controller: de1Controller,
-      debounce: _debounce,
-    );
-    await Future<void>.delayed(Duration.zero);
-    bengle.stopAtTempWrites.clear();
+      final bridge = BengleSteamStopBridge(
+        workflowController: workflow,
+        de1Controller: de1Controller,
+        debounce: _debounce,
+      );
+      await Future<void>.delayed(Duration.zero);
+      bengle.stopAtTempWrites.clear();
 
-    setStopAtTemp(65.0);
-    await pumpDebounce();
+      setStopAtTemp(65.0);
+      await pumpDebounce();
 
-    expect(bengle.stopAtTempWrites, [65.0]);
-    await bridge.dispose();
-  });
+      expect(bengle.stopAtTempWrites, [65.0]);
+      await bridge.dispose();
+    },
+  );
 
   test('debounce coalesces rapid edits into a single write', () async {
     final bengle = _RecordingBengle();
@@ -146,16 +149,18 @@ void main() {
   test('no write when connected machine is not Bengle', () async {
     final de1 = TestDe1();
     await de1Controller.connectToDe1(de1);
-    de1.emitShotSettings(De1ShotSettings(
-      steamSetting: 0,
-      targetSteamTemp: 150,
-      targetSteamDuration: 30,
-      targetHotWaterTemp: 75,
-      targetHotWaterVolume: 50,
-      targetHotWaterDuration: 30,
-      targetShotVolume: 36,
-      groupTemp: 94.0,
-    ));
+    de1.emitShotSettings(
+      De1ShotSettings(
+        steamSetting: 0,
+        targetSteamTemp: 150,
+        targetSteamDuration: 30,
+        targetHotWaterTemp: 75,
+        targetHotWaterVolume: 50,
+        targetHotWaterDuration: 30,
+        targetShotVolume: 36,
+        groupTemp: 94.0,
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final bridge = BengleSteamStopBridge(

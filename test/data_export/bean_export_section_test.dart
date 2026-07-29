@@ -36,17 +36,20 @@ class MockBeanStorageService implements BeanStorageService {
       beans.removeWhere((b) => b.id == id);
 
   @override
-  Future<List<BeanBatch>> getBatchesForBean(String beanId,
-      {bool includeArchived = false}) async {
+  Future<List<BeanBatch>> getBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) async {
     final filtered = batches.where((b) => b.beanId == beanId);
     if (includeArchived) return filtered.toList();
     return filtered.where((b) => !b.archived).toList();
   }
 
   @override
-  Stream<List<BeanBatch>> watchBatchesForBean(String beanId,
-          {bool includeArchived = false}) =>
-      throw UnimplementedError();
+  Stream<List<BeanBatch>> watchBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) => throw UnimplementedError();
 
   @override
   Future<BeanBatch?> getBatchById(String id) async =>
@@ -74,7 +77,11 @@ class MockBeanStorageService implements BeanStorageService {
   }
 }
 
-Bean _makeBean({String id = 'bean-1', String roaster = 'Sey', String name = 'La Esperanza'}) {
+Bean _makeBean({
+  String id = 'bean-1',
+  String roaster = 'Sey',
+  String name = 'La Esperanza',
+}) {
   return Bean(
     id: id,
     roaster: roaster,
@@ -138,8 +145,15 @@ void main() {
 
     test('includes archived beans and batches', () async {
       storage.beans.add(_makeBean(id: 'bean-active'));
-      storage.beans.add(_makeBean(id: 'bean-archived').copyWith(archived: true));
-      storage.batches.add(_makeBatch(id: 'batch-archived', beanId: 'bean-archived').copyWith(archived: true));
+      storage.beans.add(
+        _makeBean(id: 'bean-archived').copyWith(archived: true),
+      );
+      storage.batches.add(
+        _makeBatch(
+          id: 'batch-archived',
+          beanId: 'bean-archived',
+        ).copyWith(archived: true),
+      );
 
       final result = await section.export();
       final list = result as List;
@@ -207,10 +221,9 @@ void main() {
     });
 
     test('returns error for non-list data', () async {
-      final result = await section.import(
-        {'not': 'a list'},
-        ConflictStrategy.skip,
-      );
+      final result = await section.import({
+        'not': 'a list',
+      }, ConflictStrategy.skip);
 
       expect(result.imported, equals(0));
       expect(result.errors, hasLength(1));
@@ -237,7 +250,9 @@ void main() {
       final beanJson = bean.toJson();
       beanJson['batches'] = [_makeBatch(roastLevel: 'Dark').toJson()];
 
-      final result = await section.import([beanJson], ConflictStrategy.overwrite);
+      final result = await section.import([
+        beanJson,
+      ], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(2)); // bean + batch
       expect(storage.batches.first.roastLevel, equals('Dark'));
@@ -247,10 +262,10 @@ void main() {
       final validJson = _makeBean().toJson();
       final invalidJson = <String, dynamic>{'garbage': true};
 
-      final result = await section.import(
-        [validJson, invalidJson],
-        ConflictStrategy.overwrite,
-      );
+      final result = await section.import([
+        validJson,
+        invalidJson,
+      ], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.errors, hasLength(1));

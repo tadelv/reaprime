@@ -32,25 +32,33 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 200));
   });
 
-  test('dispose cancels the connectionState listener (no events after)',
-      () async {
-    await de1Controller.dispose();
+  test(
+    'dispose cancels the connectionState listener (no events after)',
+    () async {
+      await de1Controller.dispose();
 
-    // If the connectionState listener leaked, this disconnected emit
-    // would fire _onDisconnect() → _de1Controller.add() on a now-closed
-    // subject → uncaught StateError. Capture any uncaught async error.
-    Object? uncaught;
-    await runZonedGuarded(() async {
-      // Backdoor on MockDe1 that pushes a `disconnected` event.
-      await mockDe1.setHeaterPhase2Timeout(0);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }, (error, _) {
-      uncaught = error;
-    });
+      // If the connectionState listener leaked, this disconnected emit
+      // would fire _onDisconnect() → _de1Controller.add() on a now-closed
+      // subject → uncaught StateError. Capture any uncaught async error.
+      Object? uncaught;
+      await runZonedGuarded(
+        () async {
+          // Backdoor on MockDe1 that pushes a `disconnected` event.
+          await mockDe1.setHeaterPhase2Timeout(0);
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        },
+        (error, _) {
+          uncaught = error;
+        },
+      );
 
-    expect(uncaught, isNull,
-        reason: 'disconnected event reached a leaked listener after dispose');
-  });
+      expect(
+        uncaught,
+        isNull,
+        reason: 'disconnected event reached a leaked listener after dispose',
+      );
+    },
+  );
 
   test('dispose closes the de1 stream', () async {
     final done = expectLater(de1Controller.de1, emitsThrough(emitsDone));

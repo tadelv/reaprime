@@ -11,11 +11,9 @@ final class BundledFirmwareCatalog {
   final AssetBundle _bundle;
   final Logger _log;
 
-  BundledFirmwareCatalog({
-    required AssetBundle bundle,
-    Logger? logger,
-  }) : _bundle = bundle,
-       _log = logger ?? Logger('BundledFirmwareCatalog');
+  BundledFirmwareCatalog({required AssetBundle bundle, Logger? logger})
+    : _bundle = bundle,
+      _log = logger ?? Logger('BundledFirmwareCatalog');
 
   Future<FirmwareManifest> loadManifest() async {
     _log.info('Loading bundled firmware manifest');

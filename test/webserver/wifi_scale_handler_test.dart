@@ -34,13 +34,15 @@ void main() {
   Future<Response> get(String path) async =>
       await handler(Request('GET', Uri.parse('http://localhost$path')));
   Future<Response> post(String path, Object body) async => await handler(
-        Request('POST', Uri.parse('http://localhost$path'),
-            body: jsonEncode(body)),
-      );
+    Request('POST', Uri.parse('http://localhost$path'), body: jsonEncode(body)),
+  );
   Future<Response> del(String path, [Object? body]) async => await handler(
-        Request('DELETE', Uri.parse('http://localhost$path'),
-            body: body == null ? null : jsonEncode(body)),
-      );
+    Request(
+      'DELETE',
+      Uri.parse('http://localhost$path'),
+      body: body == null ? null : jsonEncode(body),
+    ),
+  );
   Future<List<dynamic>> endpoints(Response r) async =>
       (jsonDecode(await r.readAsString()) as Map)['endpoints'] as List;
 

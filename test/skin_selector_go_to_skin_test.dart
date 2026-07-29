@@ -20,8 +20,9 @@ const String _skinViewSentinel = 'SKIN VIEW SENTINEL';
 /// The primary button is "Go to skin" everywhere except Linux, which has no
 /// in-app WebView and so opens the external browser instead. CI runs on Linux,
 /// so the finder must follow the platform rather than assume "Go to skin".
-final String _primaryActionLabel =
-    Platform.isLinux ? 'Open in Browser' : 'Go to skin';
+final String _primaryActionLabel = Platform.isLinux
+    ? 'Open in Browser'
+    : 'Go to skin';
 
 /// Records launched URLs so the Linux fallback path can be asserted without
 /// hitting a real platform channel.
@@ -133,15 +134,17 @@ void main() {
     UrlLauncherPlatform.instance = original;
   });
 
-  testWidgets('renders a "Go to skin" button below the skin selector',
-      (tester) async {
+  testWidgets('renders a "Go to skin" button below the skin selector', (
+    tester,
+  ) async {
     await _pumpPage(tester, _FakeWebUIService(serving: false));
 
     expect(find.text(_primaryActionLabel), findsOneWidget);
   });
 
-  testWidgets('server controls are the quiet footer, not the primary action',
-      (tester) async {
+  testWidgets('server controls are the quiet footer, not the primary action', (
+    tester,
+  ) async {
     await _pumpPage(tester, _FakeWebUIService(serving: true));
 
     // Niche controls live in the footer when serving.
@@ -154,16 +157,16 @@ void main() {
     expect(find.text('Check for updates'), findsOneWidget);
   });
 
-  testWidgets('server footer offers "Start server" when stopped',
-      (tester) async {
+  testWidgets('server footer offers "Start server" when stopped', (
+    tester,
+  ) async {
     await _pumpPage(tester, _FakeWebUIService(serving: false));
 
     expect(find.text('Start server'), findsOneWidget);
     expect(find.text('Stop server'), findsNothing);
   });
 
-  testWidgets(
-      'tapping "Go to skin" while serving opens the skin in-app '
+  testWidgets('tapping "Go to skin" while serving opens the skin in-app '
       '(external browser on Linux)', (tester) async {
     await _pumpPage(tester, _FakeWebUIService(serving: true));
 
@@ -184,24 +187,25 @@ void main() {
   });
 
   testWidgets(
-      'tapping "Go to skin" while stopped starts the selected skin then opens it',
-      (tester) async {
-    final service = _FakeWebUIService(serving: false);
-    await _pumpPage(tester, service);
+    'tapping "Go to skin" while stopped starts the selected skin then opens it',
+    (tester) async {
+      final service = _FakeWebUIService(serving: false);
+      await _pumpPage(tester, service);
 
-    final button = find.text(_primaryActionLabel);
-    await tester.ensureVisible(button);
-    await tester.tap(button);
-    await tester.pump(); // run async handler + setState
-    await tester.pumpAndSettle();
+      final button = find.text(_primaryActionLabel);
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump(); // run async handler + setState
+      await tester.pumpAndSettle();
 
-    // Server was started with the selected skin before opening it.
-    expect(service.servedPaths, ['/tmp/streamline.js']);
+      // Server was started with the selected skin before opening it.
+      expect(service.servedPaths, ['/tmp/streamline.js']);
 
-    if (Platform.isLinux) {
-      expect(launcher.launched, hasLength(1));
-    } else {
-      expect(find.text(_skinViewSentinel), findsOneWidget);
-    }
-  });
+      if (Platform.isLinux) {
+        expect(launcher.launched, hasLength(1));
+      } else {
+        expect(find.text(_skinViewSentinel), findsOneWidget);
+      }
+    },
+  );
 }

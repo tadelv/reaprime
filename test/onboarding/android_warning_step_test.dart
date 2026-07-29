@@ -45,17 +45,19 @@ void main() {
   });
 
   testWidgets('Continue persists dismissal and advances', (tester) async {
-    final controller = OnboardingController(steps: [
-      createAndroidWarningStep(
-        settingsController: settings,
-        sdkVersionProvider: () async => 30,
-      ),
-      OnboardingStep(
-        id: 'next',
-        shouldShow: () async => true,
-        builder: (_) => const Scaffold(body: Text('next-step')),
-      ),
-    ]);
+    final controller = OnboardingController(
+      steps: [
+        createAndroidWarningStep(
+          settingsController: settings,
+          sdkVersionProvider: () async => 30,
+        ),
+        OnboardingStep(
+          id: 'next',
+          shouldShow: () async => true,
+          builder: (_) => const Scaffold(body: Text('next-step')),
+        ),
+      ],
+    );
     await controller.initialize();
 
     await tester.pumpWidget(

@@ -75,7 +75,8 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
 
     for (final file in result.files) {
       if (_screenshots.length >= _maxScreenshots) break;
-      final bytes = file.bytes ??
+      final bytes =
+          file.bytes ??
           (file.path != null ? await _readFile(file.path!) : null);
       if (bytes != null) {
         setState(() => _screenshots.add(bytes));
@@ -141,9 +142,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
       );
 
       if (result != null && mounted) {
-        setState(
-          () => _validationMessage = 'Report saved to: $result',
-        );
+        setState(() => _validationMessage = 'Report saved to: $result');
       }
     } catch (e) {
       if (mounted) {
@@ -190,9 +189,9 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
             child: Text(
               _validationMessage!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w500,
-                  ),
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -200,9 +199,9 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
         // Feedback type selector
         Text(
           'Type',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 4),
         ShadSelect<FeedbackType>(
@@ -213,14 +212,11 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
               setState(() => _selectedType = value);
             }
           },
-          selectedOptionBuilder: (context, value) =>
-              Text(value.displayName),
+          selectedOptionBuilder: (context, value) => Text(value.displayName),
           options: FeedbackType.values
               .map(
-                (type) => ShadOption(
-                  value: type,
-                  child: Text(type.displayName),
-                ),
+                (type) =>
+                    ShadOption(value: type, child: Text(type.displayName)),
               )
               .toList(),
           placeholder: const Text('Select type...'),
@@ -229,9 +225,9 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
         // Description
         Text(
           'Description',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 4),
         ShadInput(
@@ -267,16 +263,15 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
             Expanded(
               child: Text(
                 'Screenshots (${_screenshots.length}/$_maxScreenshots)',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
               ),
             ),
             if (_screenshots.length < _maxScreenshots)
               ShadButton.outline(
                 size: ShadButtonSize.sm,
-                onPressed:
-                    _controller.isSubmitting ? null : _pickScreenshots,
+                onPressed: _controller.isSubmitting ? null : _pickScreenshots,
                 child: const Text('Attach'),
               ),
           ],
@@ -304,8 +299,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
                       child: GestureDetector(
                         onTap: _controller.isSubmitting
                             ? null
-                            : () => setState(
-                                () => _screenshots.removeAt(i)),
+                            : () => setState(() => _screenshots.removeAt(i)),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.black54,
@@ -339,9 +333,8 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
             child: Text(
               _controller.lastResult!.errorMessage!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color:
-                        Theme.of(context).colorScheme.onErrorContainer,
-                  ),
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -352,8 +345,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
                 ? const SizedBox(
                     width: 14,
                     height: 14,
-                    child:
-                        CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Text('Export as HTML instead'),
           ),

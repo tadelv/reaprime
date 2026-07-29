@@ -261,10 +261,7 @@ class SharedPreferencesSettingsService extends SettingsService {
     // → new release id (declared in skin-manifest.json inside the release zip).
     // Runs on every call, but rewrites pref only once per user.
     if (stored == 'streamline_project-main') {
-      await prefs.setString(
-        SettingsKeys.defaultSkinId.name,
-        'streamline.js',
-      );
+      await prefs.setString(SettingsKeys.defaultSkinId.name, 'streamline.js');
       return 'streamline.js';
     }
     return stored ?? 'streamline.js';

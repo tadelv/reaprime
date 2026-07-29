@@ -53,7 +53,7 @@ class ScanOrchestrator {
   final DeviceScanner _scanner;
   final StatusPublisher _statusPublisher;
   final Future<void> Function(De1Interface, ScanReportBuilder)
-      _connectMachineTracked;
+  _connectMachineTracked;
   final Future<void> Function(Scale, ScanReportBuilder) _connectScaleTracked;
   final bool Function() _isMachineConnected;
   final bool Function() _isScaleConnected;
@@ -62,17 +62,17 @@ class ScanOrchestrator {
     required DeviceScanner scanner,
     required StatusPublisher statusPublisher,
     required Future<void> Function(De1Interface, ScanReportBuilder)
-        connectMachineTracked,
+    connectMachineTracked,
     required Future<void> Function(Scale, ScanReportBuilder)
-        connectScaleTracked,
+    connectScaleTracked,
     required bool Function() isMachineConnected,
     required bool Function() isScaleConnected,
-  })  : _scanner = scanner,
-        _statusPublisher = statusPublisher,
-        _connectMachineTracked = connectMachineTracked,
-        _connectScaleTracked = connectScaleTracked,
-        _isMachineConnected = isMachineConnected,
-        _isScaleConnected = isScaleConnected;
+  }) : _scanner = scanner,
+       _statusPublisher = statusPublisher,
+       _connectMachineTracked = connectMachineTracked,
+       _connectScaleTracked = connectScaleTracked,
+       _isMachineConnected = isMachineConnected,
+       _isScaleConnected = isScaleConnected;
 
   /// Publish `phase: scanning`, set up the early-connect watcher,
   /// run the scan, wait for early connects, and return a snapshot
@@ -209,10 +209,13 @@ class ScanOrchestrator {
       _statusPublisher.publish(
         _statusPublisher.current.copyWith(
           conditions: _statusPublisher.current.conditions
-              .where((condition) =>
-                  condition.connectionError.kind != ConnectionErrorKind.scanFailed &&
-                  condition.connectionError.kind !=
-                      ConnectionErrorKind.bluetoothPermissionDenied)
+              .where(
+                (condition) =>
+                    condition.connectionError.kind !=
+                        ConnectionErrorKind.scanFailed &&
+                    condition.connectionError.kind !=
+                        ConnectionErrorKind.bluetoothPermissionDenied,
+              )
               .toList(),
         ),
       );

@@ -19,11 +19,11 @@ class PersistedProxyToken {
   });
 
   Map<String, dynamic> toJson() => {
-        'token': token,
-        'label': label,
-        'scopes': scopes.toList(),
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'token': token,
+    'label': label,
+    'scopes': scopes.toList(),
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   factory PersistedProxyToken.fromJson(Map<String, dynamic> json) =>
       PersistedProxyToken(
@@ -46,8 +46,8 @@ class ProxyTokenStore {
   ProxyTokenStore({
     required CredentialStore credentialStore,
     String storageKey = 'account_proxy_tokens',
-  })  : _credentialStore = credentialStore,
-        _storageKey = storageKey;
+  }) : _credentialStore = credentialStore,
+       _storageKey = storageKey;
 
   Future<List<PersistedProxyToken>> load() async {
     final raw = await _credentialStore.read(key: _storageKey);

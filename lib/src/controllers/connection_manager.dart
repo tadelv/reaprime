@@ -662,8 +662,8 @@ class ConnectionManager {
         intent: identical(policy, ConnectionAttemptPolicy.explicitScan)
             ? ConnectionIntent.explicitDiscovery
             : identical(policy, ConnectionAttemptPolicy.scaleRecovery)
-                ? ConnectionIntent.scaleRecovery
-                : ConnectionIntent.automatic,
+            ? ConnectionIntent.scaleRecovery
+            : ConnectionIntent.automatic,
         activeTargetTransport: () => null,
       ),
     );
@@ -814,16 +814,22 @@ class ConnectionManager {
     // Explicit scan was cancelled while the scan was in-flight — emit a
     // cancelled report and bail without applying policy.
     if (_explicitScanGeneration != scanGen) {
-      _scanReportSubject.add(scanRun.reportBuilder.build(
-        preferredMachineId: preferredMachineId,
-        preferredScaleId: preferredScaleId,
-        terminationReason: ScanTerminationReason.cancelledByUser,
-        adapterStateAtEnd: deviceScanner.currentAdapterState,
-      ));
-      _publishStatus(currentStatus.copyWith(
-        pendingAmbiguity: () => null,
-        phase: _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
-      ));
+      _scanReportSubject.add(
+        scanRun.reportBuilder.build(
+          preferredMachineId: preferredMachineId,
+          preferredScaleId: preferredScaleId,
+          terminationReason: ScanTerminationReason.cancelledByUser,
+          adapterStateAtEnd: deviceScanner.currentAdapterState,
+        ),
+      );
+      _publishStatus(
+        currentStatus.copyWith(
+          pendingAmbiguity: () => null,
+          phase: _machineConnected
+              ? ConnectionPhase.ready
+              : ConnectionPhase.idle,
+        ),
+      );
       _ensureScaleReacquisition();
       return;
     }
@@ -1467,10 +1473,12 @@ class ConnectionManager {
       );
 
       if (selectionSession == null || !selectionSession.isActive) {
-        _publishStatus(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => null,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => null,
+          ),
+        );
         _emit(machineError);
         rethrow;
       }
@@ -1479,18 +1487,22 @@ class ConnectionManager {
           .where((m) => m.deviceId != machine.deviceId)
           .toList();
       if (alternatives.isNotEmpty) {
-        _publishStatus(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => AmbiguityReason.machinePicker,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          ),
+        );
         _emit(machineError);
         rethrow;
       }
 
-      _publishStatus(currentStatus.copyWith(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: () => null,
-      ));
+      _publishStatus(
+        currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => null,
+        ),
+      );
       _emit(machineError);
       await _runScalePhase(
         null,
@@ -1606,8 +1618,10 @@ class ConnectionManager {
     }
     // Capture the machine error before connectScale publishes a clearing
     // phase (connectingScale) and the gatekeeper strips it.
-    final machineError = !_machineConnected &&
-            currentStatus.error?.kind == ConnectionErrorKind.machineConnectFailed
+    final machineError =
+        !_machineConnected &&
+            currentStatus.error?.kind ==
+                ConnectionErrorKind.machineConnectFailed
         ? currentStatus.error
         : null;
     session.scanReport.markAttempted(resolved.deviceId);
@@ -1734,9 +1748,7 @@ class ConnectionManager {
     return result;
   }
 
-  void _completeSelectionSessionIfResolved(
-    ConnectionSelectionSession session,
-  ) {
+  void _completeSelectionSessionIfResolved(ConnectionSelectionSession session) {
     if (currentStatus.pendingAmbiguity != null) return;
     _finishSelectionSession(session, ScanTerminationReason.completed);
   }
@@ -1772,13 +1784,8 @@ class ConnectionManager {
     queued?.complete();
     final session = _selectionSession;
     if (session != null) {
-      _publishStatus(currentStatus.copyWith(
-        pendingAmbiguity: () => null,
-      ));
-      _finishSelectionSession(
-        session,
-        ScanTerminationReason.cancelledByUser,
-      );
+      _publishStatus(currentStatus.copyWith(pendingAmbiguity: () => null));
+      _finishSelectionSession(session, ScanTerminationReason.cancelledByUser);
     }
     _settleAfterScalePhase();
     _ensureScaleReacquisition();
@@ -1794,13 +1801,8 @@ class ConnectionManager {
   void cancelSelectionSession() {
     final session = _selectionSession;
     if (session == null) return;
-    _publishStatus(currentStatus.copyWith(
-      pendingAmbiguity: () => null,
-    ));
-    _finishSelectionSession(
-      session,
-      ScanTerminationReason.cancelledByUser,
-    );
+    _publishStatus(currentStatus.copyWith(pendingAmbiguity: () => null));
+    _finishSelectionSession(session, ScanTerminationReason.cancelledByUser);
     _settleAfterScalePhase();
     _ensureScaleReacquisition();
   }
@@ -1809,10 +1811,7 @@ class ConnectionManager {
     final session = _selectionSession;
     if (session == null) return;
     if (emitReport) {
-      _finishSelectionSession(
-        session,
-        ScanTerminationReason.cancelledByUser,
-      );
+      _finishSelectionSession(session, ScanTerminationReason.cancelledByUser);
     } else {
       session.invalidate();
       _selectionSession = null;

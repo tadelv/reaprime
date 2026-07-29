@@ -84,11 +84,7 @@ class SkinUnavailableCard extends StatelessWidget {
   }
 }
 
-enum SkinUnavailableReason {
-  notServing,
-  noWebView,
-  skinError,
-}
+enum SkinUnavailableReason { notServing, noWebView, skinError }
 
 // -- Widget Previews --
 

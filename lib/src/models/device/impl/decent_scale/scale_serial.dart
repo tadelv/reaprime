@@ -55,7 +55,9 @@ class HDSSerial implements Scale, TransportHandoffScale {
     if (_isDisconnecting) return;
     _isDisconnecting = true;
     final uptimeSec = _watchdogTotalTicks * _watchdogInterval.inSeconds;
-    _log.info("disconnecting (totalFrames=$_totalFrames, uptime=${uptimeSec}s)");
+    _log.info(
+      "disconnecting (totalFrames=$_totalFrames, uptime=${uptimeSec}s)",
+    );
     try {
       _watchdogTimer?.cancel();
       _watchdogTimer = null;
@@ -115,8 +117,11 @@ class HDSSerial implements Scale, TransportHandoffScale {
 
       // Periodic heartbeat: log every 5 min (150 ticks at 2s) at FINE level
       if (_watchdogTotalTicks % 150 == 0) {
-        final uptimeMin = (_watchdogTotalTicks * _watchdogInterval.inSeconds) ~/ 60;
-        _log.fine("heartbeat: ${uptimeMin}m uptime, $_totalFrames frames received");
+        final uptimeMin =
+            (_watchdogTotalTicks * _watchdogInterval.inSeconds) ~/ 60;
+        _log.fine(
+          "heartbeat: ${uptimeMin}m uptime, $_totalFrames frames received",
+        );
       }
 
       if (_ticksSinceLastData >= _disconnectTicks) {

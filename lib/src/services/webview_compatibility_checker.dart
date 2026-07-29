@@ -22,10 +22,8 @@ class CompatibilityResult {
       reason = 'WebView is compatible',
       issue = null;
 
-  const CompatibilityResult.incompatible(
-    this.reason,
-    this.issue,
-  ) : isCompatible = false;
+  const CompatibilityResult.incompatible(this.reason, this.issue)
+    : isCompatible = false;
 }
 
 enum CompatibilityIssue {
@@ -57,8 +55,9 @@ class WebViewCompatibilityChecker {
   /// tried and neither unblocked debug-build WebView on Teclast —
   /// the failure mode is different in debug and needs proper
   /// investigation (see TODO: inspect app launch path).
-  static const _problematicManufacturerSettleDelay =
-      Duration(milliseconds: 500);
+  static const _problematicManufacturerSettleDelay = Duration(
+    milliseconds: 500,
+  );
 
   /// Checks WebView compatibility using device info and runtime test
   ///

@@ -176,9 +176,7 @@ void main() {
 
     test('handles partial settings gracefully', () async {
       final data = {
-        'settings': {
-          'logLevel': 'FINE',
-        },
+        'settings': {'logLevel': 'FINE'},
       };
 
       final result = await section.import(data, ConflictStrategy.overwrite);

@@ -70,8 +70,7 @@ class _MockStorage implements StorageService {
     String? profileTitle,
     String? search,
     bool ascending = false,
-  }) async =>
-      [];
+  }) async => [];
   @override
   Future<int> countShots({
     String? grinderId,
@@ -82,8 +81,7 @@ class _MockStorage implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<ShotRecord?> getLatestShot() async => null;
   @override
@@ -91,11 +89,11 @@ class _MockStorage implements StorageService {
 }
 
 SteamRecord makeSteam(String id) => SteamRecord(
-      id: id,
-      timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
-      measurements: const [],
-      workflow: WorkflowController().currentWorkflow,
-    );
+  id: id,
+  timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
+  measurements: const [],
+  workflow: WorkflowController().currentWorkflow,
+);
 
 void main() {
   late _MockStorage storage;
@@ -128,15 +126,18 @@ void main() {
       await controller.persistSteam(makeSteam('s1'));
       await controller.persistSteam(makeSteam('s2'));
       final result = await section.export();
-      expect((result as List).map((m) => (m as Map)['id']),
-          containsAll(['s1', 's2']));
+      expect(
+        (result as List).map((m) => (m as Map)['id']),
+        containsAll(['s1', 's2']),
+      );
     });
   });
 
   group('import', () {
     test('rejects non-list payloads', () async {
-      final result =
-          await section.import({'not': 'a list'}, ConflictStrategy.skip);
+      final result = await section.import({
+        'not': 'a list',
+      }, ConflictStrategy.skip);
       expect(result.errors, isNotEmpty);
       expect(result.imported, 0);
     });
@@ -152,26 +153,26 @@ void main() {
 
     test('skip strategy leaves existing records untouched', () async {
       await controller.persistSteam(makeSteam('s1'));
-      final result = await section
-          .import([makeSteam('s1').toJson()], ConflictStrategy.skip);
+      final result = await section.import([
+        makeSteam('s1').toJson(),
+      ], ConflictStrategy.skip);
       expect(result.imported, 0);
       expect(result.skipped, 1);
     });
 
     test('overwrite strategy updates existing records', () async {
       await controller.persistSteam(makeSteam('s1'));
-      final result = await section
-          .import([makeSteam('s1').toJson()], ConflictStrategy.overwrite);
+      final result = await section.import([
+        makeSteam('s1').toJson(),
+      ], ConflictStrategy.overwrite);
       expect(result.imported, 1);
       expect(result.skipped, 0);
     });
 
     test('reports failures as errors', () async {
-      final result = await section.import(
-          [
-            {'malformed': true}
-          ],
-          ConflictStrategy.skip);
+      final result = await section.import([
+        {'malformed': true},
+      ], ConflictStrategy.skip);
       expect(result.errors, hasLength(1));
       expect(result.imported, 0);
     });

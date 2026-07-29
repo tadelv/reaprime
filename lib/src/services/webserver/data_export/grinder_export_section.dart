@@ -6,7 +6,7 @@ class GrinderExportSection implements DataExportSection {
   final GrinderStorageService _storage;
 
   GrinderExportSection({required GrinderStorageService storage})
-      : _storage = storage;
+    : _storage = storage;
 
   @override
   String get filename => 'grinders.json';

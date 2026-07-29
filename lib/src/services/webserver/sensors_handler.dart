@@ -9,11 +9,10 @@ final class SensorsHandler {
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/sensors', (Request req) {
-      final list =
-          _controller.sensors.values.map((s) {
-            final info = s.info;
-            return {'id': s.deviceId, 'info': info.toJson()};
-          }).toList();
+      final list = _controller.sensors.values.map((s) {
+        final info = s.info;
+        return {'id': s.deviceId, 'info': info.toJson()};
+      }).toList();
       return jsonOk(list);
     });
 

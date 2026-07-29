@@ -6,7 +6,7 @@ class DisplayHandler {
   final log = Logger('DisplayHandler');
 
   DisplayHandler({required DisplayController displayController})
-      : _displayController = displayController;
+    : _displayController = displayController;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/display', _getState);
@@ -32,7 +32,10 @@ class DisplayHandler {
       final body = await request.readAsString();
       final json = jsonDecode(body) as Map<String, dynamic>;
       final brightness = json['brightness'];
-      if (brightness == null || brightness is! int || brightness < 0 || brightness > 100) {
+      if (brightness == null ||
+          brightness is! int ||
+          brightness < 0 ||
+          brightness > 100) {
         return Response.badRequest(
           body: jsonEncode({'error': 'brightness must be an integer 0-100'}),
           headers: {'Content-Type': 'application/json'},
@@ -122,7 +125,8 @@ class DisplayHandler {
           // Auto-release wake-lock override when client disconnects
           if (overrideRequested) {
             log.info(
-                'WebSocket client disconnected, releasing wake-lock override');
+              'WebSocket client disconnected, releasing wake-lock override',
+            );
             _displayController.releaseWakeLock();
           }
         },

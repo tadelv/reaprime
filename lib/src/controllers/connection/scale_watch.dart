@@ -48,11 +48,11 @@ class ScaleWatch {
     required String? Function() preferredScaleId,
     required Future<void> Function(Scale) connectScale,
     required void Function() onWatchUnavailable,
-  })  : _scanner = scanner,
-        _shouldWatch = shouldWatch,
-        _preferredScaleId = preferredScaleId,
-        _connectScale = connectScale,
-        _onWatchUnavailable = onWatchUnavailable;
+  }) : _scanner = scanner,
+       _shouldWatch = shouldWatch,
+       _preferredScaleId = preferredScaleId,
+       _connectScale = connectScale,
+       _onWatchUnavailable = onWatchUnavailable;
 
   bool get armed => _armed;
 

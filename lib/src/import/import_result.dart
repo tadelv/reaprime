@@ -3,7 +3,11 @@ class ImportError {
   final String filename;
   final String reason;
   final String? details;
-  const ImportError({required this.filename, required this.reason, this.details});
+  const ImportError({
+    required this.filename,
+    required this.reason,
+    this.details,
+  });
   @override
   String toString() => '$filename: $reason';
 }
@@ -16,7 +20,14 @@ class ScanResult {
   final bool hasSettings;
   final String sourcePath;
   final String? shotSource; // 'history_v2', 'history', or null
-  const ScanResult({required this.shotCount, required this.profileCount, required this.hasDyeGrinders, required this.hasSettings, required this.sourcePath, this.shotSource});
+  const ScanResult({
+    required this.shotCount,
+    required this.profileCount,
+    required this.hasDyeGrinders,
+    required this.hasSettings,
+    required this.sourcePath,
+    this.shotSource,
+  });
   int get totalItems => shotCount + profileCount;
   bool get isEmpty => totalItems == 0 && !hasDyeGrinders && !hasSettings;
 }
@@ -33,7 +44,18 @@ class ImportResult {
   final int grindersSkipped;
   final bool settingsApplied;
   final List<ImportError> errors;
-  const ImportResult({this.shotsImported = 0, this.shotsSkipped = 0, this.profilesImported = 0, this.profilesSkipped = 0, this.beansCreated = 0, this.beansSkipped = 0, this.grindersCreated = 0, this.grindersSkipped = 0, this.settingsApplied = false, this.errors = const []});
+  const ImportResult({
+    this.shotsImported = 0,
+    this.shotsSkipped = 0,
+    this.profilesImported = 0,
+    this.profilesSkipped = 0,
+    this.beansCreated = 0,
+    this.beansSkipped = 0,
+    this.grindersCreated = 0,
+    this.grindersSkipped = 0,
+    this.settingsApplied = false,
+    this.errors = const [],
+  });
   bool get hasErrors => errors.isNotEmpty;
   ImportResult operator +(ImportResult other) {
     return ImportResult(

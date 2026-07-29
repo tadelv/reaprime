@@ -43,8 +43,7 @@ class _DisconnectedBleTransport extends BLETransport {
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
-  Future<ConnectionState> getConnectionState() async =>
-      _connectionState.value;
+  Future<ConnectionState> getConnectionState() async => _connectionState.value;
 
   @override
   Future<void> connect() async {
@@ -64,8 +63,7 @@ class _DisconnectedBleTransport extends BLETransport {
     String serviceUUID,
     String characteristicUUID, {
     Duration? timeout,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 
   @override
   Future<void> subscribe(
@@ -144,8 +142,7 @@ class _RecordingBleTransport extends BLETransport {
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
-  Future<ConnectionState> getConnectionState() async =>
-      _nativeState;
+  Future<ConnectionState> getConnectionState() async => _nativeState;
 
   @override
   Future<void> connect() async {
@@ -174,8 +171,7 @@ class _RecordingBleTransport extends BLETransport {
     String serviceUUID,
     String characteristicUUID, {
     Duration? timeout,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 
   @override
   Future<void> subscribe(
@@ -312,10 +308,7 @@ void main() {
 
       await scale.onConnect();
 
-      expect(
-        _hasCommand(transport, 0x0F),
-        isFalse,
-      );
+      expect(_hasCommand(transport, 0x0F), isFalse);
       expect(
         transport.writes,
         contains(orderedEquals([0x03, 0x0A, 0x01, 0x01, 0x00, 0x00, 0x09])),
@@ -501,29 +494,25 @@ void main() {
     },
   );
 
-  test(
-    'disconnect() returns within the power-off timeout window when the '
-    'BLE write hangs forever',
-    () async {
-      final transport = _HangingBleTransport();
-      final scale = DecentScale(transport: transport);
+  test('disconnect() returns within the power-off timeout window when the '
+      'BLE write hangs forever', () async {
+    final transport = _HangingBleTransport();
+    final scale = DecentScale(transport: transport);
 
-      final stopwatch = Stopwatch()..start();
-      await scale.disconnect();
-      stopwatch.stop();
+    final stopwatch = Stopwatch()..start();
+    await scale.disconnect();
+    stopwatch.stop();
 
-      // Power-off cap is 2s — give a generous ceiling to avoid flake
-      // on CI but still catch a regression that drops the timeout.
-      expect(
-        stopwatch.elapsed,
-        lessThan(const Duration(seconds: 4)),
-        reason:
-            'A hung BLE write must not stall the disconnect sequence — '
-            'common on flaky links after wake-from-sleep.',
-      );
+    // Power-off cap is 2s — give a generous ceiling to avoid flake
+    // on CI but still catch a regression that drops the timeout.
+    expect(
+      stopwatch.elapsed,
+      lessThan(const Duration(seconds: 4)),
+      reason:
+          'A hung BLE write must not stall the disconnect sequence — '
+          'common on flaky links after wake-from-sleep.',
+    );
 
-      transport.dispose();
-    },
-    timeout: const Timeout(Duration(seconds: 10)),
-  );
+    transport.dispose();
+  }, timeout: const Timeout(Duration(seconds: 10)));
 }

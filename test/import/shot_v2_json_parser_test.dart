@@ -91,7 +91,10 @@ void main() {
       });
 
       test('first step name is preinfusion', () {
-        expect(result.shot.workflow.profile.steps.first.name, equals('preinfusion'));
+        expect(
+          result.shot.workflow.profile.steps.first.name,
+          equals('preinfusion'),
+        );
       });
     });
 
@@ -173,7 +176,10 @@ void main() {
       });
 
       test('extracts grinder model into context', () {
-        expect(result.shot.workflow.context?.grinderModel, equals('Niche Zero'));
+        expect(
+          result.shot.workflow.context?.grinderModel,
+          equals('Niche Zero'),
+        );
       });
 
       test('extracts grinder setting into context', () {
@@ -188,7 +194,10 @@ void main() {
       });
 
       test('extracts coffee roaster (beanBrand) into context', () {
-        expect(result.shot.workflow.context?.coffeeRoaster, equals('Banibeans'));
+        expect(
+          result.shot.workflow.context?.coffeeRoaster,
+          equals('Banibeans'),
+        );
       });
 
       test('extracts barista name from settings', () {
@@ -227,12 +236,15 @@ void main() {
         expect(() => ShotV2JsonParser.parse(noProfile), returnsNormally);
       });
 
-      test('falls back to profile title from settings when profile key is absent', () {
-        final noProfile = Map<String, dynamic>.from(fixtureJson)
-          ..remove('profile');
-        final parsed = ShotV2JsonParser.parse(noProfile);
-        expect(parsed.shot.workflow.profile.title, equals('Best Practice'));
-      });
+      test(
+        'falls back to profile title from settings when profile key is absent',
+        () {
+          final noProfile = Map<String, dynamic>.from(fixtureJson)
+            ..remove('profile');
+          final parsed = ShotV2JsonParser.parse(noProfile);
+          expect(parsed.shot.workflow.profile.title, equals('Best Practice'));
+        },
+      );
 
       test('fallback profile has empty steps list', () {
         final noProfile = Map<String, dynamic>.from(fixtureJson)
@@ -338,9 +350,39 @@ void main() {
           'author': '',
           'beverage_type': 'espresso',
           'steps': [
-            {'name': 'preinfusion', 'seconds': '10', 'pump': 'pressure', 'temperature': '93', 'sensor': 'coffee', 'transition': 'fast', 'volume': '0', 'weight': '0', 'pressure': '1'},
-            {'name': 'hold',        'seconds': '30', 'pump': 'pressure', 'temperature': '93', 'sensor': 'coffee', 'transition': 'smooth', 'volume': '0', 'weight': '0', 'pressure': '9'},
-            {'name': 'decline',     'seconds': '20', 'pump': 'pressure', 'temperature': '93', 'sensor': 'coffee', 'transition': 'smooth', 'volume': '0', 'weight': '0', 'pressure': '4'},
+            {
+              'name': 'preinfusion',
+              'seconds': '10',
+              'pump': 'pressure',
+              'temperature': '93',
+              'sensor': 'coffee',
+              'transition': 'fast',
+              'volume': '0',
+              'weight': '0',
+              'pressure': '1',
+            },
+            {
+              'name': 'hold',
+              'seconds': '30',
+              'pump': 'pressure',
+              'temperature': '93',
+              'sensor': 'coffee',
+              'transition': 'smooth',
+              'volume': '0',
+              'weight': '0',
+              'pressure': '9',
+            },
+            {
+              'name': 'decline',
+              'seconds': '20',
+              'pump': 'pressure',
+              'temperature': '93',
+              'sensor': 'coffee',
+              'transition': 'smooth',
+              'volume': '0',
+              'weight': '0',
+              'pressure': '4',
+            },
           ],
           'target_volume': 0,
           'target_weight': 36,
@@ -348,13 +390,29 @@ void main() {
           'tank_temperature': 0,
         };
         // Also need matching array lengths
-        shot['pressure'] = {'pressure': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
-        shot['flow'] = {'flow': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'by_weight': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
-        shot['temperature'] = {'basket': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'mix': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
-        shot['totals'] = {'weight': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'water_dispensed': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
+        shot['pressure'] = {
+          'pressure': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+          'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+        };
+        shot['flow'] = {
+          'flow': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+          'by_weight': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+          'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+        };
+        shot['temperature'] = {
+          'basket': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+          'mix': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+          'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+        };
+        shot['totals'] = {
+          'weight': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+          'water_dispensed': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+        };
 
         final parsed = ShotV2JsonParser.parse(shot);
-        final frames = parsed.shot.measurements.map((s) => s.machine.profileFrame).toList();
+        final frames = parsed.shot.measurements
+            .map((s) => s.machine.profileFrame)
+            .toList();
 
         // Step 0 (preinfusion): 0–10s → frames at t=0, 5 are in step 0
         // Step 1 (hold): 10–40s → frames at t=10.5, 15, 30 are in step 1
@@ -363,7 +421,8 @@ void main() {
       });
 
       test('profile with no steps returns frame 0 for all snapshots', () {
-        final noSteps = Map<String, dynamic>.from(fixtureJson)..remove('profile');
+        final noSteps = Map<String, dynamic>.from(fixtureJson)
+          ..remove('profile');
         final parsed = ShotV2JsonParser.parse(noSteps);
         for (final snap in parsed.shot.measurements) {
           expect(snap.machine.profileFrame, equals(0));
@@ -372,4 +431,3 @@ void main() {
     });
   });
 }
-

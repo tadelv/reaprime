@@ -126,8 +126,10 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     }
     final endpoint = BengleScaleEndpoint.weight;
     if (endpoint.uuid == null && endpoint.representation == null) {
-      this.log.info('IntegratedScaleCapability: weight endpoint unwired; '
-          'no notify subscription. Awaiting FW.');
+      this.log.info(
+        'IntegratedScaleCapability: weight endpoint unwired; '
+        'no notify subscription. Awaiting FW.',
+      );
       return;
     }
     // When wires are real:
@@ -152,8 +154,10 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
   Future<void> tareIntegratedScale() async {
     final ctl = BengleScaleEndpoint.control;
     if (ctl.uuid == null && ctl.representation == null) {
-      this.log.info('IntegratedScaleCapability: tare ignored — control '
-          'endpoint unwired. Awaiting FW.');
+      this.log.info(
+        'IntegratedScaleCapability: tare ignored — control '
+        'endpoint unwired. Awaiting FW.',
+      );
       return;
     }
     // When wired:
@@ -207,8 +211,10 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
   // Frame parser placeholder — replaced once FW spec lands.
   // ignore: unused_element
   void _handleWeightFrame(ByteData frame) {
-    this.log.warning('IntegratedScaleCapability: weight frame received but '
-        'parser not yet implemented (FW spec TBD)');
+    this.log.warning(
+      'IntegratedScaleCapability: weight frame received but '
+      'parser not yet implemented (FW spec TBD)',
+    );
   }
 
   // Tare command encoder placeholder — replaced once FW spec lands.

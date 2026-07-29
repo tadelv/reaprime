@@ -1,4 +1,3 @@
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
@@ -6,24 +5,39 @@ import 'package:reaprime/src/models/device/machine.dart';
 
 Profile _profileWithPreinfusion() {
   return Profile(
-    version: '1.0', title: 'test', notes: '', author: 'test',
+    version: '1.0',
+    title: 'test',
+    notes: '',
+    author: 'test',
     beverageType: BeverageType.espresso,
     targetVolumeCountStart: 2, // first 2 steps are preinfusion
     tankTemperature: 94.0,
     steps: [
       ProfileStepPressure(
-        name: 'fill', pressure: 2.0, seconds: 2, temperature: 92,
-        sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+        name: 'fill',
+        pressure: 2.0,
+        seconds: 2,
+        temperature: 92,
+        sensor: TemperatureSensor.coffee,
+        transition: TransitionType.fast,
         volume: 0,
       ),
       ProfileStepPressure(
-        name: 'soak', pressure: 2.0, seconds: 2, temperature: 92,
-        sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+        name: 'soak',
+        pressure: 2.0,
+        seconds: 2,
+        temperature: 92,
+        sensor: TemperatureSensor.coffee,
+        transition: TransitionType.fast,
         volume: 0,
       ),
       ProfileStepFlow(
-        name: 'pour', flow: 3.0, seconds: 5, temperature: 94,
-        sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+        name: 'pour',
+        flow: 3.0,
+        seconds: 5,
+        temperature: 94,
+        sensor: TemperatureSensor.coffee,
+        transition: TransitionType.fast,
         volume: 0,
       ),
     ],
@@ -57,26 +71,40 @@ void main() {
       // 15 ticks @ 100ms = 1.5s. Preinfusion steps are 2+2=4s long.
       // Weight should be near zero throughout.
       for (final s in snapshots) {
-        expect(s.weight.abs(), lessThan(1.0),
-            reason: 'Weight should stay ~0 during preinfusion (step 0-1)');
+        expect(
+          s.weight.abs(),
+          lessThan(1.0),
+          reason: 'Weight should stay ~0 during preinfusion (step 0-1)',
+        );
       }
     });
 
     test('weight climbs after targetVolumeCountStart', () async {
       final profile = Profile(
-        version: '1.0', title: 'test', notes: '', author: 'test',
+        version: '1.0',
+        title: 'test',
+        notes: '',
+        author: 'test',
         beverageType: BeverageType.espresso,
         targetVolumeCountStart: 1,
         tankTemperature: 94.0,
         steps: [
           ProfileStepPressure(
-            name: 'preinfuse', pressure: 2.0, seconds: 1, temperature: 92,
-            sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+            name: 'preinfuse',
+            pressure: 2.0,
+            seconds: 1,
+            temperature: 92,
+            sensor: TemperatureSensor.coffee,
+            transition: TransitionType.fast,
             volume: 0,
           ),
           ProfileStepFlow(
-            name: 'pour', flow: 3.0, seconds: 5, temperature: 94,
-            sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+            name: 'pour',
+            flow: 3.0,
+            seconds: 5,
+            temperature: 94,
+            sensor: TemperatureSensor.coffee,
+            transition: TransitionType.fast,
             volume: 0,
           ),
         ],
@@ -97,10 +125,16 @@ void main() {
       final firstWeight = snapshots.first.weight;
       final lastWeight = snapshots.last.weight;
 
-      expect(lastWeight, greaterThan(firstWeight),
-          reason: 'Weight should climb during extraction');
-      expect(lastWeight, greaterThan(0.5),
-          reason: 'Weight should accumulate meaningfully');
+      expect(
+        lastWeight,
+        greaterThan(firstWeight),
+        reason: 'Weight should climb during extraction',
+      );
+      expect(
+        lastWeight,
+        greaterThan(0.5),
+        reason: 'Weight should accumulate meaningfully',
+      );
     });
   });
 }

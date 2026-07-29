@@ -16,11 +16,11 @@ class SectionImportResult {
   });
 
   Map<String, dynamic> toJson() => {
-        'imported': imported,
-        'skipped': skipped,
-        if (errors.isNotEmpty) 'errors': errors,
-        if (warnings.isNotEmpty) 'warnings': warnings,
-      };
+    'imported': imported,
+    'skipped': skipped,
+    if (errors.isNotEmpty) 'errors': errors,
+    if (warnings.isNotEmpty) 'warnings': warnings,
+  };
 }
 
 /// A single section of the data export archive.
@@ -42,8 +42,5 @@ abstract class DataExportSection {
   ///
   /// [data] is the parsed JSON from the archive file.
   /// [strategy] controls how conflicts (duplicate IDs) are handled.
-  Future<SectionImportResult> import(
-    dynamic data,
-    ConflictStrategy strategy,
-  );
+  Future<SectionImportResult> import(dynamic data, ConflictStrategy strategy);
 }

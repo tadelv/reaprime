@@ -120,25 +120,31 @@ void main() {
     discovery.dispose();
   });
 
-  test('BLE preference stays distinct until the USB machine is selected',
-      () async {
-    await settings.setPreferredMachineId('ble-machine-id');
-    final usbMachine = _FakeDe1(deviceId: 'usb-machine-id');
-    scanner.addDevice(usbMachine);
-    scanner.mockAdapterState(AdapterState.poweredOff);
+  test(
+    'BLE preference stays distinct until the USB machine is selected',
+    () async {
+      await settings.setPreferredMachineId('ble-machine-id');
+      final usbMachine = _FakeDe1(deviceId: 'usb-machine-id');
+      scanner.addDevice(usbMachine);
+      scanner.mockAdapterState(AdapterState.poweredOff);
 
-    await manager.scanAndConnect();
+      await manager.scanAndConnect();
 
-    expect(manager.currentStatus.pendingAmbiguity,
-        AmbiguityReason.machinePicker);
-    expect(manager.currentStatus.foundMachines.single.deviceId,
-        'usb-machine-id');
-    expect(settings.preferredMachineId, 'ble-machine-id');
+      expect(
+        manager.currentStatus.pendingAmbiguity,
+        AmbiguityReason.machinePicker,
+      );
+      expect(
+        manager.currentStatus.foundMachines.single.deviceId,
+        'usb-machine-id',
+      );
+      expect(settings.preferredMachineId, 'ble-machine-id');
 
-    await manager.selectMachine(usbMachine);
+      await manager.selectMachine(usbMachine);
 
-    expect(settings.preferredMachineId, 'usb-machine-id');
-  });
+      expect(settings.preferredMachineId, 'usb-machine-id');
+    },
+  );
 
   test('attach invokes current connection policy immediately', () async {
     await settings.setPreferredMachineId('pref-de1');

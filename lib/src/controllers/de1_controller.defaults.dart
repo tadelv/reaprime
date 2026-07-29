@@ -105,9 +105,7 @@ extension Defaults on De1Controller {
     if (!stillCurrent()) return;
     await device.setFlushFlow(settings.flow);
     if (!stillCurrent()) return;
-    await device.setFlushTemperature(
-      settings.targetTemperature.toDouble(),
-    );
+    await device.setFlushTemperature(settings.targetTemperature.toDouble());
     if (!stillCurrent()) return;
     _rinseStream.add(settings);
   }

@@ -132,11 +132,14 @@ class MockScale implements Scale, SimulatedDevice {
         final jitter = (_random.nextDouble() - 0.5) * 2 * _jitterGrams;
         _emittedWeight = weight + jitter;
       }
-      _snapshotStream.add(ScaleSnapshot(
+      _snapshotStream.add(
+        ScaleSnapshot(
           weight: _emittedWeight,
           timestamp: DateTime.now(),
           batteryLevel: 100,
-          timerValue: timerValue));
+          timerValue: timerValue,
+        ),
+      );
     });
   }
 

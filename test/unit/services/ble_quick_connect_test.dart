@@ -43,16 +43,19 @@ void main() {
       expect(result, isNull);
     });
 
-    test('returns null for serial-only implementation with ble transport', () async {
-      const remembered = RememberedDevice(
-        id: 'AA:11:11:11:11:11',
-        name: 'HDS',
-        type: DeviceType.scale,
-        implementation: DeviceImplementation.hdsSerial,
-        transportType: TransportType.ble,
-      );
-      final result = await service.tryQuickConnect(remembered);
-      expect(result, isNull);
-    });
+    test(
+      'returns null for serial-only implementation with ble transport',
+      () async {
+        const remembered = RememberedDevice(
+          id: 'AA:11:11:11:11:11',
+          name: 'HDS',
+          type: DeviceType.scale,
+          implementation: DeviceImplementation.hdsSerial,
+          transportType: TransportType.ble,
+        );
+        final result = await service.tryQuickConnect(remembered);
+        expect(result, isNull);
+      },
+    );
   });
 }

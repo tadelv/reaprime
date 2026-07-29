@@ -95,8 +95,11 @@ class _RecordingTelemetry implements TelemetryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> recordError(Object error, StackTrace? stackTrace,
-      {bool fatal = false}) async {}
+  Future<void> recordError(
+    Object error,
+    StackTrace? stackTrace, {
+    bool fatal = false,
+  }) async {}
 
   @override
   Future<void> log(String message) async {}
@@ -180,14 +183,14 @@ class _FakeDevice implements Device {
 }
 
 void main() {
-  group('DeviceController.scanForDevices partial failures (comms-harden #22)',
-      () {
-    test(
-      'one service throwing does not torpedo the scan — '
-      'devices from succeeding services are still returned',
-      () async {
-        final failing =
-            _FailingDiscoveryService(const PermissionDeniedException('denied'));
+  group(
+    'DeviceController.scanForDevices partial failures (comms-harden #22)',
+    () {
+      test('one service throwing does not torpedo the scan — '
+          'devices from succeeding services are still returned', () async {
+        final failing = _FailingDiscoveryService(
+          const PermissionDeniedException('denied'),
+        );
         final succeeding = _QuietDiscoveryService(
           _FakeDevice(
             deviceId: 'D9:11:0B:E6:9F:86',
@@ -201,23 +204,30 @@ void main() {
 
         final result = await controller.scanForDevices();
 
-        expect(result.matchedDevices, hasLength(1),
-            reason: 'succeeding service must still yield its device');
+        expect(
+          result.matchedDevices,
+          hasLength(1),
+          reason: 'succeeding service must still yield its device',
+        );
         expect(result.matchedDevices.first.deviceId, 'D9:11:0B:E6:9F:86');
-        expect(result.failedServices, hasLength(1),
-            reason: 'failing service must be surfaced in failedServices');
-        expect(result.failedServices.first.error,
-            isA<PermissionDeniedException>());
-        expect(result.failedServices.first.serviceName,
-            contains('FailingDiscoveryService'));
+        expect(
+          result.failedServices,
+          hasLength(1),
+          reason: 'failing service must be surfaced in failedServices',
+        );
+        expect(
+          result.failedServices.first.error,
+          isA<PermissionDeniedException>(),
+        );
+        expect(
+          result.failedServices.first.serviceName,
+          contains('FailingDiscoveryService'),
+        );
         expect(result.terminationReason, ScanTerminationReason.completed);
-      },
-    );
+      });
 
-    test(
-      'all services failing yields a ScanResult with empty matched + '
-      'populated failedServices (no top-level throw)',
-      () async {
+      test('all services failing yields a ScanResult with empty matched + '
+          'populated failedServices (no top-level throw)', () async {
         final a = _FailingDiscoveryService(Exception('adapter-off'));
         final b = _FailingDiscoveryService(const PermissionDeniedException());
 
@@ -228,31 +238,30 @@ void main() {
 
         expect(result.matchedDevices, isEmpty);
         expect(result.failedServices, hasLength(2));
-      },
-    );
+      });
 
-    test(
-      'concurrent scanForDevices calls share one in-flight scan',
-      () async {
-        final service = _QuietDiscoveryService(
-          _FakeDevice(
-            deviceId: 'id-1',
-            name: 'D1',
-            type: DeviceType.machine,
-          ),
-        );
-        final controller = DeviceController([service]);
-        await controller.initialize();
+      test(
+        'concurrent scanForDevices calls share one in-flight scan',
+        () async {
+          final service = _QuietDiscoveryService(
+            _FakeDevice(deviceId: 'id-1', name: 'D1', type: DeviceType.machine),
+          );
+          final controller = DeviceController([service]);
+          await controller.initialize();
 
-        final first = controller.scanForDevices();
-        final second = controller.scanForDevices();
+          final first = controller.scanForDevices();
+          final second = controller.scanForDevices();
 
-        expect(identical(first, second), isTrue,
-            reason: 'second concurrent call must share the in-flight Future');
-        await first;
-      },
-    );
-  });
+          expect(
+            identical(first, second),
+            isTrue,
+            reason: 'second concurrent call must share the in-flight Future',
+          );
+          await first;
+        },
+      );
+    },
+  );
 
   group('devices getter caching (comms-harden #28)', () {
     test(
@@ -273,15 +282,21 @@ void main() {
 
         final first = controller.devices;
         final second = controller.devices;
-        expect(identical(first, second), isTrue,
-            reason: 'cache should return the same instance on a hot call');
+        expect(
+          identical(first, second),
+          isTrue,
+          reason: 'cache should return the same instance on a hot call',
+        );
 
         service.emit(const []);
         await Future<void>.delayed(Duration.zero);
 
         final afterMutation = controller.devices;
-        expect(identical(first, afterMutation), isFalse,
-            reason: 'cache must rebuild after a device-list mutation');
+        expect(
+          identical(first, afterMutation),
+          isFalse,
+          reason: 'cache must rebuild after a device-list mutation',
+        );
       },
     );
   });
@@ -295,10 +310,12 @@ void main() {
       final seen = <DeviceAttachedEvent>[];
       final sub = controller.deviceAttached.listen(seen.add);
 
-      notifier.attach(const DeviceAttachedEvent(
-        deviceId: 'usb-2e8a-a-8549628789ABCDEF',
-        name: 'DE1',
-      ));
+      notifier.attach(
+        const DeviceAttachedEvent(
+          deviceId: 'usb-2e8a-a-8549628789ABCDEF',
+          name: 'DE1',
+        ),
+      );
       await Future<void>.delayed(Duration.zero);
 
       expect(seen, hasLength(1));
@@ -346,21 +363,23 @@ void main() {
       expect(notifier.hasAttachListener, isFalse);
     });
 
-    test('dispose during initialization prevents notifier subscription',
-        () async {
-      final initialization = Completer<void>();
-      final notifier = _AttachNotifyingDiscoveryService(
-        initialization: initialization.future,
-      );
-      final controller = DeviceController([notifier]);
+    test(
+      'dispose during initialization prevents notifier subscription',
+      () async {
+        final initialization = Completer<void>();
+        final notifier = _AttachNotifyingDiscoveryService(
+          initialization: initialization.future,
+        );
+        final controller = DeviceController([notifier]);
 
-      final initializing = controller.initialize();
-      controller.dispose();
-      initialization.complete();
-      await initializing;
+        final initializing = controller.initialize();
+        controller.dispose();
+        initialization.complete();
+        await initializing;
 
-      expect(notifier.hasAttachListener, isFalse);
-    });
+        expect(notifier.hasAttachListener, isFalse);
+      },
+    );
   });
 
   group('disconnect tracking keys (comms-harden #20)', () {
@@ -398,10 +417,14 @@ void main() {
         service.emit([a, b]);
         await Future<void>.delayed(Duration.zero);
 
-        expect(telemetry.customKeys,
-            contains('reconnection_duration_${b.deviceId}'));
-        expect(telemetry.customKeys,
-            isNot(contains('reconnection_duration_${a.deviceId}')));
+        expect(
+          telemetry.customKeys,
+          contains('reconnection_duration_${b.deviceId}'),
+        );
+        expect(
+          telemetry.customKeys,
+          isNot(contains('reconnection_duration_${a.deviceId}')),
+        );
       },
     );
 
@@ -432,40 +455,39 @@ void main() {
         service.emit([afterFirmware]);
         await Future<void>.delayed(Duration.zero);
 
-        expect(telemetry.customKeys,
-            contains('reconnection_duration_${before.deviceId}'));
+        expect(
+          telemetry.customKeys,
+          contains('reconnection_duration_${before.deviceId}'),
+        );
       },
     );
 
-    test(
-      'telemetry device_<id>_type key uses deviceId, not name',
-      () async {
-        final service = _ManualDiscoveryService();
-        final telemetry = _RecordingTelemetry();
-        final controller = DeviceController([service])
-          ..telemetryService = telemetry;
-        await controller.initialize();
+    test('telemetry device_<id>_type key uses deviceId, not name', () async {
+      final service = _ManualDiscoveryService();
+      final telemetry = _RecordingTelemetry();
+      final controller = DeviceController([service])
+        ..telemetryService = telemetry;
+      await controller.initialize();
 
-        final a = _FakeDevice(
-          deviceId: 'AA:11:11:11:11:11',
-          name: 'DE1',
-          type: DeviceType.machine,
-        );
-        final b = _FakeDevice(
-          deviceId: 'BB:22:22:22:22:22',
-          name: 'DE1',
-          type: DeviceType.scale,
-        );
+      final a = _FakeDevice(
+        deviceId: 'AA:11:11:11:11:11',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final b = _FakeDevice(
+        deviceId: 'BB:22:22:22:22:22',
+        name: 'DE1',
+        type: DeviceType.scale,
+      );
 
-        service.emit([a, b]);
-        await Future<void>.delayed(Duration.zero);
+      service.emit([a, b]);
+      await Future<void>.delayed(Duration.zero);
 
-        expect(telemetry.customKeys, contains('device_${a.deviceId}_type'));
-        expect(telemetry.customKeys, contains('device_${b.deviceId}_type'));
-        expect(telemetry.customKeys['device_${a.deviceId}_type'], 'machine');
-        expect(telemetry.customKeys['device_${b.deviceId}_type'], 'scale');
-      },
-    );
+      expect(telemetry.customKeys, contains('device_${a.deviceId}_type'));
+      expect(telemetry.customKeys, contains('device_${b.deviceId}_type'));
+      expect(telemetry.customKeys['device_${a.deviceId}_type'], 'machine');
+      expect(telemetry.customKeys['device_${b.deviceId}_type'], 'scale');
+    });
   });
 
   group('tryQuickConnect', () {

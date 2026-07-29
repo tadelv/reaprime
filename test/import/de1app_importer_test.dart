@@ -31,12 +31,11 @@ class FakeStorageService implements StorageService {
   Workflow? _currentWorkflow;
 
   FakeStorageService({List<String>? existingIds, Workflow? currentWorkflow})
-      : _existingIds = existingIds ?? [],
-        _currentWorkflow = currentWorkflow;
+    : _existingIds = existingIds ?? [],
+      _currentWorkflow = currentWorkflow;
 
   @override
-  Future<void> storeShot(ShotRecord record) async =>
-      shots[record.id] = record;
+  Future<void> storeShot(ShotRecord record) async => shots[record.id] = record;
 
   @override
   Future<List<String>> getShotIds() async => List.unmodifiable(_existingIds);
@@ -159,8 +158,7 @@ class FakeBeanStorageService implements BeanStorageService {
   Future<void> insertBean(Bean bean) async => beans[bean.id] = bean;
 
   @override
-  Future<void> insertBatch(BeanBatch batch) async =>
-      batches[batch.id] = batch;
+  Future<void> insertBatch(BeanBatch batch) async => batches[batch.id] = batch;
 
   @override
   Future<List<Bean>> getAllBeans({bool includeArchived = false}) async =>
@@ -180,21 +178,22 @@ class FakeBeanStorageService implements BeanStorageService {
   Future<void> deleteBean(String id) async => beans.remove(id);
 
   @override
-  Future<List<BeanBatch>> getBatchesForBean(String beanId,
-          {bool includeArchived = false}) async =>
-      batches.values.where((b) => b.beanId == beanId).toList();
+  Future<List<BeanBatch>> getBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) async => batches.values.where((b) => b.beanId == beanId).toList();
 
   @override
-  Stream<List<BeanBatch>> watchBatchesForBean(String beanId,
-          {bool includeArchived = false}) =>
-      throw UnimplementedError();
+  Stream<List<BeanBatch>> watchBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) => throw UnimplementedError();
 
   @override
   Future<BeanBatch?> getBatchById(String id) async => batches[id];
 
   @override
-  Future<void> updateBatch(BeanBatch batch) async =>
-      batches[batch.id] = batch;
+  Future<void> updateBatch(BeanBatch batch) async => batches[batch.id] = batch;
 
   @override
   Future<void> deleteBatch(String id) async => batches.remove(id);
@@ -302,8 +301,9 @@ void main() {
           sourcePath: _fixturesPath,
           shotSource: null,
         );
-        result = await makeImporter(profileStorage: profileStorage)
-            .import(scanResult);
+        result = await makeImporter(
+          profileStorage: profileStorage,
+        ).import(scanResult);
       });
 
       test('imports exactly 1 profile', () {
@@ -395,15 +395,17 @@ void main() {
         tempDir = await Directory.systemTemp.createTemp('de1app_importer_err_');
 
         // Copy the valid fixture shot
-        final validFile = File('$_fixturesPath/history_v2/20240315T143022.json');
+        final validFile = File(
+          '$_fixturesPath/history_v2/20240315T143022.json',
+        );
         final historyV2 = Directory('${tempDir.path}/history_v2');
         await historyV2.create();
         await validFile.copy('${tempDir.path}/history_v2/valid.json');
 
         // Create a malformed file
-        await File('${tempDir.path}/history_v2/bad.json').writeAsString(
-          'THIS IS NOT JSON {{{',
-        );
+        await File(
+          '${tempDir.path}/history_v2/bad.json',
+        ).writeAsString('THIS IS NOT JSON {{{');
 
         final scanResult = ScanResult(
           shotCount: 2,
@@ -443,10 +445,7 @@ void main() {
           shotSource: 'history_v2',
         );
 
-        await makeImporter().import(
-          scanResult,
-          onProgress: progressEvents.add,
-        );
+        await makeImporter().import(scanResult, onProgress: progressEvents.add);
 
         final shotEvents = progressEvents.where((e) => e.phase == 'shots');
         expect(shotEvents, isNotEmpty);
@@ -465,13 +464,11 @@ void main() {
           shotSource: null,
         );
 
-        await makeImporter().import(
-          scanResult,
-          onProgress: progressEvents.add,
-        );
+        await makeImporter().import(scanResult, onProgress: progressEvents.add);
 
-        final profileEvents =
-            progressEvents.where((e) => e.phase == 'profiles');
+        final profileEvents = progressEvents.where(
+          (e) => e.phase == 'profiles',
+        );
         expect(profileEvents, isNotEmpty);
         expect(profileEvents.last.current, equals(1));
         expect(profileEvents.last.total, equals(1));
@@ -492,8 +489,9 @@ void main() {
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
-        result = await makeImporter(grinderStorage: grinderStorage)
-            .import(scanResult);
+        result = await makeImporter(
+          grinderStorage: grinderStorage,
+        ).import(scanResult);
       });
 
       test('stores grinders after DYE merge', () {
@@ -510,8 +508,9 @@ void main() {
       late ImportResult result;
 
       setUpAll(() async {
-        tempDir =
-            await Directory.systemTemp.createTemp('de1app_importer_settings_');
+        tempDir = await Directory.systemTemp.createTemp(
+          'de1app_importer_settings_',
+        );
 
         // Write a settings.tdb with known values
         await File('${tempDir.path}/settings.tdb').writeAsString(
@@ -581,8 +580,9 @@ void main() {
       });
 
       test('sets wake schedule', () {
-        final schedules =
-            WakeSchedule.deserializeList(settingsController.wakeSchedules);
+        final schedules = WakeSchedule.deserializeList(
+          settingsController.wakeSchedules,
+        );
         expect(schedules, hasLength(1));
         expect(schedules.first.hour, equals(7));
         expect(schedules.first.minute, equals(0));
@@ -591,7 +591,10 @@ void main() {
       });
 
       test('sets scale power mode to disabled (keep on)', () {
-        expect(settingsController.scalePowerMode, equals(ScalePowerMode.disabled));
+        expect(
+          settingsController.scalePowerMode,
+          equals(ScalePowerMode.disabled),
+        );
       });
 
       test('sets sleep timeout minutes', () {
@@ -642,11 +645,12 @@ void main() {
       late ImportResult result;
 
       setUpAll(() async {
-        tempDir =
-            await Directory.systemTemp.createTemp('de1app_importer_nosettings_');
-        await File('${tempDir.path}/settings.tdb').writeAsString(
-          'keep_scale_on 1\n',
+        tempDir = await Directory.systemTemp.createTemp(
+          'de1app_importer_nosettings_',
         );
+        await File(
+          '${tempDir.path}/settings.tdb',
+        ).writeAsString('keep_scale_on 1\n');
 
         final scanResult = ScanResult(
           shotCount: 0,

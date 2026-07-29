@@ -32,14 +32,8 @@ CliArgs parseCliArgs(List<String> args) {
       help: 'Auto-connect to first discovered machine/scale without picker.',
       defaultsTo: false,
     )
-    ..addOption(
-      'skin',
-      help: 'Set default skin ID from installed registry.',
-    )
-    ..addOption(
-      'skin-path',
-      help: 'Serve skin directly from filesystem path.',
-    )
+    ..addOption('skin', help: 'Set default skin ID from installed registry.')
+    ..addOption('skin-path', help: 'Serve skin directly from filesystem path.')
     ..addFlag(
       'no-account',
       help: 'Bypass DecentAccountService (headless Linux with no keyring).',

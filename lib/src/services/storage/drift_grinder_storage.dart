@@ -10,16 +10,19 @@ class DriftGrinderStorageService implements GrinderStorageService {
   DriftGrinderStorageService(this._db);
 
   @override
-  Future<List<domain.Grinder>> getAllGrinders(
-      {bool includeArchived = false}) async {
-    final rows =
-        await _db.grinderDao.getAllGrinders(includeArchived: includeArchived);
+  Future<List<domain.Grinder>> getAllGrinders({
+    bool includeArchived = false,
+  }) async {
+    final rows = await _db.grinderDao.getAllGrinders(
+      includeArchived: includeArchived,
+    );
     return rows.map(GrinderMapper.fromRow).toList();
   }
 
   @override
-  Stream<List<domain.Grinder>> watchAllGrinders(
-      {bool includeArchived = false}) {
+  Stream<List<domain.Grinder>> watchAllGrinders({
+    bool includeArchived = false,
+  }) {
     return _db.grinderDao
         .watchAllGrinders(includeArchived: includeArchived)
         .map((rows) => rows.map(GrinderMapper.fromRow).toList());

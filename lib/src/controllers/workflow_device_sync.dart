@@ -131,9 +131,7 @@ class WorkflowDeviceSync {
             onUploadErrorCleared?.call();
           }
         } on DeviceNotConnectedException {
-          _log.fine(
-            'DE1 not connected; skipping profile push',
-          );
+          _log.fine('DE1 not connected; skipping profile push');
           return;
         } catch (e, st) {
           if (generation != _generation) return;

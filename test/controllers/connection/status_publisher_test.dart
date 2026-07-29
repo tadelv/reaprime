@@ -94,9 +94,7 @@ void main() {
 
     group('phasePersistent errors', () {
       test('profileUploadFailed survives clearing phases', () {
-        pub.emitError(
-          _err(ConnectionErrorKind.profileUploadFailed),
-        );
+        pub.emitError(_err(ConnectionErrorKind.profileUploadFailed));
         pub.publish(pub.current.copyWith(phase: ConnectionPhase.scanning));
         expect(
           pub.current.error?.kind,
@@ -113,18 +111,14 @@ void main() {
       });
 
       test('profileUploadFailed clears through explicit clearError', () {
-        pub.emitError(
-          _err(ConnectionErrorKind.profileUploadFailed),
-        );
+        pub.emitError(_err(ConnectionErrorKind.profileUploadFailed));
         expect(pub.current.error, isNotNull);
         pub.clearError();
         expect(pub.current.error, isNull);
       });
 
       test('new error replaces profileUploadFailed', () {
-        pub.emitError(
-          _err(ConnectionErrorKind.profileUploadFailed),
-        );
+        pub.emitError(_err(ConnectionErrorKind.profileUploadFailed));
         pub.emitError(_err(ConnectionErrorKind.machineConnectFailed));
         expect(
           pub.current.error?.kind,
@@ -134,9 +128,7 @@ void main() {
       });
 
       test('clearError clears the current error regardless of kind', () {
-        pub.emitError(
-          _err(ConnectionErrorKind.profileUploadFailed),
-        );
+        pub.emitError(_err(ConnectionErrorKind.profileUploadFailed));
         pub.emitError(_err(ConnectionErrorKind.machineConnectFailed));
         pub.clearError();
         expect(

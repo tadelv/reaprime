@@ -135,9 +135,7 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     // by the preceding permissions step or a previous launch).
     if (Platform.isAndroid) {
       await ForegroundTaskService.start();
-      ForegroundTaskService.watchMachineConnection(
-        widget.de1Controller.de1,
-      );
+      ForegroundTaskService.watchMachineConnection(widget.de1Controller.de1);
     }
 
     BootTiming.mark('scan_start');
@@ -155,7 +153,8 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     }
     unawaited(
       widget.webUIStorage.downloadRemoteSkinsAndRescan().catchError(
-        (Object e) => _log.warning('Background remote-skin download failed: $e'),
+        (Object e) =>
+            _log.warning('Background remote-skin download failed: $e'),
       ),
     );
   }

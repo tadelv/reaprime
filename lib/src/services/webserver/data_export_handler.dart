@@ -15,7 +15,7 @@ class DataExportHandler {
   final Logger _log = Logger('DataExportHandler');
 
   DataExportHandler({required List<DataExportSection> sections})
-      : _sections = sections;
+    : _sections = sections;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/data/export', _handleExport);

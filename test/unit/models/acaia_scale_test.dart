@@ -29,8 +29,7 @@ class MockAcaiaBleTransport extends BLETransport {
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
-  Future<ConnectionState> getConnectionState() async =>
-      _connectionState.value;
+  Future<ConnectionState> getConnectionState() async => _connectionState.value;
 
   @override
   Future<void> connect() async {
@@ -46,13 +45,18 @@ class MockAcaiaBleTransport extends BLETransport {
   Future<List<String>> discoverServices() async => serviceUUIDs;
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID,
-          {Duration? timeout}) async =>
-      Uint8List(0);
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async => Uint8List(0);
 
   @override
-  Future<void> subscribe(String serviceUUID, String characteristicUUID,
-      void Function(Uint8List) callback) async {
+  Future<void> subscribe(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) async {
     subscribedServiceUuid = serviceUUID;
     subscribedCharUuid = characteristicUUID;
     _notificationCallback = callback;
@@ -60,8 +64,12 @@ class MockAcaiaBleTransport extends BLETransport {
 
   @override
   Future<void> write(
-      String serviceUUID, String characteristicUUID, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {
+    String serviceUUID,
+    String characteristicUUID,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) async {
     receivedWrites.add(data.toList());
   }
 
@@ -103,8 +111,10 @@ void main() {
       expect(state, ConnectionState.connected);
 
       // Pyxis subscribes on the status characteristic
-      expect(transport.subscribedCharUuid,
-          '49535343-1e4d-4bd9-ba61-23c647249616');
+      expect(
+        transport.subscribedCharUuid,
+        '49535343-1e4d-4bd9-ba61-23c647249616',
+      );
     });
 
     test('fails when neither service is present', () async {
@@ -133,9 +143,21 @@ void main() {
       // Weight: value=1850 (0x3A,0x07,0x00), unit=1, sign=0
       // Expected: 1850 / 10^1 = 185.0g
       transport.simulateNotification([
-        0xEF, 0xDD, 12, 10, 5,
-        0x3A, 0x07, 0x00, 0x00, 0x01, 0x00,
-        0x00, 0x00, 0x00, 0x00,
+        0xEF,
+        0xDD,
+        12,
+        10,
+        5,
+        0x3A,
+        0x07,
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
       ]);
 
       await Future.delayed(Duration(milliseconds: 50));
@@ -155,9 +177,21 @@ void main() {
 
       // Same weight but sign byte > 1 -> negative
       transport.simulateNotification([
-        0xEF, 0xDD, 12, 10, 5,
-        0x3A, 0x07, 0x00, 0x00, 0x01, 0x02,
-        0x00, 0x00, 0x00, 0x00,
+        0xEF,
+        0xDD,
+        12,
+        10,
+        5,
+        0x3A,
+        0x07,
+        0x00,
+        0x00,
+        0x01,
+        0x02,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
       ]);
 
       await Future.delayed(Duration(milliseconds: 50));
@@ -179,8 +213,9 @@ void main() {
       await scale.tare();
 
       // Count tare commands (msgType 0x04 at byte index 2)
-      final tareWrites = transport.receivedWrites.where((w) =>
-          w.length >= 3 && w[0] == 0xEF && w[1] == 0xDD && w[2] == 0x04);
+      final tareWrites = transport.receivedWrites.where(
+        (w) => w.length >= 3 && w[0] == 0xEF && w[1] == 0xDD && w[2] == 0x04,
+      );
       expect(tareWrites.length, 3);
     });
   });

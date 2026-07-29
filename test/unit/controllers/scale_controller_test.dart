@@ -59,13 +59,8 @@ class _TrackingScale implements Scale {
   @override
   Future<void> resetTimer() async {}
 
-  void emitAt(DateTime t, double weight) => _snap.add(
-    ScaleSnapshot(
-      timestamp: t,
-      weight: weight,
-      batteryLevel: 50,
-    ),
-  );
+  void emitAt(DateTime t, double weight) =>
+      _snap.add(ScaleSnapshot(timestamp: t, weight: weight, batteryLevel: 50));
 }
 
 /// A handoff-capable scale (like the BLE Decent Scale) that records whether it
@@ -92,11 +87,7 @@ class _FailingScale extends _TrackingScale {
   Future<void> onConnect() async => throw StateError('connect failed');
 
   void emitSnapshot() => _snap.add(
-    ScaleSnapshot(
-      timestamp: DateTime.now(),
-      weight: 1.0,
-      batteryLevel: 100,
-    ),
+    ScaleSnapshot(timestamp: DateTime.now(), weight: 1.0, batteryLevel: 100),
   );
 }
 
@@ -258,10 +249,8 @@ void main() {
 
     final flows = frames.skip(10).map((frame) => frame.weightFlow).toList();
     final meanDelta =
-        [
-          for (var i = 1; i < flows.length; i++)
-            (flows[i] - flows[i - 1]).abs(),
-        ].reduce((a, b) => a + b) /
+        [for (var i = 1; i < flows.length; i++) (flows[i] - flows[i - 1]).abs()]
+            .reduce((a, b) => a + b) /
         (flows.length - 1);
     expect(meanDelta, lessThanOrEqualTo(0.12));
 

@@ -30,26 +30,15 @@ void main() {
         'target_volume_count_start': 0,
         'version': '2',
       },
-      'context': {
-        'targetDoseWeight': 18.0,
-        'targetYield': 36.0,
-      },
-      'steamSettings': {
-        'targetTemperature': 150,
-        'duration': 50,
-        'flow': 0.8,
-      },
+      'context': {'targetDoseWeight': 18.0, 'targetYield': 36.0},
+      'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
       'hotWaterData': {
         'targetTemperature': 90,
         'duration': 15,
         'volume': 100,
         'flow': 4.0,
       },
-      'rinseData': {
-        'targetTemperature': 90,
-        'duration': 10,
-        'flow': 6.0,
-      },
+      'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
     };
   }
 
@@ -59,10 +48,12 @@ void main() {
   });
 
   test('saves and loads current workflow', () async {
-    await db.workflowDao.saveCurrentWorkflow(WorkflowsCompanion(
-      workflowJson: Value(makeWorkflowJson(name: 'My Workflow')),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await db.workflowDao.saveCurrentWorkflow(
+      WorkflowsCompanion(
+        workflowJson: Value(makeWorkflowJson(name: 'My Workflow')),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
 
     final result = await db.workflowDao.loadCurrentWorkflow();
     expect(result, isNotNull);
@@ -70,14 +61,18 @@ void main() {
   });
 
   test('upserts workflow (replaces existing)', () async {
-    await db.workflowDao.saveCurrentWorkflow(WorkflowsCompanion(
-      workflowJson: Value(makeWorkflowJson(name: 'First')),
-      updatedAt: Value(DateTime.now()),
-    ));
-    await db.workflowDao.saveCurrentWorkflow(WorkflowsCompanion(
-      workflowJson: Value(makeWorkflowJson(name: 'Second')),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await db.workflowDao.saveCurrentWorkflow(
+      WorkflowsCompanion(
+        workflowJson: Value(makeWorkflowJson(name: 'First')),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    await db.workflowDao.saveCurrentWorkflow(
+      WorkflowsCompanion(
+        workflowJson: Value(makeWorkflowJson(name: 'Second')),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
 
     final result = await db.workflowDao.loadCurrentWorkflow();
     expect(result!.workflowJson['name'], 'Second');

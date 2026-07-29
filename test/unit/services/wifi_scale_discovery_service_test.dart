@@ -6,8 +6,9 @@ import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:rxdart/subjects.dart';
 
 class FakeWifiScaleBrowser implements WifiScaleBrowser {
-  final BehaviorSubject<List<WifiScaleEndpoint>> _ctrl =
-      BehaviorSubject.seeded(<WifiScaleEndpoint>[]);
+  final BehaviorSubject<List<WifiScaleEndpoint>> _ctrl = BehaviorSubject.seeded(
+    <WifiScaleEndpoint>[],
+  );
   bool started = false;
   bool failStart = false;
 
@@ -83,32 +84,38 @@ void main() {
       expect(devices.single.type, DeviceType.scale);
     });
 
-    test('no service and no manual host yields an empty list, no error',
-        () async {
-      final svc = makeSvc();
-      await svc.initialize();
-      expect(await _latest(svc), isEmpty);
-    });
+    test(
+      'no service and no manual host yields an empty list, no error',
+      () async {
+        final svc = makeSvc();
+        await svc.initialize();
+        expect(await _latest(svc), isEmpty);
+      },
+    );
 
-    test('discovery unavailable does not crash; manual host still surfaces',
-        () async {
-      final browser = FakeWifiScaleBrowser()..failStart = true;
-      final svc = makeSvc(
-        browser: browser,
-        manualStore: InMemoryManualStore(['192.168.1.7']),
-      );
-      // Must not throw even though the browser failed to start.
-      await svc.initialize();
-      final devices = await _latest(svc);
-      expect(devices.single.deviceId, 'wifi:192.168.1.7');
-    });
+    test(
+      'discovery unavailable does not crash; manual host still surfaces',
+      () async {
+        final browser = FakeWifiScaleBrowser()..failStart = true;
+        final svc = makeSvc(
+          browser: browser,
+          manualStore: InMemoryManualStore(['192.168.1.7']),
+        );
+        // Must not throw even though the browser failed to start.
+        await svc.initialize();
+        final devices = await _latest(svc);
+        expect(devices.single.deviceId, 'wifi:192.168.1.7');
+      },
+    );
 
-    test('persisted manual endpoints are emitted on init (reconnect path)',
-        () async {
-      final svc = makeSvc(manualStore: InMemoryManualStore(['hds.local']));
-      await svc.initialize();
-      expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
-    });
+    test(
+      'persisted manual endpoints are emitted on init (reconnect path)',
+      () async {
+        final svc = makeSvc(manualStore: InMemoryManualStore(['hds.local']));
+        await svc.initialize();
+        expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
+      },
+    );
 
     test('discovered and manual endpoints are unioned', () async {
       final browser = FakeWifiScaleBrowser();
@@ -117,7 +124,9 @@ void main() {
         manualStore: InMemoryManualStore(['192.168.1.7']),
       );
       await svc.initialize();
-      browser.emit([const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5')]);
+      browser.emit([
+        const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+      ]);
       final ids = (await _latest(svc)).map((d) => d.deviceId).toSet();
       expect(ids, {'wifi:192.168.1.7', 'wifi:hds.local'});
     });
@@ -135,9 +144,13 @@ void main() {
       final browser = FakeWifiScaleBrowser();
       final svc = makeSvc(browser: browser);
       await svc.initialize();
-      browser.emit([const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5')]);
+      browser.emit([
+        const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+      ]);
       final first = (await _latest(svc)).single;
-      browser.emit([const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.9')]);
+      browser.emit([
+        const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.9'),
+      ]);
       final second = (await _latest(svc)).single;
       expect(identical(first, second), isTrue);
     });
@@ -185,30 +198,31 @@ void main() {
         expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
       });
 
-      test('mDNS re-announcing a hidden scale resurfaces it (flap immunity)',
-          () async {
-        final browser = FakeWifiScaleBrowser();
-        final svc = makeSvc(
-          browser: browser,
-          probe: (_, _) async => false,
-          failureThreshold: 1,
-        );
-        await svc.initialize();
-        browser.emit([
-          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
-        ]);
-        await svc.scanForDevices(); // unreachable → hidden
-        expect(await _latest(svc), isEmpty);
-
-        // mDNS re-announces the same host → it's back, clear the hidden mark.
-        browser.emit([
-          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
-        ]);
-        expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
-      });
-
       test(
-          'an mDNS re-announce resets the failure counter (does not just clear '
+        'mDNS re-announcing a hidden scale resurfaces it (flap immunity)',
+        () async {
+          final browser = FakeWifiScaleBrowser();
+          final svc = makeSvc(
+            browser: browser,
+            probe: (_, _) async => false,
+            failureThreshold: 1,
+          );
+          await svc.initialize();
+          browser.emit([
+            const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+          ]);
+          await svc.scanForDevices(); // unreachable → hidden
+          expect(await _latest(svc), isEmpty);
+
+          // mDNS re-announces the same host → it's back, clear the hidden mark.
+          browser.emit([
+            const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+          ]);
+          expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
+        },
+      );
+
+      test('an mDNS re-announce resets the failure counter (does not just clear '
           'the hidden mark)', () async {
         var reachable = true;
         final browser = FakeWifiScaleBrowser();
@@ -234,53 +248,65 @@ void main() {
         ]);
 
         await svc.scanForDevices(); // counter was reset → failure 1 of 2 again
-        expect(await _latest(svc), hasLength(1),
-            reason: 're-announce must reset the failure count, so one more '
-                'failure is not enough to hide the scale');
+        expect(
+          await _latest(svc),
+          hasLength(1),
+          reason:
+              're-announce must reset the failure count, so one more '
+              'failure is not enough to hide the scale',
+        );
 
         await svc.scanForDevices(); // now failure 2 of 2 — hidden
         expect(await _latest(svc), isEmpty);
       });
 
-      test('liveness probes the cached IP, not the hostname, once mDNS resolves',
-          () async {
-        final probedHosts = <String>[];
-        final browser = FakeWifiScaleBrowser();
-        final svc = makeSvc(
-          browser: browser,
-          probe: (host, _) async {
-            probedHosts.add(host);
-            return true;
-          },
-        );
-        await svc.initialize();
-        browser.emit([
-          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
-        ]);
+      test(
+        'liveness probes the cached IP, not the hostname, once mDNS resolves',
+        () async {
+          final probedHosts = <String>[];
+          final browser = FakeWifiScaleBrowser();
+          final svc = makeSvc(
+            browser: browser,
+            probe: (host, _) async {
+              probedHosts.add(host);
+              return true;
+            },
+          );
+          await svc.initialize();
+          browser.emit([
+            const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+          ]);
 
-        probedHosts.clear();
-        await svc.scanForDevices();
-        expect(probedHosts, contains('10.0.0.5'),
-            reason: 'the probe must target the resolved/cached IP (resolve-once '
-                'firmware guidance), not the flaky mDNS hostname');
-        expect(probedHosts, isNot(contains('hds.local')));
-      });
+          probedHosts.clear();
+          await svc.scanForDevices();
+          expect(
+            probedHosts,
+            contains('10.0.0.5'),
+            reason:
+                'the probe must target the resolved/cached IP (resolve-once '
+                'firmware guidance), not the flaky mDNS hostname',
+          );
+          expect(probedHosts, isNot(contains('hds.local')));
+        },
+      );
 
-      test('mDNS losing a service does NOT hide a still-reachable scale',
-          () async {
-        final browser = FakeWifiScaleBrowser();
-        final svc = makeSvc(browser: browser, probe: (_, _) async => true);
-        await svc.initialize();
-        browser.emit([
-          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
-        ]);
-        expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
+      test(
+        'mDNS losing a service does NOT hide a still-reachable scale',
+        () async {
+          final browser = FakeWifiScaleBrowser();
+          final svc = makeSvc(browser: browser, probe: (_, _) async => true);
+          await svc.initialize();
+          browser.emit([
+            const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+          ]);
+          expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
 
-        // mDNS "service lost" (empty list) — must stay, IP still answers.
-        browser.emit(const []);
-        await svc.scanForDevices();
-        expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
-      });
+          // mDNS "service lost" (empty list) — must stay, IP still answers.
+          browser.emit(const []);
+          await svc.scanForDevices();
+          expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
+        },
+      );
     });
   });
 }

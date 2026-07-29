@@ -37,10 +37,9 @@ class UnifiedDe1Transport {
   // synchronously, and Android's native sub emits it async from the platform.
   bool _recovering = false;
 
-  Stream<device.ConnectionState> get connectionState =>
-      _transport.connectionState.where(
-        (s) => !(_recovering && s == device.ConnectionState.disconnected),
-      );
+  Stream<device.ConnectionState> get connectionState => _transport
+      .connectionState
+      .where((s) => !(_recovering && s == device.ConnectionState.disconnected));
 
   String get id => _transport.id;
 
@@ -91,7 +90,8 @@ class UnifiedDe1Transport {
     // if the OS confirms the link is dead. If the OS says `connected`,
     // skip the teardown — the cancel-before-replace in `subscribe()`
     // handles re-subscription safely against a live GATT.
-    final wasConnected = transportType == TransportType.ble &&
+    final wasConnected =
+        transportType == TransportType.ble &&
         await _transport.connectionState.first ==
             device.ConnectionState.connected;
 
@@ -239,11 +239,7 @@ class UnifiedDe1Transport {
 
   Future<void> disconnect() async {
     _serialResponses.failAll(StateError('Serial transport disconnected'));
-    _log.warning(
-      'disconnect() called by app code',
-      null,
-      StackTrace.current,
-    );
+    _log.warning('disconnect() called by app code', null, StackTrace.current);
     switch (transportType) {
       case TransportType.serial:
         if (_transport is! SerialTransport) {
@@ -279,7 +275,9 @@ class UnifiedDe1Transport {
       case TransportType.unknown:
         throw StateError('Unknown transport type: $transportType');
       case TransportType.wifi:
-        throw StateError('WiFi transport not supported for DE1: $transportType');
+        throw StateError(
+          'WiFi transport not supported for DE1: $transportType',
+        );
     }
 
     await _transport.disconnect();
@@ -304,8 +302,7 @@ class UnifiedDe1Transport {
   // Matches a complete message: [X] prefix + hex payload, terminated by
   // another '[' (next message) or newline.
   // Group 1 = the message content (e.g., "[M]0A0B0C").
-  static final _messagePattern =
-      RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n)');
+  static final _messagePattern = RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n)');
 
   // Render the first `max` characters of a buffer for a log line. Replaces
   // non-printable and whitespace chars with their escape form so the sample
@@ -337,7 +334,8 @@ class UnifiedDe1Transport {
     }
     if (firstBracket > 0) {
       _log.finest(
-          "Discarding non-message data: '${_currentBuffer.substring(0, firstBracket)}'");
+        "Discarding non-message data: '${_currentBuffer.substring(0, firstBracket)}'",
+      );
       _currentBuffer = _currentBuffer.substring(firstBracket);
     }
 
@@ -350,8 +348,9 @@ class UnifiedDe1Transport {
       // Guard against unbounded buffer growth from corrupted serial streams
       if (_currentBuffer.length > 4096) {
         _log.warning(
-            'Serial buffer overflow (${_currentBuffer.length} bytes), discarding. '
-            'Head sample: ${_sampleForLog(_currentBuffer, 200)}');
+          'Serial buffer overflow (${_currentBuffer.length} bytes), discarding. '
+          'Head sample: ${_sampleForLog(_currentBuffer, 200)}',
+        );
         _currentBuffer = '';
       }
       return;
@@ -464,7 +463,8 @@ class UnifiedDe1Transport {
   }
 
   Future<ByteData> read(LogicalEndpoint endpoint, {Duration? timeout}) async {
-    if (await _transport.connectionState.first != device.ConnectionState.connected) {
+    if (await _transport.connectionState.first !=
+        device.ConnectionState.connected) {
       throw const DeviceNotConnectedException.machine();
     }
 
@@ -473,7 +473,8 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no BLE wire support');
+              'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no BLE wire support',
+            );
           }
           return await _bleRead(endpoint, timeout: timeout);
         case TransportType.serial:
@@ -481,7 +482,8 @@ class UnifiedDe1Transport {
           // non-Endpoint LogicalEndpoints can't be dispatched here.
           if (endpoint is! Endpoint) {
             throw StateError(
-                'UnifiedDe1Transport.read: endpoint ${endpoint.name} is not a DE1 Endpoint, serial read not supported');
+              'UnifiedDe1Transport.read: endpoint ${endpoint.name} is not a DE1 Endpoint, serial read not supported',
+            );
           }
           // Defense-in-depth: `Endpoint.representation` is currently
           // declared non-null, but if a future variant relaxes that we
@@ -490,7 +492,8 @@ class UnifiedDe1Transport {
           if (endpoint.representation == null) {
             // ignore: dead_code
             throw StateError(
-                'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no serial wire support');
+              'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no serial wire support',
+            );
           }
           return await _serialRead(
             endpoint,
@@ -519,8 +522,7 @@ class UnifiedDe1Transport {
     if (_transport is! BLETransport) {
       throw "Invalid transport type, expected BLE";
     }
-    var data =
-        await _transport.read(de1ServiceUUID, e.uuid!, timeout: timeout);
+    var data = await _transport.read(de1ServiceUUID, e.uuid!, timeout: timeout);
     ByteData response = ByteData.sublistView(Uint8List.fromList(data));
     return response;
   }
@@ -541,28 +543,20 @@ class UnifiedDe1Transport {
         );
       case Endpoint.setTime:
       case Endpoint.shotDirectory:
-        throw UnsupportedError(
-          'Endpoint ${e.name} has no serial read path',
-        );
+        throw UnsupportedError('Endpoint ${e.name} has no serial read path');
       case Endpoint.readFromMMR:
-        throw UnsupportedError(
-          'MMR reads require address correlation',
-        );
+        throw UnsupportedError('MMR reads require address correlation');
       case Endpoint.writeToMMR:
         throw UnsupportedError('Endpoint ${e.name} is write-only');
       case Endpoint.shotMapRequest:
       case Endpoint.deleteShotRange:
-        throw UnsupportedError(
-          'Endpoint ${e.name} has no serial read path',
-        );
+        throw UnsupportedError('Endpoint ${e.name} has no serial read path');
       case Endpoint.fwMapRequest:
         return _latestSerialFrame(e, _fwMapRequestSubject, timeout);
       case Endpoint.shotSettings:
         return _latestSerialFrame(e, _shotSettingsSubject, timeout);
       case Endpoint.deprecatedShotDesc:
-        throw UnsupportedError(
-          'Endpoint ${e.name} has no serial read path',
-        );
+        throw UnsupportedError('Endpoint ${e.name} has no serial read path');
       case Endpoint.shotSample:
         return _latestSerialFrame(e, _shotSampleSubject, timeout);
       case Endpoint.stateInfo:
@@ -582,7 +576,8 @@ class UnifiedDe1Transport {
   ) {
     return frames.first.timeout(
       timeout,
-      onTimeout: () => throw EndpointUnavailableException(endpoint.name, timeout),
+      onTimeout: () =>
+          throw EndpointUnavailableException(endpoint.name, timeout),
     );
   }
 
@@ -590,7 +585,10 @@ class UnifiedDe1Transport {
     _shotSettingsSubject.add(data);
   }
 
-  Future<ByteData> _serialOneShotRead(Endpoint endpoint, Duration timeout) async {
+  Future<ByteData> _serialOneShotRead(
+    Endpoint endpoint,
+    Duration timeout,
+  ) async {
     final representation = endpoint.representation;
     final stopwatch = Stopwatch()..start();
     Duration remainingBudget() {
@@ -620,8 +618,9 @@ class UnifiedDe1Transport {
       rethrow;
     } finally {
       _serialResponses.remove(representation);
-      final cleanup = (_transport as SerialTransport)
-          .writeCommand('<-$representation>');
+      final cleanup = (_transport as SerialTransport).writeCommand(
+        '<-$representation>',
+      );
       try {
         await cleanup.timeout(remainingBudget());
       } catch (error, stackTrace) {
@@ -649,7 +648,8 @@ class UnifiedDe1Transport {
   }
 
   Future<void> write(LogicalEndpoint endpoint, Uint8List data) async {
-    if (await _transport.connectionState.first != device.ConnectionState.connected) {
+    if (await _transport.connectionState.first !=
+        device.ConnectionState.connected) {
       throw const DeviceNotConnectedException.machine();
     }
     try {
@@ -662,14 +662,16 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'UnifiedDe1Transport.write: endpoint ${endpoint.name} has no BLE wire support');
+              'UnifiedDe1Transport.write: endpoint ${endpoint.name} has no BLE wire support',
+            );
           }
           await _bleWrite(endpoint, data, false);
           break;
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'UnifiedDe1Transport.write: endpoint ${endpoint.name} has no serial wire support');
+              'UnifiedDe1Transport.write: endpoint ${endpoint.name} has no serial wire support',
+            );
           }
           await _serialWrite(endpoint, data);
           break;
@@ -753,8 +755,7 @@ class UnifiedDe1Transport {
   }
 
   bool _isBleTimeout(Object error) {
-    return transportType == TransportType.ble &&
-        error is BleTimeoutException;
+    return transportType == TransportType.ble && error is BleTimeoutException;
   }
 
   /// Attempts to recover from a BLE timeout by reconnecting.
@@ -769,10 +770,7 @@ class UnifiedDe1Transport {
       _log.info('BLE reconnect successful after timeout');
       return true;
     } catch (reconnectError) {
-      _log.severe(
-        'BLE reconnect failed, disconnecting',
-        reconnectError,
-      );
+      _log.severe('BLE reconnect failed, disconnecting', reconnectError);
       // Recovery failed — this is a genuine disconnect. Clear the guard
       // before tearing down so the `disconnected` reaches upstream.
       _recovering = false;
@@ -793,7 +791,11 @@ class UnifiedDe1Transport {
       throw "Invalid transport type, expected Serial";
     }
     if (e == Endpoint.writeToMMR && data.length > 20) {
-      throw ArgumentError.value(data.length, 'data.length', 'must not exceed 20');
+      throw ArgumentError.value(
+        data.length,
+        'data.length',
+        'must not exceed 20',
+      );
     }
     final frame = e == Endpoint.writeToMMR && data.length < 20
         ? (Uint8List(20)..setAll(0, data))
@@ -804,7 +806,11 @@ class UnifiedDe1Transport {
     await _transport.writeCommand('<${e.representation!}>$payload');
   }
 
-  Future<void> _bleWrite(LogicalEndpoint e, Uint8List data, bool withResponse) async {
+  Future<void> _bleWrite(
+    LogicalEndpoint e,
+    Uint8List data,
+    bool withResponse,
+  ) async {
     if (_transport is! BLETransport) {
       throw "Invalid transport type, expected BLE";
     }

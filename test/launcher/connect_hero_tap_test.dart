@@ -8,9 +8,7 @@ void main() {
     var tapped = 0;
     await tester.pumpWidget(
       ShadApp(
-        home: Scaffold(
-          body: ConnectDeviceHeroCard(onScan: () => tapped++),
-        ),
+        home: Scaffold(body: ConnectDeviceHeroCard(onScan: () => tapped++)),
       ),
     );
 

@@ -105,15 +105,9 @@ final class FirmwareEligibility {
   final FirmwareEligibilityStatus status;
   final List<String> reasons;
 
-  const FirmwareEligibility({
-    required this.status,
-    this.reasons = const [],
-  });
+  const FirmwareEligibility({required this.status, this.reasons = const []});
 
   Map<String, dynamic> toJson() {
-    return {
-      'status': status.name,
-      'reasons': reasons,
-    };
+    return {'status': status.name, 'reasons': reasons};
   }
 }

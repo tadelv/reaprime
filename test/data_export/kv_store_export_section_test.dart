@@ -47,7 +47,8 @@ void main() {
 
       final result = await section.export();
       final namespaces =
-          (result as Map<String, dynamic>)['namespaces'] as Map<String, dynamic>;
+          (result as Map<String, dynamic>)['namespaces']
+              as Map<String, dynamic>;
       final defaultNs = namespaces['testKvExport'] as Map<String, Object>;
       expect(defaultNs['key1'], equals('value1'));
       expect(defaultNs['key2'], equals(42));
@@ -60,7 +61,8 @@ void main() {
 
       final result = await section.export();
       final namespaces =
-          (result as Map<String, dynamic>)['namespaces'] as Map<String, dynamic>;
+          (result as Map<String, dynamic>)['namespaces']
+              as Map<String, dynamic>;
 
       expect(namespaces, contains('testKvExport'));
       expect(namespaces, contains('plugins'));
@@ -145,8 +147,7 @@ void main() {
         },
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.skipped, equals(0));
@@ -161,8 +162,7 @@ void main() {
         },
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.errors, isEmpty);
@@ -190,8 +190,7 @@ void main() {
       expect(await store.get(namespace: 'ns2', key: 'b'), isNull);
 
       // Re-import
-      final result =
-          await section.import(exported, ConflictStrategy.overwrite);
+      final result = await section.import(exported, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(result.imported, equals(2));

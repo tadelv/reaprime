@@ -6,10 +6,8 @@ class PluginDecentProxyBridge {
   final DecentProxyService? decentProxyService;
   final Logger _log;
 
-  PluginDecentProxyBridge({
-    required this.decentProxyService,
-    Logger? log,
-  }) : _log = log ?? Logger('PluginDecentProxyBridge');
+  PluginDecentProxyBridge({required this.decentProxyService, Logger? log})
+    : _log = log ?? Logger('PluginDecentProxyBridge');
 
   Future<Map<String, dynamic>> proxyForPlugin({
     required String pluginId,

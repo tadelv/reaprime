@@ -104,21 +104,23 @@ void main() {
       expect(() => transport.sendMessage('tare'), throwsStateError);
     });
 
-    test('connect rethrows and reports disconnected when ready fails',
-        () async {
-      final badSocket = FakeTextSocket(readyImmediately: false)
-        ..readyError = StateError('refused');
-      final t = WsTransport(
-        host: 'nope.local',
-        connector: (uri) async => badSocket,
-      );
-      final states = <ConnectionState>[];
-      final sub = t.connectionState.listen(states.add);
-      await expectLater(t.connect(), throwsA(isA<StateError>()));
-      await Future.delayed(Duration.zero);
-      expect(states.last, ConnectionState.disconnected);
-      await sub.cancel();
-    });
+    test(
+      'connect rethrows and reports disconnected when ready fails',
+      () async {
+        final badSocket = FakeTextSocket(readyImmediately: false)
+          ..readyError = StateError('refused');
+        final t = WsTransport(
+          host: 'nope.local',
+          connector: (uri) async => badSocket,
+        );
+        final states = <ConnectionState>[];
+        final sub = t.connectionState.listen(states.add);
+        await expectLater(t.connect(), throwsA(isA<StateError>()));
+        await Future.delayed(Duration.zero);
+        expect(states.last, ConnectionState.disconnected);
+        await sub.cancel();
+      },
+    );
 
     test('peer close moves state to disconnected', () async {
       await transport.connect();
@@ -134,7 +136,10 @@ void main() {
       await transport.connect();
       await transport.disconnect();
       expect(socket.closed, isTrue);
-      expect(await transport.connectionState.first, ConnectionState.disconnected);
+      expect(
+        await transport.connectionState.first,
+        ConnectionState.disconnected,
+      );
     });
 
     test('dispose closes streams', () async {

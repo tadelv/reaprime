@@ -87,10 +87,7 @@ class _AndroidWarningStepView extends StatelessWidget {
       primaryAction: AccessibleButton(
         label: 'Continue',
         onTap: _continue,
-        child: ShadButton(
-          onPressed: _continue,
-          child: const Text('Continue'),
-        ),
+        child: ShadButton(onPressed: _continue, child: const Text('Continue')),
       ),
     );
   }

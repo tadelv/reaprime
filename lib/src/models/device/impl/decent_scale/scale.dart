@@ -425,12 +425,11 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   void _retryNotifications() {
     unawaited(
-      _registerNotifications().catchError((Object error, StackTrace stackTrace) {
-        _log.warning(
-          'BLE notification re-subscribe failed',
-          error,
-          stackTrace,
-        );
+      _registerNotifications().catchError((
+        Object error,
+        StackTrace stackTrace,
+      ) {
+        _log.warning('BLE notification re-subscribe failed', error, stackTrace);
       }),
     );
   }

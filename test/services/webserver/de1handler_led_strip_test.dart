@@ -39,11 +39,12 @@ void main() {
   late TestScaleController scaleController;
 
   Future<void> wireWith(De1Interface? device) async {
-    final deviceController =
-        DeviceController([MockDeviceDiscoveryService()]);
+    final deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
-    controller =
-        _FixedDe1Controller(controller: deviceController, device: device);
+    controller = _FixedDe1Controller(
+      controller: deviceController,
+      device: device,
+    );
 
     final mockSettings = MockSettingsService();
     settingsController = SettingsController(mockSettings);
@@ -52,7 +53,12 @@ void main() {
     final testScale = TestScale();
     scaleController = TestScaleController(testScale);
 
-    final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController, workflowController: WorkflowController());
+    final de1Handler = De1Handler(
+      controller: controller,
+      settingsController: settingsController,
+      scaleController: scaleController,
+      workflowController: WorkflowController(),
+    );
     final app = Router().plus;
     de1Handler.addRoutes(app);
     handler = app.call;
@@ -61,21 +67,23 @@ void main() {
   Future<Response> get(String path) async =>
       await handler(Request('GET', Uri.parse('http://localhost$path')));
 
-  Future<Response> put(String path, Object body) async =>
-      await handler(Request(
-        'PUT',
-        Uri.parse('http://localhost$path'),
-        body: jsonEncode(body),
-        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-      ));
+  Future<Response> put(String path, Object body) async => await handler(
+    Request(
+      'PUT',
+      Uri.parse('http://localhost$path'),
+      body: jsonEncode(body),
+      headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+    ),
+  );
 
-  Future<Response> post(String path) async =>
-      await handler(Request(
-        'POST',
-        Uri.parse('http://localhost$path'),
-        body: jsonEncode(const {}),
-        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-      ));
+  Future<Response> post(String path) async => await handler(
+    Request(
+      'POST',
+      Uri.parse('http://localhost$path'),
+      body: jsonEncode(const {}),
+      headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+    ),
+  );
 
   group('GET /api/v1/machine/capabilities — ledStrip', () {
     test('returns ledStrip when a Bengle is connected', () async {
@@ -127,11 +135,9 @@ void main() {
       expect(res.statusCode, 200);
 
       final state = await bengle.getLedStripState();
-      expect(state.frontStrip.sleeping,
-          const Color16(65535, 32768, 0));
+      expect(state.frontStrip.sleeping, const Color16(65535, 32768, 0));
       expect(state.frontStrip.awake, Color16.off);
-      expect(state.backStrip.awake,
-          const Color16(65535, 65535, 65535));
+      expect(state.backStrip.awake, const Color16(65535, 65535, 65535));
     });
 
     test('400 on non-map body', () async {
@@ -188,8 +194,9 @@ void main() {
       // Write a config, commit it, overwrite cache, then reset.
       final written = LedStripState(
         frontStrip: ZoneLedState(
-            sleeping: const Color16(65535, 0, 0),
-            awake: Color16.off),
+          sleeping: const Color16(65535, 0, 0),
+          awake: Color16.off,
+        ),
       );
       await bengle.setLedStrip(written);
       await bengle.commitLedStrip();

@@ -33,43 +33,43 @@ class QuickSettingsWidget extends StatefulWidget {
   static void showQRCodeDialog(BuildContext context, String deviceIp) {
     showShadDialog(
       context: context,
-      builder:
-          (context) => ShadDialog(
-            title: Text("Scan QR code to visit with your device"),
-            actions: [
-              ShadButton(
-                child: Text("Close"),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-            description: const Text(
-              "This will open WebUI in the browser on your device",
-            ),
+      builder: (context) => ShadDialog(
+        title: Text("Scan QR code to visit with your device"),
+        actions: [
+          ShadButton(
+            child: Text("Close"),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+        description: const Text(
+          "This will open WebUI in the browser on your device",
+        ),
 
-            child: Center(
-              child: SizedBox(
-                height: 220,
-                // width: 220,
-                child: PrettyQrView.data(
-                  data: 'http://$deviceIp:3000/?_=${DateTime.now().millisecondsSinceEpoch}',
-                  decoration: PrettyQrDecoration(
-                    quietZone: PrettyQrQuietZone.standard,
-                    shape: PrettyQrSquaresSymbol(
-                      unifiedFinderPattern: true,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    // shape: PrettyQrShape.custom(
-                    //   PrettyQrSquaresSymbol(),
-                    //   finderPattern: PrettyQrSmoothSymbol(),
-                    //   alignmentPatterns: PrettyQrDotsSymbol(),
-                    // ),
-                  ),
+        child: Center(
+          child: SizedBox(
+            height: 220,
+            // width: 220,
+            child: PrettyQrView.data(
+              data:
+                  'http://$deviceIp:3000/?_=${DateTime.now().millisecondsSinceEpoch}',
+              decoration: PrettyQrDecoration(
+                quietZone: PrettyQrQuietZone.standard,
+                shape: PrettyQrSquaresSymbol(
+                  unifiedFinderPattern: true,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
+                // shape: PrettyQrShape.custom(
+                //   PrettyQrSquaresSymbol(),
+                //   finderPattern: PrettyQrSmoothSymbol(),
+                //   alignmentPatterns: PrettyQrDotsSymbol(),
+                // ),
               ),
             ),
           ),
+        ),
+      ),
     );
   }
 }
@@ -89,26 +89,27 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
         explicitChildNodes: true,
         label: 'Quick settings',
         child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 16.0,
-          children: [
-            MergeSemantics(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(child: Text("IP Address:")),
-                  Flexible(
-                      child: Text("${widget.webUIService.deviceIp()}:3000")),
-                ],
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 16.0,
+            children: [
+              MergeSemantics(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(child: Text("IP Address:")),
+                    Flexible(
+                      child: Text("${widget.webUIService.deviceIp()}:3000"),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            _buildWebUIControl(context),
-          ],
+              _buildWebUIControl(context),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -201,7 +202,9 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
                         // On supported platforms (iOS, Android, macOS), use in-app WebView
                         if (Platform.isLinux) {
                           // On other platforms, open in external browser
-                          final url = Uri.parse('http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}');
+                          final url = Uri.parse(
+                            'http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}',
+                          );
                           await launchUrl(url);
                         } else {
                           Navigator.of(context).pushNamed(SkinView.routeName);

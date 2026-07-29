@@ -18,54 +18,56 @@ void main() {
     });
 
     UpdateInfo info() => UpdateInfo(
-          version: '1.2.3',
-          downloadUrl: 'https://example.com/app.apk',
-          releaseNotes: '',
-          isPrerelease: false,
-          tagName: 'v1.2.3',
+      version: '1.2.3',
+      downloadUrl: 'https://example.com/app.apk',
+      releaseNotes: '',
+      isPrerelease: false,
+      tagName: 'v1.2.3',
+    );
+
+    test(
+      'reports monotonic progress ending at 1.0 and writes the file',
+      () async {
+        final chunks = <List<int>>[
+          List.filled(40, 0),
+          List.filled(40, 1),
+          List.filled(20, 2),
+        ];
+        const total = 100;
+
+        final client = MockClient.streaming((request, body) async {
+          return http.StreamedResponse(
+            Stream.fromIterable(chunks),
+            200,
+            contentLength: total,
+          );
+        });
+
+        final updater = AndroidUpdater(
+          owner: 'tadelv',
+          repo: 'reaprime',
+          httpClient: client,
         );
 
-    test('reports monotonic progress ending at 1.0 and writes the file',
-        () async {
-      final chunks = <List<int>>[
-        List.filled(40, 0),
-        List.filled(40, 1),
-        List.filled(20, 2),
-      ];
-      const total = 100;
-
-      final client = MockClient.streaming((request, body) async {
-        return http.StreamedResponse(
-          Stream.fromIterable(chunks),
-          200,
-          contentLength: total,
+        final progress = <double>[];
+        final path = await updater.downloadUpdate(
+          info(),
+          cacheDir: tmp,
+          onProgress: progress.add,
         );
-      });
 
-      final updater = AndroidUpdater(
-        owner: 'tadelv',
-        repo: 'reaprime',
-        httpClient: client,
-      );
+        expect(progress, isNotEmpty);
+        expect(progress.last, closeTo(1.0, 1e-9));
+        // monotonic non-decreasing
+        for (var i = 1; i < progress.length; i++) {
+          expect(progress[i], greaterThanOrEqualTo(progress[i - 1]));
+        }
 
-      final progress = <double>[];
-      final path = await updater.downloadUpdate(
-        info(),
-        cacheDir: tmp,
-        onProgress: progress.add,
-      );
-
-      expect(progress, isNotEmpty);
-      expect(progress.last, closeTo(1.0, 1e-9));
-      // monotonic non-decreasing
-      for (var i = 1; i < progress.length; i++) {
-        expect(progress[i], greaterThanOrEqualTo(progress[i - 1]));
-      }
-
-      final file = File(path);
-      expect(file.existsSync(), isTrue);
-      expect(file.lengthSync(), total);
-    });
+        final file = File(path);
+        expect(file.existsSync(), isTrue);
+        expect(file.lengthSync(), total);
+      },
+    );
 
     test('throws on non-200 response', () async {
       final client = MockClient.streaming((request, body) async {
@@ -97,8 +99,11 @@ void main() {
       );
 
       final progress = <double>[];
-      await updater.downloadUpdate(info(), cacheDir: tmp,
-          onProgress: progress.add);
+      await updater.downloadUpdate(
+        info(),
+        cacheDir: tmp,
+        onProgress: progress.add,
+      );
 
       expect(progress, isEmpty);
     });

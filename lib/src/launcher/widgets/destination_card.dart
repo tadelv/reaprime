@@ -34,10 +34,7 @@ class DestinationCard extends StatelessWidget {
           onTap: onTap,
           child: SizedBox.expand(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 20,
-                horizontal: 16,
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -46,11 +43,7 @@ class DestinationCard extends StatelessWidget {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Icon(
-                        icon,
-                        size: 32,
-                        color: theme.colorScheme.foreground,
-                      ),
+                      Icon(icon, size: 32, color: theme.colorScheme.foreground),
                       if (badge != null)
                         Positioned(
                           right: -8,
@@ -143,6 +136,3 @@ Widget destinationCardPreview() {
     ),
   );
 }
-
-
-

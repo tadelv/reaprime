@@ -30,12 +30,15 @@ class AcaiaScale implements Scale {
   static final _ipsCharacteristic = BleServiceIdentifier.short('2a80');
 
   // Pyxis protocol identifiers
-  static final _pyxisService =
-      BleServiceIdentifier.long('49535343-fe7d-4ae5-8fa9-9fafd205e455');
-  static final _pyxisStatusChar =
-      BleServiceIdentifier.long('49535343-1e4d-4bd9-ba61-23c647249616');
-  static final _pyxisCmdChar =
-      BleServiceIdentifier.long('49535343-8841-43f4-a8d4-ecbe34729bb3');
+  static final _pyxisService = BleServiceIdentifier.long(
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  );
+  static final _pyxisStatusChar = BleServiceIdentifier.long(
+    '49535343-1e4d-4bd9-ba61-23c647249616',
+  );
+  static final _pyxisCmdChar = BleServiceIdentifier.long(
+    '49535343-8841-43f4-a8d4-ecbe34729bb3',
+  );
 
   /// Service UUIDs advertised by Acaia scales (all Pyxis protocol variants).
   /// Used for filtered BLE scans. The IPS protocol service (1820) is excluded
@@ -122,11 +125,11 @@ class AcaiaScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _log.info('Transport disconnected');
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-        _cancelTimers();
-      });
+            _log.info('Transport disconnected');
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+            _cancelTimers();
+          });
 
       final services = await _transport.discoverServices();
 
@@ -183,12 +186,33 @@ class AcaiaScale implements Scale {
   static const int _header2 = 0xDD;
 
   static const List<int> _identPayload = [
-    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-    0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34,
+    0x30,
+    0x31,
+    0x32,
+    0x33,
+    0x34,
+    0x35,
+    0x36,
+    0x37,
+    0x38,
+    0x39,
+    0x30,
+    0x31,
+    0x32,
+    0x33,
+    0x34,
   ];
 
   static const List<int> _configPayload = [
-    0x09, 0x00, 0x01, 0x01, 0x02, 0x02, 0x01, 0x03, 0x04,
+    0x09,
+    0x00,
+    0x01,
+    0x01,
+    0x02,
+    0x02,
+    0x01,
+    0x03,
+    0x04,
   ];
 
   static const List<int> _heartbeatPayload = [0x02, 0x00];
@@ -222,7 +246,10 @@ class AcaiaScale implements Scale {
     final notifyDelay = _protocol == AcaiaProtocol.pyxis ? 500 : 100;
 
     await _transport.subscribe(
-        _serviceUuid, _notifyCharUuid, _parseNotification);
+      _serviceUuid,
+      _notifyCharUuid,
+      _parseNotification,
+    );
     await Future.delayed(Duration(milliseconds: notifyDelay));
 
     // Retry ident+config up to _maxInitRetries times until scale responds
@@ -254,7 +281,8 @@ class AcaiaScale implements Scale {
 
     if (!_receivingNotifications) {
       _log.warning(
-          'Scale did not respond after $_maxInitRetries init attempts');
+        'Scale did not respond after $_maxInitRetries init attempts',
+      );
     }
 
     // Start heartbeat (3s interval, matching Decenza)
@@ -392,8 +420,7 @@ class AcaiaScale implements Scale {
       if (msgType == 12 &&
           (eventType == 5 || eventType == 11) &&
           length <= 64) {
-        final payloadOffset =
-            eventType == 5 ? _metadataLen : _metadataLen + 3;
+        final payloadOffset = eventType == 5 ? _metadataLen : _metadataLen + 3;
         _decodeWeight(_commandBuffer, payloadOffset);
       }
 
@@ -408,7 +435,8 @@ class AcaiaScale implements Scale {
   void _decodeWeight(List<int> buffer, int offset) {
     if (offset + 6 > buffer.length) return;
 
-    int value = ((buffer[offset + 2] & 0xFF) << 16) +
+    int value =
+        ((buffer[offset + 2] & 0xFF) << 16) +
         ((buffer[offset + 1] & 0xFF) << 8) +
         (buffer[offset] & 0xFF);
 

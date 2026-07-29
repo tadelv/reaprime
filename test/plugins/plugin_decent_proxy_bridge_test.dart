@@ -52,9 +52,7 @@ void main() {
     );
   }
 
-  PluginDecentProxyBridge bridge(
-    http_testing.MockClientHandler handler,
-  ) {
+  PluginDecentProxyBridge bridge(http_testing.MockClientHandler handler) {
     return PluginDecentProxyBridge(
       decentProxyService: DecentProxyService(
         httpClient: http_testing.MockClient(handler),

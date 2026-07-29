@@ -347,8 +347,11 @@ void main() {
         currentPressure: 4.8,
         currentFlow: 3.0,
       );
-      expect(vAt, StepExitVerdict.defer,
-          reason: 'distance == proximity is "near", not "far"');
+      expect(
+        vAt,
+        StepExitVerdict.defer,
+        reason: 'distance == proximity is "near", not "far"',
+      );
 
       // distance = 6.0 - 4.7 = 1.3 > 1.2 → far
       arbiter.reset();
@@ -399,8 +402,11 @@ void main() {
         currentPressure: 7.6,
         currentFlow: 3.0,
       );
-      expect(v3, StepExitVerdict.fire,
-          reason: 'max deferral reached before trend check on frame 3');
+      expect(
+        v3,
+        StepExitVerdict.fire,
+        reason: 'max deferral reached before trend check on frame 3',
+      );
     });
   });
 
@@ -433,9 +439,13 @@ void main() {
         currentPressure: 5.02,
         currentFlow: 3.0,
       );
-      expect(v, StepExitVerdict.defer,
-          reason: 'Pressure 0.02 bar past threshold — firmware likely '
-              'already advanced. Defer to avoid double-skip.');
+      expect(
+        v,
+        StepExitVerdict.defer,
+        reason:
+            'Pressure 0.02 bar past threshold — firmware likely '
+            'already advanced. Defer to avoid double-skip.',
+      );
     });
 
     test('barely past pressure, firmware advances, race avoided', () {
@@ -476,12 +486,14 @@ void main() {
       );
       // Frame 1: pressure 5.1, exit 9.0 → distance 3.9 > 1.8 (20% of 9.0)
       // → far → fire (if its weight exit is met).
-      expect(v1, StepExitVerdict.fire,
-          reason: 'Frame 0 race avoided; frame 1 independent.');
+      expect(
+        v1,
+        StepExitVerdict.fire,
+        reason: 'Frame 0 race avoided; frame 1 independent.',
+      );
     });
 
-    test('barely past pressure, no firmware advance, max deferral fires',
-        () {
+    test('barely past pressure, no firmware advance, max deferral fires', () {
       // Firmware DIDN'T fire its exit (unlikely but possible if
       // communication glitch). After 3 frames of being past threshold,
       // tablet fires skipStep so the shot doesn't stall.
@@ -507,8 +519,11 @@ void main() {
         currentPressure: 5.02,
         currentFlow: 3.0,
       );
-      expect(vFire, StepExitVerdict.fire,
-          reason: 'Max deferral reached — fire as backstop.');
+      expect(
+        vFire,
+        StepExitVerdict.fire,
+        reason: 'Max deferral reached — fire as backstop.',
+      );
     });
 
     // -- pressure over, near but not yet past -----------------------
@@ -528,8 +543,11 @@ void main() {
         currentPressure: 4.96,
         currentFlow: 3.0,
       );
-      expect(v1, StepExitVerdict.defer,
-          reason: '4.96 at exit 5.0 → distance 0.04 < 1.0, first → defer');
+      expect(
+        v1,
+        StepExitVerdict.defer,
+        reason: '4.96 at exit 5.0 → distance 0.04 < 1.0, first → defer',
+      );
 
       final v2 = arbiter.evaluate(
         profileFrame: 0,
@@ -537,8 +555,11 @@ void main() {
         currentPressure: 4.98,
         currentFlow: 3.0,
       );
-      expect(v2, StepExitVerdict.defer,
-          reason: '4.96→4.98 trending toward 5.0 → defer');
+      expect(
+        v2,
+        StepExitVerdict.defer,
+        reason: '4.96→4.98 trending toward 5.0 → defer',
+      );
     });
 
     test('near pressure threshold, tiny margin, not trending fires', () {
@@ -563,8 +584,11 @@ void main() {
         currentPressure: 4.93,
         currentFlow: 3.0,
       );
-      expect(v2, StepExitVerdict.fire,
-          reason: '4.96→4.93 away from exit 5.0 → fire');
+      expect(
+        v2,
+        StepExitVerdict.fire,
+        reason: '4.96→4.93 away from exit 5.0 → fire',
+      );
     });
 
     // -- flow under, tight margins ----------------------------------
@@ -584,9 +608,13 @@ void main() {
         currentPressure: 5.0,
         currentFlow: 1.98,
       );
-      expect(v, StepExitVerdict.defer,
-          reason: 'Flow 0.02 ml/s past under-2.0 — firmware likely '
-              'already advanced.');
+      expect(
+        v,
+        StepExitVerdict.defer,
+        reason:
+            'Flow 0.02 ml/s past under-2.0 — firmware likely '
+            'already advanced.',
+      );
     });
 
     test('near flow threshold, tiny margin defers', () {
@@ -604,8 +632,11 @@ void main() {
         currentPressure: 5.0,
         currentFlow: 2.02,
       );
-      expect(v, StepExitVerdict.defer,
-          reason: 'Flow 0.02 above under-2.0 → near, first → defer');
+      expect(
+        v,
+        StepExitVerdict.defer,
+        reason: 'Flow 0.02 above under-2.0 → near, first → defer',
+      );
     });
   });
 }

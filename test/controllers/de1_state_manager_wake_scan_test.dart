@@ -120,8 +120,7 @@ void main() {
     await pump(6);
   }
 
-  test(
-      'wake with watch support and a preferred scale skips the '
+  test('wake with watch support and a preferred scale skips the '
       'scale-only burst scan', () async {
     mockScanner.supportsWatch = true;
     await settingsController.setPreferredScaleId('pref-scale');
@@ -130,24 +129,34 @@ void main() {
 
     await wakeMachine();
 
-    expect(mockScanner.scanCallCount, 0,
-        reason: 'the persistent watch covers reacquisition — a wake burst '
-            'would starve the freshly woken DE1 link');
-    expect(mockScanner.startWatchCallCount, greaterThan(0),
-        reason: 'the watch (not the burst) must be handling reacquisition');
+    expect(
+      mockScanner.scanCallCount,
+      0,
+      reason:
+          'the persistent watch covers reacquisition — a wake burst '
+          'would starve the freshly woken DE1 link',
+    );
+    expect(
+      mockScanner.startWatchCallCount,
+      greaterThan(0),
+      reason: 'the watch (not the burst) must be handling reacquisition',
+    );
   });
 
-  test('wake with no preferred scale still runs the discovery burst',
-      () async {
+  test('wake with no preferred scale still runs the discovery burst', () async {
     mockScanner.supportsWatch = true;
     de1Controller.connect(testDe1);
     await pump();
 
     await wakeMachine();
 
-    expect(mockScanner.scanCallCount, 1,
-        reason: 'without a preferred scale the watch cannot help — the '
-            'burst feeds discovery/picker');
+    expect(
+      mockScanner.scanCallCount,
+      1,
+      reason:
+          'without a preferred scale the watch cannot help — the '
+          'burst feeds discovery/picker',
+    );
   });
 
   test('wake without watch support runs the legacy burst', () async {
@@ -158,7 +167,10 @@ void main() {
 
     await wakeMachine();
 
-    expect(mockScanner.scanCallCount, 1,
-        reason: 'non-watch platforms keep the legacy wake reconnect');
+    expect(
+      mockScanner.scanCallCount,
+      1,
+      reason: 'non-watch platforms keep the legacy wake reconnect',
+    );
   });
 }

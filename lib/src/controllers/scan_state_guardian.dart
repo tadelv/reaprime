@@ -5,11 +5,7 @@ import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:logging/logging.dart';
 
-enum ScanStateEvent {
-  adapterTurnedOff,
-  adapterTurnedOn,
-  scanStateStale,
-}
+enum ScanStateEvent { adapterTurnedOff, adapterTurnedOn, scanStateStale }
 
 class ScanStateGuardian with WidgetsBindingObserver {
   final BleDiscoveryService? bleService;

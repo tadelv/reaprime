@@ -74,8 +74,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   Future<List<BleService>> discoverServices(
     String deviceId,
     bool withDescriptors,
-  ) async =>
-      [];
+  ) async => [];
 
   @override
   Future<void> setNotifiable(
@@ -101,8 +100,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     String service,
     String characteristic, {
     Duration? timeout,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 
   @override
   Future<void> writeValue(
@@ -147,9 +145,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   }
 
   @override
-  Future<List<BleDevice>> getSystemDevices(
-    List<String>? withServices,
-  ) async =>
+  Future<List<BleDevice>> getSystemDevices(List<String>? withServices) async =>
       [];
 }
 
@@ -209,34 +205,41 @@ void main() {
 
   group('GATT timeout link verification (fix 1)', () {
     test(
-        'write timeout with OS reporting disconnected → emits disconnected',
-        () async {
-      platform.hangWrites = true;
-      platform.connectionStateResult = BleConnectionState.disconnected;
+      'write timeout with OS reporting disconnected → emits disconnected',
+      () async {
+        platform.hangWrites = true;
+        platform.connectionStateResult = BleConnectionState.disconnected;
 
-      await timedOutWrite();
-      await pump();
+        await timedOutWrite();
+        await pump();
 
-      expect(observedStates, contains(device.ConnectionState.disconnected));
-    });
+        expect(observedStates, contains(device.ConnectionState.disconnected));
+      },
+    );
 
-    test('write timeout with OS reporting connected → stays connected',
-        () async {
-      platform.hangWrites = true;
-      platform.connectionStateResult = BleConnectionState.connected;
+    test(
+      'write timeout with OS reporting connected → stays connected',
+      () async {
+        platform.hangWrites = true;
+        platform.connectionStateResult = BleConnectionState.connected;
 
-      await timedOutWrite();
-      await pump();
+        await timedOutWrite();
+        await pump();
 
-      expect(
-        observedStates,
-        isNot(contains(device.ConnectionState.disconnected)),
-        reason: 'a single timeout on a live link must stay fail-fast only '
-            '(profile-upload safety)',
-      );
-      expect(platform.getConnectionStateCalls, greaterThan(0),
-          reason: 'the timeout should have probed the OS link state');
-    });
+        expect(
+          observedStates,
+          isNot(contains(device.ConnectionState.disconnected)),
+          reason:
+              'a single timeout on a live link must stay fail-fast only '
+              '(profile-upload safety)',
+        );
+        expect(
+          platform.getConnectionStateCalls,
+          greaterThan(0),
+          reason: 'the timeout should have probed the OS link state',
+        );
+      },
+    );
 
     test('unresolved native write past grace period forces teardown', () async {
       platform.hangWrites = true;
@@ -246,8 +249,11 @@ void main() {
       await pump(250);
 
       expect(observedStates, contains(device.ConnectionState.disconnected));
-      expect(platform.disconnectCalls, contains(deviceId),
-          reason: 'forced teardown must release the OS-level handle');
+      expect(
+        platform.disconnectCalls,
+        contains(deviceId),
+        reason: 'forced teardown must release the OS-level handle',
+      );
     });
 
     test('failed disconnect leaves unresolved queue faulted', () async {
@@ -268,148 +274,155 @@ void main() {
       );
     });
 
-    test('late native completion clears the faulted queue without disconnecting',
-        () async {
-      platform.hangWrites = true;
-      platform.writeBlocker = Completer<void>();
-      platform.connectionStateResult = BleConnectionState.connected;
+    test(
+      'late native completion clears the faulted queue without disconnecting',
+      () async {
+        platform.hangWrites = true;
+        platform.writeBlocker = Completer<void>();
+        platform.connectionStateResult = BleConnectionState.connected;
 
-      await timedOutWrite();
-      platform.writeBlocker!.complete();
-      await pump(100);
+        await timedOutWrite();
+        platform.writeBlocker!.complete();
+        await pump(100);
 
-      platform.hangWrites = false;
-      await transport.write(
-        _serviceUuid,
-        _charUuid,
-        Uint8List.fromList([2]),
-        timeout: _writeTimeout,
-      );
+        platform.hangWrites = false;
+        await transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([2]),
+          timeout: _writeTimeout,
+        );
 
-      expect(platform.writeCalls, 2);
-      expect(
-        observedStates,
-        isNot(contains(device.ConnectionState.disconnected)),
-      );
-    });
+        expect(platform.writeCalls, 2);
+        expect(
+          observedStates,
+          isNot(contains(device.ConnectionState.disconnected)),
+        );
+      },
+    );
   });
 
   group('queue reset error handling', () {
-    test('post-timeout write is not dispatched while native write is unresolved',
-        () async {
-      platform.hangWrites = true;
+    test(
+      'post-timeout write is not dispatched while native write is unresolved',
+      () async {
+        platform.hangWrites = true;
 
-      await timedOutWrite();
-      await expectLater(
-        transport.write(
-          _serviceUuid,
-          _charUuid,
-          Uint8List.fromList([2]),
-          timeout: _writeTimeout,
-        ),
-        throwsA(
-          isA<UniversalBleException>().having(
-            (e) => e.code,
-            'code',
-            UniversalBleErrorCode.operationCancelled,
+        await timedOutWrite();
+        await expectLater(
+          transport.write(
+            _serviceUuid,
+            _charUuid,
+            Uint8List.fromList([2]),
+            timeout: _writeTimeout,
           ),
-        ),
-      );
-      await pump(100);
-
-      expect(platform.writeCalls, 1);
-    });
-
-    test('faulted queue cancels pending writes without disconnecting', () async {
-      platform.hangWrites = true;
-
-      final active = expectLater(
-        transport.write(
-          _serviceUuid,
-          _charUuid,
-          Uint8List.fromList([1]),
-          timeout: _writeTimeout,
-        ),
-        throwsA(isA<TimeoutException>()),
-      );
-      final nextActive = expectLater(
-        transport.write(
-          _serviceUuid,
-          _charUuid,
-          Uint8List.fromList([2]),
-          timeout: const Duration(milliseconds: 100),
-        ),
-        throwsA(
-          isA<UniversalBleException>().having(
-            (e) => e.code,
-            'code',
-            UniversalBleErrorCode.operationCancelled,
+          throwsA(
+            isA<UniversalBleException>().having(
+              (e) => e.code,
+              'code',
+              UniversalBleErrorCode.operationCancelled,
+            ),
           ),
-        ),
-      );
-      final pending = expectLater(
-        transport.write(
-          _serviceUuid,
-          _charUuid,
-          Uint8List.fromList([3]),
-          timeout: const Duration(seconds: 5),
-        ),
-        throwsA(
-          isA<UniversalBleException>().having(
-            (e) => e.code,
-            'code',
-            UniversalBleErrorCode.operationCancelled,
+        );
+        await pump(100);
+
+        expect(platform.writeCalls, 1);
+      },
+    );
+
+    test(
+      'faulted queue cancels pending writes without disconnecting',
+      () async {
+        platform.hangWrites = true;
+
+        final active = expectLater(
+          transport.write(
+            _serviceUuid,
+            _charUuid,
+            Uint8List.fromList([1]),
+            timeout: _writeTimeout,
           ),
-        ),
-      );
+          throwsA(isA<TimeoutException>()),
+        );
+        final nextActive = expectLater(
+          transport.write(
+            _serviceUuid,
+            _charUuid,
+            Uint8List.fromList([2]),
+            timeout: const Duration(milliseconds: 100),
+          ),
+          throwsA(
+            isA<UniversalBleException>().having(
+              (e) => e.code,
+              'code',
+              UniversalBleErrorCode.operationCancelled,
+            ),
+          ),
+        );
+        final pending = expectLater(
+          transport.write(
+            _serviceUuid,
+            _charUuid,
+            Uint8List.fromList([3]),
+            timeout: const Duration(seconds: 5),
+          ),
+          throwsA(
+            isA<UniversalBleException>().having(
+              (e) => e.code,
+              'code',
+              UniversalBleErrorCode.operationCancelled,
+            ),
+          ),
+        );
 
-      await active;
-      await pending;
-      await nextActive;
-      await pump();
+        await active;
+        await pending;
+        await nextActive;
+        await pump();
 
-      expect(
-        observedStates,
-        isNot(contains(device.ConnectionState.disconnected)),
-      );
-    });
+        expect(
+          observedStates,
+          isNot(contains(device.ConnectionState.disconnected)),
+        );
+      },
+    );
 
-    test('deviceDisconnected maps and emits disconnected exactly once',
-        () async {
-      platform.writeError = UniversalBleException(
-        code: UniversalBleErrorCode.deviceDisconnected,
-        message: 'simulated native disconnect',
-      );
+    test(
+      'deviceDisconnected maps and emits disconnected exactly once',
+      () async {
+        platform.writeError = UniversalBleException(
+          code: UniversalBleErrorCode.deviceDisconnected,
+          message: 'simulated native disconnect',
+        );
 
-      await expectLater(
-        transport.write(
-          _serviceUuid,
-          _charUuid,
-          Uint8List.fromList([1]),
-        ),
-        throwsA(isA<DeviceNotConnectedException>()),
-      );
-      await pump();
+        await expectLater(
+          transport.write(_serviceUuid, _charUuid, Uint8List.fromList([1])),
+          throwsA(isA<DeviceNotConnectedException>()),
+        );
+        await pump();
 
-      expect(
-        observedStates.where(
-          (state) => state == device.ConnectionState.disconnected,
-        ),
-        hasLength(1),
-      );
-    });
+        expect(
+          observedStates.where(
+            (state) => state == device.ConnectionState.disconnected,
+          ),
+          hasLength(1),
+        );
+      },
+    );
   });
 
   group('advertising-while-connected detection (fix 2)', () {
-    test('own advert + OS reporting disconnected → emits disconnected',
-        () async {
-      platform.connectionStateResult = BleConnectionState.disconnected;
+    test(
+      'own advert + OS reporting disconnected → emits disconnected',
+      () async {
+        platform.connectionStateResult = BleConnectionState.disconnected;
 
-      platform.updateScanResult(bleDevice(deviceId));
-      await pump();
+        platform.updateScanResult(bleDevice(deviceId));
+        await pump();
 
-      expect(observedStates, contains(device.ConnectionState.disconnected));
-    });
+        expect(observedStates, contains(device.ConnectionState.disconnected));
+      },
+    );
 
     test('own advert + OS reporting connected → no teardown', () async {
       platform.connectionStateResult = BleConnectionState.connected;
@@ -417,10 +430,15 @@ void main() {
       platform.updateScanResult(bleDevice(deviceId));
       await pump();
 
-      expect(observedStates,
-          isNot(contains(device.ConnectionState.disconnected)));
-      expect(platform.getConnectionStateCalls, greaterThan(0),
-          reason: 'the advert should have triggered an OS probe');
+      expect(
+        observedStates,
+        isNot(contains(device.ConnectionState.disconnected)),
+      );
+      expect(
+        platform.getConnectionStateCalls,
+        greaterThan(0),
+        reason: 'the advert should have triggered an OS probe',
+      );
     });
 
     test('advert for a different device is ignored', () async {
@@ -429,8 +447,10 @@ void main() {
       platform.updateScanResult(bleDevice('11:22:33:44:55:66'));
       await pump();
 
-      expect(observedStates,
-          isNot(contains(device.ConnectionState.disconnected)));
+      expect(
+        observedStates,
+        isNot(contains(device.ConnectionState.disconnected)),
+      );
       expect(platform.getConnectionStateCalls, 0);
     });
 
@@ -444,46 +464,50 @@ void main() {
       platform.updateScanResult(bleDevice(deviceId));
       await pump();
 
-      expect(platform.getConnectionStateCalls, probesBefore,
-          reason: 'no probe when we already know we are disconnected');
-    });
-
-    test('probe completing after reconnect cannot tear down new connection',
-        () async {
-      platform.connectionStateBlocker = Completer<BleConnectionState>();
-      platform.updateScanResult(bleDevice(deviceId));
-      await pump(10);
-      expect(platform.getConnectionStateCalls, 1);
-
-      await transport.connect();
-      platform.hangWrites = true;
-      platform.writeBlocker = Completer<void>();
-      final active = transport.write(
-        _serviceUuid,
-        _charUuid,
-        Uint8List.fromList([1]),
-        timeout: const Duration(seconds: 1),
-      );
-      final pending = transport.write(
-        _serviceUuid,
-        _charUuid,
-        Uint8List.fromList([2]),
-        timeout: const Duration(seconds: 1),
-      );
-      await pump(10);
-
-      platform.connectionStateBlocker!.complete(BleConnectionState.disconnected);
-      await pump(10);
       expect(
-        observedStates.last,
-        device.ConnectionState.connected,
+        platform.getConnectionStateCalls,
+        probesBefore,
+        reason: 'no probe when we already know we are disconnected',
       );
-
-      platform.hangWrites = false;
-      platform.writeBlocker!.complete();
-      await Future.wait([active, pending]);
-      expect(platform.writeCalls, 2);
     });
+
+    test(
+      'probe completing after reconnect cannot tear down new connection',
+      () async {
+        platform.connectionStateBlocker = Completer<BleConnectionState>();
+        platform.updateScanResult(bleDevice(deviceId));
+        await pump(10);
+        expect(platform.getConnectionStateCalls, 1);
+
+        await transport.connect();
+        platform.hangWrites = true;
+        platform.writeBlocker = Completer<void>();
+        final active = transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([1]),
+          timeout: const Duration(seconds: 1),
+        );
+        final pending = transport.write(
+          _serviceUuid,
+          _charUuid,
+          Uint8List.fromList([2]),
+          timeout: const Duration(seconds: 1),
+        );
+        await pump(10);
+
+        platform.connectionStateBlocker!.complete(
+          BleConnectionState.disconnected,
+        );
+        await pump(10);
+        expect(observedStates.last, device.ConnectionState.connected);
+
+        platform.hangWrites = false;
+        platform.writeBlocker!.complete();
+        await Future.wait([active, pending]);
+        expect(platform.writeCalls, 2);
+      },
+    );
 
     test('advert probes are throttled', () async {
       platform.connectionStateResult = BleConnectionState.connected;
@@ -493,9 +517,13 @@ void main() {
       platform.updateScanResult(bleDevice(deviceId));
       await pump();
 
-      expect(platform.getConnectionStateCalls, 1,
-          reason: 'adverts arrive ~1/s during a scan; one probe per '
-              'throttle window is enough');
+      expect(
+        platform.getConnectionStateCalls,
+        1,
+        reason:
+            'adverts arrive ~1/s during a scan; one probe per '
+            'throttle window is enough',
+      );
     });
   });
 
@@ -508,8 +536,7 @@ void main() {
   // (CCCD write succeeds locally but is lost on the zombie GATT link),
   // confirmable only on real Android hardware. They pin that boundary so
   // a future regression in the Dart layer is caught.
-  group('re-subscribe push channel (universal_ble broadcast controller)',
-      () {
+  group('re-subscribe push channel (universal_ble broadcast controller)', () {
     const service = '0000a000-0000-1000-8000-00805f9b34fb';
     // The six DE1 characteristics _bleConnect re-subscribes on reconnect.
     const chars = [
@@ -521,42 +548,57 @@ void main() {
       '0000a009-0000-1000-8000-00805f9b34fb', // fwMapRequest (A009)
     ];
 
-    void push(String char, int byte) =>
-        platform.updateCharacteristicValue(
-          deviceId,
-          char,
-          Uint8List.fromList([byte]),
-          null,
-        );
-
-    test('single-char re-subscribe: new callback fires, old does not', () async {
-      final oldReceived = <int>[];
-      await transport.subscribe(service, chars[0], (d) => oldReceived.add(d[0]));
-      push(chars[0], 1);
-      await pump();
-      expect(oldReceived, [1]);
-
-      // No-op reconnect path: cancel old, listen new.
-      final newReceived = <int>[];
-      await transport.subscribe(service, chars[0], (d) => newReceived.add(d[0]));
-      push(chars[0], 2);
-      await pump();
-
-      expect(newReceived, [2],
-          reason: 'the re-subscribed callback must receive the push');
-      expect(oldReceived, [1],
-          reason: 'the cancelled callback must NOT receive the push');
-    });
+    void push(String char, int byte) => platform.updateCharacteristicValue(
+      deviceId,
+      char,
+      Uint8List.fromList([byte]),
+      null,
+    );
 
     test(
-        'sequential 6-char re-subscribe: all new callbacks fire (≥5 listeners '
+      'single-char re-subscribe: new callback fires, old does not',
+      () async {
+        final oldReceived = <int>[];
+        await transport.subscribe(
+          service,
+          chars[0],
+          (d) => oldReceived.add(d[0]),
+        );
+        push(chars[0], 1);
+        await pump();
+        expect(oldReceived, [1]);
+
+        // No-op reconnect path: cancel old, listen new.
+        final newReceived = <int>[];
+        await transport.subscribe(
+          service,
+          chars[0],
+          (d) => newReceived.add(d[0]),
+        );
+        push(chars[0], 2);
+        await pump();
+
+        expect(newReceived, [
+          2,
+        ], reason: 'the re-subscribed callback must receive the push');
+        expect(oldReceived, [
+          1,
+        ], reason: 'the cancelled callback must NOT receive the push');
+      },
+    );
+
+    test('sequential 6-char re-subscribe: all new callbacks fire (≥5 listeners '
         'always remain, so onCancel:close never fires mid-sequence)', () async {
       final oldReceived = <int, List<int>>{};
       final newReceived = <int, List<int>>{};
       for (var i = 0; i < chars.length; i++) {
         oldReceived[i] = [];
         newReceived[i] = [];
-        await transport.subscribe(service, chars[i], (d) => oldReceived[i]!.add(d[0]));
+        await transport.subscribe(
+          service,
+          chars[i],
+          (d) => oldReceived[i]!.add(d[0]),
+        );
       }
       // Initial pushes land on the old callbacks.
       for (var i = 0; i < chars.length; i++) {
@@ -571,7 +613,11 @@ void main() {
       // always has ≥5 listeners during each swap, so onCancel:close never
       // fires mid-sequence.
       for (var i = 0; i < chars.length; i++) {
-        await transport.subscribe(service, chars[i], (d) => newReceived[i]!.add(d[0]));
+        await transport.subscribe(
+          service,
+          chars[i],
+          (d) => newReceived[i]!.add(d[0]),
+        );
       }
       for (var i = 0; i < chars.length; i++) {
         push(chars[i], (i + 1) * 10);
@@ -579,27 +625,34 @@ void main() {
       await pump();
 
       for (var i = 0; i < chars.length; i++) {
-        expect(newReceived[i], [(i + 1) * 10],
-            reason: 'new callback for ${chars[i]} must receive the push');
-        expect(oldReceived[i], [i + 1],
-            reason: 'old callback for ${chars[i]} must NOT receive the push');
+        expect(
+          newReceived[i],
+          [(i + 1) * 10],
+          reason: 'new callback for ${chars[i]} must receive the push',
+        );
+        expect(
+          oldReceived[i],
+          [i + 1],
+          reason: 'old callback for ${chars[i]} must NOT receive the push',
+        );
       }
     });
 
-    test('setNotifiable throwing on 2nd call surfaces the error, not silent',
-        () async {
-      platform.throwOnSecondSetNotifiable = true;
+    test(
+      'setNotifiable throwing on 2nd call surfaces the error, not silent',
+      () async {
+        platform.throwOnSecondSetNotifiable = true;
 
-      // First subscribe succeeds (first setNotifiable).
-      await transport.subscribe(service, chars[0], (_) {});
+        // First subscribe succeeds (first setNotifiable).
+        await transport.subscribe(service, chars[0], (_) {});
 
-      // Second subscribe (second setNotifiable for the same char) must
-      // throw — not swallow — so the caller learns the CCCD write failed.
-      await expectLater(
-        transport.subscribe(service, chars[0], (_) {}),
-        throwsA(isA<UniversalBleException>()),
-      );
-    });
+        // Second subscribe (second setNotifiable for the same char) must
+        // throw — not swallow — so the caller learns the CCCD write failed.
+        await expectLater(
+          transport.subscribe(service, chars[0], (_) {}),
+          throwsA(isA<UniversalBleException>()),
+        );
+      },
+    );
   });
-
 }

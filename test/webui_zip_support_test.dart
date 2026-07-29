@@ -52,10 +52,7 @@ void main() {
       // Win32 silently drops trailing dots from path components; force them
       // out so later reads resolve the same path we wrote. Embedded dots
       // (e.g. `file.tar.gz`) are valid and must survive untouched.
-      expect(
-        sanitizeZipEntryPath('weird./file.tar.gz'),
-        'weird/file.tar.gz',
-      );
+      expect(sanitizeZipEntryPath('weird./file.tar.gz'), 'weird/file.tar.gz');
       expect(
         sanitizeZipEntryPath('trailing.../normal.txt'),
         'trailing/normal.txt',
@@ -63,10 +60,7 @@ void main() {
     });
 
     test('strips trailing spaces from each path segment', () {
-      expect(
-        sanitizeZipEntryPath('dir /file.txt '),
-        'dir/file.txt',
-      );
+      expect(sanitizeZipEntryPath('dir /file.txt '), 'dir/file.txt');
     });
 
     test('leaves an empty string as empty', () {
@@ -80,8 +74,9 @@ void main() {
     late List<LogRecord> logged;
 
     setUp(() {
-      tempDir = Directory.systemTemp
-          .createTempSync('reaprime_zip_support_test_');
+      tempDir = Directory.systemTemp.createTempSync(
+        'reaprime_zip_support_test_',
+      );
       testLog = Logger.detached('ExtractTest');
       logged = <LogRecord>[];
       testLog.onRecord.listen(logged.add);
@@ -92,10 +87,14 @@ void main() {
     });
 
     test('extracts a single file with its content intact', () {
-      final archive = Archive()
-        ..addFile(ArchiveFile.string('hello.txt', 'hi'));
+      final archive = Archive()..addFile(ArchiveFile.string('hello.txt', 'hi'));
 
-      final result = extractArchiveToDirectory(archive, tempDir, sanitize: true, log: testLog);
+      final result = extractArchiveToDirectory(
+        archive,
+        tempDir,
+        sanitize: true,
+        log: testLog,
+      );
 
       expect(result.extracted, 1);
       expect(result.skipped, 0);
@@ -108,7 +107,12 @@ void main() {
       final archive = Archive()
         ..addFile(ArchiveFile.string('a/b/c.txt', 'deep'));
 
-      final result = extractArchiveToDirectory(archive, tempDir, sanitize: true, log: testLog);
+      final result = extractArchiveToDirectory(
+        archive,
+        tempDir,
+        sanitize: true,
+        log: testLog,
+      );
 
       expect(result.extracted, 1);
       final extracted = File(p.join(tempDir.path, 'a', 'b', 'c.txt'));
@@ -126,7 +130,12 @@ void main() {
           ),
         );
 
-      final result = extractArchiveToDirectory(archive, tempDir, sanitize: true, log: testLog);
+      final result = extractArchiveToDirectory(
+        archive,
+        tempDir,
+        sanitize: true,
+        log: testLog,
+      );
 
       expect(result.extracted, 1);
       expect(result.skipped, 0);
@@ -137,29 +146,35 @@ void main() {
       expect(jsonDecode(sanitised.readAsStringSync()), {'ok': true});
       // Original name must NOT exist — if it did, sanitisation is a no-op.
       expect(
-        File(p.join(tempDir.path, 'shots', '2025-09-12T16:04:38.049213.json'))
-            .existsSync(),
+        File(
+          p.join(tempDir.path, 'shots', '2025-09-12T16:04:38.049213.json'),
+        ).existsSync(),
         isFalse,
       );
     });
 
-    test('still extracts remaining entries when one entry is pathological',
-        () {
+    test('still extracts remaining entries when one entry is pathological', () {
       final archive = Archive()
         ..addFile(ArchiveFile.string('good_before.txt', 'first'))
         ..addFile(ArchiveFile.string('shots/2025:bad.json', 'middle'))
         ..addFile(ArchiveFile.string('good_after.txt', 'last'));
 
-      final result = extractArchiveToDirectory(archive, tempDir, sanitize: true, log: testLog);
+      final result = extractArchiveToDirectory(
+        archive,
+        tempDir,
+        sanitize: true,
+        log: testLog,
+      );
 
       // All three should land on disk; the middle one is sanitised, not
       // skipped.
       expect(result.extracted, 3);
       expect(result.skipped, 0);
-      expect(File(p.join(tempDir.path, 'good_before.txt')).existsSync(),
-          isTrue);
-      expect(File(p.join(tempDir.path, 'good_after.txt')).existsSync(),
-          isTrue);
+      expect(
+        File(p.join(tempDir.path, 'good_before.txt')).existsSync(),
+        isTrue,
+      );
+      expect(File(p.join(tempDir.path, 'good_after.txt')).existsSync(), isTrue);
       expect(
         File(p.join(tempDir.path, 'shots', '2025_bad.json')).existsSync(),
         isTrue,
@@ -186,9 +201,7 @@ void main() {
         // at the caller with Platform.isWindows, so this test is only
         // meaningful on POSIX hosts.
         final archive = Archive()
-          ..addFile(
-            ArchiveFile.string('shots/2025-09-12T16:04:38.json', 'ok'),
-          );
+          ..addFile(ArchiveFile.string('shots/2025-09-12T16:04:38.json', 'ok'));
 
         final result = extractArchiveToDirectory(
           archive,
@@ -238,19 +251,14 @@ void main() {
       'continues after a failure and still attempts later skins (issue #148)',
       () async {
         final calls = <String>[];
-        await installBundledSkinList(
-          ['first', 'boom', 'third'],
-          (id) async {
-            calls.add(id);
-            if (id == 'boom') throw StateError('simulated install failure');
-          },
-          log: testLog,
-        );
+        await installBundledSkinList(['first', 'boom', 'third'], (id) async {
+          calls.add(id);
+          if (id == 'boom') throw StateError('simulated install failure');
+        }, log: testLog);
         expect(calls, ['first', 'boom', 'third']);
         // The failure must be surfaced at warning level so users and logs
         // notice — the original bug hid it at fine.
-        final warnings =
-            logged.where((r) => r.level >= Level.WARNING).toList();
+        final warnings = logged.where((r) => r.level >= Level.WARNING).toList();
         expect(warnings, hasLength(1));
         expect(warnings.single.message, contains('boom'));
       },
@@ -258,19 +266,12 @@ void main() {
 
     test('attempts every skin when every install throws', () async {
       final calls = <String>[];
-      await installBundledSkinList(
-        ['x', 'y', 'z'],
-        (id) async {
-          calls.add(id);
-          throw StateError('always fails');
-        },
-        log: testLog,
-      );
+      await installBundledSkinList(['x', 'y', 'z'], (id) async {
+        calls.add(id);
+        throw StateError('always fails');
+      }, log: testLog);
       expect(calls, ['x', 'y', 'z']);
-      expect(
-        logged.where((r) => r.level >= Level.WARNING).length,
-        3,
-      );
+      expect(logged.where((r) => r.level >= Level.WARNING).length, 3);
     });
 
     test('does nothing for an empty list', () async {

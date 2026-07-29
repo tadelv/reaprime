@@ -29,8 +29,8 @@ class _EmptyDiscovery extends DeviceDiscoveryService {
 
 class _StubDe1Controller extends De1Controller {
   _StubDe1Controller()
-      : _subj = BehaviorSubject.seeded(null),
-        super(controller: DeviceController([_EmptyDiscovery()]));
+    : _subj = BehaviorSubject.seeded(null),
+      super(controller: DeviceController([_EmptyDiscovery()]));
 
   final BehaviorSubject<De1Interface?> _subj;
 
@@ -61,7 +61,9 @@ void main() {
       workflow = WorkflowController();
       de1 = _StubDe1Controller();
       probeBridge = BengleProbeBridge(
-          de1Controller: de1, sensorController: sensors);
+        de1Controller: de1,
+        sensorController: sensors,
+      );
       sequencer = SteamSequencer(
         de1Controller: de1,
         sensorController: sensors,
@@ -78,38 +80,43 @@ void main() {
       await db.close();
     });
 
-    test('full steaming session persists SteamRecord with probe data',
-        () async {
-      final bengle = MockBengle();
-      await bengle.onConnect();
-      de1.emit(bengle);
-      // Let probe bridge register the milk probe.
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(sensors.sensors, isNotEmpty,
-          reason: 'probe bridge should have registered BengleMilkProbe');
+    test(
+      'full steaming session persists SteamRecord with probe data',
+      () async {
+        final bengle = MockBengle();
+        await bengle.onConnect();
+        de1.emit(bengle);
+        // Let probe bridge register the milk probe.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(
+          sensors.sensors,
+          isNotEmpty,
+          reason: 'probe bridge should have registered BengleMilkProbe',
+        );
 
-      // Drive: idle → steam → idle (autonomous stop wraps it up).
-      await bengle.setStopAtTemperatureTarget(15.0);
-      await bengle.requestState(MachineState.steam);
-      await Future<void>.delayed(const Duration(seconds: 4));
+        // Drive: idle → steam → idle (autonomous stop wraps it up).
+        await bengle.setStopAtTemperatureTarget(15.0);
+        await bengle.requestState(MachineState.steam);
+        await Future<void>.delayed(const Duration(seconds: 4));
 
-      // Wait for state to return to idle (mock autonomous stop).
-      await bengle.currentSnapshot
-          .firstWhere((s) => s.state.state == MachineState.idle)
-          .timeout(const Duration(seconds: 5));
-      await Future<void>.delayed(Duration.zero);
+        // Wait for state to return to idle (mock autonomous stop).
+        await bengle.currentSnapshot
+            .firstWhere((s) => s.state.state == MachineState.idle)
+            .timeout(const Duration(seconds: 5));
+        await Future<void>.delayed(Duration.zero);
 
-      final ids = await db.steamDao.getAllSteamIds();
-      expect(ids, hasLength(1));
+        final ids = await db.steamDao.getAllSteamIds();
+        expect(ids, hasLength(1));
 
-      final record = await db.steamDao.getLatestSteam();
-      expect(record, isNotNull);
-      // Wrapping into SteamMapper would deserialize; for now just
-      // confirm the JSON blob has measurement entries with a probe
-      // temperature.
-      expect(record!.measurementsJson, contains('milkTemperature'));
+        final record = await db.steamDao.getLatestSteam();
+        expect(record, isNotNull);
+        // Wrapping into SteamMapper would deserialize; for now just
+        // confirm the JSON blob has measurement entries with a probe
+        // temperature.
+        expect(record!.measurementsJson, contains('milkTemperature'));
 
-      await bengle.onDisconnect();
-    });
+        await bengle.onDisconnect();
+      },
+    );
   });
 }

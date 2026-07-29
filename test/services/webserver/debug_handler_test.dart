@@ -19,10 +19,7 @@ void main() {
   tearDown(() => scaleController.dispose());
 
   Future<Response> get() async => await handler(
-    Request(
-      'GET',
-      Uri.parse('http://localhost/api/v1/debug/flow-smoothing'),
-    ),
+    Request('GET', Uri.parse('http://localhost/api/v1/debug/flow-smoothing')),
   );
 
   Future<Response> post(Object body) async => await handler(
@@ -42,10 +39,7 @@ void main() {
       'movingAverageSamples': 10,
     });
 
-    final updated = await post({
-      'windowMs': 800,
-      'movingAverageSamples': 6,
-    });
+    final updated = await post({'windowMs': 800, 'movingAverageSamples': 6});
     expect(updated.statusCode, 200);
     expect(jsonDecode(await updated.readAsString()), {
       'windowMs': 800,

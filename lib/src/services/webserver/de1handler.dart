@@ -94,10 +94,7 @@ class De1Handler {
       sws.webSocketHandler(_handleWaterLevels),
     );
     app.get('/ws/v1/machine/raw', sws.webSocketHandler(_handleRawSocket));
-    app.get(
-      '/ws/v1/machine/shotState',
-      sws.webSocketHandler(_handleShotState),
-    );
+    app.get('/ws/v1/machine/shotState', sws.webSocketHandler(_handleShotState));
 
     app.get('/api/v1/machine/ledStrip', (Request _) async {
       return withDe1((de1) async {
@@ -228,9 +225,7 @@ class De1Handler {
         }
         if (json['heaterVoltage'] != null) {
           await de1.setHeaterVoltage(
-            De1HeaterVoltage.fromInt(
-              parseInt(json['heaterVoltage']),
-            ),
+            De1HeaterVoltage.fromInt(parseInt(json['heaterVoltage'])),
           );
         }
         if (json['refillKitSetting'] != null) {
@@ -281,7 +276,6 @@ class De1Handler {
         return jsonAccepted();
       });
     });
-
   }
 
   Future<Response> withDe1(Future<Response> Function(De1Interface) call) async {
@@ -333,7 +327,9 @@ class De1Handler {
       (de1) {
         if (de1 == null) {
           if (attached != null) {
-            log.info('machine disconnected — detaching socket until it returns');
+            log.info(
+              'machine disconnected — detaching socket until it returns',
+            );
             detach();
           }
           return;
@@ -403,12 +399,12 @@ class De1Handler {
       final blockOnNoScale = _settingsController.blockOnNoScale;
       final scaleConnected =
           _scaleController.currentConnectionState ==
-              device.ConnectionState.connected;
+          device.ConnectionState.connected;
       // A cleaning/backflush profile has no yield to weigh, so the no-scale
       // guard never applies to it.
       final isCleaningProfile =
           _workflowController.currentWorkflow.profile.beverageType ==
-              BeverageType.cleaning;
+          BeverageType.cleaning;
       log.fine(
         "Received request to change state to $requestState while scale connected: $scaleConnected, blockOnNoScale: $blockOnNoScale, cleaningProfile: $isCleaningProfile",
       );
@@ -430,7 +426,8 @@ class De1Handler {
       // actually succeeded, so a failed stop can't mislabel a later natural
       // end. This lets the ShotSequencer attribute the stop to apiStop
       // instead of the ambiguous machineEnded bucket.
-      final stoppingActiveShot = requestState == MachineState.idle &&
+      final stoppingActiveShot =
+          requestState == MachineState.idle &&
           _controller.currentShotState.state != ShotState.idle;
       await de1.requestState(requestState);
       if (stoppingActiveShot) {

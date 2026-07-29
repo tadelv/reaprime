@@ -29,44 +29,55 @@ void main() {
     });
 
     test(
-        'updateFirmware drives sleeping -> fwUpgrade write sequence on the wire',
-        () async {
-      final transport = FakeBleTransport();
-      addTearDown(transport.dispose);
-      transport.queueOnConnectResponses(v13Model: 128);
+      'updateFirmware drives sleeping -> fwUpgrade write sequence on the wire',
+      () async {
+        final transport = FakeBleTransport();
+        addTearDown(transport.dispose);
+        transport.queueOnConnectResponses(v13Model: 128);
 
-      final bengle = Bengle(transport: transport);
-      await bengle.onConnect();
+        final bengle = Bengle(transport: transport);
+        await bengle.onConnect();
 
-      final preFwWrites = transport.writes.length;
+        final preFwWrites = transport.writes.length;
 
-      // The FW protocol blocks waiting on `fwMapRequest` notifications
-      // (and a 10s erase wait). Drive it just long enough for the
-      // prelude writes to land, then bail via timeout.
-      try {
-        await bengle
-            .updateFirmware(Uint8List(0), onProgress: (_) {})
-            .timeout(const Duration(seconds: 1));
-      } on TimeoutException catch (_) {
-        // Expected: protocol is blocked waiting on FW-path notifications.
-      }
+        // The FW protocol blocks waiting on `fwMapRequest` notifications
+        // (and a 10s erase wait). Drive it just long enough for the
+        // prelude writes to land, then bail via timeout.
+        try {
+          await bengle
+              .updateFirmware(Uint8List(0), onProgress: (_) {})
+              .timeout(const Duration(seconds: 1));
+        } on TimeoutException catch (_) {
+          // Expected: protocol is blocked waiting on FW-path notifications.
+        }
 
-      final fwWrites = transport.writes.sublist(preFwWrites);
-      // First two writes belong to the prelude:
-      //   1. requestState(sleeping) — UnifiedDe1._updateFirmware
-      //   2. requestState(fwUpgrade) — Bengle.beforeFirmwareUpload
-      // Subsequent writes (poll for fwMapRequest, etc.) are FW-protocol
-      // territory and intentionally not asserted on.
-      expect(fwWrites.length, greaterThanOrEqualTo(2),
-          reason: 'expected at least the sleeping + fwUpgrade writes');
-      expect(fwWrites[0].characteristicUUID, Endpoint.requestedState.uuid);
-      expect(fwWrites[0].data[0],
-          De1StateEnum.fromMachineState(MachineState.sleeping).hexValue);
-      expect(fwWrites[1].characteristicUUID, Endpoint.requestedState.uuid);
-      expect(fwWrites[1].data[0], 0x16,
-          reason: 'second prelude write must be fwUpgrade (0x16)');
-      expect(fwWrites[1].data[0],
-          De1StateEnum.fromMachineState(MachineState.fwUpgrade).hexValue);
-    });
+        final fwWrites = transport.writes.sublist(preFwWrites);
+        // First two writes belong to the prelude:
+        //   1. requestState(sleeping) — UnifiedDe1._updateFirmware
+        //   2. requestState(fwUpgrade) — Bengle.beforeFirmwareUpload
+        // Subsequent writes (poll for fwMapRequest, etc.) are FW-protocol
+        // territory and intentionally not asserted on.
+        expect(
+          fwWrites.length,
+          greaterThanOrEqualTo(2),
+          reason: 'expected at least the sleeping + fwUpgrade writes',
+        );
+        expect(fwWrites[0].characteristicUUID, Endpoint.requestedState.uuid);
+        expect(
+          fwWrites[0].data[0],
+          De1StateEnum.fromMachineState(MachineState.sleeping).hexValue,
+        );
+        expect(fwWrites[1].characteristicUUID, Endpoint.requestedState.uuid);
+        expect(
+          fwWrites[1].data[0],
+          0x16,
+          reason: 'second prelude write must be fwUpgrade (0x16)',
+        );
+        expect(
+          fwWrites[1].data[0],
+          De1StateEnum.fromMachineState(MachineState.fwUpgrade).hexValue,
+        );
+      },
+    );
   });
 }

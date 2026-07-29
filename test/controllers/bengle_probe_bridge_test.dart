@@ -21,8 +21,8 @@ class _EmptyDiscovery extends DeviceDiscoveryService {
 
 class _StubDe1Controller extends De1Controller {
   _StubDe1Controller()
-      : _subj = BehaviorSubject.seeded(null),
-        super(controller: DeviceController([_EmptyDiscovery()]));
+    : _subj = BehaviorSubject.seeded(null),
+      super(controller: DeviceController([_EmptyDiscovery()]));
 
   final BehaviorSubject<De1Interface?> _subj;
 
@@ -43,8 +43,7 @@ void main() {
       await deviceController.initialize();
       sensors = SensorController(controller: deviceController);
       de1 = _StubDe1Controller();
-      bridge = BengleProbeBridge(
-          de1Controller: de1, sensorController: sensors);
+      bridge = BengleProbeBridge(de1Controller: de1, sensorController: sensors);
     });
 
     tearDown(() async {
@@ -54,15 +53,17 @@ void main() {
 
     Future<void> settle() => Future<void>.delayed(Duration.zero);
 
-    test('registers a probe when Bengle connects with probe attached',
-        () async {
-      final bengle = MockBengle();
-      await bengle.onConnect();
-      de1.emit(bengle);
-      await settle();
-      expect(sensors.sensors.keys, contains('${bengle.deviceId}-milkprobe'));
-      await bengle.onDisconnect();
-    });
+    test(
+      'registers a probe when Bengle connects with probe attached',
+      () async {
+        final bengle = MockBengle();
+        await bengle.onConnect();
+        de1.emit(bengle);
+        await settle();
+        expect(sensors.sensors.keys, contains('${bengle.deviceId}-milkprobe'));
+        await bengle.onDisconnect();
+      },
+    );
 
     test('does not register when probe is not attached', () async {
       final bengle = MockBengle(probeAttached: false);

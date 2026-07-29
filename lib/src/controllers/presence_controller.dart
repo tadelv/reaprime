@@ -268,13 +268,10 @@ class PresenceController {
     if (_currentMachineState == MachineState.sleeping) {
       _pendingUserPresent = true;
       _pendingUserPresentTimer?.cancel();
-      _pendingUserPresentTimer = Timer(
-        const Duration(seconds: 60),
-        () {
-          _pendingUserPresent = false;
-          _log.fine('Stale deferred userPresent cleared (60s timeout)');
-        },
-      );
+      _pendingUserPresentTimer = Timer(const Duration(seconds: 60), () {
+        _pendingUserPresent = false;
+        _log.fine('Stale deferred userPresent cleared (60s timeout)');
+      });
       _log.fine('Deferred sendUserPresent (machine asleep)');
       return;
     }
@@ -297,10 +294,7 @@ class PresenceController {
       return;
     }
 
-    _sleepTimer = Timer(
-      Duration(minutes: timeoutMinutes),
-      _onSleepTimeout,
-    );
+    _sleepTimer = Timer(Duration(minutes: timeoutMinutes), _onSleepTimeout);
   }
 
   void _onSleepTimeout() {

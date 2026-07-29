@@ -59,11 +59,10 @@ class SpyDe1 implements De1Interface {
   final List<De1ShotSettings> emittedShotSettings = [];
 
   @override
-  Stream<De1ShotSettings> get shotSettings =>
-      _shotSettings.stream.map((e) {
-        emittedShotSettings.add(e);
-        return e;
-      });
+  Stream<De1ShotSettings> get shotSettings => _shotSettings.stream.map((e) {
+    emittedShotSettings.add(e);
+    return e;
+  });
 
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) async {
@@ -146,12 +145,12 @@ class SpyDe1 implements De1Interface {
   TransportType get transportType => TransportType.unknown;
   @override
   MachineInfo get machineInfo => MachineInfo(
-        version: '1',
-        model: '1',
-        serialNumber: '1',
-        groupHeadControllerPresent: false,
-        extra: {},
-      );
+    version: '1',
+    model: '1',
+    serialNumber: '1',
+    groupHeadControllerPresent: false,
+    extra: {},
+  );
   @override
   Future<void> onConnect() async {}
   @override
@@ -232,8 +231,10 @@ class SpyDe1 implements De1Interface {
   @override
   FirmwareUpdateState get firmwareUpdateState => FirmwareUpdateState.idle;
   @override
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double progress) onProgress}) async {}
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double progress) onProgress,
+  }) async {}
   @override
   Future<void> cancelFirmwareUpload() async {}
   @override
@@ -293,136 +294,135 @@ void main() {
   }
 
   group('PUT /api/v1/workflow — redundant writes', () {
-    test(
-      'steam-only PUT does not trigger hot-water or flush writes',
-      () async {
-        // Clear any emits from initial seed + DE1 controller init.
-        await _settleHandler();
-        spy.updateShotSettingsCalls.clear();
-        spy.setSteamFlowCalls.clear();
-        spy.setHotWaterFlowCalls.clear();
-        spy.setFlushFlowCalls.clear();
-        spy.setFlushTimeoutCalls.clear();
-        spy.setFlushTemperatureCalls.clear();
-        spy.setProfileCalls.clear();
-        spy.emittedShotSettings.clear();
+    test('steam-only PUT does not trigger hot-water or flush writes', () async {
+      // Clear any emits from initial seed + DE1 controller init.
+      await _settleHandler();
+      spy.updateShotSettingsCalls.clear();
+      spy.setSteamFlowCalls.clear();
+      spy.setHotWaterFlowCalls.clear();
+      spy.setFlushFlowCalls.clear();
+      spy.setFlushTimeoutCalls.clear();
+      spy.setFlushTemperatureCalls.clear();
+      spy.setProfileCalls.clear();
+      spy.emittedShotSettings.clear();
 
-        unawaited(put({
+      unawaited(
+        put({
           'steamSettings': {'duration': 30},
-        }));
-        await _settleHandler();
+        }),
+      );
+      await _settleHandler();
 
-        expect(
-          spy.setHotWaterFlowCalls,
-          isEmpty,
-          reason: 'hot-water settings did not change; setHotWaterFlow '
-              'must not be invoked',
-        );
-        expect(
-          spy.setFlushFlowCalls,
-          isEmpty,
-          reason: 'rinse settings did not change; setFlushFlow must not '
-              'be invoked',
-        );
-        expect(
-          spy.setFlushTimeoutCalls,
-          isEmpty,
-          reason: 'rinse settings did not change; setFlushTimeout must '
-              'not be invoked',
-        );
-        expect(
-          spy.setFlushTemperatureCalls,
-          isEmpty,
-          reason: 'rinse settings did not change; setFlushTemperature '
-              'must not be invoked',
-        );
-        expect(
-          spy.updateShotSettingsCalls.length,
-          equals(1),
-          reason: 'exactly one shot-settings write should be issued per '
-              'steam-only change',
-        );
-        expect(
-          spy.updateShotSettingsCalls.single.targetSteamDuration,
-          equals(30),
-        );
-      },
-    );
+      expect(
+        spy.setHotWaterFlowCalls,
+        isEmpty,
+        reason:
+            'hot-water settings did not change; setHotWaterFlow '
+            'must not be invoked',
+      );
+      expect(
+        spy.setFlushFlowCalls,
+        isEmpty,
+        reason:
+            'rinse settings did not change; setFlushFlow must not '
+            'be invoked',
+      );
+      expect(
+        spy.setFlushTimeoutCalls,
+        isEmpty,
+        reason:
+            'rinse settings did not change; setFlushTimeout must '
+            'not be invoked',
+      );
+      expect(
+        spy.setFlushTemperatureCalls,
+        isEmpty,
+        reason:
+            'rinse settings did not change; setFlushTemperature '
+            'must not be invoked',
+      );
+      expect(
+        spy.updateShotSettingsCalls.length,
+        equals(1),
+        reason:
+            'exactly one shot-settings write should be issued per '
+            'steam-only change',
+      );
+      expect(
+        spy.updateShotSettingsCalls.single.targetSteamDuration,
+        equals(30),
+      );
+    });
 
-    test(
-      'no-op PUT (same values) issues no DE1 writes',
-      () async {
-        await _settleHandler();
-        final snapshot = workflowController.currentWorkflow;
-        spy.updateShotSettingsCalls.clear();
-        spy.setSteamFlowCalls.clear();
-        spy.setHotWaterFlowCalls.clear();
-        spy.setFlushFlowCalls.clear();
-        spy.setFlushTimeoutCalls.clear();
-        spy.setFlushTemperatureCalls.clear();
-        spy.setProfileCalls.clear();
+    test('no-op PUT (same values) issues no DE1 writes', () async {
+      await _settleHandler();
+      final snapshot = workflowController.currentWorkflow;
+      spy.updateShotSettingsCalls.clear();
+      spy.setSteamFlowCalls.clear();
+      spy.setHotWaterFlowCalls.clear();
+      spy.setFlushFlowCalls.clear();
+      spy.setFlushTimeoutCalls.clear();
+      spy.setFlushTemperatureCalls.clear();
+      spy.setProfileCalls.clear();
 
-        unawaited(put({
+      unawaited(
+        put({
           'steamSettings': snapshot.steamSettings.toJson(),
           'hotWaterData': snapshot.hotWaterData.toJson(),
           'rinseData': snapshot.rinseData.toJson(),
-        }));
-        await _settleHandler();
+        }),
+      );
+      await _settleHandler();
 
-        expect(spy.updateShotSettingsCalls, isEmpty);
-        expect(spy.setSteamFlowCalls, isEmpty);
-        expect(spy.setHotWaterFlowCalls, isEmpty);
-        expect(spy.setFlushFlowCalls, isEmpty);
-        expect(spy.setProfileCalls, isEmpty,
-            reason: 'identical profile must not be re-sent');
-      },
-    );
+      expect(spy.updateShotSettingsCalls, isEmpty);
+      expect(spy.setSteamFlowCalls, isEmpty);
+      expect(spy.setHotWaterFlowCalls, isEmpty);
+      expect(spy.setFlushFlowCalls, isEmpty);
+      expect(
+        spy.setProfileCalls,
+        isEmpty,
+        reason: 'identical profile must not be re-sent',
+      );
+    });
   });
 
   group('PUT /api/v1/workflow — parse errors (issue #338)', () {
-    test(
-      'invalid ExitType returns 400 instead of hanging forever',
-      () async {
-        await _settleHandler();
+    test('invalid ExitType returns 400 instead of hanging forever', () async {
+      await _settleHandler();
 
-        // Send a profile step with an invalid ExitType ('weight'
-        // is not a valid member of ExitType {pressure, flow}).
-        final future = put({
-          'profile': {
-            'steps': [
-              {
-                'name': 'p',
-                'pump': 'flow',
-                'transition': 'fast',
-                'flow': 2,
-                'temperature': 93,
-                'sensor': 'coffee',
-                'seconds': 10,
-                'volume': 0,
-                'exit': {
-                  'type': 'weight',
-                  'condition': 'over',
-                  'value': 36,
-                },
-              },
-            ],
-          },
-        });
+      // Send a profile step with an invalid ExitType ('weight'
+      // is not a valid member of ExitType {pressure, flow}).
+      final future = put({
+        'profile': {
+          'steps': [
+            {
+              'name': 'p',
+              'pump': 'flow',
+              'transition': 'fast',
+              'flow': 2,
+              'temperature': 93,
+              'sensor': 'coffee',
+              'seconds': 10,
+              'volume': 0,
+              'exit': {'type': 'weight', 'condition': 'over', 'value': 36},
+            },
+          ],
+        },
+      });
 
-        // Wait for the debounce timer to fire and _applyPendingUpdate
-        // to run (or, pre-fix, to throw silently and hang).
-        await _settleHandler();
+      // Wait for the debounce timer to fire and _applyPendingUpdate
+      // to run (or, pre-fix, to throw silently and hang).
+      await _settleHandler();
 
-        // With the fix, the completer is completed with a 400 response
-        // instead of never completing.
-        final response = await future;
-        expect(response.statusCode, equals(400));
-        final body = jsonDecode(await response.readAsString());
-        expect(body, isA<Map<String, dynamic>>());
-        expect(body['error'], equals('Invalid request'));
-        expect(body['message'], isNotNull);
-      },
-    );
+      // With the fix, the completer is completed with a 400 response
+      // instead of never completing.
+      final response = await future;
+      expect(response.statusCode, equals(400));
+      final body = jsonDecode(await response.readAsString());
+      expect(body, isA<Map<String, dynamic>>());
+      expect(body['error'], equals('Invalid request'));
+      expect(body['message'], isNotNull);
+    });
 
     test(
       'after a failed parse, a subsequent valid PUT succeeds normally',
@@ -442,11 +442,7 @@ void main() {
                 'sensor': 'coffee',
                 'seconds': 10,
                 'volume': 0,
-                'exit': {
-                  'type': 'weight',
-                  'condition': 'over',
-                  'value': 36,
-                },
+                'exit': {'type': 'weight', 'condition': 'over', 'value': 36},
               },
             ],
           },
@@ -464,10 +460,7 @@ void main() {
         final goodResponse = await goodFuture;
         expect(goodResponse.statusCode, equals(200));
         final goodBody = jsonDecode(await goodResponse.readAsString());
-        expect(
-          goodBody['steamSettings']['duration'],
-          equals(25),
-        );
+        expect(goodBody['steamSettings']['duration'], equals(25));
       },
     );
 
@@ -503,29 +496,34 @@ void main() {
         spy.updateShotSettingsCalls.clear();
         spy.emittedShotSettings.clear();
 
-        unawaited(put({
-          'steamSettings': {'duration': 44},
-          'hotWaterData': {'duration': 55},
-        }));
+        unawaited(
+          put({
+            'steamSettings': {'duration': 44},
+            'hotWaterData': {'duration': 55},
+          }),
+        );
         await _settleHandler();
 
         expect(
           spy.updateShotSettingsCalls,
           isNotEmpty,
-          reason: 'steam + hot-water change must produce at least one '
+          reason:
+              'steam + hot-water change must produce at least one '
               'shot-settings write',
         );
         final last = spy.updateShotSettingsCalls.last;
         expect(
           last.targetSteamDuration,
           equals(44),
-          reason: 'last updateShotSettings must carry the new steam '
+          reason:
+              'last updateShotSettings must carry the new steam '
               'duration (lost-write race if stale)',
         );
         expect(
           last.targetHotWaterDuration,
           equals(55),
-          reason: 'last updateShotSettings must carry the new hot-water '
+          reason:
+              'last updateShotSettings must carry the new hot-water '
               'duration',
         );
       },
@@ -537,10 +535,12 @@ void main() {
         await _settleHandler();
         spy.emittedShotSettings.clear();
 
-        unawaited(put({
-          'steamSettings': {'duration': 44},
-          'hotWaterData': {'duration': 55},
-        }));
+        unawaited(
+          put({
+            'steamSettings': {'duration': 44},
+            'hotWaterData': {'duration': 55},
+          }),
+        );
         await _settleHandler();
 
         expect(

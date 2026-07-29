@@ -82,7 +82,9 @@ void main() {
   // ConnectionManager.connect() runs real async operations and relies on
   // stream propagation through microtasks.
   group('DeviceDiscoveryView', () {
-    testWidgets('shows no devices found when scan finds nothing', (tester) async {
+    testWidgets('shows no devices found when scan finds nothing', (
+      tester,
+    ) async {
       // Suppress overflow errors for this test
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
@@ -108,8 +110,9 @@ void main() {
       });
     });
 
-    testWidgets('Try Demo Mode button enables simulated devices and rescans',
-        (tester) async {
+    testWidgets('Try Demo Mode button enables simulated devices and rescans', (
+      tester,
+    ) async {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
@@ -153,8 +156,9 @@ void main() {
       });
     });
 
-    testWidgets('shows a connected scale when no machine is found',
-        (tester) async {
+    testWidgets('shows a connected scale when no machine is found', (
+      tester,
+    ) async {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
@@ -178,7 +182,9 @@ void main() {
       });
     });
 
-    testWidgets('shows device picker when multiple machines found', (tester) async {
+    testWidgets('shows device picker when multiple machines found', (
+      tester,
+    ) async {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
@@ -206,8 +212,9 @@ void main() {
       });
     });
 
-    testWidgets('shows scales alongside machines in results view',
-        (tester) async {
+    testWidgets('shows scales alongside machines in results view', (
+      tester,
+    ) async {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
@@ -237,8 +244,9 @@ void main() {
       });
     });
 
-    testWidgets('mounts ConnectionErrorBanner when error present',
-        (tester) async {
+    testWidgets('mounts ConnectionErrorBanner when error present', (
+      tester,
+    ) async {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
@@ -253,28 +261,30 @@ void main() {
       addTearDown(fakeCm.dispose);
 
       Widget view() => MediaQuery(
-            data: MediaQueryData(size: Size(1024, 768)),
-            child: ShadApp(
-              home: Scaffold(
-                body: DeviceDiscoveryView(
-                  connectionManager: fakeCm,
-                  deviceController: deviceController,
-                  settingsController: settingsController,
-                  webUIService: webUIService,
-                  webUIStorage: webUIStorage,
-                  logger: Logger('test'),
-                ),
-              ),
+        data: MediaQueryData(size: Size(1024, 768)),
+        child: ShadApp(
+          home: Scaffold(
+            body: DeviceDiscoveryView(
+              connectionManager: fakeCm,
+              deviceController: deviceController,
+              settingsController: settingsController,
+              webUIService: webUIService,
+              webUIStorage: webUIStorage,
+              logger: Logger('test'),
             ),
-          );
+          ),
+        ),
+      );
 
       await tester.runAsync(() async {
-        fakeCm.setError(ConnectionError(
-          kind: ConnectionErrorKind.scaleConnectFailed,
-          severity: ConnectionErrorSeverity.error,
-          timestamp: DateTime.now().toUtc(),
-          message: 'Scale connect timed out.',
-        ));
+        fakeCm.setError(
+          ConnectionError(
+            kind: ConnectionErrorKind.scaleConnectFailed,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.now().toUtc(),
+            message: 'Scale connect timed out.',
+          ),
+        );
 
         await tester.pumpWidget(view());
         await tester.pump();
@@ -285,8 +295,10 @@ void main() {
         expect(find.text('Connect failed'), findsOneWidget);
         // Banner and inline fallback may both show the message in the
         // idle+error state, so just assert at least one renders it.
-        expect(find.textContaining('Scale connect timed out'),
-            findsAtLeastNWidgets(1));
+        expect(
+          find.textContaining('Scale connect timed out'),
+          findsAtLeastNWidgets(1),
+        );
       });
     });
   });

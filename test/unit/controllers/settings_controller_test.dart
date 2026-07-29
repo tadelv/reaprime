@@ -17,12 +17,14 @@ class _SpySettingsService implements SettingsService {
   String? _preferredScaleId;
 
   @override
-  Future<Set<SimulatedDevicesTypes>> simulateDevices() async => _simulatedDevices;
+  Future<Set<SimulatedDevicesTypes>> simulateDevices() async =>
+      _simulatedDevices;
   @override
   Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async {
     setSimulatedDevicesCallCount++;
     _simulatedDevices = value;
   }
+
   @override
   Future<bool> enableSimulatedWebViews() async => _enableSimulatedWebViews;
   @override
@@ -30,6 +32,7 @@ class _SpySettingsService implements SettingsService {
     setEnableSimulatedWebViewsCallCount++;
     _enableSimulatedWebViews = value;
   }
+
   @override
   Future<bool> showSkinExitInstructions() async => _showSkinExitInstructions;
   @override
@@ -37,6 +40,7 @@ class _SpySettingsService implements SettingsService {
     setShowSkinExitInstructionsCallCount++;
     _showSkinExitInstructions = value;
   }
+
   // Feature flags
   @override
   Future<bool?> featureFlag(FeatureFlag flag) async => _featureFlags[flag.name];
@@ -45,6 +49,7 @@ class _SpySettingsService implements SettingsService {
     setFeatureFlagCallCount++;
     _featureFlags[flag.name] = value;
   }
+
   @override
   Future<String?> preferredMachineId() async => _preferredMachineId;
   @override
@@ -72,14 +77,15 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession(
-        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-      );
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      });
 
-      expect(
-        controller.simulatedDevices,
-        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-      );
+      expect(controller.simulatedDevices, {
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      });
     });
 
     test('notifies listeners', () {
@@ -88,7 +94,9 @@ void main() {
       var notified = false;
       controller.addListener(() => notified = true);
 
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.machine});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+      });
 
       expect(notified, isTrue);
     });
@@ -97,7 +105,9 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.scale,
+      });
 
       expect(spy.setSimulatedDevicesCallCount, 0);
     });
@@ -106,8 +116,12 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.machine});
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+      });
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.scale,
+      });
 
       expect(controller.simulatedDevices, {SimulatedDevicesTypes.scale});
     });
@@ -116,9 +130,10 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession(
-        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-      );
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      });
       controller.enableSimulatedDevicesForSession({});
 
       expect(controller.simulatedDevices, isEmpty);
@@ -128,7 +143,9 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.machine});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+      });
 
       expect(controller.preferredMachineId, 'MockDe1');
     });
@@ -137,7 +154,9 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.scale,
+      });
 
       expect(controller.preferredScaleId, 'MockScale');
     });
@@ -146,7 +165,9 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.scale,
+      });
 
       expect(controller.preferredMachineId, isNull);
     });
@@ -155,9 +176,10 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession(
-        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-      );
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      });
       expect(controller.preferredMachineId, 'MockDe1');
       expect(controller.preferredScaleId, 'MockScale');
 
@@ -171,10 +193,13 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      controller.enableSimulatedDevicesForSession(
-        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-      );
-      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.machine});
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      });
+      controller.enableSimulatedDevicesForSession({
+        SimulatedDevicesTypes.machine,
+      });
 
       expect(controller.preferredMachineId, 'MockDe1');
       expect(controller.preferredScaleId, isNull);

@@ -67,15 +67,19 @@ class BonsoirWifiScaleBrowser implements WifiScaleBrowser {
         _log.info('discovery started');
       case BonsoirDiscoveryServiceFoundEvent():
         final svc = event.service;
-        _log.info('service found: ${svc.name} hostname=${svc.hostname} '
-            'port=${svc.port} addresses=${svc.hostAddresses}');
+        _log.info(
+          'service found: ${svc.name} hostname=${svc.hostname} '
+          'port=${svc.port} addresses=${svc.hostAddresses}',
+        );
         // Surface the scale immediately with the best host we have, so it
         // appears even if bonsoir's resolve step fails (flaky on macOS).
         final ipNow = _firstIpv4(svc.hostAddresses);
         final hostname = svc.hostname;
-        final hostNow = _normalizeHost((hostname != null && hostname.isNotEmpty)
-            ? hostname
-            : (ipNow ?? _firmwareHost));
+        final hostNow = _normalizeHost(
+          (hostname != null && hostname.isNotEmpty)
+              ? hostname
+              : (ipNow ?? _firmwareHost),
+        );
         _resolved[svc.name] = WifiScaleEndpoint(host: hostNow, ip: ipNow);
         _emit();
         // Still resolve, to refine the host/IP when it succeeds.
@@ -84,14 +88,18 @@ class BonsoirWifiScaleBrowser implements WifiScaleBrowser {
         final svc = event.service;
         final ip = _firstIpv4(svc.hostAddresses);
         final hostname = svc.hostname;
-        final host = _normalizeHost((hostname != null && hostname.isNotEmpty)
-            ? hostname
-            : (ip ??
-                (svc.hostAddresses.isNotEmpty
-                    ? svc.hostAddresses.first
-                    : svc.name)));
-        _log.info('service resolved: ${svc.name} host=$host ip=$ip '
-            'addresses=${svc.hostAddresses}');
+        final host = _normalizeHost(
+          (hostname != null && hostname.isNotEmpty)
+              ? hostname
+              : (ip ??
+                    (svc.hostAddresses.isNotEmpty
+                        ? svc.hostAddresses.first
+                        : svc.name)),
+        );
+        _log.info(
+          'service resolved: ${svc.name} host=$host ip=$ip '
+          'addresses=${svc.hostAddresses}',
+        );
         _resolved[svc.name] = WifiScaleEndpoint(host: host, ip: ip);
         _emit();
       case BonsoirDiscoveryServiceResolveFailedEvent():

@@ -18,10 +18,7 @@ class SteamSnapshot {
   }
 
   Map<String, Object?> toJson() {
-    return {
-      'machine': machine.toJson(),
-      'milkTemperature': milkTemperature,
-    };
+    return {'machine': machine.toJson(), 'milkTemperature': milkTemperature};
   }
 
   factory SteamSnapshot.fromJson(Map<String, dynamic> json) {

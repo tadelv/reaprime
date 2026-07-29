@@ -167,9 +167,9 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
         children: [
           Text(
             'Sleep',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
@@ -235,9 +235,9 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
         children: [
           Text(
             'Wake schedule',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(

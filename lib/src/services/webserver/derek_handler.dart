@@ -22,8 +22,8 @@ class DerekHandler {
   DerekHandler({
     http.Client? client,
     String baseUrl = 'https://derek.decentespresso.com',
-  })  : _client = client ?? http.Client(),
-        _upstream = Uri.parse('$baseUrl/api/answers/stream');
+  }) : _client = client ?? http.Client(),
+       _upstream = Uri.parse('$baseUrl/api/answers/stream');
 
   void addRoutes(RouterPlus app) {
     app.post('/api/v1/derek/answers/stream', _handle);
@@ -51,8 +51,7 @@ class DerekHandler {
       upstream.statusCode,
       body: upstream.stream,
       headers: {
-        'Content-Type':
-            upstream.headers['content-type'] ?? 'text/event-stream',
+        'Content-Type': upstream.headers['content-type'] ?? 'text/event-stream',
         'Cache-Control': 'no-cache',
         // Defeats response buffering if a reverse proxy (e.g. nginx) is ever
         // placed in front of the API server.

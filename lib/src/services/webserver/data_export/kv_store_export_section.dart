@@ -40,8 +40,7 @@ class KvStoreExportSection implements DataExportSection {
       final pairs = entry.value as Map<String, dynamic>;
       for (final kv in pairs.entries) {
         try {
-          final existing =
-              await _store.get(namespace: namespace, key: kv.key);
+          final existing = await _store.get(namespace: namespace, key: kv.key);
           if (existing != null && strategy == ConflictStrategy.skip) {
             skipped++;
           } else {

@@ -5,10 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 class ScaleDebugView extends StatefulWidget {
   final Scale scale;
 
-  const ScaleDebugView({
-    super.key,
-    required this.scale,
-  });
+  const ScaleDebugView({super.key, required this.scale});
 
   @override
   State<ScaleDebugView> createState() => _ScaleDebugViewState();
@@ -71,10 +68,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
             );
           }
           return Center(
-            child: Text(
-              'Waiting for data',
-              style: theme.textTheme.muted,
-            ),
+            child: Text('Waiting for data', style: theme.textTheme.muted),
           );
         },
       ),
@@ -96,14 +90,9 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
             children: [
               Text(
                 data.weight.toStringAsFixed(1),
-                style: theme.textTheme.h1.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.h1.copyWith(fontWeight: FontWeight.bold),
               ),
-              Text(
-                'grams',
-                style: theme.textTheme.muted,
-              ),
+              Text('grams', style: theme.textTheme.muted),
             ],
           ),
         ),
@@ -118,10 +107,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
               style: theme.textTheme.muted,
             ),
             const SizedBox(width: 16),
-            Text(
-              '${diff.inMilliseconds}ms ago',
-              style: theme.textTheme.muted,
-            ),
+            Text('${diff.inMilliseconds}ms ago', style: theme.textTheme.muted),
           ],
         ),
         const SizedBox(height: 20),

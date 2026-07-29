@@ -43,7 +43,7 @@ extension VisibilityExtension on Visibility {
 }
 
 /// Envelope around Profile with metadata for storage and versioning
-/// 
+///
 /// Uses content-based hashing for profile identification:
 /// - `id`: Hash of execution-relevant fields (profile hash)
 /// - `metadataHash`: Hash of presentation fields
@@ -95,7 +95,7 @@ class ProfileRecord extends Equatable {
   });
 
   /// Create a new profile record with content-based hash ID
-  /// 
+  ///
   /// The ID is automatically calculated from the profile's execution-relevant
   /// fields, ensuring identical profiles have identical IDs across all installations.
   factory ProfileRecord.create({
@@ -106,7 +106,7 @@ class ProfileRecord extends Equatable {
   }) {
     final now = DateTime.now();
     final hashes = ProfileHash.calculateAll(profile);
-    
+
     return ProfileRecord(
       id: hashes.profileHash,
       profile: profile,
@@ -122,7 +122,7 @@ class ProfileRecord extends Equatable {
   }
 
   /// Create a copy with updated fields
-  /// 
+  ///
   /// Note: If the profile is updated, hashes will be recalculated automatically.
   ProfileRecord copyWith({
     String? id,
@@ -138,7 +138,7 @@ class ProfileRecord extends Equatable {
   }) {
     final newProfile = profile ?? this.profile;
     final hashes = ProfileHash.calculateAll(newProfile);
-    
+
     return ProfileRecord(
       id: id ?? hashes.profileHash,
       profile: newProfile,
@@ -155,17 +155,17 @@ class ProfileRecord extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        profile,
-        metadataHash,
-        compoundHash,
-        parentId,
-        visibility,
-        isDefault,
-        createdAt,
-        updatedAt,
-        metadata,
-      ];
+    id,
+    profile,
+    metadataHash,
+    compoundHash,
+    parentId,
+    visibility,
+    isDefault,
+    createdAt,
+    updatedAt,
+    metadata,
+  ];
 
   /// Convert to JSON for storage
   Map<String, dynamic> toJson() {

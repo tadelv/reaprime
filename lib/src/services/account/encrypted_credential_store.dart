@@ -36,8 +36,8 @@ class EncryptedCredentialStore implements CredentialStore {
   EncryptedCredentialStore({
     required List<int> keyBytes,
     required SecretBlobStore blob,
-  })  : _key = SecretKey(keyBytes),
-        _blob = blob;
+  }) : _key = SecretKey(keyBytes),
+       _blob = blob;
 
   @override
   Future<String?> read({required String key}) =>
@@ -53,11 +53,11 @@ class EncryptedCredentialStore implements CredentialStore {
 
   @override
   Future<void> delete({required String key}) => _locked(() async {
-        final map = await _load();
-        if (map.remove(key) != null) {
-          await _save(map);
-        }
-      });
+    final map = await _load();
+    if (map.remove(key) != null) {
+      await _save(map);
+    }
+  });
 
   /// Reads and decrypts the store. A missing or undecryptable file (corruption,
   /// machine-UUID change) is treated as an empty store rather than an error —

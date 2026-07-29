@@ -112,13 +112,12 @@ class HotWaterStopDecision {
     HotWaterStopState state, {
     required double weight,
     required double projectedWeight,
-  }) =>
-      HotWaterStopDecision._(
-        HotWaterStopAction.stop,
-        state,
-        weight: weight,
-        projectedWeight: projectedWeight,
-      );
+  }) => HotWaterStopDecision._(
+    HotWaterStopAction.stop,
+    state,
+    weight: weight,
+    projectedWeight: projectedWeight,
+  );
 }
 
 HotWaterStopDecision nextHotWaterStop(

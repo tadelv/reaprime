@@ -21,9 +21,9 @@ class DisplayPlatformSupport {
   });
 
   Map<String, dynamic> toJson() => {
-        'brightness': brightness,
-        'wakeLock': wakeLock,
-      };
+    'brightness': brightness,
+    'wakeLock': wakeLock,
+  };
 }
 
 class DisplayState {
@@ -50,25 +50,24 @@ class DisplayState {
     int? requestedBrightness,
     bool? lowBatteryBrightnessActive,
     DisplayPlatformSupport? platformSupported,
-  }) =>
-      DisplayState(
-        wakeLockEnabled: wakeLockEnabled ?? this.wakeLockEnabled,
-        wakeLockOverride: wakeLockOverride ?? this.wakeLockOverride,
-        brightness: brightness ?? this.brightness,
-        requestedBrightness: requestedBrightness ?? this.requestedBrightness,
-        lowBatteryBrightnessActive:
-            lowBatteryBrightnessActive ?? this.lowBatteryBrightnessActive,
-        platformSupported: platformSupported ?? this.platformSupported,
-      );
+  }) => DisplayState(
+    wakeLockEnabled: wakeLockEnabled ?? this.wakeLockEnabled,
+    wakeLockOverride: wakeLockOverride ?? this.wakeLockOverride,
+    brightness: brightness ?? this.brightness,
+    requestedBrightness: requestedBrightness ?? this.requestedBrightness,
+    lowBatteryBrightnessActive:
+        lowBatteryBrightnessActive ?? this.lowBatteryBrightnessActive,
+    platformSupported: platformSupported ?? this.platformSupported,
+  );
 
   Map<String, dynamic> toJson() => {
-        'wakeLockEnabled': wakeLockEnabled,
-        'wakeLockOverride': wakeLockOverride,
-        'brightness': brightness,
-        'requestedBrightness': requestedBrightness,
-        'lowBatteryBrightnessActive': lowBatteryBrightnessActive,
-        'platformSupported': platformSupported.toJson(),
-      };
+    'wakeLockEnabled': wakeLockEnabled,
+    'wakeLockOverride': wakeLockOverride,
+    'brightness': brightness,
+    'requestedBrightness': requestedBrightness,
+    'lowBatteryBrightnessActive': lowBatteryBrightnessActive,
+    'platformSupported': platformSupported.toJson(),
+  };
 }
 
 /// Manages screen wake-lock and brightness.
@@ -128,32 +127,38 @@ class DisplayController {
     Future<void> Function()? enableWakeLock,
     Future<void> Function()? disableWakeLock,
     DisplayPlatformSupport? platformSupport,
-  })  : _de1Controller = de1Controller,
-        _settingsController = settingsController,
-        _batteryStateStream = batteryStateStream,
-        _setBrightness = setBrightness ??
-            _defaultScreenBrightness.setApplicationScreenBrightness,
-        _resetBrightness = resetBrightness ??
-            _defaultScreenBrightness.resetApplicationScreenBrightness,
-        _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
-        _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
-    _platformSupport = platformSupport ??
+  }) : _de1Controller = de1Controller,
+       _settingsController = settingsController,
+       _batteryStateStream = batteryStateStream,
+       _setBrightness =
+           setBrightness ??
+           _defaultScreenBrightness.setApplicationScreenBrightness,
+       _resetBrightness =
+           resetBrightness ??
+           _defaultScreenBrightness.resetApplicationScreenBrightness,
+       _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
+       _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
+    _platformSupport =
+        platformSupport ??
         DisplayPlatformSupport(
-          brightness: Platform.isAndroid ||
+          brightness:
+              Platform.isAndroid ||
               Platform.isIOS ||
               Platform.isMacOS ||
               Platform.isWindows,
           wakeLock: true, // wakelock_plus supports all platforms
         );
 
-    _stateSubject = BehaviorSubject.seeded(DisplayState(
-      wakeLockEnabled: false,
-      wakeLockOverride: false,
-      brightness: 100,
-      requestedBrightness: 100,
-      lowBatteryBrightnessActive: false,
-      platformSupported: _platformSupport,
-    ));
+    _stateSubject = BehaviorSubject.seeded(
+      DisplayState(
+        wakeLockEnabled: false,
+        wakeLockOverride: false,
+        brightness: 100,
+        requestedBrightness: 100,
+        lowBatteryBrightnessActive: false,
+        platformSupported: _platformSupport,
+      ),
+    );
   }
 
   void initialize() {
@@ -242,7 +247,8 @@ class DisplayController {
         lowBatteryBrightnessActive: capping,
       );
       _log.fine(
-          'Brightness set to $effective (requested: $_requestedBrightness, capping: $capping)');
+        'Brightness set to $effective (requested: $_requestedBrightness, capping: $capping)',
+      );
     } catch (e) {
       _log.warning('Failed to set brightness: $e');
     }
@@ -391,12 +397,14 @@ class DisplayController {
     int? requestedBrightness,
     bool? lowBatteryBrightnessActive,
   }) {
-    _stateSubject.add(currentState.copyWith(
-      wakeLockEnabled: wakeLockEnabled,
-      wakeLockOverride: wakeLockOverride,
-      brightness: brightness,
-      requestedBrightness: requestedBrightness,
-      lowBatteryBrightnessActive: lowBatteryBrightnessActive,
-    ));
+    _stateSubject.add(
+      currentState.copyWith(
+        wakeLockEnabled: wakeLockEnabled,
+        wakeLockOverride: wakeLockOverride,
+        brightness: brightness,
+        requestedBrightness: requestedBrightness,
+        lowBatteryBrightnessActive: lowBatteryBrightnessActive,
+      ),
+    );
   }
 }

@@ -236,11 +236,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       children: [
         Expanded(child: status),
         const SizedBox(width: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: actions,
-        ),
+        Wrap(spacing: 8, runSpacing: 8, children: actions),
       ],
     );
   }
@@ -577,9 +573,9 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to install skin: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to install skin: $e')));
       }
       setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
     }
@@ -601,9 +597,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
             SnackBar(
               content: Row(
                 children: [
-                  Expanded(
-                    child: Text('Live-editing from $selectedDirectory'),
-                  ),
+                  Expanded(child: Text('Live-editing from $selectedDirectory')),
                   ShadButton.outline(
                     onPressed: () async {
                       await _openWebUIInBrowser();

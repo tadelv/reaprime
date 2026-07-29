@@ -281,82 +281,69 @@ void main() {
     expect(de1.setProfileCalls.single.title, equals('Adaptive v2'));
   });
 
-  test(
-    'setWorkflow with identical profile does not push again',
-    () async {
-      final initial = workflow.currentWorkflow;
-      final next = initial.copyWith(profile: _profile('Adaptive v2'));
-      workflow.setWorkflow(next);
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(de1.setProfileCalls.length, equals(1));
+  test('setWorkflow with identical profile does not push again', () async {
+    final initial = workflow.currentWorkflow;
+    final next = initial.copyWith(profile: _profile('Adaptive v2'));
+    workflow.setWorkflow(next);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(de1.setProfileCalls.length, equals(1));
 
-      // Apply a workflow with a semantically-equal profile — should
-      // short-circuit via Profile's Equatable equality.
-      workflow.setWorkflow(next.copyWith(profile: _profile('Adaptive v2')));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+    // Apply a workflow with a semantically-equal profile — should
+    // short-circuit via Profile's Equatable equality.
+    workflow.setWorkflow(next.copyWith(profile: _profile('Adaptive v2')));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      expect(
-        de1.setProfileCalls.length,
-        equals(1),
-        reason: 'equal profile value must not trigger a second BLE upload',
-      );
-    },
-  );
+    expect(
+      de1.setProfileCalls.length,
+      equals(1),
+      reason: 'equal profile value must not trigger a second BLE upload',
+    );
+  });
 
-  test(
-    'non-profile workflow changes do not trigger setProfile',
-    () async {
-      final initial = workflow.currentWorkflow;
-      workflow.setWorkflow(initial.copyWith(name: 'renamed'));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+  test('non-profile workflow changes do not trigger setProfile', () async {
+    final initial = workflow.currentWorkflow;
+    workflow.setWorkflow(initial.copyWith(name: 'renamed'));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      expect(de1.setProfileCalls, isEmpty);
-    },
-  );
+    expect(de1.setProfileCalls, isEmpty);
+  });
 
-  test(
-    'a failed setProfile is not marked pushed — the same profile still '
-    'lands via the automatic retry',
-    () async {
-      // Build an isolated sync wired to a DE1 whose first upload fails.
-      final wf = WorkflowController();
-      final dc = DeviceController([MockDeviceDiscoveryService()]);
-      await dc.initialize();
-      final controller = De1Controller(controller: dc);
-      final flaky = _FlakyDe1(failures: 0);
-      await controller.connectToDe1(flaky);
-      await settleInit(controller, flaky);
-      final flakySync = WorkflowDeviceSync(
-        workflowController: wf,
-        de1Controller: controller,
-        retryDelays: const [Duration(milliseconds: 20)],
-      );
-      // Let the on-connect push land, then arm the failure for the test.
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      flaky.setProfileCalls.clear();
-      flaky.failures = 1;
+  test('a failed setProfile is not marked pushed — the same profile still '
+      'lands via the automatic retry', () async {
+    // Build an isolated sync wired to a DE1 whose first upload fails.
+    final wf = WorkflowController();
+    final dc = DeviceController([MockDeviceDiscoveryService()]);
+    await dc.initialize();
+    final controller = De1Controller(controller: dc);
+    final flaky = _FlakyDe1(failures: 0);
+    await controller.connectToDe1(flaky);
+    await settleInit(controller, flaky);
+    final flakySync = WorkflowDeviceSync(
+      workflowController: wf,
+      de1Controller: controller,
+      retryDelays: const [Duration(milliseconds: 20)],
+    );
+    // Let the on-connect push land, then arm the failure for the test.
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    flaky.setProfileCalls.clear();
+    flaky.failures = 1;
 
-      // First push of the cleaning profile fails (timeout) — nothing recorded,
-      // and the profile is NOT marked pushed.
-      wf.setWorkflow(
-        wf.currentWorkflow.copyWith(profile: _profile('Cleaning')),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(flaky.setProfileCalls, isEmpty);
+    // First push of the cleaning profile fails (timeout) — nothing recorded,
+    // and the profile is NOT marked pushed.
+    wf.setWorkflow(wf.currentWorkflow.copyWith(profile: _profile('Cleaning')));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(flaky.setProfileCalls, isEmpty);
 
-      // Re-applying the SAME profile leaves the armed retry undisturbed; the
-      // profile must land when it fires (it was never marked pushed, so it
-      // cannot be skipped by the equality guard).
-      wf.setWorkflow(
-        wf.currentWorkflow.copyWith(profile: _profile('Cleaning')),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      expect(flaky.setProfileCalls.length, equals(1));
-      expect(flaky.setProfileCalls.single.title, equals('Cleaning'));
+    // Re-applying the SAME profile leaves the armed retry undisturbed; the
+    // profile must land when it fires (it was never marked pushed, so it
+    // cannot be skipped by the equality guard).
+    wf.setWorkflow(wf.currentWorkflow.copyWith(profile: _profile('Cleaning')));
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(flaky.setProfileCalls.length, equals(1));
+    expect(flaky.setProfileCalls.single.title, equals('Cleaning'));
 
-      flakySync.dispose();
-    },
-  );
+    flakySync.dispose();
+  });
 
   test(
     'dispose removes the listener — later workflow changes are ignored',
@@ -765,31 +752,28 @@ void main() {
       },
     );
 
-    test(
-      'reconnect re-pushes the same profile',
-      () async {
-        final controller = await freshController();
-        buildSync(controller);
-        final de1 = _RecordingDe1();
-        await controller.connectToDe1(de1);
-        await settleInit(controller, de1);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        expect(de1.setProfileCalls.length, 1);
+    test('reconnect re-pushes the same profile', () async {
+      final controller = await freshController();
+      buildSync(controller);
+      final de1 = _RecordingDe1();
+      await controller.connectToDe1(de1);
+      await settleInit(controller, de1);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(de1.setProfileCalls.length, 1);
 
-        de1.setConnectionState(ConnectionState.disconnected);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        de1.setConnectionState(ConnectionState.connected);
+      de1.setConnectionState(ConnectionState.disconnected);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      de1.setConnectionState(ConnectionState.connected);
 
-        await controller.connectToDe1(de1);
-        await settleInit(controller, de1);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+      await controller.connectToDe1(de1);
+      await settleInit(controller, de1);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
-        expect(
-          de1.setProfileCalls.map((p) => p.title),
-          ['Persisted', 'Persisted'],
-        );
-      },
-    );
+      expect(de1.setProfileCalls.map((p) => p.title), [
+        'Persisted',
+        'Persisted',
+      ]);
+    });
 
     test(
       'a failed on-connect push retries with backoff until it lands',
@@ -806,36 +790,33 @@ void main() {
       },
     );
 
-    test(
-      'upload failure surfaces once via onUploadError and clears via '
-      'onUploadErrorCleared when a retry lands',
-      () async {
-        final errors = <ConnectionError>[];
-        var cleared = 0;
-        final controller = await freshController();
-        buildSync(
-          controller,
-          onUploadError: errors.add,
-          onUploadErrorCleared: () => cleared++,
-        );
-        final flaky = _FlakyDe1(failures: 2);
+    test('upload failure surfaces once via onUploadError and clears via '
+        'onUploadErrorCleared when a retry lands', () async {
+      final errors = <ConnectionError>[];
+      var cleared = 0;
+      final controller = await freshController();
+      buildSync(
+        controller,
+        onUploadError: errors.add,
+        onUploadErrorCleared: () => cleared++,
+      );
+      final flaky = _FlakyDe1(failures: 2);
 
-        await controller.connectToDe1(flaky);
-        await settleInit(controller, flaky);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        expect(errors.length, 1);
-        expect(errors.single.kind, ConnectionErrorKind.profileUploadFailed);
-        expect(errors.single.severity, ConnectionErrorSeverity.warning);
-        expect(cleared, 0);
+      await controller.connectToDe1(flaky);
+      await settleInit(controller, flaky);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(errors.length, 1);
+      expect(errors.single.kind, ConnectionErrorKind.profileUploadFailed);
+      expect(errors.single.severity, ConnectionErrorSeverity.warning);
+      expect(cleared, 0);
 
-        await Future<void>.delayed(const Duration(milliseconds: 25));
-        expect(errors.length, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      expect(errors.length, 1);
 
-        await Future<void>.delayed(const Duration(milliseconds: 40));
-        expect(flaky.setProfileCalls.map((p) => p.title), ['Persisted']);
-        expect(cleared, 1);
-      },
-    );
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(flaky.setProfileCalls.map((p) => p.title), ['Persisted']);
+      expect(cleared, 1);
+    });
 
     test('no profile push before init settles', () async {
       final controller = await freshController();

@@ -26,14 +26,7 @@ part 'database.g.dart';
     Workflows,
     ProfileRecords,
   ],
-  daos: [
-    BeanDao,
-    GrinderDao,
-    ShotDao,
-    SteamDao,
-    WorkflowDao,
-    ProfileDao,
-  ],
+  daos: [BeanDao, GrinderDao, ShotDao, SteamDao, WorkflowDao, ProfileDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);

@@ -19,9 +19,7 @@ final _log = Logger('PermissionsStep');
 ///
 /// Only shown when platform permissions are not yet granted.
 /// After permissions are obtained, calls [OnboardingController.advance].
-OnboardingStep createPermissionsStep({
-  required De1Controller de1Controller,
-}) {
+OnboardingStep createPermissionsStep({required De1Controller de1Controller}) {
   return OnboardingStep(
     id: 'permissions',
     shouldShow: () => _checkPermissionsNeeded(),
@@ -89,9 +87,7 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
       await Permission.notification.request();
       await ForegroundTaskService.start();
 
-      ForegroundTaskService.watchMachineConnection(
-        widget.de1Controller.de1,
-      );
+      ForegroundTaskService.watchMachineConnection(widget.de1Controller.de1);
 
       final batteryOptStatus =
           await Permission.ignoreBatteryOptimizations.status;
@@ -108,7 +104,8 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
             .timeout(Duration(seconds: 5));
       } on TimeoutException {
         _log.warning(
-            'Bluetooth availability check timed out, continuing without BLE');
+          'Bluetooth availability check timed out, continuing without BLE',
+        );
       }
     }
 

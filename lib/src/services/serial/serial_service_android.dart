@@ -39,8 +39,8 @@ class SerialServiceAndroid
   SerialServiceAndroid({
     Future<List<UsbDevice>> Function()? listDevices,
     Stream<UsbEvent>? Function()? usbEventStream,
-  })  : _listDevices = listDevices ?? UsbSerial.listDevices,
-        _usbEventStream = usbEventStream ?? (() => UsbSerial.usbEventStream);
+  }) : _listDevices = listDevices ?? UsbSerial.listDevices,
+       _usbEventStream = usbEventStream ?? (() => UsbSerial.usbEventStream);
 
   /// Tracks transports created by [_detectDevice] so quick-connect cleanup
   /// can dispose them. Keyed by [Device.deviceId] (== [AndroidSerialPort.id]).
@@ -86,8 +86,10 @@ class SerialServiceAndroid
     if (_disposed) return;
     switch (data.event) {
       case UsbEvent.ACTION_USB_DETACHED:
-        _log.info("USB_DETACHED: device=${data.device?.productName ?? 'null'} "
-            "raw=${data.device?.deviceId}");
+        _log.info(
+          "USB_DETACHED: device=${data.device?.productName ?? 'null'} "
+          "raw=${data.device?.deviceId}",
+        );
         if (data.device != null) {
           // Match by stable ID, falling back to vid:pid prefix match.
           // Android detach events often have null serial, so exact stable ID
@@ -102,14 +104,20 @@ class SerialServiceAndroid
           final vidPidPrefix = (vid != null && pid != null)
               ? 'usb-${vid.toRadixString(16)}-${pid.toRadixString(16)}-'
               : null;
-          _log.info("USB_DETACHED: stableId=${detachedStableId ?? 'none'}, "
-              "prefix=$vidPidPrefix");
-          final match = _devices.firstWhereOrNull((d) =>
-              d.deviceId == detachedStableId ||
-              (vidPidPrefix != null && d.deviceId.startsWith(vidPidPrefix)) ||
-              d.deviceId == "${data.device!.deviceId}");
+          _log.info(
+            "USB_DETACHED: stableId=${detachedStableId ?? 'none'}, "
+            "prefix=$vidPidPrefix",
+          );
+          final match = _devices.firstWhereOrNull(
+            (d) =>
+                d.deviceId == detachedStableId ||
+                (vidPidPrefix != null && d.deviceId.startsWith(vidPidPrefix)) ||
+                d.deviceId == "${data.device!.deviceId}",
+          );
           if (match != null) {
-            _log.info("USB_DETACHED: disconnecting ${match.name}(${match.deviceId})");
+            _log.info(
+              "USB_DETACHED: disconnecting ${match.name}(${match.deviceId})",
+            );
             match.disconnect();
             _devices.remove(match);
           } else {
@@ -117,8 +125,10 @@ class SerialServiceAndroid
           }
         } else {
           // No device info — disconnect all serial devices as a fallback
-          _log.warning("USB_DETACHED: device is null, disconnecting "
-              "${_devices.length} serial device(s)");
+          _log.warning(
+            "USB_DETACHED: device is null, disconnecting "
+            "${_devices.length} serial device(s)",
+          );
           for (final d in _devices) {
             d.disconnect();
           }
@@ -130,7 +140,9 @@ class SerialServiceAndroid
         _announceAttach(data.device);
         break;
       default:
-        _log.info("USB event: ${data.event}, device=${data.device?.productName ?? 'null'}");
+        _log.info(
+          "USB event: ${data.event}, device=${data.device?.productName ?? 'null'}",
+        );
         break;
     }
   }
@@ -172,7 +184,9 @@ class SerialServiceAndroid
           '${d.deviceId}';
       if (stableId != remembered.id) continue;
 
-      _log.info('Quick-connect: found USB device ${d.productName} for ${remembered.id}');
+      _log.info(
+        'Quick-connect: found USB device ${d.productName} for ${remembered.id}',
+      );
       Device? device;
       try {
         device = await _detectDevice(d);
@@ -181,11 +195,17 @@ class SerialServiceAndroid
         continue;
       }
       if (device == null || device.implementation != impl) {
-        _log.info('Quick-connect: device mismatch'
-            ' (expected $impl, got ${device?.implementation})');
-        try { await device?.disconnect(); } catch (_) {}
+        _log.info(
+          'Quick-connect: device mismatch'
+          ' (expected $impl, got ${device?.implementation})',
+        );
+        try {
+          await device?.disconnect();
+        } catch (_) {}
         final t = _transportForDeviceId.remove(device?.deviceId);
-        try { await t?.dispose(); } catch (_) {}
+        try {
+          await t?.dispose();
+        } catch (_) {}
         continue;
       }
       try {
@@ -197,7 +217,9 @@ class SerialServiceAndroid
             _devices.remove(connected);
             _machineSubject.add(_devices);
             final t = _transportForDeviceId.remove(connected.deviceId);
-            try { t?.dispose(); } catch (_) {}
+            try {
+              t?.dispose();
+            } catch (_) {}
           }
         });
         _machineSubject.add(_devices);
@@ -205,9 +227,13 @@ class SerialServiceAndroid
         return device;
       } catch (e, st) {
         _log.warning('Quick-connect: onConnect failed', e, st);
-        try { await device.disconnect(); } catch (_) {}
+        try {
+          await device.disconnect();
+        } catch (_) {}
         final t = _transportForDeviceId.remove(device.deviceId);
-        try { await t?.dispose(); } catch (_) {}
+        try {
+          await t?.dispose();
+        } catch (_) {}
       }
     }
     return null;
@@ -224,7 +250,7 @@ class SerialServiceAndroid
 
     _isScanning = true;
     _currentScan = _performScan();
-    
+
     try {
       await _currentScan;
     } finally {
@@ -246,26 +272,40 @@ class SerialServiceAndroid
 
     final removed = _devices.where((d) => !connected.contains(d)).toList();
     if (removed.isNotEmpty) {
-      _log.info("Removing ${removed.length} non-connected devices: "
-          "${removed.map((d) => '${d.name}(${d.deviceId})').join(', ')}");
+      _log.info(
+        "Removing ${removed.length} non-connected devices: "
+        "${removed.map((d) => '${d.name}(${d.deviceId})').join(', ')}",
+      );
     }
     _devices.removeWhere((d) => connected.contains(d) == false);
     if (connected.isNotEmpty) {
-      _log.fine("Keeping ${connected.length} connected: "
-          "${connected.map((d) => '${d.name}(${d.deviceId})').join(', ')}");
+      _log.fine(
+        "Keeping ${connected.length} connected: "
+        "${connected.map((d) => '${d.name}(${d.deviceId})').join(', ')}",
+      );
     }
 
     var devices = await _listDevices();
-    _log.info("USB enumeration: ${devices.length} ports "
-        "(${devices.map((d) => '${d.productName ?? d.deviceName}[${computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? d.deviceId}]').join(', ')})");
+    _log.info(
+      "USB enumeration: ${devices.length} ports "
+      "(${devices.map((d) => '${d.productName ?? d.deviceName}[${computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? d.deviceId}]').join(', ')})",
+    );
 
     // Orphan GC: force-disconnect connected devices whose port vanished from USB enumeration
-    final enumeratedIds = devices.map((d) =>
-        computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? "${d.deviceId}"
-    ).toSet();
-    final orphans = connected.where((d) => !enumeratedIds.contains(d.deviceId)).toList();
+    final enumeratedIds = devices
+        .map(
+          (d) =>
+              computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ??
+              "${d.deviceId}",
+        )
+        .toSet();
+    final orphans = connected
+        .where((d) => !enumeratedIds.contains(d.deviceId))
+        .toList();
     for (final orphan in orphans) {
-      _log.warning("Orphan GC: ${orphan.name}(${orphan.deviceId}) not in USB enumeration, forcing disconnect");
+      _log.warning(
+        "Orphan GC: ${orphan.name}(${orphan.deviceId}) not in USB enumeration, forcing disconnect",
+      );
       await orphan.disconnect();
       connected.remove(orphan);
       _devices.remove(orphan);
@@ -282,8 +322,10 @@ class SerialServiceAndroid
           ? _devices.any((t) => t.deviceId == usbStableId)
           : _devices.any((t) => t.deviceId == "${d.deviceId}");
       if (isDuplicate) {
-        _log.fine("Skipping ${d.productName ?? d.deviceName}: "
-            "already connected as ${usbStableId ?? d.deviceId}");
+        _log.fine(
+          "Skipping ${d.productName ?? d.deviceName}: "
+          "already connected as ${usbStableId ?? d.deviceId}",
+        );
       }
       return isDuplicate;
     });
@@ -344,8 +386,11 @@ class SerialServiceAndroid
     }
 
     // VID:PID shortcut.
-    final usbModel =
-        matchUsbDevice(usbDeviceTable, vid: device.vid, pid: device.pid);
+    final usbModel = matchUsbDevice(
+      usbDeviceTable,
+      vid: device.vid,
+      pid: device.pid,
+    );
     if (usbModel != null) {
       _log.info("short circuit via VID:PID -> $usbModel");
       return UnifiedDe1(transport: transport);
@@ -428,10 +473,10 @@ class SerialServiceAndroid
               break;
             }
           }
-          final isBengle =
-              v13Model != null && isBengleModelValue(v13Model);
+          final isBengle = v13Model != null && isBengleModelValue(v13Model);
           _log.info(
-              "Detected: ${isBengle ? 'Bengle' : 'DE1'} (v13Model=$v13Model)");
+            "Detected: ${isBengle ? 'Bengle' : 'DE1'} (v13Model=$v13Model)",
+          );
           return isBengle
               ? Bengle(transport: transport)
               : UnifiedDe1(transport: transport);
@@ -476,7 +521,9 @@ class AndroidSerialPort implements SerialTransport {
   final UsbDevice _device;
   final UsbPort _port;
   late Logger _log;
-  final BehaviorSubject<ConnectionState> _open = BehaviorSubject.seeded(ConnectionState.discovered);
+  final BehaviorSubject<ConnectionState> _open = BehaviorSubject.seeded(
+    ConnectionState.discovered,
+  );
 
   @override
   Stream<ConnectionState> get connectionState => _open.asBroadcastStream();
@@ -593,6 +640,3 @@ class AndroidSerialPort implements SerialTransport {
     if (!_outputController.isClosed) _outputController.close();
   }
 }
-
-
-

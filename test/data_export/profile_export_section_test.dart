@@ -218,10 +218,9 @@ void main() {
     });
 
     test('returns error for non-list data', () async {
-      final result = await section.import(
-        {'not': 'a list'},
-        ConflictStrategy.skip,
-      );
+      final result = await section.import({
+        'not': 'a list',
+      }, ConflictStrategy.skip);
 
       expect(result.imported, equals(0));
       expect(result.errors, hasLength(1));
@@ -296,10 +295,10 @@ void main() {
       final validJson = validRecord.toJson();
       final invalidJson = <String, dynamic>{'garbage': true};
 
-      final result = await section.import(
-        [validJson, invalidJson],
-        ConflictStrategy.overwrite,
-      );
+      final result = await section.import([
+        validJson,
+        invalidJson,
+      ], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.errors, hasLength(1));

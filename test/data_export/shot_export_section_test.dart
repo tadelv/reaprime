@@ -161,7 +161,9 @@ ShotRecord _makeShotRecord({
       hotWaterData: HotWaterData.defaults(),
       rinseData: RinseData.defaults(),
     ),
-    annotations: shotNotes != null ? ShotAnnotations(espressoNotes: shotNotes) : null,
+    annotations: shotNotes != null
+        ? ShotAnnotations(espressoNotes: shotNotes)
+        : null,
   );
 }
 
@@ -206,7 +208,8 @@ void main() {
     test('returns multiple shots', () async {
       await storage.storeShot(_makeShotRecord(id: 'shot-1'));
       await storage.storeShot(
-          _makeShotRecord(id: 'shot-2', workflowName: 'Workflow 2'));
+        _makeShotRecord(id: 'shot-2', workflowName: 'Workflow 2'),
+      );
 
       final result = await section.export();
       final list = result as List;
@@ -243,10 +246,9 @@ void main() {
     });
 
     test('returns error for non-list data', () async {
-      final result = await section.import(
-        {'not': 'a list'},
-        ConflictStrategy.skip,
-      );
+      final result = await section.import({
+        'not': 'a list',
+      }, ConflictStrategy.skip);
 
       expect(result.imported, equals(0));
       expect(result.errors, hasLength(1));
@@ -259,8 +261,7 @@ void main() {
       final record = _makeShotRecord();
       final json = record.toJson();
 
-      final result =
-          await section.import([json], ConflictStrategy.overwrite);
+      final result = await section.import([json], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.errors, isEmpty);
@@ -275,8 +276,7 @@ void main() {
 
       final updated = _makeShotRecord(shotNotes: 'updated');
       final json = updated.toJson();
-      final result =
-          await section.import([json], ConflictStrategy.overwrite);
+      final result = await section.import([json], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.errors, isEmpty);
@@ -302,10 +302,10 @@ void main() {
       final validJson = validRecord.toJson();
       final invalidJson = <String, dynamic>{'garbage': true};
 
-      final result = await section.import(
-        [validJson, invalidJson],
-        ConflictStrategy.overwrite,
-      );
+      final result = await section.import([
+        validJson,
+        invalidJson,
+      ], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(result.errors, hasLength(1));

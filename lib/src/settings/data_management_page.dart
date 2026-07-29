@@ -115,9 +115,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
               const SizedBox(width: 8),
               Text(
                 'Export & Backup',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -125,11 +125,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Create backups of your data or export specific items',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -167,9 +166,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
               const SizedBox(width: 8),
               Text(
                 'Import & Restore',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -177,11 +176,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Restore data from a previous backup',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -207,11 +205,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Use "Import Shots (JSON)" for legacy shot exports — single JSON files or arrays of shot records.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.5),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
           ),
         ],
       ),
@@ -230,9 +227,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
               const SizedBox(width: 8),
               Text(
                 'Privacy & Feedback',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -240,11 +237,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Control data sharing and send feedback',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           ShadSwitch(
@@ -261,10 +257,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
           ShadButton.outline(
             onPressed: () => showFeedbackDialog(
               context,
-              githubToken: rot13(const String.fromEnvironment(
-                'GITHUB_FEEDBACK_TOKEN',
-                defaultValue: '',
-              )),
+              githubToken: rot13(
+                const String.fromEnvironment(
+                  'GITHUB_FEEDBACK_TOKEN',
+                  defaultValue: '',
+                ),
+              ),
             ),
             child: const Text("Send Feedback"),
           ),
@@ -359,15 +357,15 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final webviewLogFile = File('${docs.path}/webview_console.log');
 
       final hasAppLog = await logFile.exists();
-      final hasWebviewLog = await webviewLogFile.exists() &&
-          (await webviewLogFile.length()) > 0;
+      final hasWebviewLog =
+          await webviewLogFile.exists() && (await webviewLogFile.length()) > 0;
 
       if (!hasAppLog && !hasWebviewLog) {
         _dismissProgressDialog();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No log files found')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('No log files found')));
         }
         return;
       }
@@ -384,9 +382,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       _log.severe("Failed to export logs", e);
       _dismissProgressDialog();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export logs: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export logs: $e')));
       }
       return;
     }
@@ -414,9 +412,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
     } catch (e) {
       _log.severe("Failed to export logs", e);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export logs: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export logs: $e')));
       }
     }
   }
@@ -437,9 +435,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       _log.severe("Failed to export shots", e, st);
       _dismissProgressDialog();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export shots: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export shots: $e')));
       }
       return;
     }
@@ -467,9 +465,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
     } catch (e, st) {
       _log.severe("Failed to export shots", e, st);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export shots: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export shots: $e')));
       }
     }
   }
@@ -482,8 +480,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       context: context,
       builder: (context) => ShadDialog(
         title: const Text('Import Backup'),
-        description:
-            const Text('Choose how to handle data that already exists'),
+        description: const Text(
+          'Choose how to handle data that already exists',
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -532,18 +531,18 @@ class _DataManagementPageState extends State<DataManagementPage> {
             'http://localhost:8080/api/v1/data/import?onConflict=$strategy',
           ),
         );
-        request.headers.contentType =
-            ContentType('application', 'zip');
+        request.headers.contentType = ContentType('application', 'zip');
         request.add(bytes);
         final response = await request.close();
         final responseBody = await response.transform(utf8.decoder).join();
 
         if (response.statusCode != 200) {
-          throw Exception('Server returned ${response.statusCode}: $responseBody');
+          throw Exception(
+            'Server returned ${response.statusCode}: $responseBody',
+          );
         }
 
-        final responseJson =
-            jsonDecode(responseBody) as Map<String, dynamic>;
+        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
 
         if (!mounted) return;
 
@@ -564,9 +563,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       _log.severe("Failed to import backup", e);
       if (mounted) {
         Navigator.of(context).pop(); // Pop progress dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import backup: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to import backup: $e')));
       }
     }
   }
@@ -583,9 +582,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
     final filePath = result.files.single.path;
     if (filePath == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to access file')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to access file')));
       }
       return;
     }
@@ -657,10 +656,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setState) {
             setCopyState = setState;
-            final isMilestone = filesToCopy == 0 ||
+            final isMilestone =
+                filesToCopy == 0 ||
                 filesCopied == filesToCopy ||
                 (filesToCopy > 0 &&
-                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) == 0);
+                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) ==
+                        0);
             return ShadDialog(
               title: const Text('Copying files...'),
               child: Column(
@@ -734,9 +735,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
         _log.severe('De1app scan failed', e);
         if (mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Scan failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
         }
         return;
       }
@@ -747,7 +748,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (scanResult.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No DE1 app data found in this folder')),
+            const SnackBar(
+              content: Text('No DE1 app data found in this folder'),
+            ),
           );
         }
         return;
@@ -772,7 +775,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
 
       // Run import with progress dialog
       ImportResult? importResult;
-      ImportProgress progress = const ImportProgress(current: 0, total: 0, phase: '');
+      ImportProgress progress = const ImportProgress(
+        current: 0,
+        total: 0,
+        phase: '',
+      );
       int shotsImported = 0;
       int profilesImported = 0;
 
@@ -823,9 +830,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
         _log.severe('De1app import failed', e);
         if (mounted) {
           Navigator.of(context).pop(); // dismiss progress dialog
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Import failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
         }
         return;
       }
@@ -911,8 +918,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
             Text(
               '  Warning: $error',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           );
         }
@@ -932,10 +939,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            ...sections,
-          ],
+          children: [const SizedBox(height: 8), ...sections],
         ),
       ),
     );

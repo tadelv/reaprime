@@ -78,13 +78,15 @@ void main() {
       expect(stalled, isTrue, reason: 'Expected no snapshots after disconnect');
     });
 
-    test('connectionState starts as discovered, connects via onConnect',
-        () async {
-      // A simulated scale, like a real one, is not "connected" until it is
-      // actually connected through the controller.
-      expect(await scale.connectionState.first, ConnectionState.discovered);
-      await scale.onConnect();
-      expect(await scale.connectionState.first, ConnectionState.connected);
-    });
+    test(
+      'connectionState starts as discovered, connects via onConnect',
+      () async {
+        // A simulated scale, like a real one, is not "connected" until it is
+        // actually connected through the controller.
+        expect(await scale.connectionState.first, ConnectionState.discovered);
+        await scale.onConnect();
+        expect(await scale.connectionState.first, ConnectionState.connected);
+      },
+    );
   });
 }

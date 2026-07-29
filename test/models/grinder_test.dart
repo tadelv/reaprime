@@ -6,20 +6,28 @@ void main() {
 
   group('GrinderSettingType', () {
     test('fromString parses known values', () {
-      expect(GrinderSettingType.fromString('numeric'),
-          GrinderSettingType.numeric);
       expect(
-          GrinderSettingType.fromString('preset'), GrinderSettingType.preset);
+        GrinderSettingType.fromString('numeric'),
+        GrinderSettingType.numeric,
+      );
+      expect(
+        GrinderSettingType.fromString('preset'),
+        GrinderSettingType.preset,
+      );
     });
 
     test('fromString accepts legacy "values" as preset', () {
       expect(
-          GrinderSettingType.fromString('values'), GrinderSettingType.preset);
+        GrinderSettingType.fromString('values'),
+        GrinderSettingType.preset,
+      );
     });
 
     test('fromString defaults to numeric for unknown', () {
-      expect(GrinderSettingType.fromString('unknown'),
-          GrinderSettingType.numeric);
+      expect(
+        GrinderSettingType.fromString('unknown'),
+        GrinderSettingType.numeric,
+      );
     });
   });
 
@@ -41,7 +49,9 @@ void main() {
         rpmBigStep: null,
         createdAt: now,
         updatedAt: now,
-        extras: {'dye2': {'color': '#ff0000'}},
+        extras: {
+          'dye2': {'color': '#ff0000'},
+        },
       );
 
       final json = grinder.toJson();
@@ -57,7 +67,9 @@ void main() {
       expect(restored.settingType, GrinderSettingType.numeric);
       expect(restored.settingSmallStep, 1.0);
       expect(restored.settingBigStep, 5.0);
-      expect(restored.extras, {'dye2': {'color': '#ff0000'}});
+      expect(restored.extras, {
+        'dye2': {'color': '#ff0000'},
+      });
     });
 
     test('round-trip with values-based setting type', () {
@@ -74,7 +86,16 @@ void main() {
       final restored = Grinder.fromJson(json);
 
       expect(restored.settingType, GrinderSettingType.preset);
-      expect(restored.settingValues, ['1', '2', '3', '4', '5', '10', '15', '20']);
+      expect(restored.settingValues, [
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '10',
+        '15',
+        '20',
+      ]);
     });
 
     test('nullable fields omitted from JSON', () {

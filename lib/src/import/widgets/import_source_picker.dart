@@ -100,10 +100,7 @@ class ImportSourcePicker extends StatelessWidget {
                     onTap: onSkip,
                     child: ShadButton.ghost(
                       onPressed: onSkip,
-                      child: Text(
-                        'Skip for now',
-                        style: theme.textTheme.muted,
-                      ),
+                      child: Text('Skip for now', style: theme.textTheme.muted),
                     ),
                   ),
                 ),

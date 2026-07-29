@@ -6,7 +6,7 @@ class ShotExportSection implements DataExportSection {
   final PersistenceController _controller;
 
   ShotExportSection({required PersistenceController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   @override
   String get filename => 'shots.json';
@@ -35,8 +35,7 @@ class ShotExportSection implements DataExportSection {
     for (final item in data) {
       try {
         final record = ShotRecord.fromJson(item as Map<String, dynamic>);
-        final existing =
-            await _controller.storageService.getShot(record.id);
+        final existing = await _controller.storageService.getShot(record.id);
 
         if (existing != null) {
           if (strategy == ConflictStrategy.overwrite) {

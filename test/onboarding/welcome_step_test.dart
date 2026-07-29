@@ -12,14 +12,16 @@ void main() {
     });
 
     testWidgets('displays welcome copy', (tester) async {
-      final controller = OnboardingController(steps: [
-        createWelcomeStep(),
-        OnboardingStep(
-          id: 'next',
-          shouldShow: () async => true,
-          builder: (_) => const SizedBox(),
-        ),
-      ]);
+      final controller = OnboardingController(
+        steps: [
+          createWelcomeStep(),
+          OnboardingStep(
+            id: 'next',
+            shouldShow: () async => true,
+            builder: (_) => const SizedBox(),
+          ),
+        ],
+      );
       await controller.initialize();
 
       await tester.pumpWidget(
@@ -40,23 +42,23 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text(
-          'Coming from the DE1 app? You can import your data next.',
-        ),
+        find.text('Coming from the DE1 app? You can import your data next.'),
         findsOneWidget,
       );
       expect(find.text('Get Started'), findsOneWidget);
     });
 
     testWidgets('Get Started button advances controller', (tester) async {
-      final controller = OnboardingController(steps: [
-        createWelcomeStep(),
-        OnboardingStep(
-          id: 'next',
-          shouldShow: () async => true,
-          builder: (_) => const SizedBox(),
-        ),
-      ]);
+      final controller = OnboardingController(
+        steps: [
+          createWelcomeStep(),
+          OnboardingStep(
+            id: 'next',
+            shouldShow: () async => true,
+            builder: (_) => const SizedBox(),
+          ),
+        ],
+      );
       await controller.initialize();
 
       await tester.pumpWidget(

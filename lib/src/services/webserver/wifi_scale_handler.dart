@@ -21,7 +21,7 @@ class WifiScaleHandler {
   final Logger _log = Logger('WifiScaleHandler');
 
   WifiScaleHandler({required WifiScaleDiscoveryService service})
-      : _service = service;
+    : _service = service;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/devices/wifi', _list);

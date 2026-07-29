@@ -9,11 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// Android version. Displays the webUI URL, QR code, and action buttons so
 /// users can connect from another device's browser.
 class BrowserHeroCard extends StatelessWidget {
-  const BrowserHeroCard({
-    super.key,
-    required this.deviceIp,
-    this.port = 3000,
-  });
+  const BrowserHeroCard({super.key, required this.deviceIp, this.port = 3000});
 
   final String deviceIp;
   final int port;
@@ -40,10 +36,7 @@ class BrowserHeroCard extends StatelessWidget {
                 size: 20,
                 color: theme.colorScheme.primary,
               ),
-              Text(
-                'Open in your browser',
-                style: theme.textTheme.h4,
-              ),
+              Text('Open in your browser', style: theme.textTheme.h4),
             ],
           ),
           Text(
@@ -108,7 +101,9 @@ class BrowserHeroCard extends StatelessWidget {
                         ShadButton(
                           size: ShadButtonSize.sm,
                           leading: const Icon(
-                              LucideIcons.externalLink, size: 14),
+                            LucideIcons.externalLink,
+                            size: 14,
+                          ),
                           child: const Text('Open Browser'),
                           onPressed: () {
                             launchUrl(Uri.parse(_url));

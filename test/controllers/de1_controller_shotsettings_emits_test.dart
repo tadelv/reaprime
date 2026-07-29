@@ -50,29 +50,27 @@ void main() {
   });
 
   group('updateSteamSettings — shotSettings emit count', () {
-    test(
-      'exactly one emit per steam change',
-      () async {
-        await de1Controller.updateSteamSettings(
-          SteamFormSettings(
-            steamEnabled: true,
-            targetTemp: 150,
-            targetDuration: 30,
-            targetFlow: 2.5,
-          ),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+    test('exactly one emit per steam change', () async {
+      await de1Controller.updateSteamSettings(
+        SteamFormSettings(
+          steamEnabled: true,
+          targetTemp: 150,
+          targetDuration: 30,
+          targetFlow: 2.5,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        expect(
-          observedEmits.length,
-          equals(1),
-          reason: 'nudge re-emits are gone and `.distinct()` on the '
-              'getter collapses firmware echoes — only the actual '
-              'updateShotSettings write should reach the WS stream',
-        );
-        expect(observedEmits.single.targetSteamDuration, equals(30));
-      },
-    );
+      expect(
+        observedEmits.length,
+        equals(1),
+        reason:
+            'nudge re-emits are gone and `.distinct()` on the '
+            'getter collapses firmware echoes — only the actual '
+            'updateShotSettings write should reach the WS stream',
+      );
+      expect(observedEmits.single.targetSteamDuration, equals(30));
+    });
 
     test(
       'multi-field De1Controller sequence: one emit per updateShotSettings',
@@ -109,7 +107,8 @@ void main() {
         expect(
           observedEmits.length,
           equals(2),
-          reason: '1 steam write + 1 hot-water write. Regression guard:'
+          reason:
+              '1 steam write + 1 hot-water write. Regression guard:'
               ' nudge leaks or race-induced duplicates would push this '
               'higher.',
         );
@@ -118,34 +117,33 @@ void main() {
       },
     );
 
-    test(
-      'flow-only change via De1Controller.setSteamFlow emits no '
-      'shotSettings event but does broadcast steamData',
-      () async {
-        final steamDataEmits = <SteamSettings>[];
-        final steamSub = de1Controller.steamData.listen(steamDataEmits.add);
-        // Let the seed value replay.
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        steamDataEmits.clear();
+    test('flow-only change via De1Controller.setSteamFlow emits no '
+        'shotSettings event but does broadcast steamData', () async {
+      final steamDataEmits = <SteamSettings>[];
+      final steamSub = de1Controller.steamData.listen(steamDataEmits.add);
+      // Let the seed value replay.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      steamDataEmits.clear();
 
-        await de1Controller.setSteamFlow(3.3);
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+      await de1Controller.setSteamFlow(3.3);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        expect(
-          observedEmits,
-          isEmpty,
-          reason: 'flow is not part of the shotSettings characteristic, '
-              'so setSteamFlow must not cause a shotSettings emit',
-        );
-        expect(
-          steamDataEmits.map((s) => s.flow).toList(),
-          contains(3.3),
-          reason: 'steamData subscribers must receive the new flow so '
-              'UI (status tile, live slider) refreshes',
-        );
+      expect(
+        observedEmits,
+        isEmpty,
+        reason:
+            'flow is not part of the shotSettings characteristic, '
+            'so setSteamFlow must not cause a shotSettings emit',
+      );
+      expect(
+        steamDataEmits.map((s) => s.flow).toList(),
+        contains(3.3),
+        reason:
+            'steamData subscribers must receive the new flow so '
+            'UI (status tile, live slider) refreshes',
+      );
 
-        await steamSub.cancel();
-      },
-    );
+      await steamSub.cancel();
+    });
   });
 }

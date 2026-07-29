@@ -25,7 +25,7 @@ class UpdateInfo {
   factory UpdateInfo.fromGitHubRelease(Map<String, dynamic> json) {
     final tagName = json['tag_name'] as String;
     final version = tagName.startsWith('v') ? tagName.substring(1) : tagName;
-    
+
     // Find the APK asset
     final assets = json['assets'] as List<dynamic>;
     final apkAsset = assets.firstWhere(
@@ -64,7 +64,9 @@ enum UpdateChannel {
   bool matchesRelease(String tagName, bool isPrerelease) {
     switch (this) {
       case UpdateChannel.stable:
-        return !isPrerelease && !tagName.contains('beta') && !tagName.contains('dev');
+        return !isPrerelease &&
+            !tagName.contains('beta') &&
+            !tagName.contains('dev');
       case UpdateChannel.beta:
         return isPrerelease || tagName.contains('beta');
       case UpdateChannel.development:
@@ -86,26 +88,29 @@ class AndroidUpdater {
     required String repo,
     http.Client? httpClient,
     ApkInstaller? apkInstaller,
-  })  : _owner = owner,
-        _repo = repo,
-        _httpClient = httpClient ?? http.Client(),
-        _apkInstaller = apkInstaller ?? ApkInstaller();
+  }) : _owner = owner,
+       _repo = repo,
+       _httpClient = httpClient ?? http.Client(),
+       _apkInstaller = apkInstaller ?? ApkInstaller();
 
   /// GitHub API URL for releases
-  String get _releasesUrl => 'https://api.github.com/repos/$_owner/$_repo/releases';
+  String get _releasesUrl =>
+      'https://api.github.com/repos/$_owner/$_repo/releases';
 
   /// Check if an update is available for the given current version
-  /// 
+  ///
   /// [currentVersion] - The current app version (e.g., "1.2.3")
   /// [channel] - The update channel to check (stable, beta, development)
-  /// 
+  ///
   /// Returns [UpdateInfo] if an update is available, null otherwise
   Future<UpdateInfo?> checkForUpdate(
     String currentVersion, {
     UpdateChannel channel = UpdateChannel.stable,
   }) async {
     try {
-      _log.info('Checking for updates on $channel channel (current: $currentVersion)');
+      _log.info(
+        'Checking for updates on $channel channel (current: $currentVersion)',
+      );
 
       final response = await _httpClient.get(Uri.parse(_releasesUrl));
 
@@ -201,11 +206,11 @@ class AndroidUpdater {
   }
 
   /// Install an APK file using the system package installer
-  /// 
+  ///
   /// On Android 8.0+, this requires REQUEST_INSTALL_PACKAGES permission
-  /// 
+  ///
   /// [apkPath] - Path to the APK file to install
-  /// 
+  ///
   /// Returns true if the installation was triggered successfully
   Future<bool> installUpdate(String apkPath) async {
     if (!Platform.isAndroid) {
@@ -218,7 +223,9 @@ class AndroidUpdater {
       // Check if we have permission to install packages
       final canInstall = await _apkInstaller.canInstallPackages();
       if (!canInstall) {
-        _log.warning('No permission to install packages, requesting permission');
+        _log.warning(
+          'No permission to install packages, requesting permission',
+        );
         await _apkInstaller.requestInstallPermission();
         // User needs to grant permission and try again
         return false;
@@ -233,7 +240,7 @@ class AndroidUpdater {
   }
 
   /// Compare two semantic version strings
-  /// 
+  ///
   /// Returns true if [newVersion] is newer than [currentVersion]
   bool _isNewerVersion(String newVersion, String currentVersion) {
     // Handle dev versions
@@ -265,7 +272,7 @@ class AndroidUpdater {
     // Remove any suffix like -beta, -dev
     final cleanVersion = version.split('-').first;
     final parts = cleanVersion.split('.');
-    
+
     if (parts.length != 3) {
       throw FormatException('Invalid version format: $version');
     }

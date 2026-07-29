@@ -24,10 +24,7 @@ void main() {
     test('GET /api/v1/info returns build info', () async {
       final response = await sendGet('/api/v1/info');
       expect(response.statusCode, 200);
-      expect(
-        response.headers['content-type'],
-        contains('application/json'),
-      );
+      expect(response.headers['content-type'], contains('application/json'));
 
       final body = jsonDecode(await response.readAsString());
       expect(body['commit'], BuildInfo.commit);

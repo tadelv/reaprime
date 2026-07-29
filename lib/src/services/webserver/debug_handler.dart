@@ -73,9 +73,9 @@ class DebugHandler {
       try {
         final scale = _scaleController.connectedScale();
         if (scale is! MockScale) {
-          return jsonBadRequest(
-            {'error': 'Connected scale is not a MockScale'},
-          );
+          return jsonBadRequest({
+            'error': 'Connected scale is not a MockScale',
+          });
         }
         mock = scale;
       } catch (e) {

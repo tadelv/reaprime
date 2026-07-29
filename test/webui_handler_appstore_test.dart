@@ -22,8 +22,7 @@ class FakeWebUIStorage extends Fake implements WebUIStorage {
   }
 
   @override
-  Future<void> installFromGitHub(String repo,
-      {String branch = 'main'}) async {
+  Future<void> installFromGitHub(String repo, {String branch = 'main'}) async {
     installFromGitHubCalled = true;
   }
 
@@ -52,7 +51,10 @@ void main() {
   }
 
   Future<Response> sendPost(
-      Handler handler, String path, Map<String, dynamic> body) async {
+    Handler handler,
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     return await handler(
       Request(
         'POST',
@@ -71,31 +73,35 @@ void main() {
         handler = buildHandler(appStoreMode: true);
       });
 
-      test('POST /api/v1/webui/skins/install/github-release returns 403',
-          () async {
-        final response = await sendPost(
-          handler,
-          '/api/v1/webui/skins/install/github-release',
-          {'repo': 'user/repo'},
-        );
-        expect(response.statusCode, 403);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['error'], contains('not available'));
-        expect(fakeStorage.installFromGitHubReleaseCalled, isFalse);
-      });
+      test(
+        'POST /api/v1/webui/skins/install/github-release returns 403',
+        () async {
+          final response = await sendPost(
+            handler,
+            '/api/v1/webui/skins/install/github-release',
+            {'repo': 'user/repo'},
+          );
+          expect(response.statusCode, 403);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['error'], contains('not available'));
+          expect(fakeStorage.installFromGitHubReleaseCalled, isFalse);
+        },
+      );
 
-      test('POST /api/v1/webui/skins/install/github-branch returns 403',
-          () async {
-        final response = await sendPost(
-          handler,
-          '/api/v1/webui/skins/install/github-branch',
-          {'repo': 'user/repo'},
-        );
-        expect(response.statusCode, 403);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['error'], contains('not available'));
-        expect(fakeStorage.installFromGitHubCalled, isFalse);
-      });
+      test(
+        'POST /api/v1/webui/skins/install/github-branch returns 403',
+        () async {
+          final response = await sendPost(
+            handler,
+            '/api/v1/webui/skins/install/github-branch',
+            {'repo': 'user/repo'},
+          );
+          expect(response.statusCode, 403);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['error'], contains('not available'));
+          expect(fakeStorage.installFromGitHubCalled, isFalse);
+        },
+      );
 
       test('POST /api/v1/webui/skins/install/url returns 403', () async {
         final response = await sendPost(
@@ -118,39 +124,43 @@ void main() {
       });
 
       test(
-          'POST /api/v1/webui/skins/install/github-release calls storage method',
-          () async {
-        final response = await sendPost(
-          handler,
-          '/api/v1/webui/skins/install/github-release',
-          {'repo': 'user/repo'},
-        );
-        expect(response.statusCode, isNot(403));
-        expect(fakeStorage.installFromGitHubReleaseCalled, isTrue);
-      });
+        'POST /api/v1/webui/skins/install/github-release calls storage method',
+        () async {
+          final response = await sendPost(
+            handler,
+            '/api/v1/webui/skins/install/github-release',
+            {'repo': 'user/repo'},
+          );
+          expect(response.statusCode, isNot(403));
+          expect(fakeStorage.installFromGitHubReleaseCalled, isTrue);
+        },
+      );
 
       test(
-          'POST /api/v1/webui/skins/install/github-branch calls storage method',
-          () async {
-        final response = await sendPost(
-          handler,
-          '/api/v1/webui/skins/install/github-branch',
-          {'repo': 'user/repo'},
-        );
-        expect(response.statusCode, isNot(403));
-        expect(fakeStorage.installFromGitHubCalled, isTrue);
-      });
+        'POST /api/v1/webui/skins/install/github-branch calls storage method',
+        () async {
+          final response = await sendPost(
+            handler,
+            '/api/v1/webui/skins/install/github-branch',
+            {'repo': 'user/repo'},
+          );
+          expect(response.statusCode, isNot(403));
+          expect(fakeStorage.installFromGitHubCalled, isTrue);
+        },
+      );
 
-      test('POST /api/v1/webui/skins/install/url calls storage method',
-          () async {
-        final response = await sendPost(
-          handler,
-          '/api/v1/webui/skins/install/url',
-          {'url': 'https://example.com/skin.zip'},
-        );
-        expect(response.statusCode, isNot(403));
-        expect(fakeStorage.installFromUrlCalled, isTrue);
-      });
+      test(
+        'POST /api/v1/webui/skins/install/url calls storage method',
+        () async {
+          final response = await sendPost(
+            handler,
+            '/api/v1/webui/skins/install/url',
+            {'url': 'https://example.com/skin.zip'},
+          );
+          expect(response.statusCode, isNot(403));
+          expect(fakeStorage.installFromUrlCalled, isTrue);
+        },
+      );
     });
   });
 }

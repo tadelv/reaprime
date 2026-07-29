@@ -19,8 +19,8 @@ class BengleProbeBridge {
   BengleProbeBridge({
     required De1Controller de1Controller,
     required SensorController sensorController,
-  })  : _de1 = de1Controller,
-        _sensors = sensorController {
+  }) : _de1 = de1Controller,
+       _sensors = sensorController {
     _de1Sub = _de1.de1.listen(_onMachineChange);
   }
 

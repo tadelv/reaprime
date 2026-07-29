@@ -38,19 +38,25 @@ void main() {
   late TestScaleController scaleController;
 
   Future<void> wireWith(De1Interface? device) async {
-    final deviceController =
-        DeviceController([MockDeviceDiscoveryService()]);
+    final deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
-    controller =
-        _FixedDe1Controller(controller: deviceController, device: device);
-    
+    controller = _FixedDe1Controller(
+      controller: deviceController,
+      device: device,
+    );
+
     final mockSettings = MockSettingsService();
     settingsController = SettingsController(mockSettings);
     await settingsController.loadSettings();
 
     final testScale = TestScale();
     scaleController = TestScaleController(testScale);
-    final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController, workflowController: WorkflowController());
+    final de1Handler = De1Handler(
+      controller: controller,
+      settingsController: settingsController,
+      scaleController: scaleController,
+      workflowController: WorkflowController(),
+    );
     final app = Router().plus;
     de1Handler.addRoutes(app);
     handler = app.call;
@@ -59,13 +65,14 @@ void main() {
   Future<Response> get(String path) async =>
       await handler(Request('GET', Uri.parse('http://localhost$path')));
 
-  Future<Response> put(String path, Object body) async =>
-      await handler(Request(
-        'PUT',
-        Uri.parse('http://localhost$path'),
-        body: jsonEncode(body),
-        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-      ));
+  Future<Response> put(String path, Object body) async => await handler(
+    Request(
+      'PUT',
+      Uri.parse('http://localhost$path'),
+      body: jsonEncode(body),
+      headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+    ),
+  );
 
   group('GET /api/v1/machine/capabilities', () {
     test('returns cupWarmer when a Bengle is connected', () async {
@@ -108,12 +115,14 @@ void main() {
       expect(body['temperature'], 0.0);
     });
 
-    test('404 on plain DE1 (machine connected but capability absent)',
-        () async {
-      await wireWith(MockDe1());
-      final res = await get('/api/v1/machine/cupWarmer');
-      expect(res.statusCode, 404);
-    });
+    test(
+      '404 on plain DE1 (machine connected but capability absent)',
+      () async {
+        await wireWith(MockDe1());
+        final res = await get('/api/v1/machine/cupWarmer');
+        expect(res.statusCode, 404);
+      },
+    );
   });
 
   group('PUT /api/v1/machine/cupWarmer', () {

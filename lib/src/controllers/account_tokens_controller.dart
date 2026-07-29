@@ -16,8 +16,8 @@ class AccountTokensController {
   AccountTokensController({
     required ProxyTokenService tokenService,
     required ProxyTokenStore store,
-  })  : _tokenService = tokenService,
-        _store = store;
+  }) : _tokenService = tokenService,
+       _store = store;
 
   /// API-client tokens (never the in-memory skin token).
   List<PersistedProxyToken> get tokens => List.unmodifiable(_tokens);

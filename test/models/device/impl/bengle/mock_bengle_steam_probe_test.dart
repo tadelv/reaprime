@@ -53,8 +53,7 @@ void main() {
       expect(samples.last, greaterThan(samples.first));
     });
 
-    test('autonomous stop triggers idle when probe reaches target',
-        () async {
+    test('autonomous stop triggers idle when probe reaches target', () async {
       await bengle.setStopAtTemperatureTarget(20.0);
       final stateChanges = <MachineState>[];
       final sub = bengle.currentSnapshot
@@ -66,8 +65,11 @@ void main() {
       await Future<void>.delayed(const Duration(seconds: 6));
       await sub.cancel();
       expect(stateChanges, contains(MachineState.steam));
-      expect(stateChanges, contains(MachineState.idle),
-          reason: 'autonomous stop should request idle when target reached');
+      expect(
+        stateChanges,
+        contains(MachineState.idle),
+        reason: 'autonomous stop should request idle when target reached',
+      );
     });
   });
 }

@@ -66,8 +66,10 @@ class _AccountTokensSectionState extends State<AccountTokensSection> {
     );
     if (result == null || result.label.isEmpty) return;
 
-    final token =
-        await widget.controller.create(label: result.label, write: result.write);
+    final token = await widget.controller.create(
+      label: result.label,
+      write: result.write,
+    );
     if (!mounted) return;
     setState(() {});
     await _showTokenOnce(token);

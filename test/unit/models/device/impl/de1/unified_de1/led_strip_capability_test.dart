@@ -46,24 +46,28 @@ void main() {
 
     test('initLedStrip logs and no-ops when wires are unwired', () {
       expect(
-        logRecords.any((r) =>
-            r.message.contains('LedStripCapability') &&
-            r.message.contains('unwired')),
+        logRecords.any(
+          (r) =>
+              r.message.contains('LedStripCapability') &&
+              r.message.contains('unwired'),
+        ),
         isTrue,
         reason: 'expected init log entry about unwired endpoints',
       );
     });
 
     test('setLedStrip updates cache when wires are unwired', () async {
-      await bengle.setLedStrip(LedStripState(
-        frontStrip: ZoneLedState(
+      await bengle.setLedStrip(
+        LedStripState(
+          frontStrip: ZoneLedState(
             sleeping: const Color16(65535, 32768, 0),
-            awake: Color16.off),
-      ));
+            awake: Color16.off,
+          ),
+        ),
+      );
       // Cache was updated regardless of stub.
       final state = await bengle.getLedStripState();
-      expect(state.frontStrip.sleeping,
-          const Color16(65535, 32768, 0));
+      expect(state.frontStrip.sleeping, const Color16(65535, 32768, 0));
     });
 
     test('commitLedStrip is safe when wires are unwired', () async {
@@ -83,13 +87,18 @@ void main() {
       );
     });
 
-    test('all BengleLedEndpoint entries have null uuid and representation',
-        () {
+    test('all BengleLedEndpoint entries have null uuid and representation', () {
       for (final ep in BengleLedEndpoint.values) {
-        expect(ep.uuid, isNull,
-            reason: '${ep.name}.uuid should be null (TBD with FW)');
-        expect(ep.representation, isNull,
-            reason: '${ep.name}.representation should be null (TBD with FW)');
+        expect(
+          ep.uuid,
+          isNull,
+          reason: '${ep.name}.uuid should be null (TBD with FW)',
+        );
+        expect(
+          ep.representation,
+          isNull,
+          reason: '${ep.name}.representation should be null (TBD with FW)',
+        );
       }
     });
 
@@ -105,17 +114,21 @@ void main() {
 
       var streamCompletedWithoutValue = false;
       try {
-        await bengle.ledStripState
-            .first
-            .timeout(const Duration(milliseconds: 50));
+        await bengle.ledStripState.first.timeout(
+          const Duration(milliseconds: 50),
+        );
       } on TimeoutException {
         // Expected: stream is open but quiet — capability is alive.
       } on StateError {
         streamCompletedWithoutValue = true;
       }
-      expect(streamCompletedWithoutValue, isFalse,
-          reason: 'ledStripState was closed after reconnect — mixin '
-              'failed to re-init its BehaviorSubject');
+      expect(
+        streamCompletedWithoutValue,
+        isFalse,
+        reason:
+            'ledStripState was closed after reconnect — mixin '
+            'failed to re-init its BehaviorSubject',
+      );
     });
   });
 }

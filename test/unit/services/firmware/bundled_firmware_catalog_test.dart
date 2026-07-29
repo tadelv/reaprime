@@ -14,10 +14,12 @@ void main() {
     final entry = manifest.entries.single;
     expect(entry.artifact.id, 'de1-1352');
     expect(entry.artifact.build, 1352);
-    expect(
-      entry.artifact.supportedModels,
-      {'DE1Pro', 'DE1XL', 'DE1XXL', 'DE1XXXL'},
-    );
+    expect(entry.artifact.supportedModels, {
+      'DE1Pro',
+      'DE1XL',
+      'DE1XXL',
+      'DE1XXXL',
+    });
 
     final image = await catalog.loadImage(entry.artifact.id);
     const FirmwareValidator().validate(entry, image);

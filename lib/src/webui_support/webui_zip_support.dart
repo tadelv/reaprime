@@ -32,15 +32,17 @@ final _win32ReservedChars = RegExp(r'[<>:"|?*]');
 String sanitizeZipEntryPath(String entryName) {
   if (entryName.isEmpty) return entryName;
   final segments = entryName.split('/');
-  final sanitised = segments.map((segment) {
-    var s = segment.replaceAll(_win32ReservedChars, '_');
-    // Win32 silently drops trailing dots and spaces from path components;
-    // strip them so what we ask for is what we get on disk.
-    while (s.isNotEmpty && (s.endsWith('.') || s.endsWith(' '))) {
-      s = s.substring(0, s.length - 1);
-    }
-    return s;
-  }).join('/');
+  final sanitised = segments
+      .map((segment) {
+        var s = segment.replaceAll(_win32ReservedChars, '_');
+        // Win32 silently drops trailing dots and spaces from path components;
+        // strip them so what we ask for is what we get on disk.
+        while (s.isNotEmpty && (s.endsWith('.') || s.endsWith(' '))) {
+          s = s.substring(0, s.length - 1);
+        }
+        return s;
+      })
+      .join('/');
   return sanitised;
 }
 
@@ -79,13 +81,12 @@ ExtractionResult extractArchiveToDirectory(
 
   for (final entry in archive) {
     final originalName = entry.name;
-    final safeName =
-        sanitize ? sanitizeZipEntryPath(originalName) : originalName;
+    final safeName = sanitize
+        ? sanitizeZipEntryPath(originalName)
+        : originalName;
 
     if (safeName != originalName) {
-      log?.fine(
-        'Sanitised zip entry name: "$originalName" -> "$safeName"',
-      );
+      log?.fine('Sanitised zip entry name: "$originalName" -> "$safeName"');
     }
 
     if (safeName.isEmpty) {
@@ -139,11 +140,7 @@ Future<void> installBundledSkinList(
     try {
       await installOne(skinId);
     } catch (e, st) {
-      log?.warning(
-        'Failed to install bundled skin "$skinId"',
-        e,
-        st,
-      );
+      log?.warning('Failed to install bundled skin "$skinId"', e, st);
     }
   }
 }

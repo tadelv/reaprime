@@ -29,8 +29,7 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
   }
 
   Future<Bean?> getBeanById(String id) {
-    return (select(beans)..where((b) => b.id.equals(id)))
-        .getSingleOrNull();
+    return (select(beans)..where((b) => b.id.equals(id))).getSingleOrNull();
   }
 
   Future<void> insertBean(BeansCompanion bean) {
@@ -38,8 +37,9 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
   }
 
   Future<void> updateBean(BeansCompanion bean) {
-    return (update(beans)..where((b) => b.id.equals(bean.id.value)))
-        .write(bean);
+    return (update(
+      beans,
+    )..where((b) => b.id.equals(bean.id.value))).write(bean);
   }
 
   Future<void> deleteBean(String id) {
@@ -48,10 +48,11 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
 
   // --- BeanBatches ---
 
-  Future<List<BeanBatche>> getBatchesForBean(String beanId,
-      {bool includeArchived = false}) {
-    final query = select(beanBatches)
-      ..where((b) => b.beanId.equals(beanId));
+  Future<List<BeanBatche>> getBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) {
+    final query = select(beanBatches)..where((b) => b.beanId.equals(beanId));
     if (!includeArchived) {
       query.where((b) => b.archived.equals(false));
     }
@@ -59,10 +60,11 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
     return query.get();
   }
 
-  Stream<List<BeanBatche>> watchBatchesForBean(String beanId,
-      {bool includeArchived = false}) {
-    final query = select(beanBatches)
-      ..where((b) => b.beanId.equals(beanId));
+  Stream<List<BeanBatche>> watchBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) {
+    final query = select(beanBatches)..where((b) => b.beanId.equals(beanId));
     if (!includeArchived) {
       query.where((b) => b.archived.equals(false));
     }
@@ -71,8 +73,9 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
   }
 
   Future<BeanBatche?> getBatchById(String id) {
-    return (select(beanBatches)..where((b) => b.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      beanBatches,
+    )..where((b) => b.id.equals(id))).getSingleOrNull();
   }
 
   Future<void> insertBatch(BeanBatchesCompanion batch) {
@@ -80,8 +83,9 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
   }
 
   Future<void> updateBatch(BeanBatchesCompanion batch) {
-    return (update(beanBatches)..where((b) => b.id.equals(batch.id.value)))
-        .write(batch);
+    return (update(
+      beanBatches,
+    )..where((b) => b.id.equals(batch.id.value))).write(batch);
   }
 
   Future<void> deleteBatch(String id) {
@@ -94,10 +98,11 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
     if (batch == null) return;
     final current = batch.weightRemaining ?? batch.weight ?? 0;
     final newWeight = (current - amount).clamp(0.0, double.infinity).toDouble();
-    await (update(beanBatches)..where((b) => b.id.equals(batchId)))
-        .write(BeanBatchesCompanion(
-      weightRemaining: Value(newWeight),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await (update(beanBatches)..where((b) => b.id.equals(batchId))).write(
+      BeanBatchesCompanion(
+        weightRemaining: Value(newWeight),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 }

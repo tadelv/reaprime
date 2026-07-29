@@ -15,14 +15,15 @@ class SteamDao extends DatabaseAccessor<AppDatabase> with _$SteamDaoMixin {
   }
 
   Future<SteamRecord?> getSteamById(String id) {
-    return (select(steamRecords)..where((s) => s.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      steamRecords,
+    )..where((s) => s.id.equals(id))).getSingleOrNull();
   }
 
   Future<List<SteamRecord>> getAllSteams() {
-    return (select(steamRecords)
-          ..orderBy([(s) => OrderingTerm.desc(s.timestamp)]))
-        .get();
+    return (select(
+      steamRecords,
+    )..orderBy([(s) => OrderingTerm.desc(s.timestamp)])).get();
   }
 
   Future<SteamRecord?> getLatestSteam() {
@@ -57,8 +58,9 @@ class SteamDao extends DatabaseAccessor<AppDatabase> with _$SteamDaoMixin {
   }
 
   Future<void> updateSteam(SteamRecordsCompanion record) {
-    return (update(steamRecords)..where((s) => s.id.equals(record.id.value)))
-        .write(record);
+    return (update(
+      steamRecords,
+    )..where((s) => s.id.equals(record.id.value))).write(record);
   }
 
   Future<void> deleteSteam(String id) {

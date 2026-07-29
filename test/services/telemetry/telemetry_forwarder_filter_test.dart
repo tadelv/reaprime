@@ -160,29 +160,29 @@ void main() {
         expect(shouldForwardToTelemetry(record), isTrue);
       });
 
-      test(
-        '"Skin already exists" emitted by a different logger is kept',
-        () {
-          final record = _record(
-            Level.SEVERE,
-            'SomeOtherLogger',
-            'Skin already exists: foo',
-          );
-          expect(shouldForwardToTelemetry(record), isTrue);
-        },
-      );
+      test('"Skin already exists" emitted by a different logger is kept', () {
+        final record = _record(
+          Level.SEVERE,
+          'SomeOtherLogger',
+          'Skin already exists: foo',
+        );
+        expect(shouldForwardToTelemetry(record), isTrue);
+      });
     });
 
     group('drops typed transient exceptions regardless of logger', () {
-      test('DeviceNotConnectedException.machine from any logger is dropped', () {
-        final record = _record(
-          Level.SEVERE,
-          'BatteryController',
-          'Failed to set USB charger mode',
-          const DeviceNotConnectedException.machine(),
-        );
-        expect(shouldForwardToTelemetry(record), isFalse);
-      });
+      test(
+        'DeviceNotConnectedException.machine from any logger is dropped',
+        () {
+          final record = _record(
+            Level.SEVERE,
+            'BatteryController',
+            'Failed to set USB charger mode',
+            const DeviceNotConnectedException.machine(),
+          );
+          expect(shouldForwardToTelemetry(record), isFalse);
+        },
+      );
 
       test('DeviceNotConnectedException.scale from any logger is dropped', () {
         final record = _record(
@@ -221,9 +221,7 @@ void main() {
           Level.SEVERE,
           'AndroidUpdater',
           'checkForUpdate failed',
-          const SocketException(
-            'Failed host lookup: api.github.com',
-          ),
+          const SocketException('Failed host lookup: api.github.com'),
         );
         expect(shouldForwardToTelemetry(record), isFalse);
       });

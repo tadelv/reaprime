@@ -17,34 +17,34 @@ void main() {
   });
 
   Map<String, dynamic> workflowJson() => {
-        'id': 'wf-1',
-        'name': 'Test',
-        'description': '',
-        'profile': {
-          'title': 'Test Profile',
-          'author': 'Test',
-          'notes': '',
-          'beverage_type': 'espresso',
-          'steps': [],
-          'tank_temperature': 0.0,
-          'target_weight': 36.0,
-          'target_volume_count_start': 0,
-          'version': '2',
-        },
-        'steamSettings': {
-          'targetTemperature': 150,
-          'duration': 50,
-          'flow': 0.8,
-          'stopAtTemperature': 65.0,
-        },
-        'hotWaterData': {
-          'targetTemperature': 90,
-          'duration': 15,
-          'volume': 100,
-          'flow': 4.0,
-        },
-        'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
-      };
+    'id': 'wf-1',
+    'name': 'Test',
+    'description': '',
+    'profile': {
+      'title': 'Test Profile',
+      'author': 'Test',
+      'notes': '',
+      'beverage_type': 'espresso',
+      'steps': [],
+      'tank_temperature': 0.0,
+      'target_weight': 36.0,
+      'target_volume_count_start': 0,
+      'version': '2',
+    },
+    'steamSettings': {
+      'targetTemperature': 150,
+      'duration': 50,
+      'flow': 0.8,
+      'stopAtTemperature': 65.0,
+    },
+    'hotWaterData': {
+      'targetTemperature': 90,
+      'duration': 15,
+      'volume': 100,
+      'flow': 4.0,
+    },
+    'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+  };
 
   SteamRecordsCompanion makeSteam({
     String id = 'steam-1',
@@ -61,12 +61,16 @@ void main() {
 
   group('SteamDao - CRUD', () {
     test('inserts and retrieves a steam record', () async {
-      await db.steamDao.insertSteam(makeSteam(measurements: [
-        {
-          'machine': {'placeholder': true},
-          'milkTemperature': 50.0,
-        }
-      ]));
+      await db.steamDao.insertSteam(
+        makeSteam(
+          measurements: [
+            {
+              'machine': {'placeholder': true},
+              'milkTemperature': 50.0,
+            },
+          ],
+        ),
+      );
       final row = await db.steamDao.getSteamById('steam-1');
       expect(row, isNotNull);
       expect(row!.id, equals('steam-1'));
@@ -82,25 +86,33 @@ void main() {
     });
 
     test('latest steam returns most recent', () async {
-      await db.steamDao.insertSteam(makeSteam(
-        id: 'older',
-        timestamp: DateTime.parse('2026-05-18T11:00:00Z'),
-      ));
-      await db.steamDao.insertSteam(makeSteam(
-        id: 'newer',
-        timestamp: DateTime.parse('2026-05-18T13:00:00Z'),
-      ));
+      await db.steamDao.insertSteam(
+        makeSteam(
+          id: 'older',
+          timestamp: DateTime.parse('2026-05-18T11:00:00Z'),
+        ),
+      );
+      await db.steamDao.insertSteam(
+        makeSteam(
+          id: 'newer',
+          timestamp: DateTime.parse('2026-05-18T13:00:00Z'),
+        ),
+      );
       final latest = await db.steamDao.getLatestSteam();
       expect(latest?.id, equals('newer'));
     });
 
     test('latest steam meta omits measurements blob', () async {
-      await db.steamDao.insertSteam(makeSteam(measurements: [
-        {
-          'machine': {'placeholder': true},
-          'milkTemperature': 50.0,
-        }
-      ]));
+      await db.steamDao.insertSteam(
+        makeSteam(
+          measurements: [
+            {
+              'machine': {'placeholder': true},
+              'milkTemperature': 50.0,
+            },
+          ],
+        ),
+      );
       final meta = await db.steamDao.getLatestSteamMeta();
       expect(meta, isNotNull);
       expect(meta!.measurementsJson, equals('[]'));

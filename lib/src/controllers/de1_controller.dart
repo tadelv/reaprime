@@ -31,33 +31,20 @@ class De1Controller {
 
   final BehaviorSubject<SteamSettings> _steamDataController =
       BehaviorSubject.seeded(
-        SteamSettings(
-          targetTemperature: 0,
-          flow: 0,
-          duration: 0,
-        ),
+        SteamSettings(targetTemperature: 0, flow: 0, duration: 0),
       );
 
   Stream<SteamSettings> get steamData => _steamDataController.stream;
 
   final BehaviorSubject<HotWaterData> _hotWaterDataController =
       BehaviorSubject.seeded(
-        HotWaterData(
-          targetTemperature: 0,
-          flow: 0,
-          duration: 0,
-          volume: 0,
-        ),
+        HotWaterData(targetTemperature: 0, flow: 0, duration: 0, volume: 0),
       );
 
   Stream<HotWaterData> get hotWaterData => _hotWaterDataController.stream;
 
   final BehaviorSubject<RinseData> _rinseStream = BehaviorSubject.seeded(
-    RinseData(
-      duration: 5,
-      targetTemperature: 90,
-      flow: 2.5,
-    ),
+    RinseData(duration: 5, targetTemperature: 90, flow: 2.5),
   );
 
   Stream<RinseData> get rinseData => _rinseStream.stream;
@@ -113,9 +100,7 @@ class De1Controller {
 
   /// Returns the pending intent if one was recorded within [window], and
   /// clears it either way — an intent is attributed at most once.
-  ShotDecisionReason? consumeStopIntent({
-    Duration window = _stopIntentWindow,
-  }) {
+  ShotDecisionReason? consumeStopIntent({Duration window = _stopIntentWindow}) {
     final intent = _pendingStopIntent;
     final at = _pendingStopIntentAt;
     _pendingStopIntent = null;
@@ -177,33 +162,29 @@ class De1Controller {
     _de1Controller.add(_de1);
 
     _subscriptions.add(
-      _de1!.ready.listen(
-        (ready) {
-          if (ready) {
-            _initializeData();
-          }
-        },
-      ),
+      _de1!.ready.listen((ready) {
+        if (ready) {
+          _initializeData();
+        }
+      }),
     );
 
     _subscriptions.add(
-      _de1!.connectionState.listen(
-        (connectionData) {
-          switch (connectionData) {
-            case ConnectionState.discovered:
-              _log.info("device $_de1 discovered");
-            case ConnectionState.connecting:
-              _log.info("device $_de1 connecting");
-            case ConnectionState.connected:
-              _log.info("device $_de1 connected");
-            case ConnectionState.disconnecting:
-              _log.info("device $_de1 disconnecting");
-            case ConnectionState.disconnected:
-              _log.info("device $_de1 disconnected, resetting");
-              _onDisconnect();
-          }
-        },
-      ),
+      _de1!.connectionState.listen((connectionData) {
+        switch (connectionData) {
+          case ConnectionState.discovered:
+            _log.info("device $_de1 discovered");
+          case ConnectionState.connecting:
+            _log.info("device $_de1 connecting");
+          case ConnectionState.connected:
+            _log.info("device $_de1 connected");
+          case ConnectionState.disconnecting:
+            _log.info("device $_de1 disconnecting");
+          case ConnectionState.disconnected:
+            _log.info("device $_de1 disconnected, resetting");
+            _onDisconnect();
+        }
+      }),
     );
   }
 
@@ -221,27 +202,23 @@ class De1Controller {
     _de1Controller.add(_de1);
 
     _subscriptions.add(
-      _de1!.ready.listen(
-        (ready) {
-          if (ready) {
-            _initializeData();
-          }
-        },
-      ),
+      _de1!.ready.listen((ready) {
+        if (ready) {
+          _initializeData();
+        }
+      }),
     );
 
     _subscriptions.add(
-      _de1!.connectionState.listen(
-        (connectionData) {
-          switch (connectionData) {
-            case ConnectionState.disconnected:
-              _log.info('device $_de1 disconnected (adopted), resetting');
-              _onDisconnect();
-            default:
-              break;
-          }
-        },
-      ),
+      _de1!.connectionState.listen((connectionData) {
+        switch (connectionData) {
+          case ConnectionState.disconnected:
+            _log.info('device $_de1 disconnected (adopted), resetting');
+            _onDisconnect();
+          default:
+            break;
+        }
+      }),
     );
   }
 
@@ -276,9 +253,7 @@ class De1Controller {
     _dataInitialized = true;
 
     try {
-      _subscriptions.add(
-        device.shotSettings.listen(_shotSettingsUpdate),
-      );
+      _subscriptions.add(device.shotSettings.listen(_shotSettingsUpdate));
       try {
         final settings = await device.shotSettings.first.timeout(
           ConnectionTimings.initialShotSettingsTimeout,

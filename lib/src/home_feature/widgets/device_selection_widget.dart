@@ -50,10 +50,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     super.initState();
 
     // Get initial devices
-    _discoveredDevices =
-        widget.deviceController.devices
-            .where((device) => device.type == widget.deviceType)
-            .toList();
+    _discoveredDevices = widget.deviceController.devices
+        .where((device) => device.type == widget.deviceType)
+        .toList();
 
     // Listen for additional devices discovered
     _discoverySubscription = widget.deviceController.deviceStream.listen((
@@ -61,10 +60,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     ) {
       if (mounted) {
         setState(() {
-          _discoveredDevices =
-              data
-                  .where((device) => device.type == widget.deviceType)
-                  .toList();
+          _discoveredDevices = data
+              .where((device) => device.type == widget.deviceType)
+              .toList();
         });
       }
     });
@@ -130,13 +128,20 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                     dense: true,
                     visualDensity: VisualDensity(horizontal: -4, vertical: -4),
                     contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                    title: Text(device.name, style: Theme.of(context).textTheme.bodySmall),
+                    title: Text(
+                      device.name,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                     subtitle: Text(
                       "ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}",
                       style: Theme.of(context).textTheme.labelSmall,
                     ),
                     leading: isPreferred
-                        ? Icon(LucideIcons.check, size: 16, color: Theme.of(context).colorScheme.primary)
+                        ? Icon(
+                            LucideIcons.check,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.primary,
+                          )
                         : SizedBox(width: 16),
                     trailing: DeviceConnectingIndicator(
                       isConnecting: isConnecting,
@@ -161,7 +166,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
         children: [
           Text(
             widget.headerText ?? "Select a machine from the list",
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           if (widget.errorMessage != null)
             Padding(

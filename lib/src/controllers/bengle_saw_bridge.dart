@@ -32,8 +32,8 @@ class BengleSawBridge {
     required WorkflowController workflowController,
     required De1Controller de1Controller,
     this.debounce = const Duration(milliseconds: 250),
-  })  : _workflow = workflowController,
-        _de1 = de1Controller {
+  }) : _workflow = workflowController,
+       _de1 = de1Controller {
     _lastPushed = _currentTargetYield();
     _workflow.addListener(_onWorkflowChange);
     _de1Sub = _de1.de1.listen(_onDe1Change);

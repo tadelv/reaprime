@@ -29,17 +29,17 @@ void main() {
       storage.debugInitWithWebUIDir(webUIDir);
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('plugins.flutter.io/path_provider'),
-        (_) async => tmpRoot.path,
-      );
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (_) async => tmpRoot.path,
+          );
     });
 
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('plugins.flutter.io/path_provider'),
-        null,
-      );
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            null,
+          );
       if (tmpRoot.existsSync()) tmpRoot.deleteSync(recursive: true);
     });
 
@@ -48,37 +48,39 @@ void main() {
     Directory makeSkinSource(String version) {
       final dir = Directory('${tmpRoot.path}/src_$version');
       dir.createSync(recursive: true);
-      File('${dir.path}/skin-manifest.json').writeAsStringSync(jsonEncode({
-        'id': 'test.skin',
-        'name': 'Test Skin',
-        'version': version,
-      }));
+      File('${dir.path}/skin-manifest.json').writeAsStringSync(
+        jsonEncode({
+          'id': 'test.skin',
+          'name': 'Test Skin',
+          'version': version,
+        }),
+      );
       File('${dir.path}/index.html').writeAsStringSync('<html>$version</html>');
       return dir;
     }
 
     String installedVersion() {
-      final manifest =
-          File('${webUIDir.path}/test.skin/skin-manifest.json');
-      final json = jsonDecode(manifest.readAsStringSync())
-          as Map<String, dynamic>;
+      final manifest = File('${webUIDir.path}/test.skin/skin-manifest.json');
+      final json =
+          jsonDecode(manifest.readAsStringSync()) as Map<String, dynamic>;
       return json['version'] as String;
     }
 
     List<int> makeGitHubArchive() {
       final archive = Archive()
-        ..addFile(ArchiveFile.string(
-          'passione-dist/skin-manifest.json',
-          jsonEncode({
-            'id': 'passione-dist',
-            'name': 'Passione',
-            'version': '1.0.0',
-          }),
-        ))
-        ..addFile(ArchiveFile.string(
-          'passione-dist/index.html',
-          '<html></html>',
-        ));
+        ..addFile(
+          ArchiveFile.string(
+            'passione-dist/skin-manifest.json',
+            jsonEncode({
+              'id': 'passione-dist',
+              'name': 'Passione',
+              'version': '1.0.0',
+            }),
+          ),
+        )
+        ..addFile(
+          ArchiveFile.string('passione-dist/index.html', '<html></html>'),
+        );
       return ZipEncoder().encode(archive);
     }
 
@@ -92,16 +94,10 @@ void main() {
       await http.runWithClient(
         () async {
           await storage.installFromGitHub('tadelv/passione', branch: 'dist');
-          before = storage
-              .getSkin('passione-dist')!
-              .reaMetadata!
-              .lastChecked!;
+          before = storage.getSkin('passione-dist')!.reaMetadata!.lastChecked!;
 
           await storage.updateAllSkins();
-          after = storage
-              .getSkin('passione-dist')!
-              .reaMetadata!
-              .lastChecked!;
+          after = storage.getSkin('passione-dist')!.reaMetadata!.lastChecked!;
         },
         () => MockClient((request) async {
           if (request.url.toString() !=
@@ -122,22 +118,18 @@ void main() {
       expect(after.isAfter(before), isTrue);
 
       final metadata = storage.getSkin('passione-dist')!.reaMetadata!;
-      expect(
-        metadata.sourceUrl,
-        'github_branch:tadelv/passione@dist',
-      );
+      expect(metadata.sourceUrl, 'github_branch:tadelv/passione@dist');
 
-      final persisted = jsonDecode(
-        File('${webUIDir.path}/.rea_metadata.json').readAsStringSync(),
-      ) as Map<String, dynamic>;
+      final persisted =
+          jsonDecode(
+                File('${webUIDir.path}/.rea_metadata.json').readAsStringSync(),
+              )
+              as Map<String, dynamic>;
       expect(
         persisted['passione-dist']['sourceUrl'],
         'github_branch:tadelv/passione@dist',
       );
-      expect(
-        DateTime.parse(persisted['passione-dist']['lastChecked']),
-        after,
-      );
+      expect(DateTime.parse(persisted['passione-dist']['lastChecked']), after);
     });
 
     test('overwriteIfExists:false leaves an existing skin untouched', () async {

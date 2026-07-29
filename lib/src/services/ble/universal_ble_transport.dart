@@ -16,9 +16,8 @@ class UniversalBleTransport implements BLETransport {
 
   late Logger _log;
 
-  final BehaviorSubject<device.ConnectionState> _connectionStateSubject = BehaviorSubject.seeded(
-    device.ConnectionState.discovered,
-  );
+  final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
+      BehaviorSubject.seeded(device.ConnectionState.discovered);
 
   StreamSubscription? _connectionStateSubscription;
 
@@ -71,14 +70,13 @@ class UniversalBleTransport implements BLETransport {
     bool? isLinuxOverride,
     Duration faultRecoveryGrace = const Duration(seconds: 2),
     Duration faultRecoveryDisconnectTimeout = const Duration(seconds: 5),
-  })  : _device = device,
-        _stopScan = stopScan,
-        _requestLargeMtuNonAndroid = requestLargeMtuNonAndroid,
-        _isAndroidOverride = isAndroidOverride,
-        _isLinuxOverride = isLinuxOverride,
-        _faultRecoveryGrace = faultRecoveryGrace,
-        _faultRecoveryDisconnectTimeout = faultRecoveryDisconnectTimeout {
-
+  }) : _device = device,
+       _stopScan = stopScan,
+       _requestLargeMtuNonAndroid = requestLargeMtuNonAndroid,
+       _isAndroidOverride = isAndroidOverride,
+       _isLinuxOverride = isLinuxOverride,
+       _faultRecoveryGrace = faultRecoveryGrace,
+       _faultRecoveryDisconnectTimeout = faultRecoveryDisconnectTimeout {
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
@@ -101,13 +99,13 @@ class UniversalBleTransport implements BLETransport {
   // Android post-connect settle duration. The Android BLE stack needs
   // a brief period after connectGatt reports success before service
   // discovery works reliably (particularly on older tablet SoCs).
-  static const Duration _androidPostConnectDelay =
-      Duration(milliseconds: 200);
+  static const Duration _androidPostConnectDelay = Duration(milliseconds: 200);
 
   // Brief pause between stopScan and connectGatt so the scanner actually
   // releases the radio before the connection attempt starts.
-  static const Duration _androidPreConnectSettleDelay =
-      Duration(milliseconds: 300);
+  static const Duration _androidPreConnectSettleDelay = Duration(
+    milliseconds: 300,
+  );
 
   @override
   Future<void> connect() async {
@@ -119,17 +117,16 @@ class UniversalBleTransport implements BLETransport {
     // native disconnect reason codes (GATT error, HCI status) — the
     // standard connectionStream only emits bool.
     _connectionStateSubscription?.cancel();
-    _connectionStateSubscription = UniversalBle.connectionUpdateStream(
-      _device.deviceId,
-    ).listen((update) {
-      if (update.isConnected) {
-        _connectionStateSubject.add(device.ConnectionState.connected);
-      } else {
-        final reason = update.error ?? 'unknown';
-        _log.warning('Transport disconnected: $reason');
-        _connectionStateSubject.add(device.ConnectionState.disconnected);
-      }
-    });
+    _connectionStateSubscription =
+        UniversalBle.connectionUpdateStream(_device.deviceId).listen((update) {
+          if (update.isConnected) {
+            _connectionStateSubject.add(device.ConnectionState.connected);
+          } else {
+            final reason = update.error ?? 'unknown';
+            _log.warning('Transport disconnected: $reason');
+            _connectionStateSubject.add(device.ConnectionState.disconnected);
+          }
+        });
     if (_isLinux) {
       await _connectBlueZ();
       _startAdvertWatch();
@@ -254,7 +251,11 @@ class UniversalBleTransport implements BLETransport {
     UniversalBleErrorCode.deviceDisconnected,
   };
 
-  Never _handleGattError(UniversalBleException e, String operation, String path) {
+  Never _handleGattError(
+    UniversalBleException e,
+    String operation,
+    String path,
+  ) {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
       _connectionStateSubject.add(device.ConnectionState.disconnected);
@@ -268,7 +269,9 @@ class UniversalBleTransport implements BLETransport {
     // caller (UnifiedDe1Transport) can retry via _handleBleTimeout.
     // Do NOT declare the link dead or emit disconnected.
     if (e.code == UniversalBleErrorCode.gattError) {
-      _log.warning('GATT $operation($path) failed — GATT error 133 (transient): $e');
+      _log.warning(
+        'GATT $operation($path) failed — GATT error 133 (transient): $e',
+      );
       _clearQueue(UniversalBleErrorCode.operationCancelled);
       throw BleTimeoutException('GATT $operation($path)', e);
     }
@@ -296,8 +299,7 @@ class UniversalBleTransport implements BLETransport {
       BleConnectionState.connected => device.ConnectionState.connected,
       BleConnectionState.connecting => device.ConnectionState.connecting,
       BleConnectionState.disconnecting ||
-      BleConnectionState.disconnected =>
-        device.ConnectionState.disconnected,
+      BleConnectionState.disconnected => device.ConnectionState.disconnected,
     };
   }
 
@@ -386,13 +388,17 @@ class UniversalBleTransport implements BLETransport {
   TransportType get transportType => TransportType.ble;
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async {
     try {
       final value = await UniversalBle.read(
         _device.deviceId,
         serviceUUID,
         characteristicUUID,
-        timeout: timeout
+        timeout: timeout,
       );
       return value;
     } on TimeoutException {
@@ -414,9 +420,7 @@ class UniversalBleTransport implements BLETransport {
   void _onOperationTimeout(String operation, String path) {
     _log.warning('GATT $operation($path) timed out — BLE queue faulted');
     final generation = _connectionGeneration;
-    unawaited(
-      _probeAndDeclareIfDead('GATT $operation timeout', generation),
-    );
+    unawaited(_probeAndDeclareIfDead('GATT $operation timeout', generation));
     if (_recoveringQueueGeneration == generation) return;
     _recoveringQueueGeneration = generation;
     unawaited(_recoverFaultedQueue(generation, 'GATT $operation($path)'));
@@ -579,7 +583,7 @@ class UniversalBleTransport implements BLETransport {
         BleUuidParser.string(characteristicUUID),
         data,
         withoutResponse: !withResponse,
-        timeout: timeout
+        timeout: timeout,
       );
     } on TimeoutException {
       // Fail fast — do NOT map this to a BleTimeoutException. Doing so routes it

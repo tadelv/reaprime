@@ -13,8 +13,12 @@ void main() {
       startCalled = false;
       timer = ForegroundServiceGraceTimer(
         gracePeriod: Duration(minutes: 5),
-        onStop: () async { stopCalled = true; },
-        onStart: () async { startCalled = true; },
+        onStop: () async {
+          stopCalled = true;
+        },
+        onStart: () async {
+          startCalled = true;
+        },
       );
     });
 

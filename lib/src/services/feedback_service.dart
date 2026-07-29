@@ -24,8 +24,8 @@ class FeedbackService {
   FeedbackService({
     required String githubToken,
     String repo = 'tadelv/reaprime',
-  })  : _githubToken = githubToken,
-        _repo = repo;
+  }) : _githubToken = githubToken,
+       _repo = repo;
 
   /// Whether the service is configured with a valid token
   bool get isConfigured => _githubToken.isNotEmpty;
@@ -73,9 +73,7 @@ class FeedbackService {
       );
 
       if (issueResult == null) {
-        return FeedbackSubmissionResult.failed(
-          'Failed to create GitHub issue',
-        );
+        return FeedbackSubmissionResult.failed('Failed to create GitHub issue');
       }
 
       final issueNumber = issueResult['number'] as int;
@@ -96,7 +94,9 @@ class FeedbackService {
   String _collectSystemInfo() {
     final info = StringBuffer();
     info.writeln('**System Information:**');
-    info.writeln('- App Version: ${BuildInfo.version} (build ${BuildInfo.buildNumber})');
+    info.writeln(
+      '- App Version: ${BuildInfo.version} (build ${BuildInfo.buildNumber})',
+    );
     info.writeln('- Commit: ${BuildInfo.commitShort}');
     info.writeln('- Branch: ${BuildInfo.branch}');
     info.writeln('- Platform: ${Platform.operatingSystem}');
@@ -137,9 +137,7 @@ class FeedbackService {
             webViewLogContent =
                 '... (truncated, showing last ${maxWebViewLogSize ~/ 1024}KB) ...\n${webViewLogContent.substring(webViewLogContent.length - maxWebViewLogSize)}';
           }
-          gistFiles['decent_webview_logs.txt'] = {
-            'content': webViewLogContent,
-          };
+          gistFiles['decent_webview_logs.txt'] = {'content': webViewLogContent};
         }
       }
 
@@ -249,9 +247,7 @@ class FeedbackService {
       );
       final picture = recorder.endRecording();
       final scaled = await picture.toImage(targetWidth, targetHeight);
-      final byteData = await scaled.toByteData(
-        format: ui.ImageByteFormat.png,
-      );
+      final byteData = await scaled.toByteData(format: ui.ImageByteFormat.png);
 
       if (byteData == null) continue;
       final result = byteData.buffer.asUint8List();
@@ -327,11 +323,7 @@ class FeedbackService {
       final response = await http.post(
         Uri.parse('$_githubApiBase/repos/$_repo/issues'),
         headers: _authHeaders,
-        body: jsonEncode({
-          'title': title,
-          'body': body,
-          'labels': labels,
-        }),
+        body: jsonEncode({'title': title, 'body': body, 'labels': labels}),
       );
 
       if (response.statusCode == 201) {
@@ -353,8 +345,7 @@ class FeedbackService {
   /// Used as a fallback when GitHub submission fails, so users can
   /// save the report and share it manually.
   Future<String> generateHtmlReport(FeedbackRequest request) async {
-    final systemInfo =
-        request.includeSystemInfo ? _collectSystemInfo() : '';
+    final systemInfo = request.includeSystemInfo ? _collectSystemInfo() : '';
     String? logContent;
     String? webViewLogContent;
     if (request.includeLogs) {
@@ -395,7 +386,9 @@ class FeedbackService {
     );
 
     html.writeln('<h2>Description</h2>');
-    html.writeln('<p>${_escapeHtml(request.description).replaceAll('\n', '<br>')}</p>');
+    html.writeln(
+      '<p>${_escapeHtml(request.description).replaceAll('\n', '<br>')}</p>',
+    );
 
     if (systemInfo.isNotEmpty) {
       html.writeln('<h2>System Information</h2><ul>');
@@ -463,8 +456,8 @@ class FeedbackService {
 
   /// Common auth headers for GitHub API requests
   Map<String, String> get _authHeaders => {
-        'Authorization': 'token $_githubToken',
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      };
+    'Authorization': 'token $_githubToken',
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  };
 }

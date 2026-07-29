@@ -16,10 +16,7 @@ String debugViewTitle(De1Interface machine) =>
 
 /// Displays detailed information about a machine.
 class De1DebugView extends StatefulWidget {
-  const De1DebugView({
-    super.key,
-    required this.machine,
-  });
+  const De1DebugView({super.key, required this.machine});
 
   static const routeName = '/debug_details';
 
@@ -44,16 +41,12 @@ class _De1DebugViewState extends State<De1DebugView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          debugViewTitle(widget.machine),
-        ),
+        title: Text(debugViewTitle(widget.machine)),
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          _buildStateDropdown(context),
-        ],
+        actions: [_buildStateDropdown(context)],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -78,12 +71,7 @@ class _De1DebugViewState extends State<De1DebugView> {
         }
       },
       options: MachineState.values
-          .map(
-            (s) => ShadOption<MachineState>(
-              value: s,
-              child: Text(s.name),
-            ),
-          )
+          .map((s) => ShadOption<MachineState>(value: s, child: Text(s.name)))
           .toList(),
     );
   }
@@ -161,10 +149,7 @@ class _De1DebugViewState extends State<De1DebugView> {
               ],
             );
           }
-          return Text(
-            'Waiting for data',
-            style: theme.textTheme.muted,
-          );
+          return Text('Waiting for data', style: theme.textTheme.muted);
         },
       ),
     );

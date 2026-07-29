@@ -675,9 +675,7 @@ class PluginManager {
       );
       _completeDecentProxyRequest(pluginId, requestId, response);
     } catch (e) {
-      _completeDecentProxyRequest(pluginId, requestId, {
-        'error': e.toString(),
-      });
+      _completeDecentProxyRequest(pluginId, requestId, {'error': e.toString()});
     }
   }
 

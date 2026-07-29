@@ -1,4 +1,3 @@
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
@@ -6,13 +5,21 @@ import 'package:reaprime/src/models/device/machine.dart';
 
 Profile _flowProfile() {
   return Profile(
-    version: '1.0', title: 'flow-test', notes: '', author: 'test',
+    version: '1.0',
+    title: 'flow-test',
+    notes: '',
+    author: 'test',
     beverageType: BeverageType.espresso,
-    targetVolumeCountStart: 0, tankTemperature: 94.0,
+    targetVolumeCountStart: 0,
+    tankTemperature: 94.0,
     steps: [
       ProfileStepFlow(
-        name: 'pour', flow: 3.0, seconds: 5, temperature: 94,
-        sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+        name: 'pour',
+        flow: 3.0,
+        seconds: 5,
+        temperature: 94,
+        sensor: TemperatureSensor.coffee,
+        transition: TransitionType.fast,
         volume: 0,
       ),
     ],
@@ -21,13 +28,21 @@ Profile _flowProfile() {
 
 Profile _pressureProfile() {
   return Profile(
-    version: '1.0', title: 'pressure-test', notes: '', author: 'test',
+    version: '1.0',
+    title: 'pressure-test',
+    notes: '',
+    author: 'test',
     beverageType: BeverageType.espresso,
-    targetVolumeCountStart: 0, tankTemperature: 94.0,
+    targetVolumeCountStart: 0,
+    tankTemperature: 94.0,
     steps: [
       ProfileStepPressure(
-        name: 'pour', pressure: 6.0, seconds: 5, temperature: 94,
-        sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+        name: 'pour',
+        pressure: 6.0,
+        seconds: 5,
+        temperature: 94,
+        sensor: TemperatureSensor.coffee,
+        transition: TransitionType.fast,
         volume: 0,
       ),
     ],
@@ -62,10 +77,16 @@ void main() {
       final firstFlow = snapshots.first.flow;
       final lastFlow = snapshots.last.flow;
 
-      expect(lastFlow, greaterThan(firstFlow),
-          reason: 'Flow should increase toward target');
-      expect(lastFlow, lessThanOrEqualTo(3.0),
-          reason: 'Flow should not exceed target');
+      expect(
+        lastFlow,
+        greaterThan(firstFlow),
+        reason: 'Flow should increase toward target',
+      );
+      expect(
+        lastFlow,
+        lessThanOrEqualTo(3.0),
+        reason: 'Flow should not exceed target',
+      );
     });
 
     test('flow-step: pressure builds as flow increases (coupling)', () async {
@@ -83,10 +104,16 @@ void main() {
       final flows = snapshots.map((s) => s.flow).toList();
 
       // Both should show upward trend
-      expect(pressures.last, greaterThan(pressures.first),
-          reason: 'Pressure should build as flow pushes against puck');
-      expect(flows.last, greaterThan(flows.first),
-          reason: 'Flow should rise toward target');
+      expect(
+        pressures.last,
+        greaterThan(pressures.first),
+        reason: 'Pressure should build as flow pushes against puck',
+      );
+      expect(
+        flows.last,
+        greaterThan(flows.first),
+        reason: 'Flow should rise toward target',
+      );
     });
 
     test('pressure-step: does not exceed pressure target', () async {
@@ -100,8 +127,11 @@ void main() {
           .timeout(const Duration(seconds: 5));
 
       for (final s in snapshots) {
-        expect(s.pressure, lessThanOrEqualTo(6.5),
-            reason: 'Pressure should not significantly exceed step target of 6.0');
+        expect(
+          s.pressure,
+          lessThanOrEqualTo(6.5),
+          reason: 'Pressure should not significantly exceed step target of 6.0',
+        );
       }
     });
 
@@ -110,8 +140,9 @@ void main() {
       await machine.requestState(MachineState.espresso);
 
       await Future.delayed(const Duration(milliseconds: 600));
-      final snapshot = await machine.currentSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final snapshot = await machine.currentSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
 
       // targetPressure should be set to the pressure step's target
       expect(snapshot.targetPressure, closeTo(6.0, 0.1));
@@ -122,8 +153,9 @@ void main() {
       await machine.requestState(MachineState.espresso);
 
       await Future.delayed(const Duration(milliseconds: 600));
-      final snapshot = await machine.currentSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final snapshot = await machine.currentSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
 
       expect(snapshot.targetFlow, closeTo(3.0, 0.1));
     });

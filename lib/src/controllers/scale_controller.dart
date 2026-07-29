@@ -91,9 +91,7 @@ class ScaleController {
       _scaleSnapshot?.cancel();
       _scaleSnapshot = null;
       _connectionController.add(ConnectionState.disconnected);
-      throw StateError(
-        'Scale failed to connect (state: ${state.name})',
-      );
+      throw StateError('Scale failed to connect (state: ${state.name})');
     }
     // Subscribe to connection state AFTER onConnect succeeds, so we don't
     // get poisoned by a BehaviorSubject replaying a stale 'disconnected'

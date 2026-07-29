@@ -304,9 +304,7 @@ void main(List<String> args) async {
   settingsController.telemetryService = telemetryService;
 
   // Initialize profile storage and controller
-  final profileController = ProfileController(
-    storage: profileStorage,
-  );
+  final profileController = ProfileController(storage: profileStorage);
   await profileController.initialize();
 
   final deviceController = DeviceController(services);
@@ -714,9 +712,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       SnackBar(
         content: Row(
           children: [
-            Expanded(
-              child: Text('Update: ${updateInfo.version}'),
-            ),
+            Expanded(child: Text('Update: ${updateInfo.version}')),
             SnackBarAction(
               label: 'View',
               onPressed: () {
@@ -768,9 +764,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
             children: [
               Text('Version ${info.version} is available'),
               const SizedBox(height: 8),
-              Text(
-                'Current version: ${BuildInfo.version}',
-              ),
+              Text('Current version: ${BuildInfo.version}'),
               if (info.releaseNotes.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 const Text(
@@ -780,9 +774,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
                 const SizedBox(height: 8),
                 Container(
                   constraints: const BoxConstraints(maxHeight: 200),
-                  child: SingleChildScrollView(
-                    child: Text(info.releaseNotes),
-                  ),
+                  child: SingleChildScrollView(child: Text(info.releaseNotes)),
                 ),
               ],
             ],
@@ -807,18 +799,13 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   }
 
   /// Show a download+install dialog that starts downloading immediately.
-  void _showAndroidDownloadDialog(
-    BuildContext context,
-    UpdateInfo updateInfo,
-  ) {
+  void _showAndroidDownloadDialog(BuildContext context, UpdateInfo updateInfo) {
     final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _AndroidQuickUpdateDialog(
-        updateInfo: updateInfo,
-        updater: updater,
-      ),
+      builder: (ctx) =>
+          _AndroidQuickUpdateDialog(updateInfo: updateInfo, updater: updater),
     );
   }
 
@@ -949,10 +936,7 @@ class _AppRootState extends State<AppRoot> {
     // (which change the key). Otherwise, the new PlatformMenuBar tries to
     // acquire the static _lockedContext lock before the old one is disposed.
     if (Platform.isMacOS) {
-      return PlatformMenuBar(
-        menus: _buildPlatformMenus(),
-        child: child,
-      );
+      return PlatformMenuBar(menus: _buildPlatformMenus(), child: child);
     }
     // Windows/Linux have no native menu bar, so mirror the macOS simulated-
     // WebView menu shortcuts with Ctrl+Alt+<digit> bindings (Cmd→Ctrl) when the
@@ -1010,10 +994,7 @@ class _AppRootState extends State<AppRoot> {
         menus: [
           PlatformMenuItemGroup(
             members: [
-              PlatformMenuItem(
-                label: 'About Decent',
-                onSelected: null,
-              ),
+              PlatformMenuItem(label: 'About Decent', onSelected: null),
             ],
           ),
           PlatformMenuItemGroup(

@@ -76,10 +76,7 @@ void main() {
       'invalid timeout does not prevent another setting from importing',
       () async {
         final result = await section.import({
-          'settings': {
-            'sleepTimeoutMinutes': 'bad',
-            'blockOnNoScale': true,
-          },
+          'settings': {'sleepTimeoutMinutes': 'bad', 'blockOnNoScale': true},
         }, ConflictStrategy.overwrite);
 
         expect(result.errors, isNotEmpty);

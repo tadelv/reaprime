@@ -68,9 +68,7 @@ class FakeConnectionManager extends ConnectionManager {
   /// Sets or clears the `error` field on the current status. Pass `null`
   /// to clear.
   void setError(ConnectionError? err) {
-    _statusOverride.add(
-      _statusOverride.value.copyWith(error: () => err),
-    );
+    _statusOverride.add(_statusOverride.value.copyWith(error: () => err));
   }
 
   @override

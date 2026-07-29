@@ -13,9 +13,10 @@ import 'helpers/mock_settings_service.dart';
 class _NoopUpdater extends AndroidUpdater {
   _NoopUpdater() : super(owner: 'tadelv', repo: 'reaprime');
   @override
-  Future<UpdateInfo?> checkForUpdate(String v,
-          {UpdateChannel channel = UpdateChannel.stable}) async =>
-      null;
+  Future<UpdateInfo?> checkForUpdate(
+    String v, {
+    UpdateChannel channel = UpdateChannel.stable,
+  }) async => null;
   @override
   void dispose() {}
 }

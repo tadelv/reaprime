@@ -76,10 +76,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Colors.red),
-                ),
+                child: Text(_error!, style: TextStyle(color: Colors.red)),
               ),
             ],
             if (_isDownloading) ...[
@@ -161,7 +158,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
         }
       } else {
         setState(() {
-          _error = 'Installation permission required. Please grant permission and try again.';
+          _error =
+              'Installation permission required. Please grant permission and try again.';
           _isInstalling = false;
         });
       }

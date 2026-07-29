@@ -17,15 +17,16 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
 
   /// Get a single shot by ID (includes measurements).
   Future<ShotRecord?> getShotById(String id) {
-    return (select(shotRecords)..where((s) => s.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      shotRecords,
+    )..where((s) => s.id.equals(id))).getSingleOrNull();
   }
 
   /// Get all shots ordered by timestamp descending (includes measurements).
   Future<List<ShotRecord>> getAllShots() {
-    return (select(shotRecords)
-          ..orderBy([(s) => OrderingTerm.desc(s.timestamp)]))
-        .get();
+    return (select(
+      shotRecords,
+    )..orderBy([(s) => OrderingTerm.desc(s.timestamp)])).get();
   }
 
   /// Paginated shot list without measurements for list views.
@@ -69,18 +70,22 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     }
     if (search != null && search.isNotEmpty) {
       final pattern = '%$search%';
-      query.where((s) =>
-          s.coffeeName.like(pattern) |
-          s.coffeeRoaster.like(pattern) |
-          s.profileTitle.like(pattern) |
-          s.grinderModel.like(pattern) |
-          s.espressoNotes.like(pattern));
+      query.where(
+        (s) =>
+            s.coffeeName.like(pattern) |
+            s.coffeeRoaster.like(pattern) |
+            s.profileTitle.like(pattern) |
+            s.grinderModel.like(pattern) |
+            s.espressoNotes.like(pattern),
+      );
     }
 
     query
-      ..orderBy([(s) => ascending
-          ? OrderingTerm.asc(s.timestamp)
-          : OrderingTerm.desc(s.timestamp)])
+      ..orderBy([
+        (s) => ascending
+            ? OrderingTerm.asc(s.timestamp)
+            : OrderingTerm.desc(s.timestamp),
+      ])
       ..limit(limit, offset: offset);
 
     return query.get();
@@ -139,9 +144,9 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
 
   /// Watch all shots (for reactive UI).
   Stream<List<ShotRecord>> watchAllShots() {
-    return (select(shotRecords)
-          ..orderBy([(s) => OrderingTerm.desc(s.timestamp)]))
-        .watch();
+    return (select(
+      shotRecords,
+    )..orderBy([(s) => OrderingTerm.desc(s.timestamp)])).watch();
   }
 
   Future<void> insertShot(ShotRecordsCompanion shot) {
@@ -153,8 +158,9 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
   }
 
   Future<void> updateShot(ShotRecordsCompanion shot) {
-    return (update(shotRecords)..where((s) => s.id.equals(shot.id.value)))
-        .write(shot);
+    return (update(
+      shotRecords,
+    )..where((s) => s.id.equals(shot.id.value))).write(shot);
   }
 
   Future<void> deleteShot(String id) {

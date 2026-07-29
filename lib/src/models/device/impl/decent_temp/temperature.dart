@@ -121,9 +121,7 @@ class DecentTemp implements Sensor {
     b.setInt8(0, data[1]);
     b.setInt8(1, data[0]);
 
-    _streamSubject.add(
-      {'temperature': b.getInt16(0) / 100},
-    );
+    _streamSubject.add({'temperature': b.getInt16(0) / 100});
   }
 
   @override

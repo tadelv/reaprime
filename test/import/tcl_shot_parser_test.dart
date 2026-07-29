@@ -121,10 +121,7 @@ void main() {
 
     group('shot annotations', () {
       test('extracts actual dose weight', () {
-        expect(
-          result.shot.annotations?.actualDoseWeight,
-          closeTo(18.5, 0.001),
-        );
+        expect(result.shot.annotations?.actualDoseWeight, closeTo(18.5, 0.001));
       });
 
       test('extracts actual yield', () {
@@ -153,26 +150,29 @@ void main() {
 
     group('profile', () {
       test('creates minimal profile with title from settings', () {
-        expect(
-          result.shot.workflow.profile.title,
-          equals('Default'),
-        );
+        expect(result.shot.workflow.profile.title, equals('Default'));
       });
 
       test('profile has empty steps list', () {
         expect(result.shot.workflow.profile.steps, isEmpty);
       });
 
-      test('profile target weight is null when final_desired_shot_weight absent', () {
-        expect(result.shot.workflow.profile.targetWeight, isNull);
-      });
+      test(
+        'profile target weight is null when final_desired_shot_weight absent',
+        () {
+          expect(result.shot.workflow.profile.targetWeight, isNull);
+        },
+      );
 
-      test('target yield falls back to actual yield when no target available', () {
-        expect(
-          result.shot.workflow.context?.targetYield,
-          closeTo(38.0, 0.001),
-        );
-      });
+      test(
+        'target yield falls back to actual yield when no target available',
+        () {
+          expect(
+            result.shot.workflow.context?.targetYield,
+            closeTo(38.0, 0.001),
+          );
+        },
+      );
     });
 
     group('mismatched array lengths', () {

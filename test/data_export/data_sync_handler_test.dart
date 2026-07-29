@@ -63,9 +63,7 @@ void main() {
   });
 
   Handler buildSyncHandler(http.Client client) {
-    final exportHandler = DataExportHandler(
-      sections: [profileSection],
-    );
+    final exportHandler = DataExportHandler(sections: [profileSection]);
     final syncHandler = DataSyncHandler(
       exportHandler: exportHandler,
       httpClient: client,
@@ -90,7 +88,8 @@ void main() {
     group('validation', () {
       test('returns 400 when target is missing', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
+          (_) async => http.Response('', 200),
+        );
         final handler = buildSyncHandler(client);
 
         final response = await sendSync(handler, {'mode': 'pull'});
@@ -102,7 +101,8 @@ void main() {
 
       test('returns 400 when mode is missing', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
+          (_) async => http.Response('', 200),
+        );
         final handler = buildSyncHandler(client);
 
         final response = await sendSync(handler, {
@@ -116,7 +116,8 @@ void main() {
 
       test('returns 400 for invalid target URL', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
+          (_) async => http.Response('', 200),
+        );
         final handler = buildSyncHandler(client);
 
         final response = await sendSync(handler, {
@@ -131,7 +132,8 @@ void main() {
 
       test('returns 400 for invalid mode', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
+          (_) async => http.Response('', 200),
+        );
         final handler = buildSyncHandler(client);
 
         final response = await sendSync(handler, {
@@ -146,7 +148,8 @@ void main() {
 
       test('returns 400 for invalid onConflict value', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
+          (_) async => http.Response('', 200),
+        );
         final handler = buildSyncHandler(client);
 
         final response = await sendSync(handler, {
@@ -162,7 +165,8 @@ void main() {
 
       test('returns 400 for invalid JSON body', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
+          (_) async => http.Response('', 200),
+        );
         final exportHandler = DataExportHandler(sections: [profileSection]);
         final syncHandler = DataSyncHandler(
           exportHandler: exportHandler,
@@ -190,9 +194,11 @@ void main() {
       test('pulls data from target and imports locally', () async {
         final targetZip = buildZip({
           'metadata.json': {'formatVersion': 1, 'platform': 'android'},
-          'profiles.json': {'profiles': [
-            {'id': 'remote1', 'name': 'Remote Profile'}
-          ]},
+          'profiles.json': {
+            'profiles': [
+              {'id': 'remote1', 'name': 'Remote Profile'},
+            ],
+          },
         });
 
         final client = http_testing.MockClient((request) async {
@@ -223,7 +229,8 @@ void main() {
         });
 
         final client = http_testing.MockClient(
-            (_) async => http.Response.bytes(targetZip, 200));
+          (_) async => http.Response.bytes(targetZip, 200),
+        );
 
         final handler = buildSyncHandler(client);
         await sendSync(handler, {
@@ -241,7 +248,8 @@ void main() {
         });
 
         final client = http_testing.MockClient(
-            (_) async => http.Response.bytes(targetZip, 200));
+          (_) async => http.Response.bytes(targetZip, 200),
+        );
 
         final handler = buildSyncHandler(client);
         await sendSync(handler, {
@@ -255,7 +263,8 @@ void main() {
 
       test('pull returns 502 when target returns error', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('Server Error', 500));
+          (_) async => http.Response('Server Error', 500),
+        );
 
         final handler = buildSyncHandler(client);
         final response = await sendSync(handler, {
@@ -271,7 +280,8 @@ void main() {
 
       test('pull returns 502 when target is unreachable', () async {
         final client = http_testing.MockClient(
-            (_) => throw http.ClientException('Connection refused'));
+          (_) => throw http.ClientException('Connection refused'),
+        );
 
         final handler = buildSyncHandler(client);
         final response = await sendSync(handler, {
@@ -294,10 +304,7 @@ void main() {
           capturedUri = request.url;
           capturedBody = request.bodyBytes;
           expect(request.method, 'POST');
-          return http.Response(
-            '{"profiles":{"imported":1,"skipped":0}}',
-            200,
-          );
+          return http.Response('{"profiles":{"imported":1,"skipped":0}}', 200);
         });
 
         final handler = buildSyncHandler(client);
@@ -335,13 +342,13 @@ void main() {
           'mode': 'push',
         });
 
-        expect(capturedUri.toString(),
-            contains('onConflict=skip'));
+        expect(capturedUri.toString(), contains('onConflict=skip'));
       });
 
       test('push returns 502 when target returns error', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('Server Error', 500));
+          (_) async => http.Response('Server Error', 500),
+        );
 
         final handler = buildSyncHandler(client);
         final response = await sendSync(handler, {
@@ -357,7 +364,8 @@ void main() {
 
       test('push returns 502 when target is unreachable', () async {
         final client = http_testing.MockClient(
-            (_) => throw http.ClientException('Connection refused'));
+          (_) => throw http.ClientException('Connection refused'),
+        );
 
         final handler = buildSyncHandler(client);
         final response = await sendSync(handler, {
@@ -447,7 +455,8 @@ void main() {
 
       test('returns 502 when both pull and push fail', () async {
         final client = http_testing.MockClient(
-            (_) async => http.Response('Server Error', 500));
+          (_) async => http.Response('Server Error', 500),
+        );
 
         final handler = buildSyncHandler(client);
         final response = await sendSync(handler, {

@@ -6,10 +6,7 @@ import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
 
-Workflow _makeWorkflow({
-  String id = 'wf-1',
-  String name = 'Test Workflow',
-}) {
+Workflow _makeWorkflow({String id = 'wf-1', String name = 'Test Workflow'}) {
   return Workflow(
     id: id,
     name: name,
@@ -110,8 +107,7 @@ void main() {
     });
 
     test('returns error for invalid data', () async {
-      final result =
-          await section.import('not a map', ConflictStrategy.skip);
+      final result = await section.import('not a map', ConflictStrategy.skip);
 
       expect(result.imported, equals(0));
       expect(result.errors, hasLength(1));
@@ -119,10 +115,9 @@ void main() {
     });
 
     test('returns error for malformed workflow JSON', () async {
-      final result = await section.import(
-        <String, dynamic>{'garbage': true},
-        ConflictStrategy.skip,
-      );
+      final result = await section.import(<String, dynamic>{
+        'garbage': true,
+      }, ConflictStrategy.skip);
 
       expect(result.imported, equals(0));
       expect(result.errors, hasLength(1));

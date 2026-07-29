@@ -1074,9 +1074,7 @@ void main() {
         expect(controller.keepAwakeUntil, isNull);
 
         settingsController.setWakeSchedules(
-          WakeSchedule.serializeList([
-            schedule.copyWith(keepAwakeFor: 120),
-          ]),
+          WakeSchedule.serializeList([schedule.copyWith(keepAwakeFor: 120)]),
         );
         async.flushMicrotasks();
 

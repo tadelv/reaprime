@@ -25,7 +25,8 @@ class _TrackingOnboardingController extends OnboardingController {
   int advanceCallCount = 0;
 
   _TrackingOnboardingController()
-      : super(steps: [
+    : super(
+        steps: [
           OnboardingStep(
             id: 'scan',
             shouldShow: () async => true,
@@ -36,7 +37,8 @@ class _TrackingOnboardingController extends OnboardingController {
             shouldShow: () async => true,
             builder: (_) => const SizedBox(),
           ),
-        ]);
+        ],
+      );
 
   @override
   void advance() {
@@ -57,8 +59,7 @@ void main() {
 
   setUp(() async {
     mockDeviceScanner = MockDeviceScanner();
-    mockDe1Controller =
-        MockDe1Controller(controller: DeviceController([]));
+    mockDe1Controller = MockDe1Controller(controller: DeviceController([]));
     mockScaleController = MockScaleController();
     settingsController = SettingsController(MockSettingsService());
     await settingsController.loadSettings();
@@ -106,8 +107,9 @@ void main() {
       expect(find.byType(ShadProgress), findsOneWidget);
     });
 
-    testWidgets('does not show "taking too long" button initially',
-        (tester) async {
+    testWidgets('does not show "taking too long" button initially', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -119,8 +121,9 @@ void main() {
       expect(animatedOpacity.opacity, 0.0);
     });
 
-    testWidgets('shows "taking too long" button after 8 seconds',
-        (tester) async {
+    testWidgets('shows "taking too long" button after 8 seconds', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -157,8 +160,9 @@ void main() {
       expect(find.text('Continue to Dashboard'), findsOneWidget);
     });
 
-    testWidgets('Re-start scan uses the scan-first connection path',
-        (tester) async {
+    testWidgets('Re-start scan uses the scan-first connection path', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
       await tester.pump(ScanStepView.scanTooLongThreshold);
@@ -196,8 +200,9 @@ void main() {
   });
 
   group('connecting phase', () {
-    testWidgets('shows "Connecting to your machine..." for connectingMachine',
-        (tester) async {
+    testWidgets('shows "Connecting to your machine..." for connectingMachine', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -210,8 +215,9 @@ void main() {
       expect(find.byType(ShadProgress), findsOneWidget);
     });
 
-    testWidgets('shows "Connecting to your scale..." for connectingScale',
-        (tester) async {
+    testWidgets('shows "Connecting to your scale..." for connectingScale', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -225,8 +231,9 @@ void main() {
   });
 
   group('ready phase', () {
-    testWidgets('calls onboardingController.advance() on ready',
-        (tester) async {
+    testWidgets('calls onboardingController.advance() on ready', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -238,8 +245,9 @@ void main() {
       expect(onboardingController.advanceCallCount, 1);
     });
 
-    testWidgets('only advances once even if ready emitted multiple times',
-        (tester) async {
+    testWidgets('only advances once even if ready emitted multiple times', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -258,8 +266,9 @@ void main() {
   });
 
   group('error states', () {
-    testWidgets('shows error view with retry on connection error',
-        (tester) async {
+    testWidgets('shows error view with retry on connection error', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -307,19 +316,22 @@ void main() {
   });
 
   group('no devices found', () {
-    testWidgets('shows no devices view when idle with no machines',
-        (tester) async {
+    testWidgets('shows no devices view when idle with no machines', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      mockConnectionManager.setLastScanReport(const ScanReport(
-        totalBleDevicesSeen: 0,
-        matchedDevices: [],
-        scanDuration: Duration(seconds: 5),
-        adapterStateAtStart: AdapterState.poweredOn,
-        adapterStateAtEnd: AdapterState.poweredOn,
-        scanTerminationReason: ScanTerminationReason.completed,
-      ));
+      mockConnectionManager.setLastScanReport(
+        const ScanReport(
+          totalBleDevicesSeen: 0,
+          matchedDevices: [],
+          scanDuration: Duration(seconds: 5),
+          adapterStateAtStart: AdapterState.poweredOn,
+          adapterStateAtEnd: AdapterState.poweredOn,
+          scanTerminationReason: ScanTerminationReason.completed,
+        ),
+      );
 
       mockConnectionManager.emitStatus(
         const ConnectionStatus(phase: ConnectionPhase.idle),
@@ -335,14 +347,16 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      mockConnectionManager.setLastScanReport(const ScanReport(
-        totalBleDevicesSeen: 0,
-        matchedDevices: [],
-        scanDuration: Duration(seconds: 5),
-        adapterStateAtStart: AdapterState.poweredOn,
-        adapterStateAtEnd: AdapterState.poweredOn,
-        scanTerminationReason: ScanTerminationReason.completed,
-      ));
+      mockConnectionManager.setLastScanReport(
+        const ScanReport(
+          totalBleDevicesSeen: 0,
+          matchedDevices: [],
+          scanDuration: Duration(seconds: 5),
+          adapterStateAtStart: AdapterState.poweredOn,
+          adapterStateAtEnd: AdapterState.poweredOn,
+          scanTerminationReason: ScanTerminationReason.completed,
+        ),
+      );
 
       mockConnectionManager.emitStatus(
         const ConnectionStatus(phase: ConnectionPhase.idle),
@@ -357,8 +371,9 @@ void main() {
   });
 
   group('connection status authority', () {
-    testWidgets('guardian adapter events do not create independent errors',
-        (tester) async {
+    testWidgets('guardian adapter events do not create independent errors', (
+      tester,
+    ) async {
       mockBleService.setAdapterState(AdapterState.poweredOn);
       await tester.runAsync(() => Future.delayed(Duration.zero));
       await tester.pumpWidget(buildSubject());
@@ -371,8 +386,9 @@ void main() {
       expect(find.text('Bluetooth Unavailable'), findsNothing);
     });
 
-    testWidgets('connection status shows and clears the adapter condition',
-        (tester) async {
+    testWidgets('connection status shows and clears the adapter condition', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
       final error = ConnectionError(
@@ -382,19 +398,18 @@ void main() {
         message: 'Bluetooth is turned off.',
       );
 
-      mockConnectionManager.emitStatus(ConnectionStatus(
-        error: error,
-        conditions: [
-          TransportCondition(
-            transportType: TransportType.ble,
-            affectedDeviceTypes: const {
-              DeviceType.machine,
-              DeviceType.scale,
-            },
-            connectionError: error,
-          ),
-        ],
-      ));
+      mockConnectionManager.emitStatus(
+        ConnectionStatus(
+          error: error,
+          conditions: [
+            TransportCondition(
+              transportType: TransportType.ble,
+              affectedDeviceTypes: const {DeviceType.machine, DeviceType.scale},
+              connectionError: error,
+            ),
+          ],
+        ),
+      );
       await tester.pump();
       expect(find.text('Bluetooth Unavailable'), findsOneWidget);
 
@@ -438,8 +453,7 @@ void main() {
 
     setUp(() {
       deviceDiscoveryService = MockDeviceDiscoveryService();
-      deviceControllerWithDevices =
-          DeviceController([deviceDiscoveryService]);
+      deviceControllerWithDevices = DeviceController([deviceDiscoveryService]);
     });
 
     tearDown(() {
@@ -447,71 +461,75 @@ void main() {
     });
 
     testWidgets(
-        'shows preferred machine not found message when preferred is set but not among found machines',
-        (tester) async {
-      // Configure a preferred machine ID that won't match found devices
-      await settingsController.setPreferredMachineId('preferred-123');
+      'shows preferred machine not found message when preferred is set but not among found machines',
+      (tester) async {
+        // Configure a preferred machine ID that won't match found devices
+        await settingsController.setPreferredMachineId('preferred-123');
 
-      final differentMachine = FakeDe1(deviceId: 'other-456');
+        final differentMachine = FakeDe1(deviceId: 'other-456');
 
-      // Add the device to the discovery service so DeviceSelectionWidget sees it
-      deviceDiscoveryService.addDevice(differentMachine);
-      await deviceControllerWithDevices.initialize();
-      await tester.pump();
+        // Add the device to the discovery service so DeviceSelectionWidget sees it
+        deviceDiscoveryService.addDevice(differentMachine);
+        await deviceControllerWithDevices.initialize();
+        await tester.pump();
 
-      await tester.pumpWidget(buildSubjectWithDevices());
-      await tester.pump();
+        await tester.pumpWidget(buildSubjectWithDevices());
+        await tester.pump();
 
-      // Emit status with machine picker ambiguity and a different machine
-      mockConnectionManager.emitStatus(
-        ConnectionStatus(
-          phase: ConnectionPhase.idle,
-          foundMachines: [differentMachine],
-          pendingAmbiguity: AmbiguityReason.machinePicker,
-        ),
-      );
-      await tester.pump();
+        // Emit status with machine picker ambiguity and a different machine
+        mockConnectionManager.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            foundMachines: [differentMachine],
+            pendingAmbiguity: AmbiguityReason.machinePicker,
+          ),
+        );
+        await tester.pump();
 
-      expect(
-        find.text(
-            "Your preferred machine wasn't found, but we discovered these:"),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets(
-        'shows normal header when preferred machine is among found machines',
-        (tester) async {
-      final machine = FakeDe1(deviceId: 'preferred-123');
-      await settingsController.setPreferredMachineId('preferred-123');
-
-      deviceDiscoveryService.addDevice(machine);
-      await deviceControllerWithDevices.initialize();
-      await tester.pump();
-
-      await tester.pumpWidget(buildSubjectWithDevices());
-      await tester.pump();
-
-      mockConnectionManager.emitStatus(
-        ConnectionStatus(
-          phase: ConnectionPhase.idle,
-          foundMachines: [machine],
-          pendingAmbiguity: AmbiguityReason.machinePicker,
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text('Machines'), findsOneWidget);
-      expect(
-        find.text(
-            "Your preferred machine wasn't found, but we discovered these:"),
-        findsNothing,
-      );
-    });
+        expect(
+          find.text(
+            "Your preferred machine wasn't found, but we discovered these:",
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets(
-        'shows normal header when no preferred machine is configured',
-        (tester) async {
+      'shows normal header when preferred machine is among found machines',
+      (tester) async {
+        final machine = FakeDe1(deviceId: 'preferred-123');
+        await settingsController.setPreferredMachineId('preferred-123');
+
+        deviceDiscoveryService.addDevice(machine);
+        await deviceControllerWithDevices.initialize();
+        await tester.pump();
+
+        await tester.pumpWidget(buildSubjectWithDevices());
+        await tester.pump();
+
+        mockConnectionManager.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            foundMachines: [machine],
+            pendingAmbiguity: AmbiguityReason.machinePicker,
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Machines'), findsOneWidget);
+        expect(
+          find.text(
+            "Your preferred machine wasn't found, but we discovered these:",
+          ),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('shows normal header when no preferred machine is configured', (
+      tester,
+    ) async {
       // No preferred machine set (default)
       final machine = FakeDe1(deviceId: 'some-machine');
 
@@ -535,66 +553,72 @@ void main() {
     });
 
     testWidgets(
-        'shows preferred scale not found message when preferred is set but not among found scales',
-        (tester) async {
-      await settingsController.setPreferredScaleId('preferred-scale-123');
+      'shows preferred scale not found message when preferred is set but not among found scales',
+      (tester) async {
+        await settingsController.setPreferredScaleId('preferred-scale-123');
 
-      final differentScale =
-          TestScale(deviceId: 'other-scale-456', name: 'Other Scale');
-      final machine = FakeDe1(deviceId: 'machine-1');
+        final differentScale = TestScale(
+          deviceId: 'other-scale-456',
+          name: 'Other Scale',
+        );
+        final machine = FakeDe1(deviceId: 'machine-1');
 
-      deviceDiscoveryService.addDevice(machine);
-      deviceDiscoveryService.addDevice(differentScale);
-      await deviceControllerWithDevices.initialize();
-      await tester.pump();
+        deviceDiscoveryService.addDevice(machine);
+        deviceDiscoveryService.addDevice(differentScale);
+        await deviceControllerWithDevices.initialize();
+        await tester.pump();
 
-      await tester.pumpWidget(buildSubjectWithDevices());
-      await tester.pump();
+        await tester.pumpWidget(buildSubjectWithDevices());
+        await tester.pump();
 
-      mockConnectionManager.emitStatus(
-        ConnectionStatus(
-          phase: ConnectionPhase.idle,
-          foundMachines: [machine],
-          foundScales: [differentScale],
-          pendingAmbiguity: AmbiguityReason.scalePicker,
-        ),
-      );
-      await tester.pump();
+        mockConnectionManager.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            foundMachines: [machine],
+            foundScales: [differentScale],
+            pendingAmbiguity: AmbiguityReason.scalePicker,
+          ),
+        );
+        await tester.pump();
 
-      expect(
-        find.text(
-            "Your preferred scale wasn't found, but we discovered these:"),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text(
+            "Your preferred scale wasn't found, but we discovered these:",
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('directConnect', () {
     testWidgets(
-        'ScanFlowView receives directConnect: true when set on ScanStepView',
-        (tester) async {
-      await tester.pumpWidget(
-        ShadApp(
-          home: Scaffold(
-            body: ScanStepView(
-              onboardingController: onboardingController,
-              connectionManager: mockConnectionManager,
-              deviceController: DeviceController([]),
-              settingsController: settingsController,
-              scanStateGuardian: scanStateGuardian,
-              directConnect: true,
+      'ScanFlowView receives directConnect: true when set on ScanStepView',
+      (tester) async {
+        await tester.pumpWidget(
+          ShadApp(
+            home: Scaffold(
+              body: ScanStepView(
+                onboardingController: onboardingController,
+                connectionManager: mockConnectionManager,
+                deviceController: DeviceController([]),
+                settingsController: settingsController,
+                scanStateGuardian: scanStateGuardian,
+                directConnect: true,
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      // Should still render the scan flow (no crash)
-      expect(find.byType(ShadProgress), findsOneWidget);
-    });
+        // Should still render the scan flow (no crash)
+        expect(find.byType(ShadProgress), findsOneWidget);
+      },
+    );
 
-    testWidgets('does not crash with directConnect: false (default)',
-        (tester) async {
+    testWidgets('does not crash with directConnect: false (default)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ShadApp(
           home: Scaffold(

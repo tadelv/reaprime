@@ -118,20 +118,25 @@ class MockConnectionManager extends ConnectionManager {
         suggestion: 'Try again.',
       );
       final currentMachines = _statusOverride.value.foundMachines;
-      final alternatives =
-          currentMachines.where((m) => m.deviceId != machine.deviceId).toList();
+      final alternatives = currentMachines
+          .where((m) => m.deviceId != machine.deviceId)
+          .toList();
       if (alternatives.isNotEmpty) {
-        _statusOverride.add(_statusOverride.value.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => AmbiguityReason.machinePicker,
-          error: () => error,
-        ));
+        _statusOverride.add(
+          _statusOverride.value.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+            error: () => error,
+          ),
+        );
       } else {
-        _statusOverride.add(_statusOverride.value.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => null,
-          error: () => error,
-        ));
+        _statusOverride.add(
+          _statusOverride.value.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => null,
+            error: () => error,
+          ),
+        );
       }
       throw Exception('connectMachine failed');
     }

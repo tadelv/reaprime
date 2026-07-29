@@ -20,24 +20,22 @@ import '../models/device/machine.dart';
 import '../models/device/impl/de1/de1.models.dart';
 import 'package:logging/logging.dart' as logging;
 
-typedef BleTransportFactory = BLETransport Function({
-  required BleDevice device,
-  required Future<void> Function() stopScan,
-  required bool requestLargeMtuNonAndroid,
-});
+typedef BleTransportFactory =
+    BLETransport Function({
+      required BleDevice device,
+      required Future<void> Function() stopScan,
+      required bool requestLargeMtuNonAndroid,
+    });
 
 class UniversalBleDiscoveryService extends BleDiscoveryService
     implements DeviceWatchCapable {
-    UniversalBleDiscoveryService({
+  UniversalBleDiscoveryService({
     bool Function()? watchSupportGate,
     bool Function()? requestLargeMtuNonAndroid,
     BleTransportFactory? transportFactory,
-  }) : _watchSupportGate =
-           watchSupportGate ?? (() => Platform.isAndroid),
-       requestLargeMtuNonAndroid =
-           requestLargeMtuNonAndroid ?? (() => false),
-       _transportFactory =
-           transportFactory ?? _defaultTransportFactory;
+  }) : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid),
+       requestLargeMtuNonAndroid = requestLargeMtuNonAndroid ?? (() => false),
+       _transportFactory = transportFactory ?? _defaultTransportFactory;
 
   static BLETransport _defaultTransportFactory({
     required BleDevice device,
@@ -307,9 +305,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         _armWatchLiveness();
         return;
       }
-      log.warning(
-        'Watch scan died silently (isScanning=false); restarting',
-      );
+      log.warning('Watch scan died silently (isScanning=false); restarting');
       await _deactivateWatchScan(stopOsScan: false, context: 'liveness');
       await _restartWatchOrReportFailure('liveness restart');
     });

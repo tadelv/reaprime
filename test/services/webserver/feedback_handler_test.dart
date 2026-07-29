@@ -14,10 +14,7 @@ class _StubFeedbackService implements FeedbackService {
   final bool isConfigured;
   final FeedbackSubmissionResult Function(FeedbackRequest)? onSubmitted;
 
-  _StubFeedbackService({
-    this.isConfigured = true,
-    this.onSubmitted,
-  });
+  _StubFeedbackService({this.isConfigured = true, this.onSubmitted});
 
   @override
   Future<FeedbackSubmissionResult> submitFeedback(
@@ -54,13 +51,14 @@ void main() {
     handler = app.call;
   }
 
-  Future<Response> post(String path, Object body) async =>
-      await handler(Request(
-        'POST',
-        Uri.parse('http://localhost$path'),
-        body: jsonEncode(body),
-        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-      ));
+  Future<Response> post(String path, Object body) async => await handler(
+    Request(
+      'POST',
+      Uri.parse('http://localhost$path'),
+      body: jsonEncode(body),
+      headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+    ),
+  );
 
   group('POST /api/v1/feedback', () {
     test('returns 201 with issue URL and number on success', () async {
@@ -79,9 +77,7 @@ void main() {
 
     test('returns 400 when description is missing', () async {
       await wireWith();
-      final res = await post('/api/v1/feedback', {
-        'type': 'bug',
-      });
+      final res = await post('/api/v1/feedback', {'type': 'bug'});
 
       expect(res.statusCode, 400);
       final body = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
@@ -113,9 +109,11 @@ void main() {
     });
 
     test('returns 500 when submission fails', () async {
-      await wireWith(onSubmitted: (_) {
-        return FeedbackSubmissionResult.failed('GitHub API error');
-      });
+      await wireWith(
+        onSubmitted: (_) {
+          return FeedbackSubmissionResult.failed('GitHub API error');
+        },
+      );
       final res = await post('/api/v1/feedback', {
         'description': 'Test bug report',
         'type': 'bug',

@@ -35,7 +35,10 @@ void main() {
     expect(caller, isNotNull);
     expect(caller!.id, 'api:laptop');
     expect(caller.scopes, contains(ProxyTokenService.scopeAccountProxy));
-    expect(caller.scopes, isNot(contains(ProxyTokenService.scopeAccountProxyWrite)));
+    expect(
+      caller.scopes,
+      isNot(contains(ProxyTokenService.scopeAccountProxyWrite)),
+    );
   });
 
   test('create with write:true adds the write scope', () async {
@@ -55,7 +58,10 @@ void main() {
   test('tokens lists created tokens but never the skin token', () async {
     await controller.create(label: 'laptop');
     expect(controller.tokens.map((t) => t.label), ['laptop']);
-    expect(controller.tokens.map((t) => t.token), isNot(contains(service.skinToken)));
+    expect(
+      controller.tokens.map((t) => t.token),
+      isNot(contains(service.skinToken)),
+    );
   });
 
   test('revoke removes from service and store', () async {
@@ -79,8 +85,10 @@ void main() {
 
     // Fresh service + controller, simulating a restart.
     final freshService = ProxyTokenService();
-    final freshController =
-        AccountTokensController(tokenService: freshService, store: store);
+    final freshController = AccountTokensController(
+      tokenService: freshService,
+      store: store,
+    );
     await freshController.initialize();
 
     expect(freshService.validate('persisted-tok')!.id, 'api:desktop');

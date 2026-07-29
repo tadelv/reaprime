@@ -1,11 +1,7 @@
 import 'package:logging/logging.dart';
 import 'plugin_manifest.dart';
 
-enum PluginRuntimeState {
-  loading,
-  running,
-  disposed,
-}
+enum PluginRuntimeState { loading, running, disposed }
 
 class PluginRuntime {
   final String pluginId;
@@ -14,10 +10,8 @@ class PluginRuntime {
 
   PluginRuntimeState state = PluginRuntimeState.loading;
 
-  PluginRuntime({
-    required this.pluginId,
-    required this.manifest,
-  }) : log = Logger("PluginRuntime::$pluginId");
+  PluginRuntime({required this.pluginId, required this.manifest})
+    : log = Logger("PluginRuntime::$pluginId");
 
   bool get isAlive => state == PluginRuntimeState.running;
 

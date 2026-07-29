@@ -10,10 +10,7 @@ import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 /// Displays a list of discovered devices grouped by type, with Inspect and
 /// Connect actions.
 class DebugItemListView extends StatelessWidget {
-  const DebugItemListView({
-    super.key,
-    required this.controller,
-  });
+  const DebugItemListView({super.key, required this.controller});
 
   static const routeName = '/debug';
 
@@ -41,9 +38,7 @@ class DebugItemListView extends StatelessWidget {
                     const Text('Debug Devices'),
                     if (devices.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      ShadBadge(
-                        child: Text('${devices.length}'),
-                      ),
+                      ShadBadge(child: Text('${devices.length}')),
                     ],
                   ],
                 ),
@@ -99,12 +94,13 @@ class DebugItemListView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.radar, size: 48, color: theme.colorScheme.mutedForeground),
-            const SizedBox(height: 16),
-            Text(
-              'No devices discovered',
-              style: theme.textTheme.p,
+            Icon(
+              LucideIcons.radar,
+              size: 48,
+              color: theme.colorScheme.mutedForeground,
             ),
+            const SizedBox(height: 16),
+            Text('No devices discovered', style: theme.textTheme.p),
             const SizedBox(height: 8),
             Text(
               'Tap Scan to search for nearby devices',
@@ -121,7 +117,11 @@ class DebugItemListView extends StatelessWidget {
     final machines = devices.whereType<De1Interface>().toList();
     final scales = devices.whereType<Scale>().toList();
     final sensors = devices
-        .where((d) => d.type != dev.DeviceType.machine && d.type != dev.DeviceType.scale)
+        .where(
+          (d) =>
+              d.type != dev.DeviceType.machine &&
+              d.type != dev.DeviceType.scale,
+        )
         .toList();
 
     return ListView(
@@ -136,7 +136,9 @@ class DebugItemListView extends StatelessWidget {
         ],
         if (sensors.isNotEmpty) ...[
           _buildSectionHeader(context, 'Sensors'),
-          ...sensors.map((s) => _buildDeviceRow(context, s, showConnect: false)),
+          ...sensors.map(
+            (s) => _buildDeviceRow(context, s, showConnect: false),
+          ),
         ],
       ],
     );
@@ -227,27 +229,16 @@ class DebugItemListView extends StatelessWidget {
     );
   }
 
-  void _navigateToDebugView(
-    BuildContext context,
-    dev.Device device,
-  ) {
+  void _navigateToDebugView(BuildContext context, dev.Device device) {
     if (device is De1Interface) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => De1DebugView(
-            machine: device,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => De1DebugView(machine: device)),
       );
     } else if (device is Scale) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ScaleDebugView(
-            scale: device,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => ScaleDebugView(scale: device)),
       );
     }
   }
