@@ -25,6 +25,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -98,6 +100,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install dependencies
         run: |
@@ -237,6 +241,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install dependencies
         run: flutter pub get
@@ -293,6 +299,8 @@ jobs:
           # path lets flutter-action git-clone the tagged version instead.
           channel: 'master'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
@@ -349,6 +357,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install nuget
         uses: nuget/setup-nuget@v2
@@ -409,6 +419,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       # Swift Package Manager (Flutter >=3.44 default) is enabled: the iOS
       # project commits the SPM integration and Package.resolved. Firebase

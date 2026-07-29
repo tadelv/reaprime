@@ -25,6 +25,7 @@ jobs:
         with:
           channel: stable
           cache: true
+          pub-cache: true
 
       - name: Dart format check
         run: dart format --output=none --set-exit-if-changed lib test
@@ -43,6 +44,7 @@ jobs:
         with:
           channel: stable
           cache: true
+          pub-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -112,6 +114,7 @@ jobs:
         with:
           channel: stable
           cache: true
+          pub-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
