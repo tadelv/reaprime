@@ -74,7 +74,7 @@ Discovery services are responsible for scanning and creating device instances. E
 - **Platform:** All (Android, iOS, macOS, Windows, Linux)
 - **Package:** `universal_ble` (native backends on mobile/Windows/macOS; pure-Dart BlueZ backend on Linux)
 - **File:** `lib/src/services/universal_ble_discovery_service.dart`
-- **Discovery:** Unfiltered BLE scan + name-based matching (`DeviceMatcher`); also queries system/bonded devices (`getSystemDevices`) for CoreBluetooth/BlueZ. Single BLE stack on every platform since the flutter_blue_plus → universal_ble consolidation (see `doc/plans/archive/ble-universal-ble-migration/`).
+- **Discovery:** Unfiltered BLE scan + name-based matching (`DeviceMatcher`); also queries system/bonded devices (`getSystemDevices`) for CoreBluetooth/BlueZ. Apple devices returned as system-connected must still go through `connect()` so `universal_ble` attaches native callbacks and its CoreBluetooth delegate; this is idempotent and does not start a second physical connection. Single BLE stack on every platform since the flutter_blue_plus → universal_ble consolidation (see `doc/plans/archive/ble-universal-ble-migration/`).
 - **Linux/BlueZ note:** `UniversalBleTransport` applies BlueZ-specific connect handling on `Platform.isLinux` (stop scan + settle before connect to avoid `le-connection-abort-by-local`, post-connect settle, `discoverServices` retry) — without it the DE1 cold connect fails with "Failed to resolve services".
 
 #### 2. SerialService
