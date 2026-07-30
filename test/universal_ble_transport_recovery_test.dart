@@ -843,6 +843,7 @@ void main() {
         unresolved(),
         <BleService>[BleService(_serviceUuid, [])],
       ]);
+      final connectCallsBeforeRecovery = platform.connectCalls;
       var teardownCalls = 0;
       final teardownSubscription = linux.connectionState
           .where((state) => state == device.ConnectionState.disconnected)
@@ -858,7 +859,7 @@ void main() {
       expect(states, isNot(contains(device.ConnectionState.disconnected)));
       expect(teardownCalls, 0);
       expect(platform.disconnectCalls, [linux.id]);
-      expect(platform.connectCalls, 2);
+      expect(platform.connectCalls, connectCallsBeforeRecovery + 1);
     });
 
     test('second unresolved result disconnects exactly once', () async {
@@ -890,6 +891,7 @@ void main() {
       addTearDown(linux.dispose);
       platform.clearGattCacheBlocker = Completer<void>();
       platform.serviceDiscoveryResults.add(unresolved());
+      final connectCallsBeforeDiscovery = platform.connectCalls;
 
       final discovery = linux.discoverServices();
       while (platform.clearGattCacheCalls == 0) {
@@ -909,7 +911,7 @@ void main() {
         ),
       );
       await disconnect;
-      expect(platform.connectCalls, 1);
+      expect(platform.connectCalls, connectCallsBeforeDiscovery);
     });
 
     test('disconnect during initial discovery prevents reconnect', () async {
@@ -918,6 +920,7 @@ void main() {
       addTearDown(linux.dispose);
       platform.serviceDiscoveryBlocker = Completer<void>();
       platform.serviceDiscoveryResults.add(unresolved());
+      final connectCallsBeforeDiscovery = platform.connectCalls;
 
       final discovery = linux.discoverServices();
       while (platform.discoverServicesCalls == 0) {
@@ -937,7 +940,7 @@ void main() {
         ),
       );
       await disconnect;
-      expect(platform.connectCalls, 1);
+      expect(platform.connectCalls, connectCallsBeforeDiscovery);
       expect(platform.clearGattCacheCalls, 0);
     });
 
