@@ -35,6 +35,7 @@ class _AcaiaTransport extends BLETransport {
   final List<List<int>> writes = [];
   void Function(Uint8List)? notification;
   Future<void> Function(Uint8List)? writeBehavior;
+  Object? disconnectError;
   int disconnectCalls = 0;
   bool _initWeightSent = false;
 
@@ -56,6 +57,8 @@ class _AcaiaTransport extends BLETransport {
   @override
   Future<void> disconnect() async {
     disconnectCalls++;
+    final error = disconnectError;
+    if (error != null) throw error;
     states.add(ConnectionState.disconnected);
   }
 
@@ -409,6 +412,28 @@ void main() {
     blocked.complete();
     await Future<void>.delayed(Duration.zero);
     await transport.dispose();
+  });
+
+  test('watchdog disconnect failures stay contained', () async {
+    final uncaught = <Object>[];
+    final done = Completer<void>();
+    runZonedGuarded(() async {
+      final transport = _AcaiaTransport(
+        services: const ['49535343-fe7d-4ae5-8fa9-9fafd205e455'],
+      );
+      final scale = AcaiaScale(transport: transport);
+      await scale.onConnect();
+      transport.disconnectError = StateError('disconnect failed');
+
+      await Future<void>.delayed(const Duration(milliseconds: 5500));
+
+      expect(await scale.connectionState.first, ConnectionState.disconnected);
+      await transport.dispose();
+      done.complete();
+    }, (error, stackTrace) => uncaught.add(error));
+
+    await done.future.timeout(const Duration(seconds: 8));
+    expect(uncaught, isEmpty);
   });
 
   test(

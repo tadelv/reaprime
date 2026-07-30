@@ -303,12 +303,16 @@ class AcaiaScale implements Scale {
 
   Future<void> _runWatchdog(int generation) async {
     if (!_isCurrent(generation)) return;
-    if (DateTime.now().difference(_lastValidFrame) >=
+    if (DateTime.now().difference(_lastValidFrame) <
         const Duration(seconds: 5)) {
-      await disconnect();
+      _scheduleWatchdog(generation);
       return;
     }
-    _scheduleWatchdog(generation);
+    try {
+      await disconnect();
+    } catch (error, stackTrace) {
+      _log.warning('Acaia watchdog disconnect failed', error, stackTrace);
+    }
   }
 
   bool _isCurrent(int generation) =>
