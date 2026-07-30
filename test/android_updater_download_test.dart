@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,72 @@ import 'package:http/testing.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 
 void main() {
+  group('AndroidUpdater.checkForUpdate', () {
+    Map<String, Object> release(String version, {required bool prerelease}) => {
+      'tag_name': 'v$version',
+      'prerelease': prerelease,
+      'body': '',
+      'assets': [
+        {
+          'name': 'decent-android-$version.apk',
+          'browser_download_url': 'https://example.com/$version.apk',
+        },
+      ],
+    };
+
+    AndroidUpdater updaterFor(List<Map<String, Object>> releases) {
+      return AndroidUpdater(
+        owner: 'tadelv',
+        repo: 'reaprime',
+        httpClient: MockClient(
+          (_) async => http.Response(jsonEncode(releases), 200),
+        ),
+      );
+    }
+
+    test('stable ignores prereleases', () async {
+      final updater = updaterFor([
+        release('0.7.15-beta.1', prerelease: true),
+        release('0.7.14', prerelease: false),
+      ]);
+
+      final update = await updater.checkForUpdate(
+        '0.7.13',
+        channel: UpdateChannel.stable,
+      );
+
+      expect(update?.version, '0.7.14');
+    });
+
+    test('beta includes prereleases and final releases', () async {
+      final updater = updaterFor([
+        release('0.7.15-beta.2', prerelease: true),
+        release('0.7.15', prerelease: false),
+      ]);
+
+      final update = await updater.checkForUpdate(
+        '0.7.15-beta.1',
+        channel: UpdateChannel.beta,
+      );
+
+      expect(update?.version, '0.7.15');
+    });
+
+    test('beta selects the highest semantic version', () async {
+      final updater = updaterFor([
+        release('0.7.15-beta.2', prerelease: true),
+        release('0.7.16-beta.1', prerelease: true),
+      ]);
+
+      final update = await updater.checkForUpdate(
+        '0.7.16-beta.0',
+        channel: UpdateChannel.beta,
+      );
+
+      expect(update?.version, '0.7.16-beta.1');
+    });
+  });
+
   group('AndroidUpdater.downloadUpdate streamed progress', () {
     late Directory tmp;
 

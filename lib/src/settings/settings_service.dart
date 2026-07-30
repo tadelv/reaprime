@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_js/quickjs/ffi.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -41,6 +42,8 @@ abstract class SettingsService {
   Future<void> setDefaultSkinId(String skinId);
   Future<bool> automaticUpdateCheck();
   Future<void> setAutomaticUpdateCheck(bool value);
+  Future<UpdateChannel> updateChannel();
+  Future<void> setUpdateChannel(UpdateChannel channel);
   Future<DateTime?> lastUpdateCheckTime();
   Future<void> setLastUpdateCheckTime(DateTime time);
   Future<bool> telemetryConsent();
@@ -283,6 +286,20 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
+  Future<UpdateChannel> updateChannel() async {
+    final stored = await prefs.getString(SettingsKeys.updateChannel.name);
+    return UpdateChannel.values.firstWhere(
+      (channel) => channel.name == stored,
+      orElse: () => UpdateChannel.stable,
+    );
+  }
+
+  @override
+  Future<void> setUpdateChannel(UpdateChannel channel) async {
+    await prefs.setString(SettingsKeys.updateChannel.name, channel.name);
+  }
+
+  @override
   Future<DateTime?> lastUpdateCheckTime() async {
     final timestamp = await prefs.getInt(SettingsKeys.lastUpdateCheckTime.name);
     return timestamp != null
@@ -521,6 +538,7 @@ enum SettingsKeys {
   preferredScaleId,
   defaultSkinId,
   automaticUpdateCheck,
+  updateChannel,
   lastUpdateCheckTime,
   telemetryConsent,
   telemetryPromptShown,

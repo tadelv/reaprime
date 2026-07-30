@@ -199,7 +199,7 @@ class UpdateCheckService {
 
       final updateInfo = await _updater.checkForUpdate(
         BuildInfo.version,
-        channel: UpdateChannel.stable,
+        channel: await _settingsService.updateChannel(),
       );
 
       await _settingsService.setLastUpdateCheckTime(DateTime.now());

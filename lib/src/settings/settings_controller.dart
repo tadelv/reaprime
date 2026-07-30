@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -53,6 +54,8 @@ class SettingsController with ChangeNotifier {
 
   bool _automaticUpdateCheck = true;
 
+  UpdateChannel _updateChannel = UpdateChannel.stable;
+
   bool _telemetryConsent = false;
 
   bool _telemetryPromptShown = false;
@@ -95,6 +98,7 @@ class SettingsController with ChangeNotifier {
   String? get preferredScaleId => _preferredScaleId;
   String get defaultSkinId => _defaultSkinId;
   bool get automaticUpdateCheck => _automaticUpdateCheck;
+  UpdateChannel get updateChannel => _updateChannel;
   bool get telemetryConsent => _telemetryConsent;
   bool get telemetryPromptShown => _telemetryPromptShown;
   bool get telemetryConsentDialogShown => _telemetryConsentDialogShown;
@@ -137,6 +141,7 @@ class SettingsController with ChangeNotifier {
     _preferredScaleId = await _settingsService.preferredScaleId();
     _defaultSkinId = await _settingsService.defaultSkinId();
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
+    _updateChannel = await _settingsService.updateChannel();
     _telemetryConsent = await _settingsService.telemetryConsent();
     _telemetryPromptShown = await _settingsService.telemetryPromptShown();
     _telemetryConsentDialogShown = await _settingsService
@@ -358,6 +363,13 @@ class SettingsController with ChangeNotifier {
     }
     _automaticUpdateCheck = value;
     await _settingsService.setAutomaticUpdateCheck(value);
+    notifyListeners();
+  }
+
+  Future<void> setUpdateChannel(UpdateChannel channel) async {
+    if (channel == _updateChannel) return;
+    _updateChannel = channel;
+    await _settingsService.setUpdateChannel(channel);
     notifyListeners();
   }
 

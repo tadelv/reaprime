@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -23,6 +24,7 @@ class MockSettingsService extends SettingsService {
   String? _preferredScaleId;
   String _defaultSkinId = 'streamline.js';
   bool _automaticUpdateCheck = true;
+  UpdateChannel _updateChannel = UpdateChannel.stable;
   DateTime? _lastUpdateCheckTime;
   bool _telemetryConsent = false;
   bool _telemetryPromptShown = true; // skip prompt in tests
@@ -117,6 +119,11 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setAutomaticUpdateCheck(bool value) async =>
       _automaticUpdateCheck = value;
+  @override
+  Future<UpdateChannel> updateChannel() async => _updateChannel;
+  @override
+  Future<void> setUpdateChannel(UpdateChannel channel) async =>
+      _updateChannel = channel;
   @override
   Future<DateTime?> lastUpdateCheckTime() async => _lastUpdateCheckTime;
   @override

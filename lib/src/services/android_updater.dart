@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pub_semver/pub_semver.dart';
 import 'package:reaprime/src/services/apk_installer.dart';
 
 /// Represents an available update from GitHub releases
@@ -44,36 +45,7 @@ class UpdateInfo {
 }
 
 /// Update channel configuration
-enum UpdateChannel {
-  stable,
-  beta,
-  development;
-
-  /// Returns true if this channel should include prereleases
-  bool get includePrereleases {
-    switch (this) {
-      case UpdateChannel.stable:
-        return false;
-      case UpdateChannel.beta:
-      case UpdateChannel.development:
-        return true;
-    }
-  }
-
-  /// Returns true if a release matches this channel based on tag naming
-  bool matchesRelease(String tagName, bool isPrerelease) {
-    switch (this) {
-      case UpdateChannel.stable:
-        return !isPrerelease &&
-            !tagName.contains('beta') &&
-            !tagName.contains('dev');
-      case UpdateChannel.beta:
-        return isPrerelease || tagName.contains('beta');
-      case UpdateChannel.development:
-        return true; // Development channel accepts all releases
-    }
-  }
-}
+enum UpdateChannel { stable, beta }
 
 /// Service for checking and installing app updates from GitHub releases
 class AndroidUpdater {
@@ -100,7 +72,7 @@ class AndroidUpdater {
   /// Check if an update is available for the given current version
   ///
   /// [currentVersion] - The current app version (e.g., "1.2.3")
-  /// [channel] - The update channel to check (stable, beta, development)
+  /// [channel] - The update channel to check (stable or beta)
   ///
   /// Returns [UpdateInfo] if an update is available, null otherwise
   Future<UpdateInfo?> checkForUpdate(
@@ -126,21 +98,30 @@ class AndroidUpdater {
         return null;
       }
 
-      // Filter releases by channel
-      final matchingReleases = releases.where((release) {
-        final tagName = release['tag_name'] as String;
-        final isPrerelease = release['prerelease'] as bool;
-        return channel.matchesRelease(tagName, isPrerelease);
-      }).toList();
+      final matchingReleases =
+          releases
+              .where(
+                (release) =>
+                    channel == UpdateChannel.beta ||
+                    !((release as Map<String, dynamic>)['prerelease'] as bool),
+              )
+              .map(
+                (release) => UpdateInfo.fromGitHubRelease(
+                  release as Map<String, dynamic>,
+                ),
+              )
+              .toList()
+            ..sort(
+              (a, b) =>
+                  Version.parse(b.version).compareTo(Version.parse(a.version)),
+            );
 
       if (matchingReleases.isEmpty) {
         _log.info('No releases found for $channel channel');
         return null;
       }
 
-      // Get the latest matching release
-      final latestRelease = matchingReleases.first;
-      final updateInfo = UpdateInfo.fromGitHubRelease(latestRelease);
+      final updateInfo = matchingReleases.first;
 
       // Compare versions
       if (_isNewerVersion(updateInfo.version, currentVersion)) {
@@ -239,45 +220,16 @@ class AndroidUpdater {
     }
   }
 
-  /// Compare two semantic version strings
-  ///
-  /// Returns true if [newVersion] is newer than [currentVersion]
   bool _isNewerVersion(String newVersion, String currentVersion) {
-    // Handle dev versions
-    if (currentVersion == '0.0.0-dev') {
-      return true;
-    }
-
     try {
-      final newParts = _parseVersion(newVersion);
-      final currentParts = _parseVersion(currentVersion);
-
-      for (int i = 0; i < 3; i++) {
-        if (newParts[i] > currentParts[i]) {
-          return true;
-        } else if (newParts[i] < currentParts[i]) {
-          return false;
-        }
-      }
-
-      return false; // Versions are equal
+      return Version.parse(
+            newVersion,
+          ).compareTo(Version.parse(currentVersion)) >
+          0;
     } catch (e) {
       _log.warning('Error comparing versions: $e');
       return false;
     }
-  }
-
-  /// Parse a semantic version string into [major, minor, patch]
-  List<int> _parseVersion(String version) {
-    // Remove any suffix like -beta, -dev
-    final cleanVersion = version.split('-').first;
-    final parts = cleanVersion.split('.');
-
-    if (parts.length != 3) {
-      throw FormatException('Invalid version format: $version');
-    }
-
-    return parts.map((p) => int.parse(p)).toList();
   }
 
   void dispose() {

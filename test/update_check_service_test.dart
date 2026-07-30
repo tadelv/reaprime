@@ -20,6 +20,7 @@ class _FakeUpdater extends AndroidUpdater {
   List<double> progressToEmit = const [];
 
   int checkCalls = 0;
+  UpdateChannel? lastChannel;
   int downloadCalls = 0;
   int installCalls = 0;
 
@@ -32,6 +33,7 @@ class _FakeUpdater extends AndroidUpdater {
     UpdateChannel channel = UpdateChannel.stable,
   }) async {
     checkCalls++;
+    lastChannel = channel;
     if (throwOnCheck) throw Exception('check boom');
     return nextCheck;
   }
@@ -71,14 +73,16 @@ UpdateInfo _update({String version = '9.9.9'}) => UpdateInfo(
 
 void main() {
   late _FakeUpdater updater;
+  late MockSettingsService settingsService;
   late WebUIStorage webUIStorage;
 
   UpdateCheckService build({bool isAndroid = true}) {
     updater = _FakeUpdater();
-    final settingsController = SettingsController(MockSettingsService());
+    settingsService = MockSettingsService();
+    final settingsController = SettingsController(settingsService);
     webUIStorage = WebUIStorage(settingsController);
     return UpdateCheckService(
-      settingsService: MockSettingsService(),
+      settingsService: settingsService,
       webUIStorage: webUIStorage,
       updater: updater,
       platformIsAndroid: isAndroid,
@@ -86,6 +90,16 @@ void main() {
   }
 
   group('checkForUpdate', () {
+    test('uses the selected update channel', () async {
+      final svc = build();
+      await settingsService.setUpdateChannel(UpdateChannel.beta);
+
+      await svc.checkForUpdate();
+
+      expect(updater.lastChannel, UpdateChannel.beta);
+      svc.dispose();
+    });
+
     test('emits available with details when an update is found', () async {
       final svc = build();
       updater.nextCheck = _update(version: '9.9.9');
