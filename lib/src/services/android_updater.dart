@@ -100,16 +100,8 @@ class AndroidUpdater {
 
       final matchingReleases =
           releases
-              .where(
-                (release) =>
-                    channel == UpdateChannel.beta ||
-                    !((release as Map<String, dynamic>)['prerelease'] as bool),
-              )
-              .map(
-                (release) => UpdateInfo.fromGitHubRelease(
-                  release as Map<String, dynamic>,
-                ),
-              )
+              .map((release) => _parseRelease(release, channel))
+              .whereType<UpdateInfo>()
               .toList()
             ..sort(
               (a, b) =>
@@ -217,6 +209,20 @@ class AndroidUpdater {
     } catch (e, stackTrace) {
       _log.severe('Error installing update', e, stackTrace);
       rethrow;
+    }
+  }
+
+  UpdateInfo? _parseRelease(Object? release, UpdateChannel channel) {
+    try {
+      final json = release as Map<String, dynamic>;
+      final isPrerelease = json['prerelease'] as bool;
+      if (channel == UpdateChannel.stable && isPrerelease) return null;
+      final update = UpdateInfo.fromGitHubRelease(json);
+      Version.parse(update.version);
+      return update;
+    } catch (e) {
+      _log.warning('Skipping unsupported GitHub release: $e');
+      return null;
     }
   }
 

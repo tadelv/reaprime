@@ -8,15 +8,20 @@ import 'package:reaprime/src/services/android_updater.dart';
 
 void main() {
   group('AndroidUpdater.checkForUpdate', () {
-    Map<String, Object> release(String version, {required bool prerelease}) => {
-      'tag_name': 'v$version',
+    Map<String, Object> release(
+      String version, {
+      required bool prerelease,
+      bool includeApk = true,
+    }) => {
+      'tag_name': version.startsWith('nightly-') ? version : 'v$version',
       'prerelease': prerelease,
       'body': '',
       'assets': [
-        {
-          'name': 'decent-android-$version.apk',
-          'browser_download_url': 'https://example.com/$version.apk',
-        },
+        if (includeApk)
+          {
+            'name': 'decent-android-$version.apk',
+            'browser_download_url': 'https://example.com/$version.apk',
+          },
       ],
     };
 
@@ -70,6 +75,51 @@ void main() {
       );
 
       expect(update?.version, '0.7.16-beta.1');
+    });
+
+    test('skips a release without an APK', () async {
+      final updater = updaterFor([
+        release('0.8.0', prerelease: false, includeApk: false),
+        release('0.7.15', prerelease: false),
+      ]);
+
+      final update = await updater.checkForUpdate('0.7.14');
+
+      expect(update?.version, '0.7.15');
+    });
+
+    test('skips a release with a non-semver tag', () async {
+      final updater = updaterFor([
+        release('nightly-2026-07-30', prerelease: true),
+        release('0.7.15-beta.1', prerelease: true),
+      ]);
+
+      final update = await updater.checkForUpdate(
+        '0.7.14',
+        channel: UpdateChannel.beta,
+      );
+
+      expect(update?.version, '0.7.15-beta.1');
+    });
+
+    test('all invalid releases do not affect a later valid check', () async {
+      var callCount = 0;
+      final updater = AndroidUpdater(
+        owner: 'tadelv',
+        repo: 'reaprime',
+        httpClient: MockClient((_) async {
+          final releases = callCount++ == 0
+              ? [
+                  release('0.8.0', prerelease: false, includeApk: false),
+                  release('nightly-2026-07-30', prerelease: true),
+                ]
+              : [release('0.7.15', prerelease: false)];
+          return http.Response(jsonEncode(releases), 200);
+        }),
+      );
+
+      expect(await updater.checkForUpdate('0.7.14'), isNull);
+      expect((await updater.checkForUpdate('0.7.14'))?.version, '0.7.15');
     });
   });
 
