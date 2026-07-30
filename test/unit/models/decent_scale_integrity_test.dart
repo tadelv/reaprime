@@ -18,6 +18,7 @@ class _IntegrityTransport extends BLETransport {
   Completer<void>? blockedWrite;
   final blockedSubscriptions = <int, Completer<void>>{};
   Object? writeError;
+  int connectCalls = 0;
   int subscribeCalls = 0;
 
   @override
@@ -34,6 +35,7 @@ class _IntegrityTransport extends BLETransport {
 
   @override
   Future<void> connect() async {
+    connectCalls++;
     _nativeState = ConnectionState.connected;
     _connectionState.add(ConnectionState.connected);
   }
@@ -269,12 +271,14 @@ void main() {
       async.flushMicrotasks();
       async.elapse(const Duration(milliseconds: 100));
       async.flushMicrotasks();
+      expect(transport.connectCalls, 1);
       expect(transport.subscribeCalls, 2);
 
       transport.blockedSubscriptions[2]!.complete();
       async.flushMicrotasks();
       async.elapse(const Duration(milliseconds: 100));
       async.flushMicrotasks();
+      expect(transport.connectCalls, 2);
       expect(transport.subscribeCalls, 3);
 
       scale.disconnectForHandoff();

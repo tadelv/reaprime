@@ -79,6 +79,7 @@ class AcaiaScale implements Scale {
   AcaiaProtocol? _protocol;
   StreamSubscription<ConnectionState>? _disconnectSubscription;
   Timer? _maintenanceTimer;
+  Timer? _watchdogTimer;
   List<int> _buffer = [];
   DateTime _lastValidFrame = DateTime.now();
   int _batteryLevel = 0;
@@ -132,20 +133,28 @@ class AcaiaScale implements Scale {
         await _transport.getConnectionState() == ConnectionState.connected) {
       return;
     }
+    _invalidateConnection();
+    final generation = _generation;
     _connectionStateController.add(ConnectionState.connecting);
-    _invalidateMaintenance();
 
     try {
-      await _transport.connect();
       await _disconnectSubscription?.cancel();
+      _disconnectSubscription = null;
+      if (generation != _generation) {
+        throw const DeviceNotConnectedException.scale();
+      }
+      await _transport.connect();
+      await _ensureCurrentConnection(generation);
       _disconnectSubscription = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-            _invalidateMaintenance();
+            if (generation != _generation) return;
+            _invalidateConnection();
             _connectionStateController.add(ConnectionState.disconnected);
           });
 
       final services = await _transport.discoverServices();
+      await _ensureCurrentConnection(generation);
       if (_pyxisService.matchesAny(services)) {
         _protocol = AcaiaProtocol.pyxis;
       } else if (_ipsService.matchesAny(services)) {
@@ -154,12 +163,14 @@ class AcaiaScale implements Scale {
         throw StateError('No supported Acaia service found');
       }
 
-      await _initialize();
+      await _initialize(generation);
+      await _ensureCurrentConnection(generation);
       _connectionStateController.add(ConnectionState.connected);
-      _startMaintenance();
+      _startMaintenance(generation);
     } catch (error, stackTrace) {
+      if (generation != _generation) return;
       _log.warning('Failed to initialize scale', error, stackTrace);
-      _invalidateMaintenance();
+      _invalidateConnection();
       _connectionStateController.add(ConnectionState.disconnected);
       final cancellation = _disconnectSubscription?.cancel();
       _disconnectSubscription = null;
@@ -170,7 +181,7 @@ class AcaiaScale implements Scale {
     }
   }
 
-  Future<void> _initialize() async {
+  Future<void> _initialize(int generation) async {
     _hasValidWeight = false;
     _badBatteryLogged = false;
     _buffer = [];
@@ -179,9 +190,11 @@ class AcaiaScale implements Scale {
       _notifyCharacteristic,
       _parseNotification,
     );
+    await _ensureCurrentConnection(generation);
     await Future<void>.delayed(
       Duration(milliseconds: _protocol == AcaiaProtocol.pyxis ? 500 : 100),
     );
+    await _ensureCurrentConnection(generation);
 
     for (
       var attempt = 0;
@@ -191,15 +204,27 @@ class AcaiaScale implements Scale {
       if (!await _write(_encode(0x0B, _identPayload))) {
         throw StateError('Acaia ident write failed');
       }
+      await _ensureCurrentConnection(generation);
       await Future<void>.delayed(const Duration(milliseconds: 200));
+      await _ensureCurrentConnection(generation);
       if (!await _write(_encode(0x0C, _configPayload))) {
         throw StateError('Acaia config write failed');
       }
+      await _ensureCurrentConnection(generation);
       await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _ensureCurrentConnection(generation);
     }
 
     if (!_hasValidWeight) {
       throw StateError('Acaia scale produced no valid weight');
+    }
+  }
+
+  Future<void> _ensureCurrentConnection(int generation) async {
+    if (generation != _generation ||
+        await _transport.getConnectionState() != ConnectionState.connected ||
+        generation != _generation) {
+      throw const DeviceNotConnectedException.scale();
     }
   }
 
@@ -238,10 +263,10 @@ class AcaiaScale implements Scale {
     }
   }
 
-  void _startMaintenance() {
+  void _startMaintenance(int generation) {
     _lastValidFrame = DateTime.now();
-    final generation = ++_generation;
     _scheduleMaintenance(generation);
+    if (_protocol == AcaiaProtocol.pyxis) _scheduleWatchdog(generation);
   }
 
   void _scheduleMaintenance(int generation) {
@@ -254,12 +279,6 @@ class AcaiaScale implements Scale {
   Future<void> _runMaintenance(int generation) async {
     if (!_isCurrent(generation)) return;
     try {
-      if (_protocol == AcaiaProtocol.pyxis &&
-          DateTime.now().difference(_lastValidFrame) >
-              const Duration(seconds: 5)) {
-        await disconnect();
-        return;
-      }
       await _write(_encode(0x00, _heartbeatPayload));
     } on TimeoutException catch (error) {
       _log.warning('Acaia heartbeat timed out: $error');
@@ -270,19 +289,43 @@ class AcaiaScale implements Scale {
     }
   }
 
+  void _scheduleWatchdog(int generation) {
+    _watchdogTimer?.cancel();
+    final elapsed = DateTime.now().difference(_lastValidFrame);
+    final remaining = const Duration(seconds: 5) - elapsed;
+    _watchdogTimer = Timer(
+      remaining.isNegative ? Duration.zero : remaining,
+      () {
+        unawaited(_runWatchdog(generation));
+      },
+    );
+  }
+
+  Future<void> _runWatchdog(int generation) async {
+    if (!_isCurrent(generation)) return;
+    if (DateTime.now().difference(_lastValidFrame) >=
+        const Duration(seconds: 5)) {
+      await disconnect();
+      return;
+    }
+    _scheduleWatchdog(generation);
+  }
+
   bool _isCurrent(int generation) =>
       generation == _generation &&
       _connectionStateController.value == ConnectionState.connected;
 
-  void _invalidateMaintenance() {
+  void _invalidateConnection() {
     _generation++;
     _maintenanceTimer?.cancel();
     _maintenanceTimer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
   }
 
   @override
   Future<void> disconnect() async {
-    _invalidateMaintenance();
+    _invalidateConnection();
     await _disconnectSubscription?.cancel();
     _disconnectSubscription = null;
     _connectionStateController.add(ConnectionState.disconnected);
@@ -349,7 +392,13 @@ class AcaiaScale implements Scale {
       if (_buffer.length < frameLength) return;
       final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
       _buffer = _buffer.sublist(frameLength);
-      if (_processFrame(frame)) _lastValidFrame = DateTime.now();
+      if (_processFrame(frame)) {
+        _lastValidFrame = DateTime.now();
+        if (_protocol == AcaiaProtocol.pyxis &&
+            _connectionStateController.value == ConnectionState.connected) {
+          _scheduleWatchdog(_generation);
+        }
+      }
     }
   }
 
