@@ -47,7 +47,11 @@ class _UnusedStorage implements StorageService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Profile _profile({double? targetVolume, double? stepWeight}) => Profile(
+Profile _profile({
+  double? targetVolume,
+  double? stepWeight,
+  double? secondStepWeight,
+}) => Profile(
   version: '2',
   title: 'native scale',
   notes: '',
@@ -68,6 +72,17 @@ Profile _profile({double? targetVolume, double? stepWeight}) => Profile(
       sensor: TemperatureSensor.coffee,
       pressure: 9,
     ),
+    if (secondStepWeight != null)
+      ProfileStepPressure(
+        name: 'second pour',
+        transition: TransitionType.fast,
+        volume: 0,
+        seconds: 30,
+        weight: secondStepWeight,
+        temperature: 93,
+        sensor: TemperatureSensor.coffee,
+        pressure: 9,
+      ),
   ],
 );
 
@@ -98,11 +113,16 @@ void main() {
     double targetYield = 36,
     double? targetVolume,
     double? stepWeight,
+    double? secondStepWeight,
   }) => ShotSequencer(
     scaleController: scaleController,
     de1controller: de1Controller,
     persistenceController: persistence,
-    targetProfile: _profile(targetVolume: targetVolume, stepWeight: stepWeight),
+    targetProfile: _profile(
+      targetVolume: targetVolume,
+      stepWeight: stepWeight,
+      secondStepWeight: secondStepWeight,
+    ),
     targetYield: targetYield,
     bypassSAW: false,
     blockOnNoScale: false,
@@ -389,10 +409,6 @@ void main() {
       final shot = makeShot();
       driveToPouring(async);
 
-      machine.emitStateAndSubstate(
-        MachineState.espresso,
-        MachineSubstate.pouring,
-      );
       scaleController.emitWeight(40);
       machine.emitSnapshot(
         machine.snapshotSubject.value.copyWith(profileFrame: 1),
@@ -404,6 +420,31 @@ void main() {
       scaleController.emitWeight(40);
       async.flushMicrotasks();
       expect(machine.requestedStates, [MachineState.idle]);
+      shot.dispose();
+    });
+  });
+
+  test('first profile frame change resets step crossing candidate', () {
+    fakeAsync((async) {
+      enableAutomaticZero();
+      final shot = makeShot(
+        targetYield: 0,
+        stepWeight: 10,
+        secondStepWeight: 10,
+      );
+      driveToPouring(async);
+
+      scaleController.emitWeight(12);
+      machine.emitSnapshot(
+        machine.snapshotSubject.value.copyWith(profileFrame: 1),
+      );
+      scaleController.emitWeight(12);
+      async.flushMicrotasks();
+      expect(machine.requestedStates, isEmpty);
+
+      scaleController.emitWeight(12);
+      async.flushMicrotasks();
+      expect(machine.requestedStates, [MachineState.skipStep]);
       shot.dispose();
     });
   });
