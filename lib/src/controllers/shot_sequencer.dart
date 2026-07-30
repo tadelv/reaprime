@@ -360,14 +360,12 @@ class ShotSequencer {
   }
 
   void _enqueuePourCommands() {
-    final queue = _commandQueue;
-    if (queue == null || _bypassSAW) {
-      if (_scaleAvailability == _ScaleAvailability.ready &&
-          _latestScale != null) {
-        _resetFreshnessTimer();
-      }
-      return;
+    if (_scaleAvailability == _ScaleAvailability.awaitingPourTare ||
+        _scaleAvailability == _ScaleAvailability.ready) {
+      _resetFreshnessTimer();
     }
+    final queue = _commandQueue;
+    if (queue == null || _bypassSAW) return;
     queue.enqueue(
       ShotScaleCommand.pourTare,
       _tareCapturedScale,
@@ -424,7 +422,6 @@ class ShotSequencer {
     if (!_pourTareSucceeded || !_pourTareZeroObserved) return;
     _tareConfirmationTimer?.cancel();
     _scaleAvailability = _ScaleAvailability.ready;
-    _resetFreshnessTimer();
   }
 
   void _evaluateScaleControl(WeightSnapshot scale) {
@@ -643,7 +640,10 @@ class ShotSequencer {
   void _trackFrameAdvance(int profileFrame) {
     if (profileFrame != _lastProfileFrame) {
       _stepExitArbiter.onFrameAdvanced(profileFrame);
-      _stepCrossing.reset();
+      if (_lastProfileFrame >= 0) {
+        _finalCrossing.reset();
+        _stepCrossing.reset();
+      }
       _lastProfileFrame = profileFrame;
     }
     if (_maxFrameSeen < 0) {

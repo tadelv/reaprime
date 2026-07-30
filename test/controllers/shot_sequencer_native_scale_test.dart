@@ -330,6 +330,84 @@ void main() {
     });
   });
 
+  test('pour freshness expires while preparing command is blocked', () {
+    fakeAsync((async) {
+      final preparingTare = Completer<void>();
+      scale.tareHandler = () => preparingTare.future;
+      final shot = makeShot(targetYield: 0, targetVolume: 1);
+      driveToPouring(async);
+
+      async.elapse(const Duration(milliseconds: 101));
+      var snapshot = machine.snapshotSubject.value;
+      machine.emitSnapshot(
+        snapshot.copyWith(
+          timestamp: snapshot.timestamp.add(const Duration(seconds: 1)),
+          flow: 2,
+        ),
+      );
+      snapshot = machine.snapshotSubject.value;
+      machine.emitSnapshot(
+        snapshot.copyWith(
+          timestamp: snapshot.timestamp.add(const Duration(seconds: 1)),
+          flow: 2,
+        ),
+      );
+      async.flushMicrotasks();
+
+      expect(machine.requestedStates, [MachineState.idle]);
+      expect(shot.scaleLost, isTrue);
+      preparingTare.complete();
+      async.flushMicrotasks();
+      shot.dispose();
+    });
+  });
+
+  test('tare completion does not renew callback freshness', () {
+    fakeAsync((async) {
+      final pourTare = Completer<void>();
+      scale.tareHandler = () {
+        if (scale.tareCallCount != 2) return Future.value();
+        scaleController.emitWeight(0);
+        return pourTare.future;
+      };
+      final shot = makeShot(targetYield: 0);
+      driveToPouring(async);
+
+      async.elapse(const Duration(milliseconds: 90));
+      pourTare.complete();
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 11));
+
+      expect(shot.scaleLost, isTrue);
+      shot.dispose();
+    });
+  });
+
+  test('profile frame change resets final crossing candidate', () {
+    fakeAsync((async) {
+      enableAutomaticZero();
+      final shot = makeShot();
+      driveToPouring(async);
+
+      machine.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      scaleController.emitWeight(40);
+      machine.emitSnapshot(
+        machine.snapshotSubject.value.copyWith(profileFrame: 1),
+      );
+      scaleController.emitWeight(40);
+      async.flushMicrotasks();
+      expect(machine.requestedStates, isEmpty);
+
+      scaleController.emitWeight(40);
+      async.flushMicrotasks();
+      expect(machine.requestedStates, [MachineState.idle]);
+      shot.dispose();
+    });
+  });
+
   test('failed machine stop is owned until machine confirmation', () {
     fakeAsync((async) {
       enableAutomaticZero();

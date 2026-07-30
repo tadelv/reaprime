@@ -65,8 +65,13 @@ void main() {
 
   test('connection generation change prevents queued commands', () async {
     final blocked = Completer<void>();
+    var completed = false;
 
-    queue.enqueue(ShotScaleCommand.preparingTare, (_) => blocked.future);
+    queue.enqueue(
+      ShotScaleCommand.preparingTare,
+      (_) => blocked.future,
+      onSuccess: () => completed = true,
+    );
     queue.enqueue(ShotScaleCommand.timerReset, (scale) => scale.resetTimer());
     queue.enqueue(ShotScaleCommand.timerStart, (scale) => scale.startTimer());
     await Future<void>.delayed(Duration.zero);
@@ -75,5 +80,6 @@ void main() {
     await queue.settled;
 
     expect(scale.commandCalls, isEmpty);
+    expect(completed, isFalse);
   });
 }

@@ -17,12 +17,12 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../helpers/test_de1.dart';
-import '../helpers/test_scale.dart';
 
 /// Bengle-flavoured TestDe1: reuses every DE1-side behavior but also
 /// implements [BengleInterface] so `machine is BengleInterface` returns
@@ -30,6 +30,8 @@ import '../helpers/test_scale.dart';
 /// because TestDe1 already covers the full De1Interface surface.
 class _TestBengle extends TestDe1 implements BengleInterface {
   final List<double> sawWrites = [];
+  final BehaviorSubject<ScaleSnapshot> _weight = BehaviorSubject(sync: true);
+  int tareCalls = 0;
 
   @override
   Future<void> setStopAtWeightTarget(double grams) async {
@@ -47,9 +49,13 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   @override
   Future<double> getCupWarmerTemperature() async => 0.0;
   @override
-  Stream<ScaleSnapshot> get weightSnapshot => const Stream.empty();
+  Stream<ScaleSnapshot> get weightSnapshot => _weight.stream;
   @override
-  Future<void> tareIntegratedScale() async {}
+  Future<void> tareIntegratedScale() async {
+    tareCalls++;
+    if (tareCalls == 2) _emitWeight(0);
+  }
+
   @override
   Stream<LedStripState> get ledStripState => const Stream.empty();
   @override
@@ -71,6 +77,30 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   Stream<bool> get probeAttached => const Stream.empty();
   @override
   Stream<double> get probeTemperature => const Stream.empty();
+
+  void emitIntegratedSample(double weight) {
+    emitStateAndSubstate(
+      snapshotSubject.value.state.state,
+      snapshotSubject.value.state.substate,
+    );
+    _emitWeight(weight);
+  }
+
+  void _emitWeight(double weight) {
+    _weight.add(
+      ScaleSnapshot(
+        timestamp: DateTime(2026, 1, 15, 8, 0),
+        weight: weight,
+        batteryLevel: 100,
+      ),
+    );
+  }
+
+  @override
+  Future<void> dispose() async {
+    await _weight.close();
+    await super.dispose();
+  }
 }
 
 class _FakeDiscoveryService extends DeviceDiscoveryService {
@@ -95,45 +125,30 @@ class _BengleDe1Controller extends De1Controller {
   Stream<De1Interface?> get de1 => BehaviorSubject.seeded(bengle).stream;
 }
 
-class _TestScaleController extends ScaleController {
-  final TestScale testScale;
-  final BehaviorSubject<ConnectionState> _connectionState;
-  final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
+class _BengleScaleController extends ScaleController {
+  final BengleVirtualScale scale;
 
-  _TestScaleController(this.testScale)
-    : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
+  _BengleScaleController(this.scale);
 
   @override
-  Stream<ConnectionState> get connectionState => _connectionState.stream;
-  @override
-  ConnectionState get currentConnectionState => _connectionState.value;
-  @override
-  Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
+  Stream<ConnectionState> get connectionState => scale.connectionState;
 
   @override
-  Scale connectedScale() {
-    if (_connectionState.value != ConnectionState.connected) {
-      throw 'No scale connected';
-    }
-    return testScale;
-  }
-
-  void emitWeight(double weight, {double weightFlow = 0.0}) {
-    _weight.add(
-      WeightSnapshot(
-        timestamp: DateTime(2026, 1, 15, 8, 0),
-        weight: weight,
-        weightFlow: weightFlow,
-      ),
-    );
-  }
+  ConnectionState get currentConnectionState => ConnectionState.connected;
 
   @override
-  void dispose() {
-    _connectionState.close();
-    _weight.close();
-    super.dispose();
-  }
+  Stream<WeightSnapshot> get weightSnapshot => scale.currentSnapshot.map(
+    (snapshot) => WeightSnapshot(
+      timestamp: snapshot.timestamp,
+      weight: snapshot.weight,
+      weightFlow: 0,
+      battery: snapshot.batteryLevel,
+      timerValue: snapshot.timerValue,
+    ),
+  );
+
+  @override
+  Scale connectedScale() => scale;
 }
 
 class _NullStorageService implements StorageService {
@@ -230,29 +245,23 @@ void main() {
     () {
       late _TestBengle bengle;
       late _BengleDe1Controller de1Controller;
-      late TestScale testScale;
-      late _TestScaleController scaleController;
+      late ScaleController scaleController;
       late PersistenceController persistence;
       late Profile profile;
 
       setUp(() {
         bengle = _TestBengle();
         de1Controller = _BengleDe1Controller(bengle);
-        testScale = TestScale();
-        scaleController = _TestScaleController(testScale);
-        testScale.tareHandler = () async {
-          if (testScale.tareCallCount == 2) scaleController.emitWeight(0);
-        };
+        scaleController = _BengleScaleController(BengleVirtualScale(bengle));
         persistence = PersistenceController(
           storageService: _NullStorageService(),
         );
         profile = _simpleProfile();
       });
 
-      tearDown(() {
-        bengle.dispose();
-        testScale.dispose();
+      tearDown(() async {
         scaleController.dispose();
+        await bengle.dispose();
         persistence.dispose();
       });
 
@@ -260,8 +269,6 @@ void main() {
         'does not request idle even when projected weight exceeds target',
         () {
           fakeAsync((async) {
-            scaleController.emitWeight(0.0);
-
             final shot = ShotSequencer(
               scaleController: scaleController,
               de1controller: de1Controller,
@@ -290,11 +297,7 @@ void main() {
             async.elapse(const Duration(milliseconds: 10));
 
             // Weight blows past the target. App SAW would normally fire.
-            scaleController.emitWeight(40.0);
-            bengle.emitStateAndSubstate(
-              MachineState.espresso,
-              MachineSubstate.pouring,
-            );
+            bengle.emitIntegratedSample(40.0);
             async.elapse(const Duration(milliseconds: 10));
 
             expect(
@@ -312,6 +315,10 @@ void main() {
 
       test('keeps machine cadence and app-side step exits', () {
         fakeAsync((async) {
+          final nativeWeights = <WeightSnapshot>[];
+          final weightSubscription = scaleController.weightSnapshot.listen(
+            nativeWeights.add,
+          );
           final shot = ShotSequencer(
             scaleController: scaleController,
             de1controller: de1Controller,
@@ -343,26 +350,23 @@ void main() {
           final rawBefore = raw.length;
           final persistedBefore = persisted.length;
 
-          scaleController.emitWeight(12);
-          scaleController.emitWeight(12);
+          bengle.emitIntegratedSample(12);
+          bengle.emitIntegratedSample(12);
           async.flushMicrotasks();
+          expect(bengle.tareCalls, 2);
+          expect(nativeWeights.map((sample) => sample.weight), [0, 12, 12]);
+          expect(shot.scaleLost, isFalse);
           expect(bengle.requestedStates, [MachineState.skipStep]);
-          expect(raw, hasLength(rawBefore));
-          expect(persisted, hasLength(persistedBefore));
+          expect(raw, hasLength(rawBefore + 2));
+          expect(persisted, hasLength(persistedBefore + 2));
           expect(
             states.where((state) => state == ShotState.pouring),
             hasLength(1),
           );
 
-          bengle.emitStateAndSubstate(
-            MachineState.espresso,
-            MachineSubstate.pouring,
-          );
-          async.flushMicrotasks();
-          expect(raw, hasLength(rawBefore + 1));
-          expect(persisted, hasLength(persistedBefore + 1));
           expect(bengle.requestedStates, isNot(contains(MachineState.idle)));
           shot.dispose();
+          weightSubscription.cancel();
         });
       });
     },

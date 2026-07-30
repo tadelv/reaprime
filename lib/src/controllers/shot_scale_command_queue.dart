@@ -42,10 +42,10 @@ class ShotScaleCommandQueue {
       try {
         onStart?.call();
         await operation(_scale);
-        if (generation == _generation) onSuccess?.call();
+        if (generation == _generation && _isCurrent()) onSuccess?.call();
       } catch (error, stackTrace) {
         _log.warning('${command.name} failed', error, stackTrace);
-        if (generation != _generation) return;
+        if (generation != _generation || !_isCurrent()) return;
         try {
           onFailure?.call(error);
         } catch (callbackError, callbackStackTrace) {
