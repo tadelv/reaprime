@@ -33,6 +33,7 @@ class PluginLoaderService {
   late Directory _pluginsDir;
   late SharedPreferences _prefs;
   final Map<String, PluginManifest> _availablePluginsCache = {};
+  Future<void> _pluginLoadQueue = Future.value();
 
   PluginLoaderService({
     required KeyValueStoreService kvStore,
@@ -164,7 +165,13 @@ class PluginLoaderService {
 
   /// Load plugin into the runtime
   /// by using the PluginManager loadPlugin method
-  Future<void> loadPlugin(String pluginId) async {
+  Future<void> loadPlugin(String pluginId) {
+    final load = _pluginLoadQueue.then((_) => _loadPlugin(pluginId));
+    _pluginLoadQueue = load.then<void>((_) {}, onError: (_, _) {});
+    return load;
+  }
+
+  Future<void> _loadPlugin(String pluginId) async {
     if (!_availablePluginsCache.containsKey(pluginId)) {
       throw Exception('Plugin not found: $pluginId');
     }

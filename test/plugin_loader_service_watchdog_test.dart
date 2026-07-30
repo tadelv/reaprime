@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/storage/kv_store_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _ControllablePluginLoaderService extends PluginLoaderService {
+  _ControllablePluginLoaderService({required super.kvStore})
+    : super(appStoreMode: false);
+
+  String? _pausedPluginId;
+  Completer<void>? _pauseEntered;
+  Completer<void>? _resume;
+
+  void pauseSettingsFor(String pluginId) {
+    _pausedPluginId = pluginId;
+    _pauseEntered = Completer<void>();
+    _resume = Completer<void>();
+  }
+
+  Future<void> waitUntilPaused() => _pauseEntered!.future;
+
+  void resume() => _resume!.complete();
+
+  @override
+  Future<Map<String, dynamic>> pluginSettings(String pluginId) async {
+    if (pluginId == _pausedPluginId) {
+      _pauseEntered!.complete();
+      await _resume!.future;
+    }
+    return super.pluginSettings(pluginId);
+  }
+}
 
 class _FakeKvStore implements KeyValueStoreService {
   final Map<String, Map<String, Object>> _store = {};
@@ -52,7 +81,7 @@ void main() {
   const pluginId = 'watchdog-test.reaplugin';
   late Directory tempDir;
   late Directory sourceDir;
-  late PluginLoaderService service;
+  late _ControllablePluginLoaderService service;
 
   void writePlugin(String js) {
     File('${sourceDir.path}/plugin.js').writeAsStringSync(js);
@@ -87,7 +116,7 @@ void main() {
     );
     writePlugin('function createPlugin() { throw new Error("boom"); }');
 
-    service = PluginLoaderService(kvStore: _FakeKvStore(), appStoreMode: false);
+    service = _ControllablePluginLoaderService(kvStore: _FakeKvStore());
     await service.initialize();
     await service.addPlugin(sourceDir.path);
     await service.setPluginAutoLoad(pluginId, true);
@@ -159,6 +188,51 @@ function createPlugin() {
       expect(await service.shouldAutoLoad(pluginId), isTrue);
     },
   );
+
+  test('serializes concurrent plugin loads', () async {
+    const secondPluginId = 'watchdog-second.reaplugin';
+    final secondSource = Directory('${tempDir.path}/second-source')
+      ..createSync();
+    File('${secondSource.path}/manifest.json').writeAsStringSync(
+      jsonEncode({
+        'id': secondPluginId,
+        'author': 'Test',
+        'name': 'Second watchdog test',
+        'description': 'Test plugin',
+        'version': '1.0.0',
+        'apiVersion': 1,
+        'permissions': <String>[],
+        'settings': <String, Object>{},
+        'api': <Object>[],
+      }),
+    );
+    File('${secondSource.path}/plugin.js').writeAsStringSync('''
+function createPlugin() {
+  return { id: "$secondPluginId", onLoad() {} };
+}
+''');
+    await service.addPlugin(secondSource.path);
+    File('${tempDir.path}/plugins/$pluginId/plugin.js').writeAsStringSync('''
+function createPlugin() {
+  return { id: "$pluginId", onLoad() {} };
+}
+''');
+
+    service.pauseSettingsFor(pluginId);
+    final firstLoad = service.loadPlugin(pluginId);
+    await service.waitUntilPaused();
+
+    var secondCompleted = false;
+    final secondLoad = service
+        .loadPlugin(secondPluginId)
+        .then((_) => secondCompleted = true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(secondCompleted, isFalse);
+
+    service.resume();
+    await Future.wait([firstLoad, secondLoad]);
+  });
 
   test('next launch disables a plugin interrupted during load', () async {
     final prefs = await SharedPreferences.getInstance();
