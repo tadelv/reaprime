@@ -303,7 +303,8 @@ class ShotSequencer {
       return;
     }
     _latestScale = scale;
-    if (_scaleAvailability == _ScaleAvailability.ready &&
+    if ((_scaleAvailability == _ScaleAvailability.awaitingPourTare ||
+            _scaleAvailability == _ScaleAvailability.ready) &&
         (_state == ShotState.pouring || _state == ShotState.stopping)) {
       _resetFreshnessTimer();
     }
@@ -326,7 +327,10 @@ class ShotSequencer {
     _freshnessTimer?.cancel();
     _freshnessTimer = Timer(_scaleFreshnessTimeout, () {
       if (_state != ShotState.pouring && _state != ShotState.stopping) return;
-      if (_scaleAvailability != _ScaleAvailability.ready) return;
+      if (_scaleAvailability != _ScaleAvailability.awaitingPourTare &&
+          _scaleAvailability != _ScaleAvailability.ready) {
+        return;
+      }
       _disableScale(_ScaleAvailability.stale, 'Scale feed became stale');
     });
   }
@@ -417,7 +421,6 @@ class ShotSequencer {
     if (!_pourTareSucceeded || !_pourTareZeroObserved) return;
     _tareConfirmationTimer?.cancel();
     _scaleAvailability = _ScaleAvailability.ready;
-    _resetFreshnessTimer();
   }
 
   void _evaluateScaleControl(WeightSnapshot scale) {
