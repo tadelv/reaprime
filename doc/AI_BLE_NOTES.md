@@ -172,7 +172,7 @@ A queue can produce only one wrapper timeout per faulted generation; followers a
 
 ## Comms-Layer Patterns
 
-An awake Decent Scale connection requires a valid FFF4 status or weight notification after subscription and a status request. Two seconds of silence triggers one immediate re-subscribe and status request; a second silent window tears down the transport without sending the physical power-off command so ConnectionManager owns the next reconnect. A deliberately sleeping reconnect only restores the subscription while remaining dark and defers the same readiness probe until wake.
+An awake Decent Scale connection requires a recognised FFF4 status or weight frame after subscription and a status request. Two seconds of silence triggers one immediate re-subscribe and status request; a second silent window tears down the transport without sending the physical power-off command so ConnectionManager owns the next reconnect. A deliberately sleeping reconnect only restores the subscription while remaining dark and defers the same readiness probe until wake.
 
 Three reusable idioms from the comms-harden effort:
 
