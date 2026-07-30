@@ -7,6 +7,7 @@ import 'package:reaprime/src/models/device/transport/ble_connect_exception.dart'
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart' as domain;
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
+import 'package:reaprime/src/services/ble/ble_lifecycle_gate.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:reaprime/src/services/device_factory.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
@@ -25,6 +26,7 @@ typedef BleTransportFactory =
       required BleDevice device,
       required Future<void> Function() stopScan,
       required bool requestLargeMtuNonAndroid,
+      required BleLifecycleGate lifecycleGate,
     });
 
 class UniversalBleDiscoveryService extends BleDiscoveryService
@@ -41,16 +43,19 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     required BleDevice device,
     required Future<void> Function() stopScan,
     required bool requestLargeMtuNonAndroid,
+    required BleLifecycleGate lifecycleGate,
   }) {
     return UniversalBleTransport(
       device: device,
       stopScan: stopScan,
       requestLargeMtuNonAndroid: requestLargeMtuNonAndroid,
+      lifecycleGate: lifecycleGate,
     );
   }
 
   final bool Function() _watchSupportGate;
   final BleTransportFactory _transportFactory;
+  final BleLifecycleGate _lifecycleGate = BleLifecycleGate();
 
   bool Function() requestLargeMtuNonAndroid;
 
@@ -59,6 +64,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       device: device,
       stopScan: _stopScanForConnect,
       requestLargeMtuNonAndroid: requestLargeMtuNonAndroid(),
+      lifecycleGate: _lifecycleGate,
     );
   }
 
@@ -221,7 +227,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     final adapterGen = _watchAdapterGeneration;
 
     _watchScanSub = UniversalBle.scanStream.listen((result) async {
-      if (_currentlyScanning.contains(result.deviceId)) {
+      if (_currentlyScanning.contains(normalizeBleDeviceId(result.deviceId))) {
         return;
       }
       await _deviceScanned(result);
@@ -349,7 +355,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     if (state == _lastWatchAdapterState) return;
     _lastWatchAdapterState = state;
     _watchAdapterGeneration++;
-    if (state == AdapterState.poweredOff) {
+    if (state != AdapterState.poweredOn) {
       if (!_watchScanActive) return;
       unawaited(
         _deactivateWatchScan(stopOsScan: false, context: 'adapter-off'),
@@ -363,6 +369,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   }
 
   final Map<String, Device> _devices = {};
+  final Map<String, Future<Device?>> _candidateInFlight = {};
 
   final log = logging.Logger("UniversalBleDeviceService");
 
@@ -371,7 +378,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
 
   final Map<String, StreamSubscription<ConnectionState>> _connections = {};
 
-  final List<String> _currentlyScanning = [];
+  final Set<String> _currentlyScanning = {};
+  StreamSubscription<AvailabilityState>? _availabilitySubscription;
+  bool _disposed = false;
 
   bool _isScanning = false;
 
@@ -393,6 +402,8 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
 
   @override
   Future<void> initialize() async {
+    if (_availabilitySubscription != null) return;
+    _disposed = false;
     // perDevice: each BLE peripheral gets its own command queue, so
     // DE1 GATT operations never block scale heartbeat writes and vice
     // versa. Mirrors flutter_blue_plus' per-connection serialization.
@@ -418,7 +429,8 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     // initial replay of this same state doesn't count as a transition.
     _lastWatchAdapterState = mappedInitialState;
 
-    UniversalBle.availabilityStream.listen((state) {
+    _availabilitySubscription = UniversalBle.availabilityStream.listen((state) {
+      if (_disposed) return;
       log.info("BLE Adapter state: ${state.name}");
       final mapped = _mapAvailabilityState(state);
       _adapterStateSubject.add(mapped);
@@ -526,7 +538,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         log.finest(
           "Found: ${result.deviceId}: ${result.name}, adv: ${result.services}",
         );
-        if (_currentlyScanning.contains(result.deviceId)) {
+        if (_currentlyScanning.contains(
+          normalizeBleDeviceId(result.deviceId),
+        )) {
           return;
         }
         await _deviceScanned(result);
@@ -587,36 +601,59 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   }
 
   Future<void> _deviceScanned(BleDevice device) async {
-    _currentlyScanning.add(device.deviceId);
+    final deviceId = normalizeBleDeviceId(device.deviceId);
+    if (_currentlyScanning.contains(deviceId)) return;
+    _currentlyScanning.add(deviceId);
 
     try {
       final name = device.name ?? '';
       if (name.isEmpty) return;
 
-      if (_devices.containsKey(device.deviceId.toString())) return;
+      if (_devices.containsKey(deviceId)) return;
 
-      final matchedDevice = await DeviceMatcher.match(
-        transport: _createTransport(device),
-        advertisedName: name,
+      final matchedDevice = await _candidate(
+        deviceId,
+        () => DeviceMatcher.match(
+          transport: _createTransport(device),
+          advertisedName: name,
+        ),
       );
 
       if (matchedDevice != null) {
-        _devices[device.deviceId.toString()] = matchedDevice;
+        _devices[deviceId] = matchedDevice;
         _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");
 
-        _connections[device.deviceId
-            .toString()] = _devices[device.deviceId.toString()]!.connectionState
-            .listen((connectionState) {
-              if (connectionState == ConnectionState.disconnected) {
-                _devices.remove(device.deviceId.toString());
-                _deviceStreamController.add(_devices.values.toList());
-              }
-            });
+        await _connections.remove(deviceId)?.cancel();
+        _connections[deviceId] = matchedDevice.connectionState.listen((
+          connectionState,
+        ) {
+          if (connectionState == ConnectionState.disconnected) {
+            _devices.remove(deviceId);
+            _deviceStreamController.add(_devices.values.toList());
+          }
+        });
       }
     } finally {
-      _currentlyScanning.remove(device.deviceId);
+      _currentlyScanning.remove(deviceId);
     }
+  }
+
+  Future<Device?> _candidate(
+    String deviceId,
+    Future<Device?> Function() create,
+  ) {
+    final key = normalizeBleDeviceId(deviceId);
+    final existing = _candidateInFlight[key];
+    if (existing != null) return existing;
+    late final Future<Device?> candidate;
+    candidate = create().whenComplete(() {
+      if (identical(_candidateInFlight[key], candidate)) {
+        _candidateInFlight.remove(key);
+      }
+    });
+    _candidateInFlight[key] = candidate;
+    return candidate;
   }
 
   @override
@@ -627,7 +664,18 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       return null;
     }
 
+    return _candidate(
+      remembered.id,
+      () => _tryQuickConnectCandidate(remembered, impl),
+    );
+  }
+
+  Future<Device?> _tryQuickConnectCandidate(
+    RememberedDevice remembered,
+    DeviceImplementation impl,
+  ) async {
     final deviceId = remembered.id;
+    final key = normalizeBleDeviceId(deviceId);
 
     BleDevice? bleDevice;
     if (Platform.isIOS || Platform.isMacOS) {
@@ -669,11 +717,12 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
           }
         }
       }
-      _devices[deviceId] = device;
+      _devices[key] = device;
       _deviceStreamController.add(_devices.values.toList());
-      _connections[deviceId] = device.connectionState.listen((state) {
+      await _connections.remove(key)?.cancel();
+      _connections[key] = device.connectionState.listen((state) {
         if (state == ConnectionState.disconnected) {
-          _devices.remove(deviceId);
+          _devices.remove(key);
           _deviceStreamController.add(_devices.values.toList());
         }
       });
@@ -697,7 +746,10 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         withServices: [],
       );
       for (final d in systemDevices) {
-        if (d.deviceId == deviceId) return d;
+        if (normalizeBleDeviceId(d.deviceId) ==
+            normalizeBleDeviceId(deviceId)) {
+          return d;
+        }
       }
     } catch (e, st) {
       log.fine('getSystemDevices failed during quick-connect', e, st);
@@ -706,7 +758,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   }
 
   Future<void> _connectWithRetry(Device device) async {
-    const timeout = Duration(seconds: 10);
+    final timeout = Platform.isLinux
+        ? const Duration(seconds: 60)
+        : const Duration(seconds: 10);
     try {
       await device.onConnect().timeout(timeout);
     } on BleConnectException catch (e) {
@@ -716,6 +770,26 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         await device.disconnect();
       } catch (_) {}
       await device.onConnect().timeout(timeout);
+    }
+  }
+
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _availabilitySubscription?.cancel();
+    _availabilitySubscription = null;
+    _cancelScanDurationWait();
+    await stopDeviceWatch();
+    for (final subscription in _connections.values) {
+      await subscription.cancel();
+    }
+    _connections.clear();
+    if (!_deviceStreamController.isClosed) {
+      await _deviceStreamController.close();
+    }
+    if (!_adapterStateSubject.isClosed) await _adapterStateSubject.close();
+    if (!_watchFailureController.isClosed) {
+      await _watchFailureController.close();
     }
   }
 }

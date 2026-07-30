@@ -26,6 +26,10 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   int connectCalls = 0;
   int writeCalls = 0;
   int getConnectionStateCalls = 0;
+  int clearGattCacheCalls = 0;
+  bool updateConnectionStateOnLifecycle = false;
+  Completer<void>? clearGattCacheBlocker;
+  final List<Object> serviceDiscoveryResults = [];
   final List<String> disconnectCalls = [];
   final List<BleInputProperty> notificationProperties = [];
 
@@ -65,12 +69,18 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     ConnectionPlatformConfig? platformConfig,
   }) async {
     connectCalls++;
+    if (updateConnectionStateOnLifecycle) {
+      connectionStateResult = BleConnectionState.connected;
+    }
     updateConnection(deviceId, true);
   }
 
   @override
   Future<void> disconnect(String deviceId) async {
     disconnectCalls.add(deviceId);
+    if (updateConnectionStateOnLifecycle) {
+      connectionStateResult = BleConnectionState.disconnected;
+    }
     if (emitDisconnectEvent) updateConnection(deviceId, false);
   }
 
@@ -78,7 +88,18 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   Future<List<BleService>> discoverServices(
     String deviceId,
     bool withDescriptors,
-  ) async => [];
+  ) async {
+    if (serviceDiscoveryResults.isEmpty) return [];
+    final result = serviceDiscoveryResults.removeAt(0);
+    if (result is Error || result is Exception) throw result;
+    return result as List<BleService>;
+  }
+
+  @override
+  Future<void> clearGattCache(String deviceId) async {
+    clearGattCacheCalls++;
+    await clearGattCacheBlocker?.future;
+  }
 
   @override
   Future<void> setNotifiable(
@@ -750,6 +771,104 @@ void main() {
       expect(received, isEmpty);
       expect(platform.notificationProperties, [BleInputProperty.notification]);
       expect(platform.disconnectCalls, [deviceId]);
+    });
+  });
+
+  group('Linux stale service recovery', () {
+    Future<
+      (
+        UniversalBleTransport,
+        List<device.ConnectionState>,
+        StreamSubscription<device.ConnectionState>,
+      )
+    >
+    createLinuxTransport() async {
+      final linux = UniversalBleTransport(
+        device: bleDevice('$deviceId-linux'),
+        isLinuxOverride: true,
+        bluezPostConnectDelay: Duration.zero,
+        bluezScanSettleDelay: Duration.zero,
+        bluezCacheRefreshScan: Duration.zero,
+        faultRecoveryDisconnectTimeout: const Duration(milliseconds: 100),
+      );
+      final states = <device.ConnectionState>[];
+      final subscription = linux.connectionState.listen(states.add);
+      platform.updateConnectionStateOnLifecycle = true;
+      await linux.connect();
+      await pump(10);
+      return (linux, states, subscription);
+    }
+
+    UniversalBleException unresolved() => UniversalBleException(
+      code: UniversalBleErrorCode.servicesNotResolved,
+      message: 'stale',
+    );
+
+    test('successful recovery hides the maintenance disconnect', () async {
+      final (linux, states, subscription) = await createLinuxTransport();
+      addTearDown(subscription.cancel);
+      addTearDown(linux.dispose);
+      platform.serviceDiscoveryResults.addAll([
+        unresolved(),
+        <BleService>[BleService(_serviceUuid, [])],
+      ]);
+
+      final services = await linux.discoverServices();
+
+      expect(services, [_serviceUuid]);
+      expect(platform.clearGattCacheCalls, 1);
+      expect(states, isNot(contains(device.ConnectionState.disconnected)));
+    });
+
+    test('second unresolved result disconnects exactly once', () async {
+      final (linux, states, subscription) = await createLinuxTransport();
+      addTearDown(subscription.cancel);
+      addTearDown(linux.dispose);
+      platform.serviceDiscoveryResults.addAll([unresolved(), unresolved()]);
+
+      await expectLater(
+        linux.discoverServices(),
+        throwsA(
+          isA<UniversalBleException>().having(
+            (error) => error.code,
+            'code',
+            UniversalBleErrorCode.servicesNotResolved,
+          ),
+        ),
+      );
+
+      expect(
+        states.where((state) => state == device.ConnectionState.disconnected),
+        hasLength(1),
+      );
+    });
+
+    test('explicit disconnect cancels maintenance before reconnect', () async {
+      final (linux, _, subscription) = await createLinuxTransport();
+      addTearDown(subscription.cancel);
+      addTearDown(linux.dispose);
+      platform.clearGattCacheBlocker = Completer<void>();
+      platform.serviceDiscoveryResults.add(unresolved());
+
+      final discovery = linux.discoverServices();
+      while (platform.clearGattCacheCalls == 0) {
+        await pump(1);
+      }
+      final disconnect = linux.disconnect();
+      platform.clearGattCacheBlocker!.complete();
+
+      await expectLater(
+        discovery,
+        throwsA(
+          isA<UniversalBleException>().having(
+            (error) => error.code,
+            'code',
+            UniversalBleErrorCode.operationCancelled,
+          ),
+        ),
+      );
+      await disconnect;
+      expect(platform.connectCalls, 2);
     });
   });
 }

@@ -201,9 +201,7 @@ void main() {
   });
 
   tearDown(() async {
-    // Stop any active watch so its refresh/liveness timers cannot fire
-    // in a later test against that test's replaced UniversalBle fake.
-    await service.stopDeviceWatch();
+    await service.dispose();
   });
 
   ({ScanFilter? filter, PlatformConfig? config}) lastStart() =>
@@ -247,6 +245,36 @@ void main() {
         contains('AA:BB:CC:DD:EE:FF'),
       );
       await sub.cancel();
+    });
+
+    test('normalized duplicate results create one candidate', () async {
+      var transports = 0;
+      final sut = UniversalBleDiscoveryService(
+        watchSupportGate: () => true,
+        transportFactory:
+            ({
+              required device,
+              required stopScan,
+              required requestLargeMtuNonAndroid,
+              required lifecycleGate,
+            }) {
+              transports++;
+              return FakeBleTransport();
+            },
+      );
+      addTearDown(sut.dispose);
+      await sut.initialize();
+      await sut.startDeviceWatch(_watchFilter);
+
+      platform.updateScanResult(
+        BleDevice(deviceId: 'AA:BB:CC:DD:EE:FF', name: 'Decent Scale'),
+      );
+      platform.updateScanResult(
+        BleDevice(deviceId: 'aa:bb:cc:dd:ee:ff', name: 'Decent Scale'),
+      );
+      await pump();
+
+      expect(transports, 1);
     });
   });
 
@@ -689,6 +717,7 @@ void main() {
                 required device,
                 required stopScan,
                 required requestLargeMtuNonAndroid,
+                required lifecycleGate,
               }) {
                 return transport;
               },
@@ -743,6 +772,7 @@ void main() {
                 required device,
                 required stopScan,
                 required requestLargeMtuNonAndroid,
+                required lifecycleGate,
               }) {
                 return transport;
               },
@@ -799,6 +829,7 @@ void main() {
                 required device,
                 required stopScan,
                 required requestLargeMtuNonAndroid,
+                required lifecycleGate,
               }) {
                 capturedValues.add(requestLargeMtuNonAndroid);
 

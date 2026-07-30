@@ -222,6 +222,16 @@ Build both architectures:
 make dual-build
 ```
 
+For a systemd installation, order ReaPrime after BlueZ:
+
+```ini
+[Unit]
+Wants=bluetooth.service
+After=bluetooth.service
+```
+
+This reduces startup races but does not replace the application's Bluetooth recovery.
+
 ## System Requirements
 
 ### Minimum Requirements

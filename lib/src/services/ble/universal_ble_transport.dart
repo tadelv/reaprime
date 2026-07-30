@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart'
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
+import 'package:reaprime/src/services/ble/ble_lifecycle_gate.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
 
@@ -35,6 +36,8 @@ class UniversalBleTransport extends BLETransport {
   //     while connected (this transport is shared by scales and sensors).
   bool _linkDeadDeclared = false;
   int _connectionGeneration = 0;
+  int? _maintenanceGeneration;
+  bool _disposed = false;
   int? _recoveringQueueGeneration;
   Future<void>? _nativeDisconnectOperation;
   DateTime? _lastAdvertProbe;
@@ -55,11 +58,6 @@ class UniversalBleTransport extends BLETransport {
   // triggers `le-connection-abort-by-local`, so we stop scanning and let the
   // adapter settle before connecting; GATT service resolution also needs
   // retries because BlueZ resolves services asynchronously after connect.
-  static const Duration _bluezPostConnectDelay = Duration(milliseconds: 500);
-  static const Duration _bluezScanSettleDelay = Duration(seconds: 2);
-  static const Duration _bluezCacheRefreshScan = Duration(seconds: 4);
-  static const int _bluezDiscoveryRetries = 3;
-  static const Duration _bluezDiscoveryRetryDelay = Duration(seconds: 1);
 
   bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
   bool get _isLinux => _isLinuxOverride ?? Platform.isLinux;
@@ -72,13 +70,21 @@ class UniversalBleTransport extends BLETransport {
     bool? isLinuxOverride,
     Duration faultRecoveryGrace = const Duration(seconds: 2),
     Duration faultRecoveryDisconnectTimeout = const Duration(seconds: 5),
+    BleLifecycleGate? lifecycleGate,
+    Duration bluezPostConnectDelay = const Duration(milliseconds: 500),
+    Duration bluezScanSettleDelay = const Duration(seconds: 2),
+    Duration bluezCacheRefreshScan = const Duration(seconds: 4),
   }) : _device = device,
        _stopScan = stopScan,
        _requestLargeMtuNonAndroid = requestLargeMtuNonAndroid,
        _isAndroidOverride = isAndroidOverride,
        _isLinuxOverride = isLinuxOverride,
        _faultRecoveryGrace = faultRecoveryGrace,
-       _faultRecoveryDisconnectTimeout = faultRecoveryDisconnectTimeout {
+       _faultRecoveryDisconnectTimeout = faultRecoveryDisconnectTimeout,
+       _lifecycleGate = lifecycleGate ?? BleLifecycleGate(),
+       _bluezPostConnectDelay = bluezPostConnectDelay,
+       _bluezScanSettleDelay = bluezScanSettleDelay,
+       _bluezCacheRefreshScan = bluezCacheRefreshScan {
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
@@ -94,6 +100,10 @@ class UniversalBleTransport extends BLETransport {
   final bool? _isLinuxOverride;
   final Duration _faultRecoveryGrace;
   final Duration _faultRecoveryDisconnectTimeout;
+  final BleLifecycleGate _lifecycleGate;
+  final Duration _bluezPostConnectDelay;
+  final Duration _bluezScanSettleDelay;
+  final Duration _bluezCacheRefreshScan;
 
   Future<void> _stopScanViaOwner() =>
       _stopScan?.call() ?? UniversalBle.stopScan();
@@ -110,7 +120,11 @@ class UniversalBleTransport extends BLETransport {
   );
 
   @override
-  Future<void> connect() async {
+  Future<void> connect() =>
+      _lifecycleGate.run(_device.deviceId, _connectNative);
+
+  Future<void> _connectNative() async {
+    if (_disposed) throw StateError('BLE transport is disposed');
     if (UniversalBle.getQueueDiagnostics(_device.deviceId).state ==
         QueueDiagnosticsState.faulted) {
       throw StateError(
@@ -118,23 +132,13 @@ class UniversalBleTransport extends BLETransport {
       );
     }
     _connectionGeneration++;
+    final generation = _connectionGeneration;
     _linkDeadDeclared = false;
     _lastAdvertProbe = null;
     // Use connectionUpdateStream (from our universal_ble fork) to get
     // native disconnect reason codes (GATT error, HCI status) — the
     // standard connectionStream only emits bool.
-    _connectionStateSubscription?.cancel();
-    _connectionStateSubscription =
-        UniversalBle.connectionUpdateStream(_device.deviceId).listen((update) {
-          if (update.isConnected) {
-            _connectionStateSubject.add(device.ConnectionState.connected);
-          } else {
-            _recoveringQueueGeneration = null;
-            final reason = update.error ?? 'unknown';
-            _log.warning('Transport disconnected: $reason');
-            _connectionStateSubject.add(device.ConnectionState.disconnected);
-          }
-        });
+    await _listenForConnectionUpdates(generation);
     if (_isLinux) {
       await _connectBlueZ();
       _startAdvertWatch();
@@ -205,41 +209,91 @@ class UniversalBleTransport extends BLETransport {
     }
   }
 
-  Future<void> _doConnectBlueZ() async {
+  Future<void> _listenForConnectionUpdates(int generation) async {
+    await _connectionStateSubscription?.cancel();
+    if (_connectionGeneration != generation || _disposed) return;
+    _connectionStateSubscription =
+        UniversalBle.connectionUpdateStream(_device.deviceId).listen((update) {
+          if (_connectionGeneration != generation) return;
+          if (update.isConnected) {
+            _connectionStateSubject.add(device.ConnectionState.connected);
+          } else {
+            if (_maintenanceGeneration == generation) return;
+            _recoveringQueueGeneration = null;
+            final reason = update.error ?? 'unknown';
+            _log.warning('Transport disconnected: $reason');
+            _publishDisconnected();
+          }
+        });
+  }
+
+  Future<void> _doConnectBlueZ([int? maintenanceGeneration]) async {
     // Stop scanning and let the adapter settle — connecting while a scan is
     // active (or immediately after) causes le-connection-abort-by-local.
-    await _stopScanAndSettle();
+    await _stopScanAndSettle(maintenanceGeneration);
     await UniversalBle.connect(
       _device.deviceId,
       timeout: Duration(seconds: 15),
     );
+    if (maintenanceGeneration != null) {
+      _checkMaintenanceGeneration(maintenanceGeneration);
+    }
     // BlueZ finalizes GATT client setup slightly after connect reports success.
     await Future.delayed(_bluezPostConnectDelay);
+    if (maintenanceGeneration != null) {
+      _checkMaintenanceGeneration(maintenanceGeneration);
+    }
   }
 
-  Future<void> _stopScanAndSettle() async {
+  Future<void> _stopScanAndSettle([int? maintenanceGeneration]) async {
     try {
       await _stopScanViaOwner();
     } catch (e) {
       _log.fine("stopScan before BlueZ connect failed (ignored): $e");
+    }
+    if (maintenanceGeneration != null) {
+      _checkMaintenanceGeneration(maintenanceGeneration);
     }
     _log.fine(
       "Waiting ${_bluezScanSettleDelay.inSeconds}s for BlueZ to settle "
       "before connect",
     );
     await Future.delayed(_bluezScanSettleDelay);
+    if (maintenanceGeneration != null) {
+      _checkMaintenanceGeneration(maintenanceGeneration);
+    }
   }
 
   /// Brief scan to repopulate BlueZ's device cache (the device can drop out of
   /// the adapter's object tree after a disconnect), then settle before retry.
-  Future<void> _refreshDeviceCache() async {
+  Future<void> _refreshDeviceCache([int? maintenanceGeneration]) async {
     try {
       await UniversalBle.stopScan();
+      if (maintenanceGeneration != null) {
+        _checkMaintenanceGeneration(maintenanceGeneration);
+      }
       await Future.delayed(const Duration(milliseconds: 500));
+      if (maintenanceGeneration != null) {
+        _checkMaintenanceGeneration(maintenanceGeneration);
+      }
       await UniversalBle.startScan(scanFilter: ScanFilter(withServices: []));
+      if (maintenanceGeneration != null) {
+        _checkMaintenanceGeneration(maintenanceGeneration);
+      }
       await Future.delayed(_bluezCacheRefreshScan);
+      if (maintenanceGeneration != null) {
+        _checkMaintenanceGeneration(maintenanceGeneration);
+      }
       await UniversalBle.stopScan();
+      if (maintenanceGeneration != null) {
+        _checkMaintenanceGeneration(maintenanceGeneration);
+      }
       await Future.delayed(_bluezScanSettleDelay);
+      if (maintenanceGeneration != null) {
+        _checkMaintenanceGeneration(maintenanceGeneration);
+      }
+    } on _MaintenanceCancelled {
+      rethrow;
     } catch (e) {
       _log.warning("BlueZ cache-refresh scan failed: $e");
       try {
@@ -316,8 +370,13 @@ class UniversalBleTransport extends BLETransport {
       _connectionStateSubject.asBroadcastStream();
 
   @override
-  Future<void> disconnect() async {
+  Future<void> disconnect() {
     _connectionGeneration++;
+    return _lifecycleGate.run(_device.deviceId, _disconnectLocked);
+  }
+
+  Future<void> _disconnectLocked() async {
+    _maintenanceGeneration = null;
     await _advertSub?.cancel();
     _advertSub = null;
 
@@ -338,13 +397,14 @@ class UniversalBleTransport extends BLETransport {
     try {
       _log.fine("disconnect");
       await _disconnectNative();
+      _publishDisconnected();
     } catch (error, stackTrace) {
       _log.warning("failed to disconnect", error, stackTrace);
       if (UniversalBle.getQueueDiagnostics(_device.deviceId).state ==
           QueueDiagnosticsState.faulted) {
         rethrow;
       }
-      _connectionStateSubject.add(device.ConnectionState.disconnected);
+      _publishDisconnected();
     } finally {
       await _connectionStateSubscription?.cancel();
       _connectionStateSubscription = null;
@@ -369,7 +429,10 @@ class UniversalBleTransport extends BLETransport {
   }
 
   @override
-  Future<List<String>> discoverServices() async {
+  Future<List<String>> discoverServices() =>
+      _lifecycleGate.run(_device.deviceId, _discoverServicesLocked);
+
+  Future<List<String>> _discoverServicesLocked() async {
     if (!_isLinux) {
       final services = await UniversalBle.discoverServices(
         _device.deviceId,
@@ -381,38 +444,79 @@ class UniversalBleTransport extends BLETransport {
       return services.map((s) => s.uuid).toList();
     }
 
-    // BlueZ resolves GATT services asynchronously after connect; a query too
-    // soon can throw "Failed to resolve services" or return empty. Retry a
-    // few times (ported from LinuxBluePlusTransport).
-    for (int attempt = 1; attempt <= _bluezDiscoveryRetries; attempt++) {
-      try {
-        final services = await UniversalBle.discoverServices(
-          _device.deviceId,
-          timeout: Duration(seconds: 15),
-        );
-        if (services.isEmpty && attempt < _bluezDiscoveryRetries) {
-          _log.warning(
-            "discoverServices returned empty "
-            "(attempt $attempt/$_bluezDiscoveryRetries), retrying",
-          );
-          await Future.delayed(_bluezDiscoveryRetryDelay);
-          continue;
-        }
-        _log.fine("discovered ${services.length} services");
-        return services.map((s) => s.uuid).toList();
-      } on UniversalBleException catch (e) {
-        _log.warning(
-          "discoverServices attempt $attempt/$_bluezDiscoveryRetries "
-          "failed: $e",
-        );
-        if (attempt < _bluezDiscoveryRetries) {
-          await Future.delayed(_bluezDiscoveryRetryDelay);
-        } else {
-          rethrow;
-        }
-      }
+    try {
+      return await _discoverServicesBlueZ();
+    } on UniversalBleException catch (error) {
+      if (error.code != UniversalBleErrorCode.servicesNotResolved) rethrow;
+      return _recoverBlueZServices(_connectionGeneration);
     }
-    return [];
+  }
+
+  Future<List<String>> _discoverServicesBlueZ() async {
+    final services = await UniversalBle.discoverServices(
+      _device.deviceId,
+      timeout: const Duration(seconds: 15),
+    );
+    _log.fine('discovered ${services.length} services');
+    return services.map((service) => service.uuid).toList();
+  }
+
+  Future<List<String>> _recoverBlueZServices(int generation) async {
+    _maintenanceGeneration = generation;
+    try {
+      await _stopScanAndSettle(generation);
+      await _disconnectNative();
+      _checkMaintenanceGeneration(generation);
+      await _waitForNativeDisconnect(generation);
+      _checkMaintenanceGeneration(generation);
+      await _connectionStateSubscription?.cancel();
+      _connectionStateSubscription = null;
+      _checkMaintenanceGeneration(generation);
+      await UniversalBle.clearGattCache(_device.deviceId);
+      _checkMaintenanceGeneration(generation);
+      await _refreshDeviceCache(generation);
+      await _doConnectBlueZ(generation);
+      await _listenForConnectionUpdates(generation);
+      _checkMaintenanceGeneration(generation);
+      final services = await _discoverServicesBlueZ();
+      _checkMaintenanceGeneration(generation);
+      _maintenanceGeneration = null;
+      return services;
+    } on _MaintenanceCancelled {
+      _maintenanceGeneration = null;
+      throw UniversalBleException(
+        code: UniversalBleErrorCode.operationCancelled,
+        message: 'BLE maintenance recovery was cancelled',
+      );
+    } catch (_) {
+      _maintenanceGeneration = null;
+      try {
+        await _disconnectNative();
+      } catch (_) {}
+      _publishDisconnected();
+      rethrow;
+    }
+  }
+
+  Future<void> _waitForNativeDisconnect(int generation) async {
+    final deadline = DateTime.now().add(_faultRecoveryDisconnectTimeout);
+    while (DateTime.now().isBefore(deadline)) {
+      _checkMaintenanceGeneration(generation);
+      final state = await UniversalBle.getConnectionState(
+        _device.deviceId,
+        timeout: const Duration(seconds: 2),
+      );
+      _checkMaintenanceGeneration(generation);
+      if (state == BleConnectionState.disconnected) return;
+      await Future<void>.delayed(_faultRecoveryPollInterval);
+    }
+    throw TimeoutException('Timed out waiting for native BLE disconnect');
+  }
+
+  void _checkMaintenanceGeneration(int generation) {
+    if (_connectionGeneration != generation || _disposed) {
+      throw const _MaintenanceCancelled();
+    }
   }
 
   @override
@@ -578,6 +682,14 @@ class UniversalBleTransport extends BLETransport {
     _clearQueue(UniversalBleErrorCode.deviceDisconnected);
     if (_connectionStateSubject.valueOrNull !=
         device.ConnectionState.disconnected) {
+      _publishDisconnected();
+    }
+  }
+
+  void _publishDisconnected() {
+    if (!_connectionStateSubject.isClosed &&
+        _connectionStateSubject.valueOrNull !=
+            device.ConnectionState.disconnected) {
       _connectionStateSubject.add(device.ConnectionState.disconnected);
     }
   }
@@ -706,8 +818,14 @@ class UniversalBleTransport extends BLETransport {
   }
 
   @override
-  Future<void> dispose() async {
+  Future<void> dispose() {
     _connectionGeneration++;
+    _disposed = true;
+    return _lifecycleGate.run(_device.deviceId, _disposeLocked);
+  }
+
+  Future<void> _disposeLocked() async {
+    _maintenanceGeneration = null;
     _advertSub?.cancel();
     _advertSub = null;
     _connectionStateSubscription?.cancel();
@@ -720,4 +838,8 @@ class UniversalBleTransport extends BLETransport {
       _connectionStateSubject.close();
     }
   }
+}
+
+class _MaintenanceCancelled implements Exception {
+  const _MaintenanceCancelled();
 }

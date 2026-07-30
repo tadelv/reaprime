@@ -206,6 +206,28 @@ void main() {
       expect(connectionManager.currentStatus.error, isNull);
     });
 
+    test('adapter restoration queues one current-state recovery', () async {
+      await settingsController.setPreferredMachineId('pref-de1');
+      connectionManager.adapterRecoveryDebounce = Duration.zero;
+
+      mockScanner.mockAdapterState(AdapterState.poweredOn);
+      await Future<void>.delayed(Duration.zero);
+      expect(mockScanner.scanCallCount, 0);
+
+      mockScanner.mockAdapterState(AdapterState.poweredOff);
+      mockScanner.mockAdapterState(AdapterState.unknown);
+      mockScanner.mockAdapterState(AdapterState.poweredOn);
+      mockScanner.mockAdapterState(AdapterState.poweredOn);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(mockScanner.stopScanCallCount, 1);
+      expect(mockScanner.scanCallCount, 1);
+      expect(
+        connectionManager.currentStatus.intent,
+        ConnectionIntent.adapterRecovery,
+      );
+    });
+
     group('connect', () {
       test('emits scanning phase during scan', () async {
         final phases = <ConnectionPhase>[];
