@@ -36,6 +36,7 @@ class UniversalBleTransport extends BLETransport {
   bool _linkDeadDeclared = false;
   int _connectionGeneration = 0;
   int? _recoveringQueueGeneration;
+  Future<void>? _nativeDisconnectOperation;
   DateTime? _lastAdvertProbe;
   StreamSubscription<BleDevice>? _advertSub;
 
@@ -110,8 +111,13 @@ class UniversalBleTransport extends BLETransport {
 
   @override
   Future<void> connect() async {
+    if (UniversalBle.getQueueDiagnostics(_device.deviceId).state ==
+        QueueDiagnosticsState.faulted) {
+      throw StateError(
+        'BLE queue recovery is still pending for ${_device.deviceId}',
+      );
+    }
     _connectionGeneration++;
-    _recoveringQueueGeneration = null;
     _linkDeadDeclared = false;
     _lastAdvertProbe = null;
     // Use connectionUpdateStream (from our universal_ble fork) to get
@@ -123,6 +129,7 @@ class UniversalBleTransport extends BLETransport {
           if (update.isConnected) {
             _connectionStateSubject.add(device.ConnectionState.connected);
           } else {
+            _recoveringQueueGeneration = null;
             final reason = update.error ?? 'unknown';
             _log.warning('Transport disconnected: $reason');
             _connectionStateSubject.add(device.ConnectionState.disconnected);
@@ -311,7 +318,6 @@ class UniversalBleTransport extends BLETransport {
   @override
   Future<void> disconnect() async {
     _connectionGeneration++;
-    _recoveringQueueGeneration = null;
     await _advertSub?.cancel();
     _advertSub = null;
 
@@ -331,17 +337,35 @@ class UniversalBleTransport extends BLETransport {
 
     try {
       _log.fine("disconnect");
-      await UniversalBle.disconnect(
-        _device.deviceId,
-        timeout: const Duration(seconds: 5),
-      );
+      await _disconnectNative();
     } catch (error, stackTrace) {
       _log.warning("failed to disconnect", error, stackTrace);
+      if (UniversalBle.getQueueDiagnostics(_device.deviceId).state ==
+          QueueDiagnosticsState.faulted) {
+        rethrow;
+      }
       _connectionStateSubject.add(device.ConnectionState.disconnected);
     } finally {
       await _connectionStateSubscription?.cancel();
       _connectionStateSubscription = null;
     }
+  }
+
+  Future<void> _disconnectNative() {
+    final active = _nativeDisconnectOperation;
+    if (active != null) return active;
+    late final Future<void> operation;
+    operation =
+        UniversalBle.disconnect(
+          _device.deviceId,
+          timeout: _faultRecoveryDisconnectTimeout,
+        ).whenComplete(() {
+          if (identical(_nativeDisconnectOperation, operation)) {
+            _nativeDisconnectOperation = null;
+          }
+        });
+    _nativeDisconnectOperation = operation;
+    return operation;
   }
 
   @override
@@ -441,24 +465,24 @@ class UniversalBleTransport extends BLETransport {
 
   Future<void> _recoverFaultedQueue(int generation, String context) async {
     final deadline = DateTime.now().add(_faultRecoveryGrace);
+    var disconnectAttempted = false;
     try {
-      while (generation == _connectionGeneration && !_linkDeadDeclared) {
+      while (true) {
+        if (_recoveringQueueGeneration != generation) return;
         final diagnostics = UniversalBle.getQueueDiagnostics(_device.deviceId);
         if (diagnostics.state != QueueDiagnosticsState.faulted) return;
         if (diagnostics.activeOperations == 0) {
           _clearQueue(UniversalBleErrorCode.operationCancelled);
           return;
         }
-        if (!DateTime.now().isBefore(deadline)) {
+        if (!disconnectAttempted && !DateTime.now().isBefore(deadline)) {
+          disconnectAttempted = true;
           _log.warning(
             '$context native operation remained unresolved for '
             '${_faultRecoveryGrace.inMilliseconds}ms — disconnecting',
           );
           try {
-            await UniversalBle.disconnect(
-              _device.deviceId,
-              timeout: _faultRecoveryDisconnectTimeout,
-            );
+            await _disconnectNative();
           } catch (error, stackTrace) {
             _log.warning(
               'Failed to disconnect unresolved BLE link',
@@ -466,7 +490,6 @@ class UniversalBleTransport extends BLETransport {
               stackTrace,
             );
           }
-          return;
         }
         await Future<void>.delayed(_faultRecoveryPollInterval);
       }
@@ -548,6 +571,7 @@ class UniversalBleTransport extends BLETransport {
   void _declareLinkDead(String reason) {
     if (_linkDeadDeclared) return;
     _linkDeadDeclared = true;
+    _recoveringQueueGeneration = null;
     _log.warning('Declaring BLE link dead: $reason');
     _advertSub?.cancel();
     _advertSub = null;
@@ -616,6 +640,12 @@ class UniversalBleTransport extends BLETransport {
         characteristicUUID,
         timeout: const Duration(seconds: 2),
       );
+    } on TimeoutException {
+      _onOperationTimeout(
+        'reset subscription',
+        '$serviceUUID/$characteristicUUID',
+      );
+      rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(
         e,
@@ -678,7 +708,6 @@ class UniversalBleTransport extends BLETransport {
   @override
   Future<void> dispose() async {
     _connectionGeneration++;
-    _recoveringQueueGeneration = null;
     _advertSub?.cancel();
     _advertSub = null;
     _connectionStateSubscription?.cancel();

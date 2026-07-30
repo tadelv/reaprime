@@ -153,7 +153,18 @@ class DecentScale implements Scale, TransportHandoffScale {
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
             _log.info("Transport disconnected");
-            unawaited(_disconnect(powerOff: false));
+            unawaited(
+              _disconnect(powerOff: false).catchError((
+                Object error,
+                StackTrace stackTrace,
+              ) {
+                _log.severe(
+                  'Failed to tear down disconnected scale transport',
+                  error,
+                  stackTrace,
+                );
+              }),
+            );
           });
 
       final services = await _device.discoverServices();
@@ -229,17 +240,25 @@ class DecentScale implements Scale, TransportHandoffScale {
         throw const DeviceNotConnectedException.scale();
       }
       _connectionStateController.add(ConnectionState.connected);
-    } catch (e) {
+    } catch (e, stackTrace) {
       _log.warning('Failed to initialize scale: $e');
-      subscription?.cancel();
+      await subscription?.cancel();
+      subscription = null;
       _heartbeatTimer?.cancel();
       _heartbeatTimer = null;
       _notificationWatchdog?.cancel();
-      _connectionStateController.add(ConnectionState.disconnected);
       try {
         await _device.disconnect();
-      } catch (_) {}
-      rethrow;
+      } catch (disconnectError, disconnectStackTrace) {
+        _log.severe(
+          'Failed to tear down scale transport',
+          disconnectError,
+          disconnectStackTrace,
+        );
+        Error.throwWithStackTrace(disconnectError, disconnectStackTrace);
+      }
+      _connectionStateController.add(ConnectionState.disconnected);
+      Error.throwWithStackTrace(e, stackTrace);
     }
   }
 
@@ -344,8 +363,8 @@ class DecentScale implements Scale, TransportHandoffScale {
     // so no extra try/catch needed here.
     try {
       await _device.disconnect();
-    } finally {
       _connectionStateController.add(ConnectionState.disconnected);
+    } finally {
       _isDisconnecting = false;
     }
   }

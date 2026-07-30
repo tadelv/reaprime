@@ -133,6 +133,7 @@ class _RecordingBleTransport extends BLETransport {
   int readCalls = 0;
   int respondedSubscribeCall = 0;
   bool failWrites = false;
+  bool failDisconnect = false;
   int? disconnectOnWrite;
   bool failSubscriptions = false;
   final List<int> responseSubscribeCalls;
@@ -163,6 +164,7 @@ class _RecordingBleTransport extends BLETransport {
   @override
   Future<void> disconnect() async {
     disconnectCalls++;
+    if (failDisconnect) throw StateError('unsafe teardown');
     _nativeState = ConnectionState.disconnected;
     _connectionState.add(ConnectionState.disconnected);
   }
@@ -338,6 +340,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       transport.emitNotification([0x03, 0x0A, 0, 0, 100, 0]);
       await expectLater(connection, throwsA(isA<TimeoutException>()));
+      await Future<void>.delayed(Duration.zero);
 
       expect(transport.subscribeCalls, 2);
       expect(transport.resetSubscriptionCalls, 1);
@@ -477,6 +480,26 @@ void main() {
     await subscription.cancel();
     await transport.dispose();
   });
+
+  test(
+    'failed initialization teardown does not publish disconnected',
+    () async {
+      final transport = _RecordingBleTransport()
+        ..failWrites = true
+        ..failDisconnect = true;
+      final scale = DecentScale(transport: transport);
+      final states = <ConnectionState>[];
+      final subscription = scale.connectionState.listen(states.add);
+
+      await expectLater(scale.onConnect(), throwsA(isA<StateError>()));
+
+      expect(states, isNot(contains(ConnectionState.connected)));
+      expect(states, isNot(contains(ConnectionState.disconnected)));
+
+      await subscription.cancel();
+      await transport.dispose();
+    },
+  );
 
   test(
     'native drop on the second initialization write never publishes connected',

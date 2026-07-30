@@ -21,7 +21,9 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   bool emitDisconnectEvent = true;
   bool hangWrites = false;
   Completer<void>? writeBlocker;
+  Completer<void>? notifiableBlocker;
   UniversalBleException? writeError;
+  int connectCalls = 0;
   int writeCalls = 0;
   int getConnectionStateCalls = 0;
   final List<String> disconnectCalls = [];
@@ -62,6 +64,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     bool autoConnect = false,
     ConnectionPlatformConfig? platformConfig,
   }) async {
+    connectCalls++;
     updateConnection(deviceId, true);
   }
 
@@ -88,6 +91,10 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     final key = '$deviceId/$characteristic';
     final count = (_setNotifiableCounts[key] ?? 0) + 1;
     _setNotifiableCounts[key] = count;
+    final blocker = notifiableBlocker;
+    if (count == 2 && blocker != null) {
+      await blocker.future;
+    }
     if (throwOnSecondSetNotifiable && count == 2) {
       throw UniversalBleException(
         code: UniversalBleErrorCode.failed,
@@ -678,6 +685,54 @@ void main() {
           BleInputProperty.notification,
         ]);
       },
+    );
+
+    test(
+      'timed-out reset blocks replacement work until native completion',
+      () async {
+        await transport.subscribe(service, chars[0], (_) {});
+        platform.notifiableBlocker = Completer<void>();
+        platform.emitDisconnectEvent = false;
+
+        await expectLater(
+          transport.resetSubscription(service, chars[0], (_) {}),
+          throwsA(isA<TimeoutException>()),
+        );
+        await expectLater(transport.disconnect(), throwsA(anything));
+
+        expect(
+          UniversalBle.getQueueDiagnostics(deviceId).state,
+          QueueDiagnosticsState.faulted,
+        );
+        expect(
+          observedStates,
+          isNot(contains(device.ConnectionState.disconnected)),
+        );
+        await expectLater(transport.connect(), throwsA(isA<StateError>()));
+        await expectLater(
+          transport.write(
+            service,
+            chars[0],
+            Uint8List.fromList([1]),
+            timeout: _writeTimeout,
+          ),
+          throwsA(isA<UniversalBleException>()),
+        );
+        expect(platform.connectCalls, 1);
+        expect(platform.writeCalls, 0);
+
+        platform.notifiableBlocker!.complete();
+        await pump(100);
+
+        await transport.write(
+          service,
+          chars[0],
+          Uint8List.fromList([2]),
+          timeout: _writeTimeout,
+        );
+        expect(platform.writeCalls, 1);
+      },
+      timeout: const Timeout(Duration(seconds: 5)),
     );
 
     test('disconnect cancels listeners without writing CCCDs', () async {
