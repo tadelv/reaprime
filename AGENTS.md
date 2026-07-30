@@ -110,12 +110,14 @@ GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue
 
 | Layer | Value |
 |-------|-------|
-| User-facing name | **Decent.app** (short: "Decent") |
+| User-facing name | **Decaid** |
 | Dart package name | `reaprime` |
 | Plugin file extension | `.reaplugin` |
 | Bundle ID | `net.tadel.reaprime` |
 | Database name | `streamline_bridge` |
 | GitHub repo | `tadelv/reaprime` |
+
+**Decaid** combines "decade" and "Decent aide." The name marks ten years since the original `de1app` repository's first commit on May 14, 2016. Preserve `Decent.app` and ReaPrime where they are historical or internal identifiers.
 
 ## Don't
 
