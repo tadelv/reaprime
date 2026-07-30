@@ -50,7 +50,12 @@ enum ConnectionPhase {
 
 enum AmbiguityReason { machinePicker, scalePicker }
 
-enum ConnectionIntent { automatic, explicitDiscovery, scaleRecovery }
+enum ConnectionIntent {
+  automatic,
+  explicitDiscovery,
+  adapterRecovery,
+  scaleRecovery,
+}
 
 class TransportCondition {
   final TransportType transportType;
@@ -159,7 +164,9 @@ class ConnectionManager {
   /// wedging `_isConnecting` (comms-harden #31). Real-hardware
   /// connect currently observes 3–10s on tablet; 30s leaves ~3x
   /// headroom for slow adapters without feeling sluggish.
-  static const _connectTimeout = Duration(seconds: 30);
+  Duration get _connectTimeout => Platform.isLinux
+      ? const Duration(seconds: 60)
+      : const Duration(seconds: 30);
 
   // Device-connection state + unexpected-disconnect emission live on
   // DisconnectSupervisor — it owns the two stream subscribers and
@@ -191,6 +198,14 @@ class ConnectionManager {
   /// [_queuedScaleOnly] so explicit user-requested discovery is not
   /// delayed behind background scale reacquisition.
   Completer<void>? _queuedExplicitScan;
+  bool _adapterRecoveryQueued = false;
+  bool _adapterRecoveryNeeded = false;
+  int _adapterRecoveryEpoch = 0;
+  AdapterState? _lastAdapterState;
+  Timer? _adapterRecoveryTimer;
+
+  @visibleForTesting
+  Duration adapterRecoveryDebounce = const Duration(seconds: 1);
 
   /// Deferred scale-only rescan armed when the preferred machine
   /// connects but no preferred scale is configured. The initial scan
@@ -370,6 +385,30 @@ class ConnectionManager {
 
   void _listenForAdapter() {
     _adapterSub = deviceScanner.adapterStateStream.listen((state) {
+      if (state == _lastAdapterState) return;
+      final previous = _lastAdapterState;
+      _lastAdapterState = state;
+      if (state == AdapterState.poweredOn) {
+        if (_adapterRecoveryNeeded) {
+          final epoch = _adapterRecoveryEpoch;
+          _adapterRecoveryTimer?.cancel();
+          _adapterRecoveryTimer = Timer(adapterRecoveryDebounce, () {
+            if (epoch != _adapterRecoveryEpoch ||
+                !_adapterRecoveryNeeded ||
+                _lastAdapterState != AdapterState.poweredOn) {
+              return;
+            }
+            _adapterRecoveryNeeded = false;
+            _queueAdapterRecovery();
+          });
+        }
+      } else if (previous == AdapterState.poweredOn) {
+        _adapterRecoveryEpoch++;
+        _adapterRecoveryNeeded = true;
+        _adapterRecoveryTimer?.cancel();
+        _adapterRecoveryTimer = null;
+        deviceScanner.stopScan();
+      }
       if (state == AdapterState.poweredOff) {
         final error = ConnectionError(
           kind: ConnectionErrorKind.adapterOff,
@@ -606,8 +645,10 @@ class ConnectionManager {
   Future<void> _runConnect({
     required bool scaleOnly,
     required ConnectionAttemptPolicy policy,
+    bool adapterRecovery = false,
   }) async {
     if (_isConnecting) {
+      if (adapterRecovery) return;
       if (scaleOnly) {
         final completer = _queuedScaleOnly ??= Completer<void>();
         return completer.future;
@@ -616,12 +657,19 @@ class ConnectionManager {
     }
 
     try {
-      await _executeConnect(scaleOnly, policy: policy);
+      if (adapterRecovery) {
+        _adapterRecoveryQueued = false;
+        await _executeAdapterRecovery();
+      } else {
+        await _executeConnect(scaleOnly, policy: policy);
+      }
     } finally {
       // Single priority-aware drain loop: explicit always evaluated
       // first at each scheduling boundary. An explicit request arriving
       // during a queued scale-only drain is picked up immediately.
-      while (_queuedExplicitScan != null || _queuedScaleOnly != null) {
+      while (_queuedExplicitScan != null ||
+          _adapterRecoveryQueued ||
+          _queuedScaleOnly != null) {
         if (_queuedExplicitScan != null) {
           final drain = _queuedExplicitScan!;
           _queuedExplicitScan = null;
@@ -634,6 +682,12 @@ class ConnectionManager {
           } catch (e, st) {
             drain.completeError(e, st);
           }
+          continue;
+        }
+
+        if (_adapterRecoveryQueued) {
+          _adapterRecoveryQueued = false;
+          await _executeAdapterRecovery();
           continue;
         }
 
@@ -655,15 +709,18 @@ class ConnectionManager {
   Future<void> _executeConnect(
     bool scaleOnly, {
     required ConnectionAttemptPolicy policy,
+    ConnectionIntent? intent,
   }) async {
     _isConnecting = true;
     _publishStatus(
       currentStatus.copyWith(
-        intent: identical(policy, ConnectionAttemptPolicy.explicitScan)
-            ? ConnectionIntent.explicitDiscovery
-            : identical(policy, ConnectionAttemptPolicy.scaleRecovery)
-            ? ConnectionIntent.scaleRecovery
-            : ConnectionIntent.automatic,
+        intent:
+            intent ??
+            (identical(policy, ConnectionAttemptPolicy.explicitScan)
+                ? ConnectionIntent.explicitDiscovery
+                : identical(policy, ConnectionAttemptPolicy.scaleRecovery)
+                ? ConnectionIntent.scaleRecovery
+                : ConnectionIntent.automatic),
         activeTargetTransport: () => null,
       ),
     );
@@ -677,6 +734,44 @@ class ConnectionManager {
         _activeScaleOnlyScan = false;
       }
       _isConnecting = false;
+    }
+  }
+
+  void _queueAdapterRecovery() {
+    if (_adapterRecoveryQueued) return;
+    _adapterRecoveryQueued = true;
+    if (_isConnecting) return;
+    unawaited(
+      _runConnect(
+        scaleOnly: false,
+        policy: ConnectionAttemptPolicy.automatic,
+        adapterRecovery: true,
+      ),
+    );
+  }
+
+  Future<void> _executeAdapterRecovery() async {
+    final preferredMachine = settingsController.preferredMachineId;
+    final preferredScale = settingsController.preferredScaleId;
+    if (preferredMachine != null &&
+        preferredMachine.isNotEmpty &&
+        !_machineConnected) {
+      await _executeConnect(
+        false,
+        policy: ConnectionAttemptPolicy.automatic,
+        intent: ConnectionIntent.adapterRecovery,
+      );
+      return;
+    }
+    if (_machineConnected &&
+        preferredScale != null &&
+        preferredScale.isNotEmpty &&
+        !_scaleConnected) {
+      await _executeConnect(
+        true,
+        policy: ConnectionAttemptPolicy.scaleRecovery,
+        intent: ConnectionIntent.adapterRecovery,
+      );
     }
   }
 
@@ -1852,6 +1947,9 @@ class ConnectionManager {
     _cancelSelectionSession(emitReport: false);
     _stopMachineRecovery();
     _deferredScaleScan?.cancel();
+    _adapterRecoveryTimer?.cancel();
+    _adapterRecoveryTimer = null;
+    _adapterRecoveryQueued = false;
     _cancelPreferredScaleReconnect();
     await _attachReconnectCoordinator?.dispose();
     _queuedExplicitScan?.complete();
