@@ -193,6 +193,7 @@ void main() {
     () async {
       for (final prefix in [
         [0xEF, 0xDD, 0x0C, 0x02, 0x05, 0xAA, 0xBB],
+        [0xEF, 0xDD, 0x0C, 0x0C, 0x05, 0xAA, 0xBB],
         [0xEF, 0xDD, 0x0C, 0xFF, 0x05, 0x00],
       ]) {
         final (scale, transport) = await _connected();
@@ -346,6 +347,22 @@ void main() {
       expect(transport.writes.where((write) => write[2] == 0), hasLength(1));
       transport.dispose();
     });
+  });
+
+  test('known malformed frames do not refresh Pyxis liveness', () async {
+    final transport = _AcaiaTransport(
+      services: const ['49535343-fe7d-4ae5-8fa9-9fafd205e455'],
+    );
+    final scale = AcaiaScale(transport: transport);
+    await scale.onConnect();
+
+    for (var i = 0; i < 13; i++) {
+      transport.emit(const [0xEF, 0xDD, 0x0C, 0x0C, 0x05, 0xAA, 0xBB]);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+
+    expect(transport.disconnectCalls, 1);
+    await transport.dispose();
   });
 
   test(

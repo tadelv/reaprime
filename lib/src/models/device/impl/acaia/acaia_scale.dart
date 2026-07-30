@@ -340,22 +340,34 @@ class AcaiaScale implements Scale {
         _buffer = _buffer.sublist(2);
         continue;
       }
+      if (!_hasValidKnownLength(_buffer[2], payloadLength, _buffer[4])) {
+        _buffer = _buffer.sublist(2);
+        continue;
+      }
 
       final frameLength = _metadataLength + payloadLength;
       if (_buffer.length < frameLength) return;
       final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
       _buffer = _buffer.sublist(frameLength);
-      _processFrame(frame);
-      _lastValidFrame = DateTime.now();
+      if (_processFrame(frame)) _lastValidFrame = DateTime.now();
     }
   }
 
-  void _processFrame(List<int> frame) {
+  bool _hasValidKnownLength(int messageType, int payloadLength, int eventType) {
+    if (messageType == 0x08) return payloadLength == 3;
+    if (messageType != 0x0C) return true;
+    return switch (eventType) {
+      5 => payloadLength == 6,
+      11 => payloadLength == 9,
+      _ => true,
+    };
+  }
+
+  bool _processFrame(List<int> frame) {
     final messageType = frame[2];
     final eventType = frame[4];
-    final payloadLength = frame[3];
 
-    if (messageType == 0x08 && payloadLength == 3) {
+    if (messageType == 0x08) {
       final battery = frame[4] & 0x7F;
       if (battery <= 100) {
         _batteryLevel = battery;
@@ -363,18 +375,19 @@ class AcaiaScale implements Scale {
         _badBatteryLogged = true;
         _log.warning('Ignoring out-of-range Acaia battery value $battery');
       }
-      return;
+      return true;
     }
-    if (messageType != 0x0C) return;
+    if (messageType != 0x0C) return false;
 
-    if (eventType == 5 && payloadLength == 6) {
+    if (eventType == 5) {
       _decodeWeight(frame, _metadataLength);
-      return;
+      return true;
     }
-    if (eventType != 11 || payloadLength != 9) return;
-    if (frame[7] == 7) return;
-    if (frame[7] != 5) return;
+    if (eventType != 11) return false;
+    if (frame[7] == 7) return true;
+    if (frame[7] != 5) return false;
     _decodeWeight(frame, _metadataLength + 3);
+    return true;
   }
 
   void _decodeWeight(List<int> frame, int offset) {
