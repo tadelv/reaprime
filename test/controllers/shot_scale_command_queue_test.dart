@@ -8,10 +8,15 @@ import '../helpers/test_scale.dart';
 void main() {
   late TestScale scale;
   late ShotScaleCommandQueue queue;
+  late int connectionGeneration;
 
   setUp(() {
     scale = TestScale();
-    queue = ShotScaleCommandQueue(scale);
+    connectionGeneration = 0;
+    queue = ShotScaleCommandQueue(
+      scale,
+      isCurrent: () => connectionGeneration == 0,
+    );
   });
 
   tearDown(() {
@@ -56,5 +61,19 @@ void main() {
     await queue.settled;
 
     expect(scale.commandCalls, ['reset']);
+  });
+
+  test('connection generation change prevents queued commands', () async {
+    final blocked = Completer<void>();
+
+    queue.enqueue(ShotScaleCommand.preparingTare, (_) => blocked.future);
+    queue.enqueue(ShotScaleCommand.timerReset, (scale) => scale.resetTimer());
+    queue.enqueue(ShotScaleCommand.timerStart, (scale) => scale.startTimer());
+    await Future<void>.delayed(Duration.zero);
+    connectionGeneration++;
+    blocked.complete();
+    await queue.settled;
+
+    expect(scale.commandCalls, isEmpty);
   });
 }

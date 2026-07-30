@@ -13,13 +13,18 @@ enum ShotScaleCommand {
 
 class ShotScaleCommandQueue {
   final Scale _scale;
+  final bool Function() _isCurrent;
   final Logger _log;
   final Set<ShotScaleCommand> _requested = {};
   Future<void> _tail = Future.value();
   int _generation = 0;
 
-  ShotScaleCommandQueue(this._scale, {Logger? logger})
-    : _log = logger ?? Logger('ShotScaleCommandQueue');
+  ShotScaleCommandQueue(
+    this._scale, {
+    required bool Function() isCurrent,
+    Logger? logger,
+  }) : _isCurrent = isCurrent,
+       _log = logger ?? Logger('ShotScaleCommandQueue');
 
   Future<void> get settled => _tail;
 
@@ -33,7 +38,7 @@ class ShotScaleCommandQueue {
     if (!_requested.add(command)) return;
     final generation = _generation;
     _tail = _tail.then((_) async {
-      if (generation != _generation) return;
+      if (generation != _generation || !_isCurrent()) return;
       try {
         onStart?.call();
         await operation(_scale);

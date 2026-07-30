@@ -123,6 +123,8 @@ class ShotSequencer {
       _scaleGeneration = scaleController.connectionGeneration;
       _commandQueue = ShotScaleCommandQueue(
         scaleController.connectedScale(),
+        isCurrent: () =>
+            scaleController.connectionGeneration == _scaleGeneration,
         logger: _log,
       );
       _scaleAvailability = _bypassSAW
