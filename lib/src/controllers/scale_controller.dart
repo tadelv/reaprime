@@ -11,6 +11,9 @@ import 'package:rxdart/rxdart.dart';
 
 class ScaleController {
   Scale? _scale;
+  int _connectionGeneration = 0;
+
+  int get connectionGeneration => _connectionGeneration;
 
   StreamSubscription<ConnectionState>? _scaleConnection;
   StreamSubscription<ScaleSnapshot>? _scaleSnapshot;
@@ -137,6 +140,7 @@ class ScaleController {
   }
 
   void _onDisconnect() {
+    _connectionGeneration++;
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
     _scale = null;

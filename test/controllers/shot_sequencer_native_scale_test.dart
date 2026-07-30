@@ -298,6 +298,24 @@ void main() {
     });
   });
 
+  test('replacement scale samples cannot stop or skip the shot', () {
+    fakeAsync((async) {
+      enableAutomaticZero();
+      final shot = makeShot(stepWeight: 10);
+      driveToPouring(async);
+
+      scaleController.simulateScaleSwitch();
+      async.flushMicrotasks();
+      scaleController.emitWeight(40);
+      scaleController.emitWeight(40);
+      async.flushMicrotasks();
+
+      expect(machine.requestedStates, isEmpty);
+      expect(shot.scaleLost, isTrue);
+      shot.dispose();
+    });
+  });
+
   test('stale feed cannot re-arm scale control', () {
     fakeAsync((async) {
       enableAutomaticZero();

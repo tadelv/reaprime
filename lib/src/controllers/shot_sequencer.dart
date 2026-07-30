@@ -120,6 +120,7 @@ class ShotSequencer {
     }
 
     if (scaleConnected) {
+      _scaleGeneration = scaleController.connectionGeneration;
       _commandQueue = ShotScaleCommandQueue(
         scaleController.connectedScale(),
         logger: _log,
@@ -238,6 +239,7 @@ class ShotSequencer {
   MachineSnapshot? _latestMachine;
   WeightSnapshot? _latestScale;
   ShotScaleCommandQueue? _commandQueue;
+  int? _scaleGeneration;
   Timer? _tareConfirmationTimer;
   Timer? _freshnessTimer;
   Timer? _stoppingTimer;
@@ -278,8 +280,13 @@ class ShotSequencer {
   }
 
   void _processScaleConnection(device.ConnectionState state) {
-    if (_disposed || state != device.ConnectionState.disconnected) return;
-    if (_commandQueue == null) return;
+    if (_disposed || _commandQueue == null) return;
+    if (scaleController.connectionGeneration != _scaleGeneration) {
+      _commandQueue?.dispose();
+      _disableScale(_ScaleAvailability.unavailable, 'Active scale changed');
+      return;
+    }
+    if (state != device.ConnectionState.disconnected) return;
     _commandQueue?.dispose();
     _disableScale(_ScaleAvailability.unavailable, 'Scale disconnected');
   }
@@ -288,6 +295,11 @@ class ShotSequencer {
     if (_disposed ||
         _scaleAvailability == _ScaleAvailability.unavailable ||
         _scaleAvailability == _ScaleAvailability.stale) {
+      return;
+    }
+    if (scaleController.connectionGeneration != _scaleGeneration) {
+      _commandQueue?.dispose();
+      _disableScale(_ScaleAvailability.unavailable, 'Active scale changed');
       return;
     }
     _latestScale = scale;
