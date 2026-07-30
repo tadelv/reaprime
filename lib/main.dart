@@ -946,17 +946,17 @@ class _AppRootState extends State<AppRoot> {
   List<PlatformMenuItem> _buildPlatformMenus() {
     return [
       PlatformMenu(
-        label: 'Decent',
+        label: 'Decaid',
         menus: [
           PlatformMenuItemGroup(
             members: [
-              PlatformMenuItem(label: 'About Decent', onSelected: null),
+              PlatformMenuItem(label: 'About Decaid', onSelected: null),
             ],
           ),
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'Quit Decent',
+                label: 'Quit Decaid',
                 shortcut: const SingleActivator(
                   LogicalKeyboardKey.keyQ,
                   meta: true,

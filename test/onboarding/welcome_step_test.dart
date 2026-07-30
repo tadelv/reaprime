@@ -34,7 +34,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Welcome to Decent'), findsOneWidget);
+      expect(find.text('Welcome to Decaid'), findsOneWidget);
       expect(
         find.text(
           'Control your Decent espresso machine, manage profiles, and track your shots — right here or from any device on your network.',
