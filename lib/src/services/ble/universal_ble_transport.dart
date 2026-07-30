@@ -267,6 +267,7 @@ class UniversalBleTransport extends BLETransport {
   /// Brief scan to repopulate BlueZ's device cache (the device can drop out of
   /// the adapter's object tree after a disconnect), then settle before retry.
   Future<void> _refreshDeviceCache([int? maintenanceGeneration]) async {
+    var ownsScan = false;
     try {
       await UniversalBle.stopScan();
       if (maintenanceGeneration != null) {
@@ -277,6 +278,7 @@ class UniversalBleTransport extends BLETransport {
         _checkMaintenanceGeneration(maintenanceGeneration);
       }
       await UniversalBle.startScan(scanFilter: ScanFilter(withServices: []));
+      ownsScan = true;
       if (maintenanceGeneration != null) {
         _checkMaintenanceGeneration(maintenanceGeneration);
       }
@@ -284,21 +286,26 @@ class UniversalBleTransport extends BLETransport {
       if (maintenanceGeneration != null) {
         _checkMaintenanceGeneration(maintenanceGeneration);
       }
-      await UniversalBle.stopScan();
-      if (maintenanceGeneration != null) {
-        _checkMaintenanceGeneration(maintenanceGeneration);
-      }
-      await Future.delayed(_bluezScanSettleDelay);
-      if (maintenanceGeneration != null) {
-        _checkMaintenanceGeneration(maintenanceGeneration);
-      }
     } on _MaintenanceCancelled {
       rethrow;
     } catch (e) {
       _log.warning("BlueZ cache-refresh scan failed: $e");
-      try {
-        await UniversalBle.stopScan();
-      } catch (_) {}
+      return;
+    } finally {
+      if (ownsScan) {
+        try {
+          await UniversalBle.stopScan();
+        } catch (e) {
+          _log.warning("Failed to stop BlueZ cache-refresh scan: $e");
+        }
+      }
+    }
+    if (maintenanceGeneration != null) {
+      _checkMaintenanceGeneration(maintenanceGeneration);
+    }
+    await Future.delayed(_bluezScanSettleDelay);
+    if (maintenanceGeneration != null) {
+      _checkMaintenanceGeneration(maintenanceGeneration);
     }
   }
 
@@ -444,11 +451,18 @@ class UniversalBleTransport extends BLETransport {
       return services.map((s) => s.uuid).toList();
     }
 
+    final generation = _connectionGeneration;
     try {
       return await _discoverServicesBlueZ();
     } on UniversalBleException catch (error) {
       if (error.code != UniversalBleErrorCode.servicesNotResolved) rethrow;
-      return _recoverBlueZServices(_connectionGeneration);
+      if (_connectionGeneration != generation || _disposed) {
+        throw UniversalBleException(
+          code: UniversalBleErrorCode.operationCancelled,
+          message: 'BLE service discovery was cancelled',
+        );
+      }
+      return _recoverBlueZServices(generation);
     }
   }
 
@@ -464,6 +478,9 @@ class UniversalBleTransport extends BLETransport {
   Future<List<String>> _recoverBlueZServices(int generation) async {
     _maintenanceGeneration = generation;
     try {
+      await _advertSub?.cancel();
+      _advertSub = null;
+      _checkMaintenanceGeneration(generation);
       await _stopScanAndSettle(generation);
       await _disconnectNative();
       _checkMaintenanceGeneration(generation);
@@ -480,6 +497,7 @@ class UniversalBleTransport extends BLETransport {
       _checkMaintenanceGeneration(generation);
       final services = await _discoverServicesBlueZ();
       _checkMaintenanceGeneration(generation);
+      _startAdvertWatch();
       _maintenanceGeneration = null;
       return services;
     } on _MaintenanceCancelled {
@@ -627,6 +645,7 @@ class UniversalBleTransport extends BLETransport {
   }
 
   void _onOwnAdvertisement(BleDevice _) {
+    if (_maintenanceGeneration == _connectionGeneration) return;
     if (_connectionStateSubject.valueOrNull !=
         device.ConnectionState.connected) {
       return;
@@ -657,11 +676,15 @@ class UniversalBleTransport extends BLETransport {
         timeout: _linkProbeTimeout,
       );
     } catch (e) {
-      if (generation != _connectionGeneration) return;
+      if (generation != _connectionGeneration ||
+          _maintenanceGeneration == generation) {
+        return;
+      }
       _log.fine('Link probe inconclusive ($context): $e');
       return;
     }
     if (generation != _connectionGeneration ||
+        _maintenanceGeneration == generation ||
         state == BleConnectionState.connected ||
         state == BleConnectionState.connecting) {
       return;

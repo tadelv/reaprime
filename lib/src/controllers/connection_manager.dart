@@ -402,12 +402,14 @@ class ConnectionManager {
             _queueAdapterRecovery();
           });
         }
-      } else if (previous == AdapterState.poweredOn) {
+      } else {
         _adapterRecoveryEpoch++;
         _adapterRecoveryNeeded = true;
         _adapterRecoveryTimer?.cancel();
         _adapterRecoveryTimer = null;
-        deviceScanner.stopScan();
+        if (previous == AdapterState.poweredOn) {
+          deviceScanner.stopScan();
+        }
       }
       if (state == AdapterState.poweredOff) {
         final error = ConnectionError(
