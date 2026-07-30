@@ -73,6 +73,15 @@ class SettingsView extends StatelessWidget {
 
               // MARK: Updates
               const SettingsSectionHeader('Updates'),
+              if (!Platform.isIOS) ...[
+                SettingsTile(
+                  icon: Icons.science_outlined,
+                  label: 'Update channel',
+                  trailing: Text(_updateChannelLabel(controller.updateChannel)),
+                  onTap: () => _showUpdateChannelPicker(context),
+                ),
+                const SettingsDivider(),
+              ],
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -170,6 +179,15 @@ class SettingsView extends StatelessWidget {
     }
   }
 
+  static String _updateChannelLabel(UpdateChannel channel) {
+    switch (channel) {
+      case UpdateChannel.stable:
+        return 'Stable';
+      case UpdateChannel.beta:
+        return 'Beta';
+    }
+  }
+
   String _chargingModeLabel(ChargingMode mode) {
     switch (mode) {
       case ChargingMode.disabled:
@@ -240,6 +258,52 @@ class SettingsView extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _showUpdateChannelPicker(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('Update channel'),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: const Text('Stable'),
+                  subtitle: const Text('Final releases only'),
+                  trailing: controller.updateChannel == UpdateChannel.stable
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () =>
+                      _selectUpdateChannel(dialogContext, UpdateChannel.stable),
+                ),
+                ListTile(
+                  title: const Text('Beta'),
+                  subtitle: const Text('Final and prerelease builds'),
+                  trailing: controller.updateChannel == UpdateChannel.beta
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () =>
+                      _selectUpdateChannel(dialogContext, UpdateChannel.beta),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectUpdateChannel(
+    BuildContext dialogContext,
+    UpdateChannel channel,
+  ) async {
+    await controller.setUpdateChannel(channel);
+    if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+    await updateCheckService?.requestCheck();
   }
 
   void _showAboutSection(BuildContext context) {

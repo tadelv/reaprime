@@ -1,17 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
+
+import '../../helpers/mock_settings_service.dart';
 
 /// Spy settings service that tracks calls to setSimulatedDevices.
 class _SpySettingsService implements SettingsService {
   int setSimulatedDevicesCallCount = 0;
   int setEnableSimulatedWebViewsCallCount = 0;
   int setShowSkinExitInstructionsCallCount = 0;
+  int setUpdateChannelCallCount = 0;
   int setFeatureFlagCallCount = 0;
   Set<SimulatedDevicesTypes> _simulatedDevices = {};
   bool _enableSimulatedWebViews = false;
   bool _showSkinExitInstructions = true;
+  UpdateChannel _updateChannel = UpdateChannel.stable;
   final Map<String, bool?> _featureFlags = {};
   String? _preferredMachineId;
   String? _preferredScaleId;
@@ -39,6 +44,14 @@ class _SpySettingsService implements SettingsService {
   Future<void> setShowSkinExitInstructions(bool value) async {
     setShowSkinExitInstructionsCallCount++;
     _showSkinExitInstructions = value;
+  }
+
+  @override
+  Future<UpdateChannel> updateChannel() async => _updateChannel;
+  @override
+  Future<void> setUpdateChannel(UpdateChannel channel) async {
+    setUpdateChannelCallCount++;
+    _updateChannel = channel;
   }
 
   // Feature flags
@@ -273,6 +286,43 @@ void main() {
       await controller.setShowSkinExitInstructions(true);
 
       expect(spy.setShowSkinExitInstructionsCallCount, 0);
+      expect(notified, isFalse);
+    });
+  });
+
+  group('SettingsController.setUpdateChannel', () {
+    test('loads the persisted channel', () async {
+      final settings = MockSettingsService();
+      await settings.setUpdateChannel(UpdateChannel.beta);
+      final controller = SettingsController(settings);
+
+      await controller.loadSettings();
+
+      expect(controller.updateChannel, UpdateChannel.beta);
+    });
+
+    test('persists, updates, and notifies on change', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      await controller.setUpdateChannel(UpdateChannel.beta);
+
+      expect(controller.updateChannel, UpdateChannel.beta);
+      expect(spy.setUpdateChannelCallCount, 1);
+      expect(notified, isTrue);
+    });
+
+    test('is a no-op when unchanged', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      await controller.setUpdateChannel(UpdateChannel.stable);
+
+      expect(spy.setUpdateChannelCallCount, 0);
       expect(notified, isFalse);
     });
   });
