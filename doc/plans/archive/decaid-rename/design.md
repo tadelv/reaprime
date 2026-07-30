@@ -4,6 +4,10 @@
 
 Rename the user-visible application and distributed build packages to **Decaid**, and install the supplied Android/iOS icon artwork. Preserve application identity and existing technical/historical naming.
 
+## Naming rationale
+
+**Decaid** combines "decade" and "Decent aide." The name marks ten years since the original `de1app` repository's first commit, `a3791e0a2fed4d9e44ba5fed2d09ff9f7a4c7fc5`, authored on May 14, 2016.
+
 ## Research findings
 
 - Platform display names are independently configured for Android, iOS, macOS, Linux, Windows, web, and Flutter window/menu metadata.
