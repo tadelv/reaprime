@@ -5,6 +5,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 class _BookooTransport extends BLETransport {
@@ -13,6 +14,7 @@ class _BookooTransport extends BLETransport {
   );
   final List<List<int>> writes = [];
   void Function(Uint8List)? notification;
+  Object? writeError;
 
   @override
   String get id => 'bookoo-test';
@@ -62,6 +64,8 @@ class _BookooTransport extends BLETransport {
     Duration? timeout,
   }) async {
     writes.add(data.toList());
+    final error = writeError;
+    if (error != null) throw error;
   }
 
   void emit(List<int> data) => notification!(Uint8List.fromList(data));
@@ -73,16 +77,17 @@ class _BookooTransport extends BLETransport {
   Future<void> dispose() async => states.close();
 }
 
-List<int> _packet(double grams, {int? battery = 50, int length = 20}) {
+List<int> _packet(double grams, {int? battery = 50}) {
   final magnitude = (grams.abs() * 100).round();
-  final packet = List<int>.filled(length, 0);
-  if (length > 0) packet[0] = 0x03;
-  if (length > 1) packet[1] = 0x0B;
-  if (length > 6) packet[6] = grams < 0 ? 0x2D : 0x2B;
-  if (length > 7) packet[7] = magnitude >> 16;
-  if (length > 8) packet[8] = magnitude >> 8;
-  if (length > 9) packet[9] = magnitude;
-  if (length > 13 && battery != null) packet[13] = battery;
+  final packet = List<int>.filled(20, 0);
+  packet[0] = 0x03;
+  packet[1] = 0x0B;
+  packet[6] = grams < 0 ? 0x2D : 0x2B;
+  packet[7] = magnitude >> 16;
+  packet[8] = magnitude >> 8;
+  packet[9] = magnitude;
+  if (battery != null) packet[13] = battery;
+  packet[19] = packet.take(19).fold(0, (sum, byte) => sum ^ byte);
   return packet;
 }
 
@@ -111,22 +116,25 @@ void main() {
     expect(snapshots.map((snapshot) => snapshot.weight), [123.45, -12.34]);
   });
 
-  test('ten-byte packet emits weight without reading battery', () async {
-    transport.emit(_packet(10, length: 10));
-    await Future<void>.delayed(Duration.zero);
-    expect(snapshots.single.weight, 10);
-    expect(snapshots.single.batteryLevel, 0);
-  });
-
-  test('short malformed and unrelated packets emit nothing', () async {
-    for (final packet in [
-      _packet(10, length: 9),
+  test('invalid lengths and unrelated packets emit nothing', () async {
+    final valid = _packet(10);
+    for (final packet in <List<int>>[
+      for (final length in [9, 10, 11, 19]) valid.sublist(0, length),
+      [...valid, 0],
       [0x04, ..._packet(10).sublist(1)],
       [0x03, 0x0A, ..._packet(10).sublist(2)],
       <int>[],
     ]) {
       expect(() => transport.emit(packet), returnsNormally);
     }
+    await Future<void>.delayed(Duration.zero);
+    expect(snapshots, isEmpty);
+  });
+
+  test('invalid checksum emits nothing', () async {
+    final packet = _packet(10);
+    packet[18] ^= 1;
+    transport.emit(packet);
     await Future<void>.delayed(Duration.zero);
     expect(snapshots, isEmpty);
   });
@@ -149,5 +157,13 @@ void main() {
       [0x03, 0x0A, 0x05, 0, 0, 0x0D],
       [0x03, 0x0A, 0x06, 0, 0, 0x0C],
     ]);
+  });
+
+  test('disconnected command failure propagates', () async {
+    transport.writeError = const DeviceNotConnectedException.scale();
+    await expectLater(
+      scale.tare(),
+      throwsA(isA<DeviceNotConnectedException>()),
+    );
   });
 }

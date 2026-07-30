@@ -105,6 +105,12 @@ class DecentScale implements Scale, TransportHandoffScale {
     }
   }
 
+  Future<void> _writeRequiredCommand(List<int> commandBytes) async {
+    if (!await _writeCommand(commandBytes)) {
+      throw const DeviceNotConnectedException.scale();
+    }
+  }
+
   // --- Scale interface -------------------------------------------------
 
   @override
@@ -267,6 +273,7 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   void _stopMaintenance() {
     _maintenanceGeneration++;
+    _notificationRecovery = null;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _notificationWatchdog?.cancel();
@@ -382,10 +389,8 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   @override
   Future<void> tare() async {
-    await _sendTare();
+    await _writeRequiredCommand([0x0F, 0x00, 0x00, 0x00, 0x01]);
   }
-
-  Future<bool> _sendTare() => _writeCommand([0x0F, 0x00, 0x00, 0x00, 0x01]);
 
   Future<bool> _sendHeartBeat() async {
     if (!isUsingHeartBeat) {
@@ -500,7 +505,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     if (_timerCommandInFlight) return;
     _timerCommandInFlight = true;
     try {
-      await _writeCommand([0x0B, 0x03, 0x00, 0x00, 0x00]);
+      await _writeRequiredCommand([0x0B, 0x03, 0x00, 0x00, 0x00]);
     } finally {
       _timerCommandInFlight = false;
     }
@@ -511,7 +516,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     if (_timerCommandInFlight) return;
     _timerCommandInFlight = true;
     try {
-      await _writeCommand([0x0B, 0x00, 0x00, 0x00, 0x00]);
+      await _writeRequiredCommand([0x0B, 0x00, 0x00, 0x00, 0x00]);
     } finally {
       _timerCommandInFlight = false;
     }
@@ -522,7 +527,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     if (_timerCommandInFlight) return;
     _timerCommandInFlight = true;
     try {
-      await _writeCommand([0x0B, 0x02, 0x00, 0x00, 0x00]);
+      await _writeRequiredCommand([0x0B, 0x02, 0x00, 0x00, 0x00]);
     } finally {
       _timerCommandInFlight = false;
     }

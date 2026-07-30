@@ -4,7 +4,6 @@ import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
-import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -120,10 +119,15 @@ class BookooScale implements Scale {
   }
 
   void _parseNotification(List<int> data) {
-    if (data.length < 10 || data[0] != 0x03 || data[1] != 0x0B) return;
+    if (data.length != 20 || data[0] != 0x03 || data[1] != 0x0B) return;
+    var checksum = 0;
+    for (final byte in data.take(data.length - 1)) {
+      checksum ^= byte;
+    }
+    if (checksum != data.last) return;
     var weight = (data[7] << 16) | (data[8] << 8) | data[9];
     if (data[6] == 0x2D) weight *= -1;
-    if (data.length >= 14 && data[13] <= 100) {
+    if (data[13] <= 100) {
       _batteryLevel = data[13];
     }
     _streamController.add(
@@ -136,15 +140,11 @@ class BookooScale implements Scale {
   }
 
   Future<void> _write(List<int> command) async {
-    try {
-      await _transport.write(
-        serviceIdentifier.long,
-        commandCharacteristic.long,
-        Uint8List.fromList(command),
-      );
-    } on DeviceNotConnectedException {
-      return;
-    }
+    await _transport.write(
+      serviceIdentifier.long,
+      commandCharacteristic.long,
+      Uint8List.fromList(command),
+    );
   }
 
   @override

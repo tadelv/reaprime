@@ -37,7 +37,6 @@ class AcaiaScale implements Scale {
   static const _header1 = 0xEF;
   static const _header2 = 0xDD;
   static const _metadataLength = 5;
-  static const _maxPayloadLength = 64;
   static const _identPayload = [
     0x30,
     0x31,
@@ -336,7 +335,7 @@ class AcaiaScale implements Scale {
       if (_buffer.length < _metadataLength) return;
 
       final payloadLength = _buffer[3];
-      if (payloadLength > _maxPayloadLength) {
+      if (!_hasExpectedPayloadLength(_buffer[2], _buffer[4], payloadLength)) {
         _buffer = _buffer.sublist(2);
         continue;
       }
@@ -347,6 +346,18 @@ class AcaiaScale implements Scale {
       _buffer = _buffer.sublist(frameLength);
       if (_processFrame(frame)) _lastValidFrame = DateTime.now();
     }
+  }
+
+  static bool _hasExpectedPayloadLength(
+    int messageType,
+    int eventType,
+    int payloadLength,
+  ) {
+    if (messageType == 0x08) return payloadLength == 3;
+    if (messageType != 0x0C) return false;
+    if (eventType == 5) return payloadLength == 6;
+    if (eventType == 11) return payloadLength == 9;
+    return false;
   }
 
   bool _processFrame(List<int> frame) {
@@ -363,7 +374,6 @@ class AcaiaScale implements Scale {
       }
       return true;
     }
-    if (messageType == 0x07) return true;
     if (messageType != 0x0C) return false;
 
     if (eventType == 5) {
