@@ -16,7 +16,7 @@ class _IntegrityTransport extends BLETransport {
   ConnectionState _nativeState = ConnectionState.disconnected;
   void Function(Uint8List)? _notificationCallback;
   Completer<void>? blockedWrite;
-  Completer<void>? blockedSubscription;
+  final blockedSubscriptions = <int, Completer<void>>{};
   Object? writeError;
   int subscribeCalls = 0;
 
@@ -63,7 +63,7 @@ class _IntegrityTransport extends BLETransport {
     void Function(Uint8List) callback,
   ) async {
     subscribeCalls++;
-    final blocked = blockedSubscription;
+    final blocked = blockedSubscriptions[subscribeCalls];
     if (blocked != null) await blocked.future;
     _notificationCallback = callback;
   }
@@ -203,6 +203,27 @@ void main() {
     }
   });
 
+  test('public commands report disconnected writes', () async {
+    for (final command in <Future<void> Function(DecentScale)>[
+      (scale) => scale.tare(),
+      (scale) => scale.startTimer(),
+      (scale) => scale.stopTimer(),
+      (scale) => scale.resetTimer(),
+    ]) {
+      final transport = _IntegrityTransport();
+      final scale = DecentScale(transport: transport);
+      await scale.onConnect();
+      transport.writeError = const DeviceNotConnectedException.scale();
+      await expectLater(
+        command(scale),
+        throwsA(isA<DeviceNotConnectedException>()),
+      );
+      transport.writeError = null;
+      await scale.disconnectForHandoff();
+      await transport.dispose();
+    }
+  });
+
   test('notification recovery stays single-flight after disconnect', () {
     fakeAsync((async) {
       final transport = _IntegrityTransport();
@@ -211,7 +232,7 @@ void main() {
       async.flushMicrotasks();
       async.elapse(const Duration(milliseconds: 100));
       async.flushMicrotasks();
-      transport.blockedSubscription = Completer<void>();
+      transport.blockedSubscriptions[2] = Completer<void>();
 
       async.elapse(const Duration(seconds: 20));
       async.flushMicrotasks();
@@ -219,11 +240,44 @@ void main() {
 
       scale.disconnectForHandoff();
       async.flushMicrotasks();
-      transport.blockedSubscription!.complete();
+      transport.blockedSubscriptions[2]!.complete();
       async.flushMicrotasks();
       async.elapse(const Duration(seconds: 20));
       async.flushMicrotasks();
       expect(transport.subscribeCalls, 2);
+      transport.dispose();
+    });
+  });
+
+  test('reconnect recovery ignores a stale pending subscription', () {
+    fakeAsync((async) {
+      final transport = _IntegrityTransport();
+      final scale = DecentScale(transport: transport);
+      scale.onConnect();
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 100));
+      async.flushMicrotasks();
+      transport.blockedSubscriptions[2] = Completer<void>();
+
+      async.elapse(const Duration(seconds: 5));
+      async.flushMicrotasks();
+      expect(transport.subscribeCalls, 2);
+
+      scale.disconnectForHandoff();
+      async.flushMicrotasks();
+      scale.onConnect();
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 100));
+      async.flushMicrotasks();
+      expect(transport.subscribeCalls, 3);
+
+      async.elapse(const Duration(seconds: 5));
+      async.flushMicrotasks();
+      expect(transport.subscribeCalls, 4);
+
+      transport.blockedSubscriptions[2]!.complete();
+      scale.disconnectForHandoff();
+      async.flushMicrotasks();
       transport.dispose();
     });
   });
