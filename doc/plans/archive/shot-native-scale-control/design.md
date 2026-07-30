@@ -11,7 +11,7 @@
 
 - Machine samples alone drive lifecycle, volume integration, raw snapshots, persistence, and natural completion.
 - Distinct native scale callbacks alone drive tare confirmation, freshness, target crossings, per-step exits, and final-yield refinement.
-- Scale availability is explicit and can only degrade during a shot; disconnect, tare failure, tare timeout, and staleness cannot re-arm.
+- Scale availability is explicit and can only degrade during a shot; connection-generation changes, disconnect, tare failure, tare timeout, and staleness cannot re-arm.
 - Pour-time scale control arms only after the tare command succeeds and a distinct post-start sample is within 3 g of zero.
 - Final and per-step crossings require two consecutive distinct native samples at or above the projected threshold.
 - Shot scale commands run FIFO, once per transition, with local error ownership and generation guards.
@@ -30,4 +30,5 @@
 - A universal weight or grams-per-second clamp would reject legitimate catch-up after transport pauses.
 - Treating GATT write completion as physical tare completion can arm against cup weight.
 - Reconnection inside the sequencer would conflict with ConnectionManager ownership and could silently re-arm mid-shot.
+- Accepting replacement-scale samples from the controller's shared stream can actuate against an untared reference.
 - Persisting at scale cadence would change the storage and public snapshot contract.

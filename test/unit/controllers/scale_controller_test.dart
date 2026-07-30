@@ -197,10 +197,12 @@ void main() {
       final b = _TrackingScale('B');
 
       await controller.connectToScale(a);
+      final firstGeneration = controller.connectionGeneration;
       expect(controller.connectedScale().deviceId, 'A');
       expect(a.disconnected, isFalse);
 
       await controller.connectToScale(b);
+      expect(controller.connectionGeneration, firstGeneration + 1);
       expect(controller.connectedScale().deviceId, 'B');
       expect(
         a.disconnected,
@@ -218,7 +220,9 @@ void main() {
     final a = _TrackingScale('A');
 
     await controller.connectToScale(a);
+    final firstGeneration = controller.connectionGeneration;
     await controller.connectToScale(a); // same device id
+    expect(controller.connectionGeneration, firstGeneration + 1);
     expect(
       a.disconnected,
       isFalse,

@@ -11,6 +11,7 @@ class TestScaleController extends ScaleController {
   final TestScale testScale;
   final BehaviorSubject<device.ConnectionState> _connectionState;
   final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
+  int _generation = 0;
 
   TestScaleController(this.testScale)
     : _connectionState = BehaviorSubject.seeded(
@@ -22,6 +23,9 @@ class TestScaleController extends ScaleController {
 
   @override
   device.ConnectionState get currentConnectionState => _connectionState.value;
+
+  @override
+  int get connectionGeneration => _generation;
 
   @override
   Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
@@ -54,6 +58,11 @@ class TestScaleController extends ScaleController {
   }
 
   void simulateConnect() {
+    _connectionState.add(device.ConnectionState.connected);
+  }
+
+  void simulateScaleSwitch() {
+    _generation++;
     _connectionState.add(device.ConnectionState.connected);
   }
 
