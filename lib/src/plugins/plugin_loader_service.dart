@@ -22,6 +22,10 @@ class PluginSettingsValidationException implements Exception {
 }
 
 class PluginLoaderService {
+  static const _loadTimeout = Duration(seconds: 1);
+  static const _maxConsecutiveLoadFailures = 3;
+  static const _loadingPluginKey = 'plugin.watchdog.loading';
+
   final PluginManager pluginManager;
   final bool _appStoreMode;
   final _log = Logger('PluginLoaderService');
@@ -54,6 +58,7 @@ class PluginLoaderService {
 
     // Initialize SharedPreferences
     _prefs = await SharedPreferences.getInstance();
+    await _recoverInterruptedPluginLoad();
 
     // Create plugins directory if it doesn't exist
     if (!_pluginsDir.existsSync()) {
@@ -151,6 +156,10 @@ class PluginLoaderService {
 
     // Remove plugin settings
     await _prefs.remove('plugin.settings.$pluginId');
+    await _prefs.remove(_loadFailureKey(pluginId));
+    if (_prefs.getString(_loadingPluginKey) == pluginId) {
+      await _prefs.remove(_loadingPluginKey);
+    }
   }
 
   /// Load plugin into the runtime
@@ -163,30 +172,32 @@ class PluginLoaderService {
     final manifest = _availablePluginsCache[pluginId]!;
     final pluginDir = Directory('${_pluginsDir.path}/$pluginId');
 
-    // Read plugin.js file
-    final pluginFile = File('${pluginDir.path}/plugin.js');
-    if (!pluginFile.existsSync()) {
-      throw Exception('plugin.js not found for plugin: $pluginId');
+    await _prefs.setString(_loadingPluginKey, pluginId);
+    try {
+      final pluginFile = File('${pluginDir.path}/plugin.js');
+      if (!pluginFile.existsSync()) {
+        throw Exception('plugin.js not found for plugin: $pluginId');
+      }
+
+      final jsCode = await pluginFile.readAsString();
+      final settings = await pluginSettings(pluginId);
+
+      await pluginManager
+          .loadPlugin(
+            id: pluginId,
+            manifest: manifest,
+            jsCode: jsCode,
+            settings: settings,
+          )
+          .timeout(_loadTimeout);
+    } catch (_) {
+      await _prefs.remove(_loadingPluginKey);
+      await _recordLoadFailure(pluginId);
+      rethrow;
     }
 
-    final jsCode = await pluginFile.readAsString();
-
-    final settings = await pluginSettings(pluginId);
-
-    // Load plugin using PluginManager
-    // FIXME: add watchdog so we don't break the app with unloadable plugins
-    await Future.any([
-      pluginManager.loadPlugin(
-        id: pluginId,
-        manifest: manifest,
-        jsCode: jsCode,
-        settings: settings,
-      ),
-      Future.delayed(Duration(seconds: 1), () {
-        throw Exception("load timeout occured");
-      }),
-    ]);
-
+    await _prefs.remove(_loadingPluginKey);
+    await _prefs.remove(_loadFailureKey(pluginId));
     _log.info('Plugin loaded: $pluginId');
   }
 
@@ -218,6 +229,12 @@ class PluginLoaderService {
 
   /// Store a setting in prefs, whether a specific plugin should be autoloaded at initialize
   Future<void> setPluginAutoLoad(String pluginId, bool enabled) async {
+    if (enabled) {
+      await _prefs.remove(_loadFailureKey(pluginId));
+      if (_prefs.getString(_loadingPluginKey) == pluginId) {
+        await _prefs.remove(_loadingPluginKey);
+      }
+    }
     await _prefs.setBool('plugin.autoload.$pluginId', enabled);
   }
 
@@ -306,6 +323,33 @@ class PluginLoaderService {
   }
 
   // Private helper methods
+
+  String _loadFailureKey(String pluginId) =>
+      'plugin.watchdog.loadFailures.$pluginId';
+
+  Future<void> _recordLoadFailure(String pluginId) async {
+    final failureKey = _loadFailureKey(pluginId);
+    final failures = (_prefs.getInt(failureKey) ?? 0) + 1;
+    await _prefs.setInt(failureKey, failures);
+    if (failures < _maxConsecutiveLoadFailures) return;
+
+    await _prefs.setBool('plugin.autoload.$pluginId', false);
+    _log.warning(
+      'Disabled auto-load for plugin $pluginId after $failures consecutive load failures',
+    );
+  }
+
+  Future<void> _recoverInterruptedPluginLoad() async {
+    final pluginId = _prefs.getString(_loadingPluginKey);
+    if (pluginId == null) return;
+
+    await _prefs.setInt(_loadFailureKey(pluginId), _maxConsecutiveLoadFailures);
+    await _prefs.setBool('plugin.autoload.$pluginId', false);
+    await _prefs.remove(_loadingPluginKey);
+    _log.warning(
+      'Disabled auto-load for plugin $pluginId after an interrupted load',
+    );
+  }
 
   Future<void> _copyBundledPlugins() async {
     // Get list of bundled plugins from assets
