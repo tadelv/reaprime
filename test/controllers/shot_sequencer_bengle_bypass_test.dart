@@ -137,6 +137,10 @@ class _BengleScaleController extends ScaleController {
   ConnectionState get currentConnectionState => ConnectionState.connected;
 
   @override
+  ({Scale scale, int generation})? get currentScaleLease =>
+      (scale: scale, generation: connectionGeneration);
+
+  @override
   Stream<WeightSnapshot> get weightSnapshot => scale.currentSnapshot.map(
     (snapshot) => WeightSnapshot(
       timestamp: snapshot.timestamp,

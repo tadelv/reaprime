@@ -99,11 +99,9 @@ class ShotSequencer {
       "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW, stepExitArbiterEnabled: $_stepExitArbiterEnabled)",
     );
 
-    final scaleConnected =
-        scaleController.currentConnectionState ==
-        device.ConnectionState.connected;
+    final scaleLease = scaleController.currentScaleLease;
 
-    if (_blockOnNoScale && !scaleConnected) {
+    if (_blockOnNoScale && scaleLease == null) {
       _emitDecision(
         ShotDecisionKind.abort,
         ShotDecisionReason.noScale,
@@ -119,10 +117,10 @@ class ShotSequencer {
       return;
     }
 
-    if (scaleConnected) {
-      _scaleGeneration = scaleController.connectionGeneration;
+    if (scaleLease != null) {
+      _scaleGeneration = scaleLease.generation;
       _commandQueue = ShotScaleCommandQueue(
-        scaleController.connectedScale(),
+        scaleLease.scale,
         isCurrent: () =>
             scaleController.connectionGeneration == _scaleGeneration,
         logger: _log,
@@ -305,9 +303,8 @@ class ShotSequencer {
       return;
     }
     _latestScale = scale;
-    if (_pourTareStarted ||
-        _state == ShotState.pouring ||
-        _state == ShotState.stopping) {
+    if (_scaleAvailability == _ScaleAvailability.ready &&
+        (_state == ShotState.pouring || _state == ShotState.stopping)) {
       _resetFreshnessTimer();
     }
     if (_scaleAvailability == _ScaleAvailability.awaitingPourTare) {
@@ -329,10 +326,7 @@ class ShotSequencer {
     _freshnessTimer?.cancel();
     _freshnessTimer = Timer(_scaleFreshnessTimeout, () {
       if (_state != ShotState.pouring && _state != ShotState.stopping) return;
-      if (_scaleAvailability != _ScaleAvailability.awaitingPourTare &&
-          _scaleAvailability != _ScaleAvailability.ready) {
-        return;
-      }
+      if (_scaleAvailability != _ScaleAvailability.ready) return;
       _disableScale(_ScaleAvailability.stale, 'Scale feed became stale');
     });
   }
@@ -344,6 +338,7 @@ class ShotSequencer {
     }
     _scaleAvailability = availability;
     _scaleLost = true;
+    _commandQueue?.dispose();
     _latestScale = null;
     _tareConfirmationTimer?.cancel();
     _freshnessTimer?.cancel();
@@ -360,8 +355,17 @@ class ShotSequencer {
   }
 
   void _enqueuePourCommands() {
-    if (_scaleAvailability == _ScaleAvailability.awaitingPourTare ||
-        _scaleAvailability == _ScaleAvailability.ready) {
+    if (_scaleAvailability == _ScaleAvailability.awaitingPourTare) {
+      _tareConfirmationTimer?.cancel();
+      _tareConfirmationTimer = Timer(_tareConfirmationTimeout, () {
+        if (_scaleAvailability == _ScaleAvailability.awaitingPourTare) {
+          _disableScale(
+            _ScaleAvailability.unavailable,
+            'Pour tare confirmation timed out',
+          );
+        }
+      });
+    } else if (_scaleAvailability == _ScaleAvailability.ready) {
       _resetFreshnessTimer();
     }
     final queue = _commandQueue;
@@ -401,15 +405,6 @@ class ShotSequencer {
     _pourTareZeroObserved = false;
     _finalCrossing.reset();
     _stepCrossing.reset();
-    _tareConfirmationTimer?.cancel();
-    _tareConfirmationTimer = Timer(_tareConfirmationTimeout, () {
-      if (_scaleAvailability == _ScaleAvailability.awaitingPourTare) {
-        _disableScale(
-          _ScaleAvailability.unavailable,
-          'Pour tare confirmation timed out',
-        );
-      }
-    });
   }
 
   void _completePourTare() {
@@ -422,6 +417,7 @@ class ShotSequencer {
     if (!_pourTareSucceeded || !_pourTareZeroObserved) return;
     _tareConfirmationTimer?.cancel();
     _scaleAvailability = _ScaleAvailability.ready;
+    _resetFreshnessTimer();
   }
 
   void _evaluateScaleControl(WeightSnapshot scale) {
