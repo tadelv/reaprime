@@ -323,6 +323,35 @@ void main() {
     }
   });
 
+  test('transport disconnect invalidates pending initialization', () {
+    fakeAsync((async) {
+      final transport = _ips(emitWeightDuringInit: false);
+      transport.writeBehavior = (data) async {
+        if (data[2] != 0x0C) return;
+        scheduleMicrotask(() => transport.emit(_weightFrame));
+        Timer(
+          const Duration(milliseconds: 100),
+          () => transport.states.add(ConnectionState.disconnected),
+        );
+      };
+      final scale = AcaiaScale(transport: transport);
+      final states = <ConnectionState>[];
+      scale.connectionState.listen(states.add);
+
+      scale.onConnect();
+      async.flushTimers();
+      async.flushMicrotasks();
+
+      final disconnected = states.lastIndexOf(ConnectionState.disconnected);
+      expect(disconnected, greaterThan(0));
+      expect(
+        states.skip(disconnected + 1),
+        isNot(contains(ConnectionState.connected)),
+      );
+      transport.dispose();
+    });
+  });
+
   test('maintenance is serialized and stops after disconnect', () {
     fakeAsync((async) {
       final transport = _ips();
@@ -362,6 +391,23 @@ void main() {
     }
 
     expect(transport.disconnectCalls, 1);
+    await transport.dispose();
+  });
+
+  test('Pyxis watchdog is independent of a blocked heartbeat', () async {
+    final transport = _AcaiaTransport(
+      services: const ['49535343-fe7d-4ae5-8fa9-9fafd205e455'],
+    );
+    final scale = AcaiaScale(transport: transport);
+    await scale.onConnect();
+    final blocked = Completer<void>();
+    transport.writeBehavior = (data) => blocked.future;
+
+    await Future<void>.delayed(const Duration(milliseconds: 5500));
+
+    expect(transport.disconnectCalls, 1);
+    blocked.complete();
+    await Future<void>.delayed(Duration.zero);
     await transport.dispose();
   });
 

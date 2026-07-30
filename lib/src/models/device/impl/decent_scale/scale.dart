@@ -155,6 +155,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     _stopMaintenance();
 
     try {
+      await _waitForNotificationRecovery();
       await _device.connect();
 
       await subscription?.cancel();
@@ -535,13 +536,17 @@ class DecentScale implements Scale, TransportHandoffScale {
   // --- BLE notifications -----------------------------------------------
 
   Future<void> _registerNotifications() async {
+    await _waitForNotificationRecovery();
+    await _subscribeNotifications();
+  }
+
+  Future<void> _waitForNotificationRecovery() async {
     final pending = _notificationRecovery;
     if (pending != null) {
       try {
         await pending;
       } catch (_) {}
     }
-    await _subscribeNotifications();
   }
 
   Future<void> _subscribeNotifications() async {
