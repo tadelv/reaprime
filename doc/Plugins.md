@@ -253,6 +253,12 @@ const upload = await fetch("https://api.example.com/upload", {
 4. **Unloading**: `onUnload()` is called for cleanup
 5. **Removal**: Plugin files are deleted from storage
 
+### Load watchdog
+
+Decent.app records consecutive load failures for each plugin. After three failures, auto-load is disabled so the plugin no longer runs on subsequent launches. A plugin whose load was interrupted by an app exit is disabled on the next launch immediately, which also covers JavaScript evaluation that blocks before Dart's one-second timeout can fire.
+
+Disabled plugins remain installed and can be re-enabled from plugin settings or `POST /api/v1/plugins/:id/enable`. Re-enabling clears the failure count and gives the plugin a fresh attempt; a successful load also clears it.
+
 ## Example: Temperature Monitoring Plugin
 
 ```javascript
