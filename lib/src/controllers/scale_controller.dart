@@ -14,6 +14,12 @@ class ScaleController {
   int _connectionGeneration = 0;
 
   int get connectionGeneration => _connectionGeneration;
+  ({Scale scale, int generation})? get currentScaleLease {
+    final scale = _scale;
+    return scale == null
+        ? null
+        : (scale: scale, generation: _connectionGeneration);
+  }
 
   StreamSubscription<ConnectionState>? _scaleConnection;
   StreamSubscription<ScaleSnapshot>? _scaleSnapshot;
@@ -205,8 +211,13 @@ class ScaleController {
   /// visualizer right after each tare. Throws [DeviceNotConnectedException] if
   /// no scale is connected.
   Future<void> tare() async {
-    final scale = connectedScale();
-    await scale.tare();
+    final lease = currentScaleLease;
+    if (lease == null) throw const DeviceNotConnectedException.scale();
+    await lease.scale.tare();
+    if (_connectionGeneration != lease.generation ||
+        !identical(_scale, lease.scale)) {
+      return;
+    }
     _kalmanEstimator?.reset(0.0);
     _resetDisplayEstimator();
     _flowSettleUntil = _lastSnapshotTime?.add(_smoothingWindow);

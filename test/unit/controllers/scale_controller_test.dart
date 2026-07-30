@@ -21,6 +21,7 @@ class _TrackingScale implements Scale {
   );
   final _snap = BehaviorSubject<ScaleSnapshot>();
   bool disconnected = false;
+  Future<void> Function()? tareHandler;
 
   @override
   String get name => deviceId;
@@ -46,7 +47,9 @@ class _TrackingScale implements Scale {
   }
 
   @override
-  Future<void> tare() async {}
+  Future<void> tare() async {
+    await tareHandler?.call();
+  }
 
   @override
   Future<void> sleepDisplay() async {}
@@ -321,6 +324,38 @@ void main() {
     expect(historical.controlWeightFlow, 4.5);
     expect(live.controlWeightFlow, 4.5);
     expect(live.toJson(), isNot(contains('controlWeightFlow')));
+  });
+
+  test('old tare completion does not reset replacement scale flow', () async {
+    final controller = ScaleController();
+    final first = _TrackingScale('A');
+    final second = _TrackingScale('B');
+    final tare = Completer<void>();
+    first.tareHandler = () => tare.future;
+    await controller.connectToScale(first);
+
+    final staleTare = controller.tare();
+    await Future<void>.delayed(Duration.zero);
+    await controller.connectToScale(second);
+
+    final frames = <WeightSnapshot>[];
+    final sub = controller.weightSnapshot.listen(frames.add);
+    final t0 = DateTime.utc(2026, 7, 22);
+    second.emitAt(t0, 0);
+    second.emitAt(t0.add(const Duration(milliseconds: 100)), 1);
+    second.emitAt(t0.add(const Duration(milliseconds: 200)), 2);
+    await Future<void>.delayed(Duration.zero);
+    expect(frames.last.controlWeightFlow, greaterThan(0));
+
+    tare.complete();
+    await staleTare;
+    second.emitAt(t0.add(const Duration(milliseconds: 300)), 3);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(frames.last.controlWeightFlow, greaterThan(0));
+
+    await sub.cancel();
+    controller.dispose();
   });
 
   test('tare suppresses the flow transient for one smoothing window without '

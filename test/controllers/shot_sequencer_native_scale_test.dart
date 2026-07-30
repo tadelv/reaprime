@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -150,6 +151,42 @@ void main() {
       if (scale.tareCallCount == 2) scaleController.emitWeight(0);
     };
   }
+
+  test('scale handoff is treated as no scale without throwing', () async {
+    final controller = ScaleController();
+    final first = TestScale(deviceId: 'first');
+    final second = TestScale(deviceId: 'second');
+    final connecting = Completer<void>();
+    second.onConnectHandler = () => connecting.future;
+    await controller.connectToScale(first);
+
+    final switching = controller.connectToScale(second);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.currentScaleLease, isNull);
+
+    final shot = ShotSequencer(
+      scaleController: controller,
+      de1controller: de1Controller,
+      persistenceController: persistence,
+      targetProfile: _profile(),
+      targetYield: 36,
+      bypassSAW: false,
+      blockOnNoScale: true,
+      weightFlowMultiplier: 0,
+      volumeFlowMultiplier: 0,
+      stepExitArbiterEnabled: true,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(machine.requestedStates, [MachineState.idle]);
+
+    connecting.complete();
+    await switching;
+    shot.dispose();
+    controller.dispose();
+    first.dispose();
+    second.dispose();
+  });
 
   test(
     'machine cadence stays independent and crossings use native samples',
@@ -350,14 +387,17 @@ void main() {
     });
   });
 
-  test('pour freshness expires while preparing command is blocked', () {
+  test('pour readiness expires while samples continue during blocked tare', () {
     fakeAsync((async) {
       final preparingTare = Completer<void>();
       scale.tareHandler = () => preparingTare.future;
       final shot = makeShot(targetYield: 0, targetVolume: 1);
       driveToPouring(async);
 
-      async.elapse(const Duration(milliseconds: 101));
+      for (var i = 0; i < 11; i++) {
+        scaleController.emitWeight(i.toDouble());
+        async.elapse(const Duration(milliseconds: 10));
+      }
       var snapshot = machine.snapshotSubject.value;
       machine.emitSnapshot(
         snapshot.copyWith(
@@ -378,11 +418,31 @@ void main() {
       expect(shot.scaleLost, isTrue);
       preparingTare.complete();
       async.flushMicrotasks();
+      expect(scale.commandCalls, ['tare']);
       shot.dispose();
     });
   });
 
-  test('tare completion does not renew callback freshness', () {
+  test('timed-out pour tare cannot start the scale timer', () {
+    fakeAsync((async) {
+      final pourTare = Completer<void>();
+      scale.tareHandler = () =>
+          scale.tareCallCount == 2 ? pourTare.future : Future.value();
+      final shot = makeShot(targetYield: 0);
+      driveToPouring(async);
+
+      expect(scale.commandCalls, ['tare', 'reset', 'tare']);
+      async.elapse(const Duration(milliseconds: 101));
+      expect(shot.scaleLost, isTrue);
+
+      pourTare.complete();
+      async.flushMicrotasks();
+      expect(scale.commandCalls, ['tare', 'reset', 'tare']);
+      shot.dispose();
+    });
+  });
+
+  test('scale freshness starts when tare control arms', () {
     fakeAsync((async) {
       final pourTare = Completer<void>();
       scale.tareHandler = () {
@@ -398,6 +458,8 @@ void main() {
       async.flushMicrotasks();
       async.elapse(const Duration(milliseconds: 11));
 
+      expect(shot.scaleLost, isFalse);
+      async.elapse(const Duration(milliseconds: 90));
       expect(shot.scaleLost, isTrue);
       shot.dispose();
     });

@@ -63,13 +63,16 @@ class TestScale implements Scale {
   Stream<ScaleSnapshot> get currentSnapshot => _snapshotSubject.stream;
 
   @override
-  Future<void> onConnect() async {}
+  Future<void> onConnect() async {
+    await onConnectHandler?.call();
+  }
 
   @override
   Future<void> disconnect() async {}
 
   int tareCallCount = 0;
   final List<String> commandCalls = [];
+  Future<void> Function()? onConnectHandler;
   Future<void> Function()? tareHandler;
   Future<void> Function()? resetTimerHandler;
   Future<void> Function()? startTimerHandler;

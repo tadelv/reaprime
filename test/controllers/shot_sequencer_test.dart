@@ -73,6 +73,12 @@ class _TestScaleController extends ScaleController {
   Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
 
   @override
+  ({Scale scale, int generation})? get currentScaleLease =>
+      _connectionState.value == ConnectionState.connected
+      ? (scale: testScale, generation: connectionGeneration)
+      : null;
+
+  @override
   Scale connectedScale() {
     if (_connectionState.value != ConnectionState.connected) {
       throw 'No scale connected';

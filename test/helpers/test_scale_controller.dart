@@ -28,6 +28,12 @@ class TestScaleController extends ScaleController {
   int get connectionGeneration => _generation;
 
   @override
+  ({Scale scale, int generation})? get currentScaleLease =>
+      _connectionState.value == device.ConnectionState.connected
+      ? (scale: testScale, generation: _generation)
+      : null;
+
+  @override
   Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
 
   @override
