@@ -497,7 +497,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = net.tadel.reaprime.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Decent.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Decent";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Decaid.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Decaid";
 			};
 			name = Debug;
 		};
@@ -513,7 +513,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = net.tadel.reaprime.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Decent.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Decent";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Decaid.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Decaid";
 			};
 			name = Release;
 		};
@@ -529,7 +529,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = net.tadel.reaprime.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Decent.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Decent";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Decaid.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Decaid";
 			};
 			name = Profile;
 		};

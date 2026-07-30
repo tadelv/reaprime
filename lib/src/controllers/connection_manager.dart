@@ -388,7 +388,7 @@ class ConnectionManager {
           message: 'Bluetooth permission was denied.',
           suggestion:
               'Go to Settings > Privacy & Security > Bluetooth and enable '
-              'permission for Decent.app.',
+              'permission for Decaid.',
         );
         _setTransportCondition(error);
         _emit(error);

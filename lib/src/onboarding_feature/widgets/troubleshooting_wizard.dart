@@ -55,8 +55,8 @@ List<TroubleshootingStep> troubleshootingSteps({
           ? 'Bluetooth Permission Required'
           : 'Is Bluetooth enabled?',
       description: adapterState == AdapterState.unauthorized
-          ? 'Decent.app needs Bluetooth permission to discover your espresso machine. '
-                'Go to Settings > Privacy & Security > Bluetooth and enable it for Decent.app.'
+          ? 'Decaid needs Bluetooth permission to discover your espresso machine. '
+                'Go to Settings > Privacy & Security > Bluetooth and enable it for Decaid.'
           : 'Bluetooth adapter state: ${adapterState.name}',
       buttonText: 'Continue',
       shouldShow: () => runningOnIOS && adapterState != AdapterState.poweredOn,

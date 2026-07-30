@@ -339,7 +339,7 @@ class _MyAppState extends State<MyApp> {
             //
             // The appTitle is defined in .arb files found in the localization
             // directory.
-            onGenerateTitle: (BuildContext context) => "Decent.app",
+            onGenerateTitle: (BuildContext context) => "Decaid",
             // Define a light and dark color theme. Then, read the user's
             // preferred ThemeMode (light, dark, or system default) from the
             // SettingsController to display the correct theme.

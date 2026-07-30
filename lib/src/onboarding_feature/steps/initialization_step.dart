@@ -171,7 +171,7 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      semanticsLabel: 'Starting Decent',
+      semanticsLabel: 'Starting Decaid',
       body: [
         FutureBuilder<void>(
           future: _initFuture,
@@ -188,14 +188,14 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
                 SizedBox(
                   width: 200,
                   child: Semantics(
-                    label: 'Starting Decent',
+                    label: 'Starting Decaid',
                     child: ShadProgress(),
                   ),
                 ),
                 Semantics(
                   liveRegion: true,
                   child: Text(
-                    'Decent is starting...',
+                    'Decaid is starting...',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),

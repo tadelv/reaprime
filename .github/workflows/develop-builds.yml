@@ -89,13 +89,13 @@ jobs:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
       - name: Package Android APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk decent-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk decaid-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v7
         with:
-          name: decent-android-develop
-          path: decent-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
+          name: decaid-android-develop
+          path: decaid-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
           if-no-files-found: error
 
   build-macos:
@@ -177,7 +177,7 @@ jobs:
 
       - name: Codesign app (hardened runtime)
         run: |
-          APP="build/macos/Build/Products/Release/Decent.app"
+          APP="build/macos/Build/Products/Release/Decaid.app"
           codesign --deep --force \
             --options runtime \
             --entitlements macos/Runner/Release.entitlements \
@@ -188,7 +188,7 @@ jobs:
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app Decent.zip
+          ditto -c -k --keepParent Decaid.app Decaid.zip
 
       - name: Notarize app
         env:
@@ -197,7 +197,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/Decent.zip \
+            build/macos/Build/Products/Release/Decaid.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -216,7 +216,7 @@ jobs:
         run: |
           # Retry stapling — ticket propagation can lag behind notarytool --wait
           for i in 1 2 3 4 5; do
-            if xcrun stapler staple build/macos/Build/Products/Release/Decent.app; then
+            if xcrun stapler staple build/macos/Build/Products/Release/Decaid.app; then
               exit 0
             fi
             echo "Staple attempt $i failed, waiting 15s..."
@@ -229,13 +229,13 @@ jobs:
       - name: Create development ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          ditto -c -k --keepParent Decaid.app ../../../../../decaid-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
         with:
-          name: decent-macos-develop
-          path: decent-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          name: decaid-macos-develop
+          path: decaid-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
           if-no-files-found: error
 
   build-linux:
@@ -284,13 +284,13 @@ jobs:
       - name: Create Linux archive
         run: |
           cd build/linux/x64/release
-          tar -czf ../../../../decent-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
+          tar -czf ../../../../decaid-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
 
       - name: Upload Linux app
         uses: actions/upload-artifact@v7
         with:
-          name: decent-linux-x64-develop
-          path: decent-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
+          name: decaid-linux-x64-develop
+          path: decaid-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
           if-no-files-found: error
 
   build-raspberrypi:
@@ -346,13 +346,13 @@ jobs:
       - name: Create Raspberry Pi archive
         run: |
           cd build/linux/arm64/release
-          tar -czf ../../../../decent-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
+          tar -czf ../../../../decaid-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
 
       - name: Upload Raspberry Pi build (ARM64)
         uses: actions/upload-artifact@v7
         with:
-          name: decent-linux-arm64-develop
-          path: decent-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
+          name: decaid-linux-arm64-develop
+          path: decaid-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
           if-no-files-found: error
 
   build-ios:
@@ -404,7 +404,7 @@ jobs:
       - name: Package unsigned IPA
         run: |
           APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
-          OUTPUT_PATH="$GITHUB_WORKSPACE/decent-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/decaid-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa"
           PACKAGE_DIR="$RUNNER_TEMP/unsigned-ipa"
 
           test -d "$APP_PATH"
@@ -419,8 +419,8 @@ jobs:
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v7
         with:
-          name: decent-ios-unsigned-develop
-          path: decent-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa
+          name: decaid-ios-unsigned-develop
+          path: decaid-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa
           if-no-files-found: error
 
 
@@ -476,13 +476,13 @@ jobs:
 
       - name: Create Windows archive
         shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decent-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decaid-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
 
       - name: Upload Windows app
         uses: actions/upload-artifact@v7
         with:
-          name: decent-windows-x64-develop
-          path: decent-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          name: decaid-windows-x64-develop
+          path: decaid-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
           if-no-files-found: error
 
 

@@ -79,13 +79,13 @@ jobs:
       - name: Rename APK with version
         run: |
           mv build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
+             build/app/outputs/flutter-apk/decaid-android-${{ steps.version.outputs.version }}.apk
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v7
         with:
           name: android-apk
-          path: build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
+          path: build/app/outputs/flutter-apk/decaid-android-${{ steps.version.outputs.version }}.apk
 
   build-macos:
     runs-on: macos-latest
@@ -160,7 +160,7 @@ jobs:
 
       - name: Codesign app (hardened runtime)
         run: |
-          APP="build/macos/Build/Products/Release/Decent.app"
+          APP="build/macos/Build/Products/Release/Decaid.app"
           codesign --deep --force \
             --options runtime \
             --entitlements macos/Runner/Release.entitlements \
@@ -171,7 +171,7 @@ jobs:
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app Decent.zip
+          ditto -c -k --keepParent Decaid.app Decaid.zip
 
       - name: Notarize app
         env:
@@ -180,7 +180,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/Decent.zip \
+            build/macos/Build/Products/Release/Decaid.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -199,7 +199,7 @@ jobs:
         run: |
           # Retry stapling — ticket propagation can lag behind notarytool --wait
           for i in 1 2 3 4 5; do
-            if xcrun stapler staple build/macos/Build/Products/Release/Decent.app; then
+            if xcrun stapler staple build/macos/Build/Products/Release/Decaid.app; then
               exit 0
             fi
             echo "Staple attempt $i failed, waiting 15s..."
@@ -218,12 +218,12 @@ jobs:
       - name: Create release ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-${{ steps.version.outputs.version }}.zip
+          ditto -c -k --keepParent Decaid.app ../../../../../decaid-macos-${{ steps.version.outputs.version }}.zip
 
       - uses: actions/upload-artifact@v7
         with:
           name: macos-app
-          path: decent-macos-${{ steps.version.outputs.version }}.zip
+          path: decaid-macos-${{ steps.version.outputs.version }}.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -272,13 +272,13 @@ jobs:
       - name: Create Linux archive
         run: |
           cd build/linux/x64/release
-          tar -czf ../../../../decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
+          tar -czf ../../../../decaid-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Linux app artifact
         uses: actions/upload-artifact@v7
         with:
           name: linux-app
-          path: decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz
+          path: decaid-linux-x64-${{ steps.version.outputs.version }}.tar.gz
 
   build-raspberrypi:
     name: Build for Raspberry Pi (ARM64 / Pi 4+)
@@ -334,13 +334,13 @@ jobs:
       - name: Create Raspberry Pi archive
         run: |
           cd build/linux/arm64/release
-          tar -czf ../../../../decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
+          tar -czf ../../../../decaid-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Raspberry Pi build artifact
         uses: actions/upload-artifact@v7
         with:
           name: raspberrypi-linux-arm64-app
-          path: decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
+          path: decaid-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
 
   build-windows:
     # Pinned: windows-latest rolled to VS 18 / MSVC 14.51, which hard-errors on
@@ -396,13 +396,13 @@ jobs:
       - name: Create Windows archive
         shell: pwsh
         run: |
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decent-windows-x64-${{ steps.version.outputs.version }}.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decaid-windows-x64-${{ steps.version.outputs.version }}.zip
 
       - name: Upload Windows app artifact
         uses: actions/upload-artifact@v7
         with:
           name: windows-app
-          path: decent-windows-x64-${{ steps.version.outputs.version }}.zip
+          path: decaid-windows-x64-${{ steps.version.outputs.version }}.zip
 
   build-ios:
     runs-on: macos-latest
@@ -458,7 +458,7 @@ jobs:
       - name: Package unsigned IPA
         run: |
           APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
-          OUTPUT_PATH="$GITHUB_WORKSPACE/decent-ios-unsigned-${{ steps.version.outputs.version }}.ipa"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/decaid-ios-unsigned-${{ steps.version.outputs.version }}.ipa"
           PACKAGE_DIR="$RUNNER_TEMP/unsigned-ipa"
 
           test -d "$APP_PATH"
@@ -474,7 +474,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ios-ipa-unsigned
-          path: decent-ios-unsigned-${{ steps.version.outputs.version }}.ipa
+          path: decaid-ios-unsigned-${{ steps.version.outputs.version }}.ipa
           if-no-files-found: error
 
       - name: Import distribution certificate
@@ -675,7 +675,7 @@ jobs:
             release-artifacts/windows-app/*
             release-artifacts/ios-ipa-unsigned/*
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Decent ${{ steps.version.outputs.version }}
+          name: Decaid ${{ steps.version.outputs.version }}
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'rc') }}
           body_path: release-notes.md

@@ -97,7 +97,7 @@ abstract class AppLocalizations {
   /// The title of the application
   ///
   /// In en, this message translates to:
-  /// **'Decent'**
+  /// **'Decaid'**
   String get appTitle;
 }
 
