@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1416,9 +1417,10 @@ void main() {
         expect(settingsController.preferredMachineId, isNull);
       });
 
-      test('connect timeout: machine that never responds fails after 30s '
+      test('connect timeout: machine that never responds uses platform budget '
           '(comms-harden #31)', () {
         fakeAsync((async) {
+          final timeoutSeconds = Platform.isLinux ? 60 : 30;
           final completer = Completer<void>();
           final slowDe1Controller = _SlowMockDe1Controller(
             controller: DeviceController([dummyDiscoveryService]),
@@ -1436,9 +1438,7 @@ void main() {
           Object? caughtError;
           manager.connectMachine(fakeDe1).catchError((e) => caughtError = e);
 
-          // Advance past the 30s connect budget; the TimeoutException
-          // in connectMachine should cause rethrow + machineConnectFailed.
-          async.elapse(const Duration(seconds: 35));
+          async.elapse(Duration(seconds: timeoutSeconds + 5));
           async.flushMicrotasks();
 
           expect(
@@ -1451,7 +1451,7 @@ void main() {
           expect(status.error?.kind, ConnectionErrorKind.machineConnectFailed);
           expect(
             status.error?.message,
-            contains('did not respond within 30s'),
+            contains('did not respond within ${timeoutSeconds}s'),
             reason: 'timeout-specific error message should surface',
           );
 
