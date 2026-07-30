@@ -442,24 +442,23 @@ void main() {
     });
   });
 
-  test('scale freshness starts when tare control arms', () {
+  test('tare completion preserves native callback freshness', () {
     fakeAsync((async) {
       final pourTare = Completer<void>();
-      scale.tareHandler = () {
-        if (scale.tareCallCount != 2) return Future.value();
-        scaleController.emitWeight(0);
-        return pourTare.future;
-      };
+      scale.tareHandler = () =>
+          scale.tareCallCount == 2 ? pourTare.future : Future.value();
       final shot = makeShot(targetYield: 0);
       driveToPouring(async);
 
-      async.elapse(const Duration(milliseconds: 90));
+      async.elapse(const Duration(milliseconds: 20));
+      scaleController.emitWeight(0);
+      async.elapse(const Duration(milliseconds: 70));
       pourTare.complete();
       async.flushMicrotasks();
-      async.elapse(const Duration(milliseconds: 11));
+      async.elapse(const Duration(milliseconds: 29));
 
       expect(shot.scaleLost, isFalse);
-      async.elapse(const Duration(milliseconds: 90));
+      async.elapse(const Duration(milliseconds: 2));
       expect(shot.scaleLost, isTrue);
       shot.dispose();
     });
