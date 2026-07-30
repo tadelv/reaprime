@@ -796,9 +796,7 @@ void main() {
         StreamSubscription<device.ConnectionState>,
       )
     >
-    createLinuxTransport({
-      Duration cacheRefreshScan = Duration.zero,
-    }) async {
+    createLinuxTransport({Duration cacheRefreshScan = Duration.zero}) async {
       final linux = UniversalBleTransport(
         device: bleDevice('$deviceId-linux'),
         isLinuxOverride: true,
