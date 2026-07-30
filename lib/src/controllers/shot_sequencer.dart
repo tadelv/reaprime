@@ -567,6 +567,7 @@ class ShotSequencer {
             "Volume counting activated. Will start from frame ${targetProfile.targetVolumeCountStart}",
           );
 
+          _trackFrameAdvance(machine.profileFrame);
           _state = ShotState.pouring;
           _stateStream.add(_state);
           _enqueuePourCommands();
