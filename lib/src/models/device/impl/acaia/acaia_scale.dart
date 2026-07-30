@@ -37,6 +37,7 @@ class AcaiaScale implements Scale {
   static const _header1 = 0xEF;
   static const _header2 = 0xDD;
   static const _metadataLength = 5;
+  static const _maxPayloadLength = 64;
   static const _identPayload = [
     0x30,
     0x31,
@@ -335,7 +336,7 @@ class AcaiaScale implements Scale {
       if (_buffer.length < _metadataLength) return;
 
       final payloadLength = _buffer[3];
-      if (!_hasExpectedPayloadLength(_buffer[2], _buffer[4], payloadLength)) {
+      if (payloadLength > _maxPayloadLength) {
         _buffer = _buffer.sublist(2);
         continue;
       }
@@ -344,27 +345,17 @@ class AcaiaScale implements Scale {
       if (_buffer.length < frameLength) return;
       final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
       _buffer = _buffer.sublist(frameLength);
-      if (_processFrame(frame)) _lastValidFrame = DateTime.now();
+      _processFrame(frame);
+      _lastValidFrame = DateTime.now();
     }
   }
 
-  static bool _hasExpectedPayloadLength(
-    int messageType,
-    int eventType,
-    int payloadLength,
-  ) {
-    if (messageType == 0x08) return payloadLength == 3;
-    if (messageType != 0x0C) return false;
-    if (eventType == 5) return payloadLength == 6;
-    if (eventType == 11) return payloadLength == 9;
-    return false;
-  }
-
-  bool _processFrame(List<int> frame) {
+  void _processFrame(List<int> frame) {
     final messageType = frame[2];
     final eventType = frame[4];
+    final payloadLength = frame[3];
 
-    if (messageType == 0x08) {
+    if (messageType == 0x08 && payloadLength == 3) {
       final battery = frame[4] & 0x7F;
       if (battery <= 100) {
         _batteryLevel = battery;
@@ -372,22 +363,18 @@ class AcaiaScale implements Scale {
         _badBatteryLogged = true;
         _log.warning('Ignoring out-of-range Acaia battery value $battery');
       }
-      return true;
+      return;
     }
-    if (messageType != 0x0C) return false;
+    if (messageType != 0x0C) return;
 
-    if (eventType == 5) {
-      if (frame.length < _metadataLength + 6) return false;
+    if (eventType == 5 && payloadLength == 6) {
       _decodeWeight(frame, _metadataLength);
-      return true;
+      return;
     }
-    if (eventType != 11 || frame.length <= 7) return eventType != 11;
-    if (frame[7] == 7) return true;
-    if (frame[7] != 5 || frame.length < _metadataLength + 3 + 6) {
-      return false;
-    }
+    if (eventType != 11 || payloadLength != 9) return;
+    if (frame[7] == 7) return;
+    if (frame[7] != 5) return;
     _decodeWeight(frame, _metadataLength + 3);
-    return true;
   }
 
   void _decodeWeight(List<int> frame, int offset) {

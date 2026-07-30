@@ -189,11 +189,10 @@ void main() {
   );
 
   test(
-    'short and bogus frames cannot consume the following weight frame',
+    'short and oversized frames cannot consume the following weight frame',
     () async {
       for (final prefix in [
         [0xEF, 0xDD, 0x0C, 0x02, 0x05, 0xAA, 0xBB],
-        [0xEF, 0xDD, 0x0C, 0x0C, 0x05, 0xAA, 0xBB],
         [0xEF, 0xDD, 0x0C, 0xFF, 0x05, 0x00],
       ]) {
         final (scale, transport) = await _connected();
@@ -210,6 +209,28 @@ void main() {
       }
     },
   );
+
+  test('unsupported frames isolate embedded headers', () async {
+    final (scale, transport) = await _connected();
+    final snapshots = <ScaleSnapshot>[];
+    final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+    transport.emit([
+      0xEF,
+      0xDD,
+      0x0B,
+      0x0B,
+      0x01,
+      ..._weightFrame,
+      ..._weightFrame,
+    ]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+    await subscription.cancel();
+    await scale.disconnect();
+    await transport.dispose();
+  });
 
   test('concatenated settings and weight frames are both processed', () async {
     for (final frames in [

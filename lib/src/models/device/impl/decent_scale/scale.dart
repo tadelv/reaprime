@@ -251,7 +251,7 @@ class DecentScale implements Scale, TransportHandoffScale {
         if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
             !_watchdogRetryAttempted) {
           _watchdogRetryAttempted = true;
-          _retryNotifications();
+          await _retryNotifications();
         }
       }
       await _sendHeartBeat();
@@ -273,7 +273,6 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   void _stopMaintenance() {
     _maintenanceGeneration++;
-    _notificationRecovery = null;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _notificationWatchdog?.cancel();
@@ -536,6 +535,16 @@ class DecentScale implements Scale, TransportHandoffScale {
   // --- BLE notifications -----------------------------------------------
 
   Future<void> _registerNotifications() async {
+    final pending = _notificationRecovery;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {}
+    }
+    await _subscribeNotifications();
+  }
+
+  Future<void> _subscribeNotifications() async {
     await _device.subscribe(
       serviceIdentifier.long,
       dataCharacteristic.long,
@@ -543,25 +552,19 @@ class DecentScale implements Scale, TransportHandoffScale {
     );
   }
 
-  void _retryNotifications() {
+  Future<void> _retryNotifications() async {
     if (_notificationRecovery != null || _isDisconnecting) return;
-    final operation = _registerNotifications();
+    final operation = _subscribeNotifications();
     _notificationRecovery = operation;
-    unawaited(
-      operation
-          .catchError((Object error, StackTrace stackTrace) {
-            _log.warning(
-              'BLE notification re-subscribe failed',
-              error,
-              stackTrace,
-            );
-          })
-          .whenComplete(() {
-            if (identical(_notificationRecovery, operation)) {
-              _notificationRecovery = null;
-            }
-          }),
-    );
+    try {
+      await operation;
+    } catch (error, stackTrace) {
+      _log.warning('BLE notification re-subscribe failed', error, stackTrace);
+    } finally {
+      if (identical(_notificationRecovery, operation)) {
+        _notificationRecovery = null;
+      }
+    }
   }
 
   void _resetNotificationWatchdog() {
@@ -572,7 +575,7 @@ class DecentScale implements Scale, TransportHandoffScale {
           'No BLE notifications for ${_notificationWatchdogTimeout.inMilliseconds}ms '
           '(total=$_totalNotifications), re-subscribing',
         );
-        _retryNotifications();
+        unawaited(_retryNotifications());
       });
     }
   }

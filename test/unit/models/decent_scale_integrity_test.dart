@@ -249,7 +249,7 @@ void main() {
     });
   });
 
-  test('reconnect recovery ignores a stale pending subscription', () {
+  test('reconnect waits for stale pending subscription', () {
     fakeAsync((async) {
       final transport = _IntegrityTransport();
       final scale = DecentScale(transport: transport);
@@ -269,13 +269,14 @@ void main() {
       async.flushMicrotasks();
       async.elapse(const Duration(milliseconds: 100));
       async.flushMicrotasks();
-      expect(transport.subscribeCalls, 3);
-
-      async.elapse(const Duration(seconds: 5));
-      async.flushMicrotasks();
-      expect(transport.subscribeCalls, 4);
+      expect(transport.subscribeCalls, 2);
 
       transport.blockedSubscriptions[2]!.complete();
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 100));
+      async.flushMicrotasks();
+      expect(transport.subscribeCalls, 3);
+
       scale.disconnectForHandoff();
       async.flushMicrotasks();
       transport.dispose();
