@@ -27,8 +27,13 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   int writeCalls = 0;
   int getConnectionStateCalls = 0;
   int clearGattCacheCalls = 0;
+  int discoverServicesCalls = 0;
+  int stopScanCalls = 0;
+  bool scanning = false;
   bool updateConnectionStateOnLifecycle = false;
   Completer<void>? clearGattCacheBlocker;
+  Completer<void>? serviceDiscoveryBlocker;
+  BleDevice? scanResult;
   final List<Object> serviceDiscoveryResults = [];
   final List<String> disconnectCalls = [];
   final List<BleInputProperty> notificationProperties = [];
@@ -53,13 +58,20 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   Future<void> startScan({
     ScanFilter? scanFilter,
     PlatformConfig? platformConfig,
-  }) async {}
+  }) async {
+    scanning = true;
+    final result = scanResult;
+    if (result != null) updateScanResult(result);
+  }
 
   @override
-  Future<void> stopScan() async {}
+  Future<void> stopScan() async {
+    stopScanCalls++;
+    scanning = false;
+  }
 
   @override
-  Future<bool> isScanning() async => false;
+  Future<bool> isScanning() async => scanning;
 
   @override
   Future<void> connect(
@@ -89,6 +101,8 @@ class _FakeBlePlatform extends UniversalBlePlatform {
     String deviceId,
     bool withDescriptors,
   ) async {
+    discoverServicesCalls++;
+    await serviceDiscoveryBlocker?.future;
     if (serviceDiscoveryResults.isEmpty) return [];
     final result = serviceDiscoveryResults.removeAt(0);
     if (result is Error || result is Exception) throw result;
@@ -782,13 +796,15 @@ void main() {
         StreamSubscription<device.ConnectionState>,
       )
     >
-    createLinuxTransport() async {
+    createLinuxTransport({
+      Duration cacheRefreshScan = Duration.zero,
+    }) async {
       final linux = UniversalBleTransport(
         device: bleDevice('$deviceId-linux'),
         isLinuxOverride: true,
         bluezPostConnectDelay: Duration.zero,
         bluezScanSettleDelay: Duration.zero,
-        bluezCacheRefreshScan: Duration.zero,
+        bluezCacheRefreshScan: cacheRefreshScan,
         faultRecoveryDisconnectTimeout: const Duration(milliseconds: 100),
       );
       final states = <device.ConnectionState>[];
@@ -818,6 +834,33 @@ void main() {
       expect(services, [_serviceUuid]);
       expect(platform.clearGattCacheCalls, 1);
       expect(states, isNot(contains(device.ConnectionState.disconnected)));
+    });
+
+    test('cache refresh advert does not cancel recovery', () async {
+      final (linux, states, subscription) = await createLinuxTransport();
+      addTearDown(subscription.cancel);
+      addTearDown(linux.dispose);
+      platform.scanResult = bleDevice(linux.id);
+      platform.serviceDiscoveryResults.addAll([
+        unresolved(),
+        <BleService>[BleService(_serviceUuid, [])],
+      ]);
+      var teardownCalls = 0;
+      final teardownSubscription = linux.connectionState
+          .where((state) => state == device.ConnectionState.disconnected)
+          .listen((_) {
+            teardownCalls++;
+            unawaited(linux.disconnect());
+          });
+      addTearDown(teardownSubscription.cancel);
+
+      final services = await linux.discoverServices();
+
+      expect(services, [_serviceUuid]);
+      expect(states, isNot(contains(device.ConnectionState.disconnected)));
+      expect(teardownCalls, 0);
+      expect(platform.disconnectCalls, [linux.id]);
+      expect(platform.connectCalls, 2);
     });
 
     test('second unresolved result disconnects exactly once', () async {
@@ -868,7 +911,66 @@ void main() {
         ),
       );
       await disconnect;
-      expect(platform.connectCalls, 2);
+      expect(platform.connectCalls, 1);
+    });
+
+    test('disconnect during initial discovery prevents reconnect', () async {
+      final (linux, _, subscription) = await createLinuxTransport();
+      addTearDown(subscription.cancel);
+      addTearDown(linux.dispose);
+      platform.serviceDiscoveryBlocker = Completer<void>();
+      platform.serviceDiscoveryResults.add(unresolved());
+
+      final discovery = linux.discoverServices();
+      while (platform.discoverServicesCalls == 0) {
+        await pump(1);
+      }
+      final disconnect = linux.disconnect();
+      platform.serviceDiscoveryBlocker!.complete();
+
+      await expectLater(
+        discovery,
+        throwsA(
+          isA<UniversalBleException>().having(
+            (error) => error.code,
+            'code',
+            UniversalBleErrorCode.operationCancelled,
+          ),
+        ),
+      );
+      await disconnect;
+      expect(platform.connectCalls, 1);
+      expect(platform.clearGattCacheCalls, 0);
+    });
+
+    test('disconnect during refresh scan stops the scan', () async {
+      final (linux, _, subscription) = await createLinuxTransport(
+        cacheRefreshScan: const Duration(milliseconds: 50),
+      );
+      addTearDown(subscription.cancel);
+      addTearDown(linux.dispose);
+      platform.serviceDiscoveryResults.add(unresolved());
+
+      final discovery = linux.discoverServices();
+      while (!platform.scanning) {
+        await pump(1);
+      }
+      final stopCallsBeforeCancellation = platform.stopScanCalls;
+      final disconnect = linux.disconnect();
+
+      await expectLater(
+        discovery,
+        throwsA(
+          isA<UniversalBleException>().having(
+            (error) => error.code,
+            'code',
+            UniversalBleErrorCode.operationCancelled,
+          ),
+        ),
+      );
+      await disconnect;
+      expect(platform.stopScanCalls, greaterThan(stopCallsBeforeCancellation));
+      expect(platform.scanning, isFalse);
     });
   });
 }
