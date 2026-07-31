@@ -2,7 +2,7 @@
 
 Thanks for contributing. This guide tells you what's required to land a PR — items marked **(required)** are hard gates, not suggestions.
 
-> **Naming note:** The display name is **Decaid**. The repo, package, and bundle ID still use legacy `reaprime` / `streamline-bridge` identifiers. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
+> **Naming note:** The display name is **Decaid**. The Dart package, bundle ID, database, and plugin extension retain legacy identifiers for compatibility. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
 
 ## Quick Reference
 
@@ -38,7 +38,7 @@ See [`CLAUDE.md`](CLAUDE.md) for the full command reference.
 
 ## Branching & PRs
 
-- Branch from `main`. Push to your fork, open a PR against `tadelv/reaprime:main`.
+- Branch from `main`. Push to your fork, open a PR against `decentespresso/decaid:main`.
 - One feature or fix per PR. No bundling unrelated changes.
 - Reference the issue: `Fixes #123` or `Related #123`.
 - A maintainer will review. Expect a few rounds of feedback.

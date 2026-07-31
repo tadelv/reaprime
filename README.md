@@ -301,8 +301,8 @@ The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-ch
 
 In 2026, ten years after the first commit to the original **de1app** repository on May 14, 2016, we renamed the app **Decaid**. The name commemorates that decade of Decent Espresso history while capturing the app's purpose: it **aids** you in making *decent* espresso.
 
-- **Codebase & repo** still use legacy identifiers (`reaprime`, `tadelv/reaprime`) to avoid breaking App Store / Firebase / Google Play bindings.
-- **Display name** is **Decaid** on iOS / Android launchers; **Decaid.app** on macOS Finder and in written reference.
+- **Internal identifiers** remain unchanged (`reaprime` Dart package, `net.tadel.reaprime` bundle ID, `streamline_bridge` database, and `.reaplugin` extension) to avoid breaking existing integrations.
+- **Display name** is **Decaid** on all platforms. On macOS, Finder displays the application bundle as **Decaid.app**; use **Decaid** in prose.
 
 ## Credits
 
@@ -320,6 +320,6 @@ See the [LICENSE](LICENSE.txt) file for details.
 
 ---
 
-**Need help?** Check our [documentation](/doc) or open an [issue](https://github.com/tadelv/reaprime/issues).
+**Need help?** Check our [documentation](/doc) or open an [issue](https://github.com/decentespresso/decaid/issues).
 
 
