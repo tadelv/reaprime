@@ -297,14 +297,9 @@ This reduces startup races but does not replace the application's Bluetooth reco
 
 ### The Evolution
 
-The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine.
-As the project evolved through **ReaPrime** and **Streamline Bridge**,
-users found the naming confusing. **Decent.app** is simple, direct,
-and says exactly what it is.  
+The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved through **ReaPrime** and **Streamline Bridge**, it eventually became **Decent.app**.
 
-However, 2026 marks the 10th anniversary of the first original
-de1app commited first commit into the repo, therefore we decided to name it 'Decaid',
-to signify the ten years of Decent as well as an app, that will **aid** you in making *decent* espresso. 
+In 2026, ten years after the first commit to the original **de1app** repository on May 14, 2016, we renamed the app **Decaid**. The name commemorates that decade of Decent Espresso history while capturing the app's purpose: it **aids** you in making *decent* espresso.
 
 - **Codebase & repo** still use legacy identifiers (`reaprime`, `tadelv/reaprime`) to avoid breaking App Store / Firebase / Google Play bindings.
 - **Display name** is **Decaid** on iOS / Android launchers; **Decaid.app** on macOS Finder and in written reference.
