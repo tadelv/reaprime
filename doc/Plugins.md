@@ -1,17 +1,17 @@
 
-# Decent.app Plugin Development Guide
+# Decaid Plugin Development Guide
 
 ## Overview
 
-> **Note on naming:** Plugin JS APIs use `Rea`-prefixed names (`fetchReaSettings`, `updateReaSetting`, `convertReaToVisualizerFormat`) for backwards compatibility with existing plugins. These were not renamed during the app rename from ReaPrime to Decent.app.
+> **Note on naming:** Plugin JS APIs use `Rea`-prefixed names (`fetchReaSettings`, `updateReaSetting`, `convertReaToVisualizerFormat`) for backwards compatibility with existing plugins. These were not renamed during the app rename from ReaPrime to Decaid.
 
-Decent.app plugins are JavaScript modules that extend the functionality of Decent.app.
+Decaid plugins are JavaScript modules that extend the functionality of Decaid.
 Plugins run in a sandboxed JavaScript environment and can react to machine events,
-store data, make HTTP requests, and emit events through the Decent.app API.
+store data, make HTTP requests, and emit events through the Decaid API.
 
 ## Plugin Structure
 
-A Decent.app plugin consists of two required files:
+A Decaid plugin consists of two required files:
 
 ### 1. `manifest.json` - Plugin metadata and configuration
 
@@ -126,7 +126,7 @@ host.storage({
 });
 ```
 
-**Note:** namespace is not used by Decent.app internally, the plugin storage is namespaced to the plugins' identifier.
+**Note:** namespace is not used by Decaid internally, the plugin storage is namespaced to the plugins' identifier.
 
 ### `host.decentProxy(path, options)`
 Call the Decent account proxy without exposing stored credentials to plugin code. The plugin must declare the `proxy.decent_api` permission in `manifest.json`; calls without that permission are rejected and logged.
@@ -206,7 +206,7 @@ host.emit("timeToReady", {
 ```
 
 The event name is tied to the api endpoint, defined in the plugin manifest.
-When Decent.app matches an external request to an endpoint that is defined in the
+When Decaid matches an external request to an endpoint that is defined in the
 plugins manifest,
 it will send over events emitted by the plugin.
 
@@ -216,7 +216,7 @@ Example:
 npx wscat -c ws://localhost:8080/ws/v1/plugins/time-to-ready.reaplugin/timeToReady
 
 ```
-Will open a websocket through which Decent.app will forward all the `timeToReady` events
+Will open a websocket through which Decaid will forward all the `timeToReady` events
 
 ## HTTP Requests
 
@@ -255,7 +255,7 @@ const upload = await fetch("https://api.example.com/upload", {
 
 ### Load watchdog
 
-Decent.app records consecutive load failures for each plugin. After three failures, auto-load is disabled so the plugin no longer runs on subsequent launches. A plugin whose load was interrupted by an app exit is disabled on the next launch immediately, which also covers JavaScript evaluation that blocks before Dart's one-second timeout can fire.
+Decaid records consecutive load failures for each plugin. After three failures, auto-load is disabled so the plugin no longer runs on subsequent launches. A plugin whose load was interrupted by an app exit is disabled on the next launch immediately, which also covers JavaScript evaluation that blocks before Dart's one-second timeout can fire.
 
 Disabled plugins remain installed and can be re-enabled from plugin settings or `POST /api/v1/plugins/:id/enable`. Re-enabling clears the failure count and gives the plugin a fresh attempt; a successful load also clears it.
 
@@ -381,9 +381,9 @@ When receiving `stateUpdate` events, the payload contains:
 - Use `host.log()` extensively during development
 - Check Flutter app logs for JavaScript errors
 - Test with simple plugins first, then add complexity
-- When iterating, it helps to debug on a platform that can access Decent.app
+- When iterating, it helps to debug on a platform that can access Decaid
 documents. This way, you can edit plugin source directly and simply reload
-it in Decent.app UI.
+it in Decaid UI.
 
 ## API Reference
 
@@ -406,14 +406,14 @@ it in Decent.app UI.
 - HTTP requests are proxied through Flutter (respects system proxy settings)
 - Storage is isolated per plugin
 - No filesystem access beyond the plugin's own directory
-- No network access to localhost/private IPs (except for Decent.app API)
+- No network access to localhost/private IPs (except for Decaid API)
 
 ## Reference Implementation: DYE2 Plugin
 
 The DYE2 (Describe Your Espresso) plugin in `packages/dye2-plugin/` is a production bundled plugin that demonstrates advanced patterns:
 
 - **TypeScript + Vite build pipeline** — compiles to flutter_js-compatible IIFE bundle
-- **REST API client** — calls back into the Decent.app REST API for bean/grinder CRUD
+- **REST API client** — calls back into the Decaid REST API for bean/grinder CRUD
 - **HTML template rendering** — server-side HTML generation with form handling
 - **Dev server** — Vite dev server for fast iteration without rebuilding the Flutter app
 

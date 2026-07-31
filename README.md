@@ -1,6 +1,6 @@
-# Decent.app
+# Decaid
 
-> **Decent.app** connects your Decent Espresso machine to beautiful,
+> **Decaid** connects your Decent Espresso machine to beautiful,
 modern user interfaces (called "skins").  
 Think of it as the bridge between your
 DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://github.com/allofmeng/streamline_project).
@@ -13,7 +13,7 @@ DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://g
 - Works with scales to automatically stop shots at your target weight
 - Runs on Android tablets, desktop computers, and more
 
-**For developers:** Decent.app provides
+**For developers:** Decaid provides
 a complete REST and WebSocket API, making it
 easy to build custom interfaces without dealing with the
 complexity of machine communication and device connectivity.
@@ -49,7 +49,7 @@ complexity of machine communication and device connectivity.
 
 To browse the complete API documentation:
 
-1. Start Decent.app
+1. Start Decaid
 2. Navigate to [http://localhost:4001](http://localhost:4001)
 
 Or:  
@@ -76,11 +76,11 @@ The API provides:
 
 ### Background Operation
 
-On Android, Decent.app can run as a foreground service, maintaining stable connections to your machine and scale while tucked away in the background.
+On Android, Decaid can run as a foreground service, maintaining stable connections to your machine and scale while tucked away in the background.
 
 ## WebUI / Skins
 
-Similar to the original DE1 app, Decent.app supports loading and displaying different "skins" (web-based UIs).
+Similar to the original DE1 app, Decaid supports loading and displaying different "skins" (web-based UIs).
 
 ### Accessing Skins
 
@@ -144,7 +144,7 @@ Similar to the original DE1 app, Decent.app supports loading and displaying diff
 
 ## Plugins
 
-Decent.app features a JavaScript plugin system for dynamic functionality expansion.
+Decaid features a JavaScript plugin system for dynamic functionality expansion.
 
 **Capabilities:**
 - React to machine state changes
@@ -283,14 +283,21 @@ make dual-build
 
 ## About the Name
 
-**Decent.app** (formerly REA → ReaPrime → Streamline Bridge) is the companion app for Decent Espresso machines.
+**Decaid** (formerly REA → ReaPrime → Streamline Bridge) is the companion app for Decent Espresso machines.
 
 ### The Evolution
 
-The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved through **ReaPrime** and **Streamline Bridge**, users found the naming confusing. **Decent.app** is simple, direct, and says exactly what it is.
+The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine.
+As the project evolved through **ReaPrime** and **Streamline Bridge**,
+users found the naming confusing. **Decent.app** is simple, direct,
+and says exactly what it is.  
+
+However, 2026 marks the 10th anniversary of the first original
+de1app commited first commit into the repo, therefore we decided to name it 'Decaid',
+to signify the ten years of Decent as well as an app, that will **aid** you in making *decent* espresso. 
 
 - **Codebase & repo** still use legacy identifiers (`reaprime`, `tadelv/reaprime`) to avoid breaking App Store / Firebase / Google Play bindings.
-- **Display name** is **Decent** on iOS / Android launchers; **Decent.app** on macOS Finder and in written reference.
+- **Display name** is **Decaid** on iOS / Android launchers; **Decaid.app** on macOS Finder and in written reference.
 
 ## Credits
 

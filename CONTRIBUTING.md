@@ -1,8 +1,8 @@
-# Contributing to Decent.app
+# Contributing to Decaid
 
 Thanks for contributing. This guide tells you what's required to land a PR — items marked **(required)** are hard gates, not suggestions.
 
-> **Naming note:** The display name is **Decent.app**. The repo, package, and bundle ID still use legacy `reaprime` / `streamline-bridge` identifiers. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
+> **Naming note:** The display name is **Decaid**. The repo, package, and bundle ID still use legacy `reaprime` / `streamline-bridge` identifiers. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
 
 ## Quick Reference
 
