@@ -98,7 +98,7 @@ paths:
             type: boolean
             default: true
         - name: quick
-          description: If true, Decent.app returns an empty array immediately while the same scan-first policy continues in the background. Useful when polling for device updates manually.
+          description: If true, Decaid returns an empty array immediately while the same scan-first policy continues in the background. Useful when polling for device updates manually.
           in: query
           schema:
             type: boolean
@@ -5064,7 +5064,7 @@ components:
       type: object
       properties:
         gatewayMode:
-          description: Control whether Decent acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means decent will not show graphs, but will control the shot (stop at weight)
+          description: Control whether Decaid acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means Decaid will not show graphs, but will control the shot (stop at weight)
           type: string
           enum: ["disabled", "full", "tracking"]
           nullable: true

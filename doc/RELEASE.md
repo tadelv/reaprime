@@ -1,10 +1,10 @@
 # Release Guide
 
-This document describes how to create releases for Decent.app.
+This document describes how to create releases for Decaid.
 
 ## Creating a Release
 
-Decent.app uses git tags to trigger automatic releases. When you push a tag, GitHub Actions will:
+Decaid uses git tags to trigger automatic releases. When you push a tag, GitHub Actions will:
 1. Build all supported platforms
 2. Export the iOS archive for TestFlight
 3. Generate release notes from merged pull requests using GitHub's release-notes generator
@@ -40,7 +40,7 @@ git push origin v1.0.0-alpha.1
 
 ## Version Numbering
 
-Decent.app follows [Semantic Versioning](https://semver.org/):
+Decaid follows [Semantic Versioning](https://semver.org/):
 
 - **MAJOR.MINOR.PATCH** (e.g., `v1.2.3`)
   - **MAJOR**: Breaking changes or major new features
