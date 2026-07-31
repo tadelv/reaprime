@@ -2,7 +2,7 @@
 
 Describe the problem and fix in 2–5 bullets:
 
-> **Naming:** The display name is **Decent.app**. The repo, package, and bundle ID use legacy `reaprime` / `streamline-bridge` — see the naming table in [`CLAUDE.md`](CLAUDE.md).
+> **Naming:** The display name is **Decaid**. The Dart package, bundle ID, database, and plugin extension retain legacy identifiers for compatibility — see the naming table in [`CLAUDE.md`](CLAUDE.md).
 
 - Problem:
 - Why it matters:

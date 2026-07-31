@@ -78,9 +78,9 @@ If your output contradicts documented architecture or conventions, surface it ex
 
 ## Tracking
 
-GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue` commands for triage, labeling, and closing.
+GitHub Issues on `decentespresso/decaid` is the canonical issue tracker. Use `gh issue` commands for triage, labeling, and closing.
 
-**Triage labels** (used on `tadelv/reaprime`):
+**Triage labels** (used on `decentespresso/decaid`):
 
 | Label | Meaning |
 |-------|---------|
@@ -115,7 +115,7 @@ GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue
 | Plugin file extension | `.reaplugin` |
 | Bundle ID | `net.tadel.reaprime` |
 | Database name | `streamline_bridge` |
-| GitHub repo | `tadelv/reaprime` |
+| GitHub repo | `decentespresso/decaid` |
 
 **Decaid** combines "decade" and "Decent aide." The name marks ten years since the original `de1app` repository's first commit on May 14, 2016. Preserve `Decent.app` and ReaPrime where they are historical or internal identifiers.
 

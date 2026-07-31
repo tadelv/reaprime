@@ -18,7 +18,7 @@ DYE2 runs across two JavaScript runtimes:
 The plugin itself is essentially an HTTP server: it receives requests from the Decaid plugin framework and returns HTML responses. All data persistence goes through the core REST API (`/api/v1/beans`, `/api/v1/grinders`, `/api/v1/workflow`), not through plugin-local storage.
 
 ```
-Browser                          Decaid            flutter_js
+Browser                          Decaid                flutter_js
 ──────                          ─────────────────                ──────────
   │ GET /api/v1/plugins/                │                            │
   │   dye2.reaplugin/beans              │                            │

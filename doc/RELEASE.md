@@ -28,13 +28,13 @@ git push origin v1.0.0-alpha.1
 
 ### Step 2: Monitor the Build
 
-1. Go to https://github.com/tadelv/reaprime/actions
+1. Go to https://github.com/decentespresso/decaid/actions
 2. Watch the "Create Release" workflow
 3. Wait for it to complete (usually 5-10 minutes)
 
 ### Step 3: Verify the Release
 
-1. Go to https://github.com/tadelv/reaprime/releases
+1. Go to https://github.com/decentespresso/decaid/releases
 2. Your new release should appear with all platform artifacts attached
 3. Download and test the relevant artifacts
 
