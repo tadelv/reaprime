@@ -16,12 +16,7 @@ class WorkflowHandler {
   final De1Controller _de1controller;
 
   static final _log = Logger('WorkflowHandler');
-
-  Timer? _debounceTimer;
-  Map<String, dynamic> _pendingMerge = {};
-  final List<Completer<Response>> _pendingResponses = [];
-
-  static const _debounceDuration = Duration(milliseconds: 400);
+  Future<void> _workflowQueue = Future<void>.value();
 
   WorkflowHandler({
     required WorkflowController controller,
@@ -41,25 +36,28 @@ class WorkflowHandler {
 
   Future<Response> _updateWorkflow(Request req) async {
     final payload = await req.readAsString();
-    final Map<String, dynamic> json = jsonDecode(payload);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(payload);
+    } on FormatException catch (e) {
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
+    }
+    if (decoded is! Map<String, dynamic>) {
+      return jsonBadRequest({'error': 'Request body must be a JSON object'});
+    }
 
-    _pendingMerge = deepMergeJson(_pendingMerge, json);
-
-    final completer = Completer<Response>();
-    _pendingResponses.add(completer);
-
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(_debounceDuration, _applyPendingUpdate);
-
-    return completer.future;
+    final merge = Map<String, dynamic>.from(decoded);
+    final operation = _workflowQueue.then((_) => _applyUpdate(merge));
+    _workflowQueue = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        _log.severe('Error completing workflow queue entry', error, stackTrace);
+      },
+    );
+    return operation;
   }
 
-  Future<void> _applyPendingUpdate() async {
-    final merge = _pendingMerge;
-    final responses = List<Completer<Response>>.from(_pendingResponses);
-    _pendingMerge = {};
-    _pendingResponses.clear();
-
+  Future<Response> _applyUpdate(Map<String, dynamic> merge) async {
     try {
       final oldWorkflow = _controller.currentWorkflow;
       final currentJson = oldWorkflow.toJson();
@@ -95,37 +93,14 @@ class WorkflowHandler {
         );
       }
 
-      for (final completer in responses) {
-        completer.complete(jsonOk(updatedWorkflow.toJson()));
-      }
+      return jsonOk(updatedWorkflow.toJson());
     } on ArgumentError catch (e) {
-      // Client sent a payload that fails validation (e.g. an invalid
-      // enum value like ExitType 'weight', or a missing required
-      // profile field). Return a clean 400 — matching the pattern in
-      // profile_handler.dart — so the HTTP request does not hang.
-      // _pendingMerge was already cleared above, so subsequent PUTs
-      // start from a clean slate.
-      for (final completer in responses) {
-        completer.complete(
-          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
-        );
-      }
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } on FormatException catch (e) {
-      for (final completer in responses) {
-        completer.complete(
-          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
-        );
-      }
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
-      // Unexpected error — likely a server-side failure during DE1
-      // side-effects (BLE writes, controller updates). Log it and
-      // return 500 so the request still doesn't hang.
-      _log.severe('Error in _applyPendingUpdate', e, st);
-      for (final completer in responses) {
-        completer.complete(
-          jsonError({'error': 'Internal server error', 'message': '$e'}),
-        );
-      }
+      _log.severe('Error in workflow queue entry', e, st);
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 }

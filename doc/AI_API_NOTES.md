@@ -139,3 +139,18 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 - Legacy HTTP `200` import bodies with embedded errors are partial or failed according to section progress.
 - Two-way push requires a complete pull unless `continueOnPullFailure: true` is explicitly requested.
 - Skipped push is represented as a `skipped` phase, and partial section processing is not transactional.
+
+## Workflow PUT Queue
+
+`PUT /api/v1/workflow` operations are serialized through one queue owned by
+`WorkflowHandler`. One HTTP request is exactly one queue entry. Separate requests
+must not be coalesced without a future explicit client or session contract. The
+handler reads the workflow base when a queue entry reaches execution, then applies
+only that request's deep merge. Machine side effects from separate workflow PUTs
+must never overlap, and a failure must not poison the queue tail.
+
+The final base commits controller workflow state before the existing direct machine
+writes. A machine-write failure returns `500`, but this path does not roll back
+already-completed machine writes or controller state. `WorkflowDeviceSync` remains
+the owner of asynchronous profile upload after controller changes.
+>>>>>>> 9ce4c366 (fix(api): serialize workflow PUT requests)
