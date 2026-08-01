@@ -676,15 +676,16 @@ void main() {
         );
 
         var secondCompleted = false;
-        final secondFuture = put({
-          'hotWaterData': {
-            'duration': initial.hotWaterData.duration + 1,
-            'flow': initial.hotWaterData.flow + 0.5,
-          },
-        }).then((response) {
-          secondCompleted = true;
-          return response;
-        });
+        final secondFuture =
+            put({
+              'hotWaterData': {
+                'duration': initial.hotWaterData.duration + 1,
+                'flow': initial.hotWaterData.flow + 0.5,
+              },
+            }).then((response) {
+              secondCompleted = true;
+              return response;
+            });
         await Future<void>.delayed(const Duration(milliseconds: 600));
 
         expect(spy.setHotWaterFlowCalls, isEmpty);
@@ -708,6 +709,41 @@ void main() {
           workflowController.currentWorkflow.hotWaterData.duration,
           equals(initial.hotWaterData.duration + 1),
         );
+      },
+    );
+
+    test(
+      'preserves a concurrent controller change during a blocked device write',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        spy.steamFlowEntered = entered;
+        spy.steamFlowRelease = release;
+        final nextDuration = initial.steamSettings.duration + 1;
+        final nextFlow = initial.steamSettings.flow + 0.1;
+
+        final future = put({
+          'steamSettings': {'duration': nextDuration, 'flow': nextFlow},
+        });
+
+        await entered.future.timeout(const Duration(seconds: 2));
+        workflowController.setWorkflow(
+          initial.copyWith(name: 'Concurrent workflow'),
+        );
+
+        release.complete();
+        final response = await future.timeout(const Duration(seconds: 2));
+
+        expect(response.statusCode, equals(200));
+        expect(workflowController.currentWorkflow.name, 'Concurrent workflow');
+        expect(
+          workflowController.currentWorkflow.steamSettings.duration,
+          nextDuration,
+        );
+        expect(workflowController.currentWorkflow.steamSettings.flow, nextFlow);
+        expect(spy.setSteamFlowCalls, [nextFlow, nextFlow]);
       },
     );
   });

@@ -79,41 +79,45 @@ class WorkflowHandler {
     List<Completer<Response>> responses,
   ) async {
     try {
-      final oldWorkflow = _controller.currentWorkflow;
-      final currentJson = oldWorkflow.toJson();
-      final resultJson = deepMergeJson(currentJson, merge);
-      final updatedWorkflow = Workflow.fromJson(resultJson);
+      while (true) {
+        final oldWorkflow = _controller.currentWorkflow;
+        final revision = _controller.revision;
+        final resultJson = deepMergeJson(oldWorkflow.toJson(), merge);
+        final updatedWorkflow = Workflow.fromJson(resultJson);
 
-      // Profile push is owned by WorkflowDeviceSync — it observes
-      // `setWorkflow` and uploads the profile if it changed. Keeping a
-      // second setProfile call here would race against that listener and
-      // write every BLE frame twice (see the profile-double-upload P0).
-      if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-        await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
-      }
-      if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-        await _de1controller.updateSteamSettings(
-          SteamFormSettings(
-            steamEnabled: updatedWorkflow.steamSettings.duration > 0,
-            targetTemp: updatedWorkflow.steamSettings.targetTemperature,
-            targetDuration: updatedWorkflow.steamSettings.duration,
-            targetFlow: updatedWorkflow.steamSettings.flow,
-          ),
-        );
-      }
-      if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-        await _de1controller.updateHotWaterSettings(
-          HotWaterFormSettings(
-            targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
-            flow: updatedWorkflow.hotWaterData.flow,
-            volume: updatedWorkflow.hotWaterData.volume,
-            duration: updatedWorkflow.hotWaterData.duration,
-          ),
-        );
-      }
+        // Profile push is owned by WorkflowDeviceSync — it observes
+        // `setWorkflow` and uploads the profile if it changed. Keeping a
+        // second setProfile call here would race against that listener and
+        // write every BLE frame twice (see the profile-double-upload P0).
+        if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
+          await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+        }
+        if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
+          await _de1controller.updateSteamSettings(
+            SteamFormSettings(
+              steamEnabled: updatedWorkflow.steamSettings.duration > 0,
+              targetTemp: updatedWorkflow.steamSettings.targetTemperature,
+              targetDuration: updatedWorkflow.steamSettings.duration,
+              targetFlow: updatedWorkflow.steamSettings.flow,
+            ),
+          );
+        }
+        if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
+          await _de1controller.updateHotWaterSettings(
+            HotWaterFormSettings(
+              targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
+              flow: updatedWorkflow.hotWaterData.flow,
+              volume: updatedWorkflow.hotWaterData.volume,
+              duration: updatedWorkflow.hotWaterData.duration,
+            ),
+          );
+        }
 
-      _controller.setWorkflow(updatedWorkflow);
-      _completeResponses(responses, () => jsonOk(updatedWorkflow.toJson()));
+        if (_controller.setWorkflowIfRevision(updatedWorkflow, revision)) {
+          _completeResponses(responses, () => jsonOk(updatedWorkflow.toJson()));
+          return;
+        }
+      }
     } on ArgumentError catch (e) {
       // Client sent a payload that fails validation (e.g. an invalid
       // enum value like ExitType 'weight', or a missing required
