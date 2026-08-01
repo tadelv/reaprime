@@ -732,6 +732,69 @@ void main() {
     });
 
     test(
+      'an identical retry re-applies a failed workflow device write',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final failedFlow = initial.steamSettings.flow + 1;
+        spy.failSteamFlow = failedFlow;
+
+        final failedResponse = await put({
+          'steamSettings': {'flow': failedFlow},
+        });
+        expect(failedResponse.statusCode, 500);
+        expect(
+          workflowController.currentWorkflow.steamSettings.flow,
+          initial.steamSettings.flow,
+        );
+
+        final retryResponse = await put({
+          'steamSettings': {'flow': failedFlow},
+        });
+        expect(retryResponse.statusCode, 200);
+        expect(spy.setSteamFlowCalls, [failedFlow, failedFlow]);
+        expect(
+          workflowController.currentWorkflow.steamSettings.flow,
+          failedFlow,
+        );
+      },
+    );
+
+    test(
+      'request order is reserved before a streamed body completes',
+      () async {
+        await _settleHandler();
+        final body = StreamController<List<int>>();
+        final firstFuture = handler(
+          Request(
+            'PUT',
+            Uri.parse('http://localhost/api/v1/workflow'),
+            body: body.stream,
+            headers: {'content-type': 'application/json'},
+          ),
+        );
+        final secondFuture = put({'name': 'second'});
+        var secondCompleted = false;
+        unawaited(secondFuture.then((_) => secondCompleted = true));
+
+        await Future<void>.delayed(Duration.zero);
+        expect(secondCompleted, isFalse);
+
+        body.add(utf8.encode(jsonEncode({'name': 'first'})));
+        await body.close();
+
+        final responses = await Future.wait([firstFuture, secondFuture]);
+        expect(responses[0].statusCode, 200);
+        expect(responses[1].statusCode, 200);
+        final firstBody = jsonDecode(await responses[0].readAsString());
+        final secondBody = jsonDecode(await responses[1].readAsString());
+        expect(firstBody['name'], 'first');
+        expect(secondBody['name'], 'second');
+        expect(workflowController.currentWorkflow.name, 'second');
+      },
+    );
+
+    test(
       'malformed or non-object JSON returns 400 without poisoning the queue',
       () async {
         await _settleHandler();

@@ -34,20 +34,9 @@ class WorkflowHandler {
     return jsonOk(workflow.toJson());
   }
 
-  Future<Response> _updateWorkflow(Request req) async {
-    final payload = await req.readAsString();
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(payload);
-    } on FormatException catch (e) {
-      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
-    }
-    if (decoded is! Map<String, dynamic>) {
-      return jsonBadRequest({'error': 'Request body must be a JSON object'});
-    }
-
-    final merge = Map<String, dynamic>.from(decoded);
-    final operation = _workflowQueue.then((_) => _applyUpdate(merge));
+  Future<Response> _updateWorkflow(Request req) {
+    final payload = req.readAsString();
+    final operation = _workflowQueue.then((_) => _applyPayload(payload));
     _workflowQueue = operation.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {
@@ -57,6 +46,21 @@ class WorkflowHandler {
     return operation;
   }
 
+  Future<Response> _applyPayload(Future<String> payloadFuture) async {
+    try {
+      final decoded = jsonDecode(await payloadFuture);
+      if (decoded is! Map<String, dynamic>) {
+        return jsonBadRequest({'error': 'Request body must be a JSON object'});
+      }
+      return await _applyUpdate(Map<String, dynamic>.from(decoded));
+    } on FormatException catch (e) {
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
+    } catch (e, st) {
+      _log.severe('Error reading workflow request', e, st);
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
+    }
+  }
+
   Future<Response> _applyUpdate(Map<String, dynamic> merge) async {
     try {
       final oldWorkflow = _controller.currentWorkflow;
@@ -64,11 +68,6 @@ class WorkflowHandler {
       final resultJson = deepMergeJson(currentJson, merge);
       final updatedWorkflow = Workflow.fromJson(resultJson);
 
-      _controller.setWorkflow(updatedWorkflow);
-      // Profile push is owned by WorkflowDeviceSync — it observes
-      // `setWorkflow` and uploads the profile if it changed. Keeping a
-      // second setProfile call here would race against that listener and
-      // write every BLE frame twice (see the profile-double-upload P0).
       if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
         await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
       }
@@ -92,6 +91,7 @@ class WorkflowHandler {
           ),
         );
       }
+      _controller.setWorkflow(updatedWorkflow);
 
       return jsonOk(updatedWorkflow.toJson());
     } on ArgumentError catch (e) {

@@ -911,8 +911,9 @@ paths:
         the workflow resulting from that request. High-frequency clients should throttle input
         on the client side rather than relying on server-side debounce.
 
-        Machine-write failures return an error response; this endpoint does not roll back
-        already-completed machine writes or controller state.
+        Machine-write failures return an error response before the controller workflow is
+        committed. The machine writes are multi-step and may be partially applied; retrying
+        the same request re-attempts the requested settings.
 
         You can update the complete workflow or just specific fields:
         - **context**: Set dose, grinder, coffee, and people metadata (recommended)
