@@ -901,7 +901,18 @@ paths:
       summary: Update current workflow
       description: |
         Updates the current workflow. This is the **recommended method** for applying changes
-        to the machine and brewing parameters in one atomic operation.
+        to the machine and brewing parameters in one ordered mutation.
+
+        Each HTTP request is an independent mutation. Requests are processed in FIFO order,
+        and partial request bodies are deep-merged against the workflow state when that request
+        reaches the front of the queue. The server does not debounce or combine separate
+        requests. Machine side effects from workflow PUT requests do not execute concurrently,
+        so a request may wait behind an in-flight machine operation. Each response describes
+        the workflow resulting from that request. High-frequency clients should throttle input
+        on the client side rather than relying on server-side debounce.
+
+        Machine-write failures return an error response; this endpoint does not roll back
+        already-completed machine writes or controller state.
 
         You can update the complete workflow or just specific fields:
         - **context**: Set dose, grinder, coffee, and people metadata (recommended)

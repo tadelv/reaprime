@@ -53,6 +53,13 @@ class SpyDe1 implements De1Interface {
   final List<double> setFlushFlowCalls = [];
   final List<double> setFlushTimeoutCalls = [];
   final List<double> setFlushTemperatureCalls = [];
+  final List<double> steamFlowEntryOrder = [];
+  final List<double> steamFlowCompletionOrder = [];
+
+  double? blockedSteamFlow;
+  Completer<void>? steamFlowEntered;
+  Completer<void>? steamFlowRelease;
+  double? failSteamFlow;
 
   /// Every emit that crosses the `shotSettings` stream, in order. This
   /// is the stream `/ws/v1/machine/shotSettings` subscribes to.
@@ -77,7 +84,19 @@ class SpyDe1 implements De1Interface {
 
   @override
   Future<void> setSteamFlow(double newFlow) async {
+    steamFlowEntryOrder.add(newFlow);
     setSteamFlowCalls.add(newFlow);
+    if (newFlow == blockedSteamFlow) {
+      if (!(steamFlowEntered?.isCompleted ?? true)) {
+        steamFlowEntered!.complete();
+      }
+      await steamFlowRelease!.future;
+    }
+    if (newFlow == failSteamFlow) {
+      failSteamFlow = null;
+      throw StateError('selected steam write failed');
+    }
+    steamFlowCompletionOrder.add(newFlow);
   }
 
   @override
@@ -248,10 +267,7 @@ class SpyDe1 implements De1Interface {
 }
 
 Future<void> _settleHandler() async {
-  // Workflow handler debounce is 400 ms (private constant). Wait
-  // comfortably past that so _applyPendingUpdate fires and the
-  // downstream controller writes run to completion.
-  await Future<void>.delayed(const Duration(milliseconds: 600));
+  await Future<void>.delayed(Duration.zero);
 }
 
 void main() {
@@ -282,12 +298,26 @@ void main() {
     spy.dispose();
   });
 
-  Future<Response> put(Map<String, dynamic> body) async {
+  Future<Response> put(
+    Map<String, dynamic> body, {
+    Map<String, String> headers = const {},
+  }) async {
     return await handler(
       Request(
         'PUT',
         Uri.parse('http://localhost/api/v1/workflow'),
         body: jsonEncode(body),
+        headers: {'content-type': 'application/json', ...headers},
+      ),
+    );
+  }
+
+  Future<Response> putRaw(String body) async {
+    return await handler(
+      Request(
+        'PUT',
+        Uri.parse('http://localhost/api/v1/workflow'),
+        body: body,
         headers: {'content-type': 'application/json'},
       ),
     );
@@ -551,6 +581,170 @@ void main() {
         final last = spy.emittedShotSettings.last;
         expect(last.targetSteamDuration, equals(44));
         expect(last.targetHotWaterDuration, equals(55));
+      },
+    );
+  });
+
+  group('PUT /api/v1/workflow — request isolation', () {
+    test('rapid PUTs from separate clients are not merged', () async {
+      await _settleHandler();
+      final initial = workflowController.currentWorkflow;
+      final firstName = 'First request';
+      final secondDescription = 'Second request';
+
+      final firstFuture = put(
+        {'name': firstName},
+        headers: {'x-test-client': 'first'},
+      );
+      final secondFuture = put(
+        {'description': secondDescription},
+        headers: {'x-test-client': 'second'},
+      );
+
+      final responses = await Future.wait([firstFuture, secondFuture]);
+      expect(responses[0].statusCode, 200);
+      expect(responses[1].statusCode, 200);
+
+      final firstBody = jsonDecode(await responses[0].readAsString());
+      final secondBody = jsonDecode(await responses[1].readAsString());
+      expect(firstBody['name'], firstName);
+      expect(firstBody['description'], initial.description);
+      expect(secondBody['name'], firstName);
+      expect(secondBody['description'], secondDescription);
+      expect(firstBody, isNot(equals(secondBody)));
+      expect(workflowController.currentWorkflow.name, firstName);
+      expect(workflowController.currentWorkflow.description, secondDescription);
+    });
+
+    test(
+      'continuous PUT traffic does not wait for an inactivity window',
+      () async {
+        await _settleHandler();
+        final trafficStarted = Completer<void>();
+        final laterFutures = <Future<Response>>[];
+        final firstFuture = put({'name': 'first'});
+        final trafficFuture = () async {
+          for (var i = 0; i < 4; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            if (!trafficStarted.isCompleted) {
+              trafficStarted.complete();
+            }
+            laterFutures.add(put({'name': 'later-$i'}));
+          }
+        }();
+
+        late final Response firstResponse;
+        try {
+          await trafficStarted.future.timeout(const Duration(seconds: 1));
+          firstResponse = await firstFuture.timeout(
+            const Duration(milliseconds: 250),
+          );
+        } finally {
+          await trafficFuture;
+        }
+
+        expect(firstResponse.statusCode, 200);
+        final firstBody = jsonDecode(await firstResponse.readAsString());
+        expect(firstBody['name'], 'first');
+        final laterResponses = await Future.wait(laterFutures);
+        expect(
+          laterResponses.every((response) => response.statusCode == 200),
+          isTrue,
+        );
+        expect(workflowController.currentWorkflow.name, 'later-3');
+      },
+    );
+
+    test(
+      'a later workflow PUT cannot overtake an in-flight device apply',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final firstFlow = initial.steamSettings.flow + 1;
+        final secondFlow = initial.steamSettings.flow + 2;
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        spy.blockedSteamFlow = firstFlow;
+        spy.steamFlowEntered = entered;
+        spy.steamFlowRelease = release;
+
+        final firstFuture = put({
+          'steamSettings': {'flow': firstFlow},
+        });
+        await entered.future.timeout(const Duration(seconds: 2));
+        final secondFuture = put({
+          'steamSettings': {'flow': secondFlow},
+        });
+        var secondCompleted = false;
+        unawaited(secondFuture.then((_) => secondCompleted = true));
+
+        try {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          expect(spy.steamFlowEntryOrder, [firstFlow]);
+          expect(secondCompleted, isFalse);
+        } finally {
+          release.complete();
+        }
+
+        final responses = await Future.wait([
+          firstFuture.timeout(const Duration(seconds: 2)),
+          secondFuture.timeout(const Duration(seconds: 2)),
+        ]);
+        expect(responses[0].statusCode, 200);
+        expect(responses[1].statusCode, 200);
+        expect(spy.steamFlowEntryOrder, [firstFlow, secondFlow]);
+        expect(spy.steamFlowCompletionOrder, [firstFlow, secondFlow]);
+        expect(spy.setSteamFlowCalls.last, secondFlow);
+        expect(
+          workflowController.currentWorkflow.steamSettings.flow,
+          secondFlow,
+        );
+      },
+    );
+
+    test('a failed workflow PUT does not poison later queue entries', () async {
+      await _settleHandler();
+      final initial = workflowController.currentWorkflow;
+      final failedFlow = initial.steamSettings.flow + 1;
+      final laterFlow = initial.steamSettings.flow + 2;
+      final entered = Completer<void>();
+      spy.failSteamFlow = failedFlow;
+      spy.blockedSteamFlow = failedFlow;
+      spy.steamFlowEntered = entered;
+      spy.steamFlowRelease = Completer<void>()..complete();
+
+      final failedFuture = put({
+        'steamSettings': {'flow': failedFlow},
+      });
+      await entered.future.timeout(const Duration(seconds: 2));
+      final laterFuture = put({
+        'steamSettings': {'flow': laterFlow},
+      });
+
+      final responses = await Future.wait([
+        failedFuture.timeout(const Duration(seconds: 2)),
+        laterFuture.timeout(const Duration(seconds: 2)),
+      ]);
+      expect(responses[0].statusCode, 500);
+      expect(responses[1].statusCode, 200);
+      expect(spy.setSteamFlowCalls.last, laterFlow);
+      expect(workflowController.currentWorkflow.steamSettings.flow, laterFlow);
+    });
+
+    test(
+      'malformed or non-object JSON returns 400 without poisoning the queue',
+      () async {
+        await _settleHandler();
+
+        final malformedResponse = await putRaw('{');
+        expect(malformedResponse.statusCode, 400);
+
+        final badResponse = await putRaw('[]');
+        expect(badResponse.statusCode, 400);
+
+        final goodResponse = await put({'name': 'after invalid shape'});
+        expect(goodResponse.statusCode, 200);
+        expect(workflowController.currentWorkflow.name, 'after invalid shape');
       },
     );
   });
