@@ -11,9 +11,9 @@ class ProfileHandler {
     // Get all profiles
     app.get('/api/v1/profiles', _handleGetAll);
 
-    // List bundled default profiles — must be registered before the /<id> route
-    // so 'defaults' isn't matched as an id.
+    // Literal one-segment GET routes must be registered before the /<id> route.
     app.get('/api/v1/profiles/defaults', _handleListDefaults);
+    app.get('/api/v1/profiles/export', _handleExport);
 
     // Get single profile by ID
     app.get('/api/v1/profiles/<id>', _handleGetById);
@@ -35,9 +35,6 @@ class ProfileHandler {
 
     // Import profiles
     app.post('/api/v1/profiles/import', _handleImport);
-
-    // Export profiles
-    app.get('/api/v1/profiles/export', _handleExport);
 
     // Restore default profile
     app.post('/api/v1/profiles/restore/<filename>', _handleRestoreDefault);
