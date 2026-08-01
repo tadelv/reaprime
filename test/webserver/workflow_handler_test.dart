@@ -7,6 +7,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/firmware_update_state.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
@@ -53,6 +54,9 @@ class SpyDe1 implements De1Interface {
   final List<double> setFlushFlowCalls = [];
   final List<double> setFlushTimeoutCalls = [];
   final List<double> setFlushTemperatureCalls = [];
+  bool failNextHotWaterFlow = false;
+  Completer<void>? steamFlowEntered;
+  Completer<void>? steamFlowRelease;
 
   /// Every emit that crosses the `shotSettings` stream, in order. This
   /// is the stream `/ws/v1/machine/shotSettings` subscribes to.
@@ -78,11 +82,21 @@ class SpyDe1 implements De1Interface {
   @override
   Future<void> setSteamFlow(double newFlow) async {
     setSteamFlowCalls.add(newFlow);
+    final entered = steamFlowEntered;
+    final release = steamFlowRelease;
+    if (entered != null && !entered.isCompleted) {
+      entered.complete();
+      await release!.future;
+    }
   }
 
   @override
   Future<void> setHotWaterFlow(double newFlow) async {
     setHotWaterFlowCalls.add(newFlow);
+    if (failNextHotWaterFlow) {
+      failNextHotWaterFlow = false;
+      throw StateError('injected hot-water flow failure');
+    }
   }
 
   @override
@@ -247,6 +261,16 @@ class SpyDe1 implements De1Interface {
   Future<void> setRefillKitSettings(De1RefillKitSettings settings) async {}
 }
 
+class CountingWorkflowController extends WorkflowController {
+  int setWorkflowCalls = 0;
+
+  @override
+  void setWorkflow(Workflow newWorkflow) {
+    setWorkflowCalls++;
+    super.setWorkflow(newWorkflow);
+  }
+}
+
 Future<void> _settleHandler() async {
   // Workflow handler debounce is 400 ms (private constant). Wait
   // comfortably past that so _applyPendingUpdate fires and the
@@ -258,7 +282,7 @@ void main() {
   late SpyDe1 spy;
   late DeviceController deviceController;
   late De1Controller de1Controller;
-  late WorkflowController workflowController;
+  late CountingWorkflowController workflowController;
   late Handler handler;
 
   setUp(() async {
@@ -267,7 +291,7 @@ void main() {
     await deviceController.initialize();
     de1Controller = De1Controller(controller: deviceController);
     await de1Controller.connectToDe1(spy);
-    workflowController = WorkflowController();
+    workflowController = CountingWorkflowController();
 
     final workflowHandler = WorkflowHandler(
       controller: workflowController,
@@ -551,6 +575,139 @@ void main() {
         final last = spy.emittedShotSettings.last;
         expect(last.targetSteamDuration, equals(44));
         expect(last.targetHotWaterDuration, equals(55));
+      },
+    );
+  });
+
+  group('PUT /api/v1/workflow — write-before-commit', () {
+    test(
+      'failed direct write leaves workflow uncommitted and exact retry reissues writes',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final body = <String, dynamic>{
+          'rinseData': {
+            'targetTemperature': initial.rinseData.targetTemperature + 1,
+            'duration': initial.rinseData.duration + 1,
+            'flow': initial.rinseData.flow + 0.5,
+          },
+          'steamSettings': {
+            'targetTemperature': initial.steamSettings.targetTemperature + 1,
+            'duration': initial.steamSettings.duration + 1,
+            'flow': initial.steamSettings.flow + 0.1,
+          },
+          'hotWaterData': {
+            'targetTemperature': initial.hotWaterData.targetTemperature + 1,
+            'duration': initial.hotWaterData.duration + 1,
+            'volume': initial.hotWaterData.volume + 1,
+            'flow': initial.hotWaterData.flow + 0.5,
+          },
+        };
+        spy.failNextHotWaterFlow = true;
+        spy.setFlushTimeoutCalls.clear();
+        spy.setSteamFlowCalls.clear();
+        spy.setHotWaterFlowCalls.clear();
+
+        final failedFuture = put(body);
+        await _settleHandler();
+        final failedResponse = await failedFuture;
+
+        expect(failedResponse.statusCode, equals(500));
+        expect(workflowController.setWorkflowCalls, equals(0));
+        expect(workflowController.currentWorkflow.rinseData, initial.rinseData);
+        expect(
+          workflowController.currentWorkflow.steamSettings,
+          initial.steamSettings,
+        );
+        expect(
+          workflowController.currentWorkflow.hotWaterData,
+          initial.hotWaterData,
+        );
+        expect(spy.setFlushTimeoutCalls, [body['rinseData']['duration']]);
+        expect(spy.setSteamFlowCalls, [body['steamSettings']['flow']]);
+        expect(spy.setHotWaterFlowCalls, [body['hotWaterData']['flow']]);
+
+        final retryFuture = put(body);
+        await _settleHandler();
+        final retryResponse = await retryFuture;
+
+        expect(retryResponse.statusCode, equals(200));
+        expect(workflowController.setWorkflowCalls, equals(1));
+        expect(spy.setFlushTimeoutCalls.length, equals(2));
+        expect(spy.setSteamFlowCalls.length, equals(2));
+        expect(spy.setHotWaterFlowCalls.length, equals(2));
+        expect(
+          workflowController.currentWorkflow.rinseData.flow,
+          equals(body['rinseData']['flow']),
+        );
+        expect(
+          workflowController.currentWorkflow.steamSettings.flow,
+          equals(body['steamSettings']['flow']),
+        );
+        expect(
+          workflowController.currentWorkflow.hotWaterData.flow,
+          equals(body['hotWaterData']['flow']),
+        );
+      },
+    );
+
+    test(
+      'a later workflow batch waits for the in-flight batch and merges from its committed result',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        spy.steamFlowEntered = entered;
+        spy.steamFlowRelease = release;
+        spy.setHotWaterFlowCalls.clear();
+        final firstFuture = put({
+          'steamSettings': {
+            'duration': initial.steamSettings.duration + 1,
+            'flow': initial.steamSettings.flow + 0.1,
+          },
+        });
+
+        await entered.future.timeout(const Duration(seconds: 2));
+        expect(workflowController.setWorkflowCalls, equals(0));
+        expect(
+          workflowController.currentWorkflow.steamSettings,
+          initial.steamSettings,
+        );
+
+        var secondCompleted = false;
+        final secondFuture = put({
+          'hotWaterData': {
+            'duration': initial.hotWaterData.duration + 1,
+            'flow': initial.hotWaterData.flow + 0.5,
+          },
+        }).then((response) {
+          secondCompleted = true;
+          return response;
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+
+        expect(spy.setHotWaterFlowCalls, isEmpty);
+        expect(secondCompleted, isFalse);
+        expect(workflowController.currentWorkflow, initial);
+
+        release.complete();
+        final responses = await Future.wait([
+          firstFuture,
+          secondFuture,
+        ]).timeout(const Duration(seconds: 2));
+
+        expect(responses[0].statusCode, equals(200));
+        expect(responses[1].statusCode, equals(200));
+        expect(workflowController.setWorkflowCalls, equals(2));
+        expect(
+          workflowController.currentWorkflow.steamSettings.duration,
+          equals(initial.steamSettings.duration + 1),
+        );
+        expect(
+          workflowController.currentWorkflow.hotWaterData.duration,
+          equals(initial.hotWaterData.duration + 1),
+        );
       },
     );
   });

@@ -20,6 +20,7 @@ class WorkflowHandler {
   Timer? _debounceTimer;
   Map<String, dynamic> _pendingMerge = {};
   final List<Completer<Response>> _pendingResponses = [];
+  Future<void> _mutationTail = Future<void>.value();
 
   static const _debounceDuration = Duration(milliseconds: 400);
 
@@ -49,24 +50,40 @@ class WorkflowHandler {
     _pendingResponses.add(completer);
 
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(_debounceDuration, _applyPendingUpdate);
+    _debounceTimer = Timer(_debounceDuration, _capturePendingUpdate);
 
     return completer.future;
   }
 
-  Future<void> _applyPendingUpdate() async {
-    final merge = _pendingMerge;
+  void _capturePendingUpdate() {
+    final merge = Map<String, dynamic>.from(_pendingMerge);
     final responses = List<Completer<Response>>.from(_pendingResponses);
     _pendingMerge = {};
     _pendingResponses.clear();
 
+    _mutationTail = _mutationTail.then<void>((_) async {
+      try {
+        await _applyPendingUpdate(merge, responses);
+      } catch (e, st) {
+        _log.severe('Error in queued workflow update', e, st);
+        _completeResponses(
+          responses,
+          () => jsonError({'error': 'Internal server error', 'message': '$e'}),
+        );
+      }
+    });
+  }
+
+  Future<void> _applyPendingUpdate(
+    Map<String, dynamic> merge,
+    List<Completer<Response>> responses,
+  ) async {
     try {
       final oldWorkflow = _controller.currentWorkflow;
       final currentJson = oldWorkflow.toJson();
       final resultJson = deepMergeJson(currentJson, merge);
       final updatedWorkflow = Workflow.fromJson(resultJson);
 
-      _controller.setWorkflow(updatedWorkflow);
       // Profile push is owned by WorkflowDeviceSync — it observes
       // `setWorkflow` and uploads the profile if it changed. Keeping a
       // second setProfile call here would race against that listener and
@@ -95,9 +112,8 @@ class WorkflowHandler {
         );
       }
 
-      for (final completer in responses) {
-        completer.complete(jsonOk(updatedWorkflow.toJson()));
-      }
+      _controller.setWorkflow(updatedWorkflow);
+      _completeResponses(responses, () => jsonOk(updatedWorkflow.toJson()));
     } on ArgumentError catch (e) {
       // Client sent a payload that fails validation (e.g. an invalid
       // enum value like ExitType 'weight', or a missing required
@@ -105,26 +121,34 @@ class WorkflowHandler {
       // profile_handler.dart — so the HTTP request does not hang.
       // _pendingMerge was already cleared above, so subsequent PUTs
       // start from a clean slate.
-      for (final completer in responses) {
-        completer.complete(
-          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
-        );
-      }
+      _completeResponses(
+        responses,
+        () => jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
+      );
     } on FormatException catch (e) {
-      for (final completer in responses) {
-        completer.complete(
-          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
-        );
-      }
+      _completeResponses(
+        responses,
+        () => jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
+      );
     } catch (e, st) {
       // Unexpected error — likely a server-side failure during DE1
       // side-effects (BLE writes, controller updates). Log it and
       // return 500 so the request still doesn't hang.
       _log.severe('Error in _applyPendingUpdate', e, st);
-      for (final completer in responses) {
-        completer.complete(
-          jsonError({'error': 'Internal server error', 'message': '$e'}),
-        );
+      _completeResponses(
+        responses,
+        () => jsonError({'error': 'Internal server error', 'message': '$e'}),
+      );
+    }
+  }
+
+  void _completeResponses(
+    List<Completer<Response>> responses,
+    Response Function() createResponse,
+  ) {
+    for (final completer in responses) {
+      if (!completer.isCompleted) {
+        completer.complete(createResponse());
       }
     }
   }

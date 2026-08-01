@@ -901,7 +901,20 @@ paths:
       summary: Update current workflow
       description: |
         Updates the current workflow. This is the **recommended method** for applying changes
-        to the machine and brewing parameters in one atomic operation.
+        to the machine and brewing parameters in one operation. The request is deep-merged
+        with the current workflow. Required direct rinse, steam, and hot-water writes are
+        completed before the new workflow is published.
+
+        Workflow updates captured in separate debounce windows are serialized. Each batch
+        reads the current workflow when it begins execution, so a later batch includes
+        earlier committed changes. The controller commit is atomic: if a required machine
+        write fails, the endpoint returns `500` and the application workflow remains
+        unchanged. Individual machine writes that completed before the failure are not
+        rolled back. Retrying the same request is safe because a failed batch did not commit
+        its workflow state, so the required writes are attempted again.
+
+        Profile synchronization remains asynchronous and is handled separately by
+        `WorkflowDeviceSync` after a successful workflow commit.
 
         You can update the complete workflow or just specific fields:
         - **context**: Set dose, grinder, coffee, and people metadata (recommended)
@@ -1009,7 +1022,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "500":
-          description: Internal server error during DE1 side-effect writes
+          description: A required direct machine write failed. The application workflow remains unchanged; machine writes that completed before the failure are not rolled back.
           content:
             application/json:
               schema:

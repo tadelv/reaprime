@@ -118,3 +118,17 @@ All four machine sockets: `/ws/v1/machine/snapshot`, `/ws/v1/machine/shotSetting
 ## Keeping Notes Fresh
 
 Add protocol compatibility rules, API versioning decisions, and endpoint design rationale. Prune when specs are updated.
+
+## Workflow Commit Ordering
+
+`WorkflowHandler` reads the workflow base when a debounced batch reaches the
+serialized mutation queue, then performs changed direct rinse, steam, and
+hot-water writes before calling `WorkflowController.setWorkflow`. This keeps a
+failed machine write from publishing uncommitted controller state. Separate
+debounced batches are serialized so later merges include earlier successful
+commits and failed batches leave the next batch reading the unchanged state.
+
+`WorkflowDeviceSync` remains responsible only for asynchronous profile upload
+and retry after the eventual successful controller commit. This provides
+controller commit atomicity, not machine rollback: individual writes that
+completed before a later failure may already have reached the machine.

@@ -172,6 +172,19 @@ in-app stop will trigger on.
 | GET | `/api/v1/workflow` | Get current workflow (profile + context) | `workflow_handler.dart` |
 | PUT | `/api/v1/workflow` | Update workflow (deep merge) | |
 
+`PUT /api/v1/workflow` deep-merges the request body with the current workflow.
+Requests captured in separate debounce windows execute serially, and each batch
+reads its workflow base when it starts. Changed rinse, steam, and hot-water
+settings are written to the machine before the controller publishes the new
+workflow and the request returns `200`.
+
+If a required direct machine write fails, the endpoint returns `500` and the
+controller workflow remains unchanged. Earlier individual machine writes are
+not rolled back, so this is controller commit atomicity rather than machine
+rollback. Retrying the exact request reissues the required writes. Profile
+uploads remain asynchronous and are owned and retried separately by
+`WorkflowDeviceSync` after the successful workflow commit.
+
 ### Beans
 
 | Method | Path | Description | Handler |
