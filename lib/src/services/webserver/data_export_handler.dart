@@ -8,6 +8,31 @@ import 'package:reaprime/src/services/webserver/data_export/data_export_section.
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
+class DataExportException implements Exception {
+  final String section;
+  final Object cause;
+
+  const DataExportException({required this.section, required this.cause});
+
+  String get message =>
+      'A required backup section could not be exported. No backup archive was created.';
+
+  @override
+  String toString() => 'DataExportException: $section';
+}
+
+class DataExportSelectionException implements Exception {
+  final List<String> sections;
+
+  DataExportSelectionException(Iterable<String> sections)
+    : sections = List.unmodifiable(sections);
+
+  String get message => 'Unknown backup section(s): ${sections.join(', ')}';
+
+  @override
+  String toString() => 'DataExportSelectionException: $message';
+}
+
 class DataExportHandler {
   static const int _currentFormatVersion = 1;
 
@@ -15,7 +40,7 @@ class DataExportHandler {
   final Logger _log = Logger('DataExportHandler');
 
   DataExportHandler({required List<DataExportSection> sections})
-    : _sections = sections;
+    : _sections = List.unmodifiable(sections);
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/data/export', _handleExport);
@@ -27,6 +52,7 @@ class DataExportHandler {
   /// If [sections] is provided, only sections whose filename (without .json)
   /// matches an entry in the list are included.
   Future<List<int>> exportToBytes({List<String>? sections}) async {
+    final requestedSections = _resolveSections(sections);
     final archive = Archive();
 
     final metadata = {
@@ -40,15 +66,13 @@ class DataExportHandler {
     };
     _addJsonToArchive(archive, 'metadata.json', metadata);
 
-    for (final section in _sections) {
-      if (sections != null && !sections.contains(_sectionKey(section))) {
-        continue;
-      }
+    for (final section in requestedSections) {
       try {
         final data = await section.export();
         _addJsonToArchive(archive, section.filename, data);
       } catch (e, st) {
         _log.severe('Error exporting ${section.filename}', e, st);
+        throw DataExportException(section: _sectionKey(section), cause: e);
       }
     }
 
@@ -74,9 +98,19 @@ class DataExportHandler {
               'attachment; filename="decent_export_$timestamp.zip"',
         },
       );
+    } on DataExportException catch (e, st) {
+      _log.severe('Backup export failed for ${e.section}', e.cause, st);
+      return jsonError({
+        'error': 'Backup export failed',
+        'section': e.section,
+        'message': e.message,
+      });
     } catch (e, st) {
       _log.severe('Error in _handleExport', e, st);
-      return jsonError({'error': 'Internal server error', 'message': '$e'});
+      return jsonError({
+        'error': 'Internal server error',
+        'message': 'No backup archive was created.',
+      });
     }
   }
 
@@ -196,4 +230,22 @@ class DataExportHandler {
 
   String _sectionKey(DataExportSection section) =>
       section.filename.replaceAll('.json', '');
+
+  List<DataExportSection> _resolveSections(List<String>? sections) {
+    if (sections == null) return _sections;
+
+    final requested = sections.toSet();
+    final unknown = requested
+        .where(
+          (key) => !_sections.any((section) => _sectionKey(section) == key),
+        )
+        .toList(growable: false);
+    if (unknown.isNotEmpty) {
+      throw DataExportSelectionException(unknown);
+    }
+
+    return _sections
+        .where((section) => requested.contains(_sectionKey(section)))
+        .toList(growable: false);
+  }
 }

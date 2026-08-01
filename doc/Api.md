@@ -300,7 +300,9 @@ same request prevent all fields from being stored (validation is atomic).
 | POST | `/api/v1/data/import` | Import from ZIP (raw bytes, `Content-Type: application/zip`) | |
 | POST | `/api/v1/data/sync` | Sync with another Bridge instance | `data_sync_handler.dart` |
 
-Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders).
+Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders). An explicitly empty `sections` list creates a metadata-only local export.
+
+A successful backup ZIP is complete for every requested section. Section failure returns a `500` JSON error identifying the failed section and confirming that no archive was created; it never returns a partial ZIP. Clients must check the HTTP status and `Content-Type` before saving the response. Data-sync push generates the local export first and never sends a partial archive to the target.
 
 ### Account
 

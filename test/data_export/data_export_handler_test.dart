@@ -182,36 +182,26 @@ void main() {
         expect(shotsData['shots'], isList);
       });
 
-      test(
-        'continues exporting other sections when one section fails',
-        () async {
-          final failingSection = FailingExportSection(filename: 'failing.json');
-          final goodSection = MockExportSection(
-            filename: 'good.json',
-            exportData: {'data': 'ok'},
-          );
+      test('returns 500 and no ZIP when a section fails', () async {
+        final failingSection = FailingExportSection(filename: 'failing.json');
+        final handlerWithFailure = DataExportHandler(
+          sections: [failingSection, shotsSection],
+        );
 
-          final handlerWithFailure = DataExportHandler(
-            sections: [failingSection, goodSection],
-          );
+        final app = Router().plus;
+        handlerWithFailure.addRoutes(app);
+        final response = await app.call(
+          Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
+        );
 
-          final app = Router().plus;
-          handlerWithFailure.addRoutes(app);
-          final testHandler = app.call;
-
-          final response = await testHandler(
-            Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
-          );
-
-          expect(response.statusCode, 200);
-          final bytes = await response.read().expand((b) => b).toList();
-          final archive = ZipDecoder().decodeBytes(bytes);
-
-          // Should have metadata + good section (failing section skipped)
-          expect(archive.findFile('good.json'), isNotNull);
-          expect(archive.findFile('failing.json'), isNull);
-        },
-      );
+        expect(response.statusCode, 500);
+        expect(response.headers['content-type'], contains('application/json'));
+        expect(response.headers['content-disposition'], isNull);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], 'Backup export failed');
+        expect(body['section'], 'failing');
+        expect(body['message'], contains('No backup archive was created'));
+      });
     });
 
     group('POST /api/v1/data/import', () {
@@ -389,6 +379,56 @@ void main() {
         expect(archive.findFile('metadata.json'), isNotNull);
         expect(archive.findFile('profiles.json'), isNotNull);
         expect(archive.findFile('shots.json'), isNull);
+      });
+
+      test('throws when a requested section fails', () async {
+        final failingSection = FailingExportSection(filename: 'failing.json');
+        final handlerWithFailure = DataExportHandler(
+          sections: [failingSection],
+        );
+
+        await expectLater(
+          handlerWithFailure.exportToBytes(),
+          throwsA(
+            isA<DataExportException>()
+                .having((error) => error.section, 'section', 'failing')
+                .having(
+                  (error) => error.message,
+                  'message',
+                  contains('No backup archive was created'),
+                )
+                .having((error) => error.cause, 'cause', isA<Exception>()),
+          ),
+        );
+      });
+
+      test('ignores failures in sections that were not requested', () async {
+        final failingSection = FailingExportSection(filename: 'shots.json');
+        final handlerWithFailure = DataExportHandler(
+          sections: [profileSection, failingSection],
+        );
+
+        final bytes = await handlerWithFailure.exportToBytes(
+          sections: ['profiles'],
+        );
+        final archive = ZipDecoder().decodeBytes(bytes);
+
+        expect(archive.findFile('metadata.json'), isNotNull);
+        expect(archive.findFile('profiles.json'), isNotNull);
+        expect(archive.findFile('shots.json'), isNull);
+      });
+
+      test('rejects unknown requested section keys', () async {
+        await expectLater(
+          handler.exportToBytes(sections: ['profiels']),
+          throwsA(
+            isA<DataExportSelectionException>().having(
+              (error) => error.sections,
+              'sections',
+              contains('profiels'),
+            ),
+          ),
+        );
       });
     });
 

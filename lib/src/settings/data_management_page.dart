@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/util/rot13.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -23,6 +23,7 @@ import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/settings/backup_export_downloader.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -282,18 +283,27 @@ class _DataManagementPageState extends State<DataManagementPage> {
     if (!mounted) return;
     _showProgressDialog(context, 'Preparing full backup...');
 
-    final Uint8List responseBytes;
-    final client = HttpClient();
+    String? outputFile;
+    final client = http.Client();
     try {
-      final request = await client.getUrl(
-        Uri.parse('http://localhost:8080/api/v1/data/export'),
+      outputFile = await downloadAndSaveFullBackup(
+        client: client,
+        save: (bytes) async {
+          if (!mounted) return null;
+          _dismissProgressDialog();
+          final timestamp = DateTime.now()
+              .toIso8601String()
+              .replaceAll(':', '-')
+              .split('.')
+              .first;
+          final fileName = 'decent_export_$timestamp.zip';
+          return FilePicker.saveFile(
+            fileName: fileName,
+            dialogTitle: 'Choose where to save backup',
+            bytes: bytes,
+          );
+        },
       );
-      final response = await request.close();
-      final builder = BytesBuilder();
-      await for (final chunk in response) {
-        builder.add(chunk);
-      }
-      responseBytes = builder.takeBytes();
     } catch (e) {
       _log.severe("Failed to export full backup", e);
       _dismissProgressDialog();
@@ -308,41 +318,13 @@ class _DataManagementPageState extends State<DataManagementPage> {
     }
 
     if (!mounted) return;
-    _dismissProgressDialog(); // dismiss progress dialog before picker
-
-    try {
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final fileName = 'decent_export_$timestamp.zip';
-
-      final outputFile = await FilePicker.saveFile(
-        fileName: fileName,
-        dialogTitle: 'Choose where to save backup',
-        bytes: responseBytes,
+    if (outputFile != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Full backup exported successfully'),
+          backgroundColor: Colors.green,
+        ),
       );
-
-      if (outputFile != null) {
-        // file_picker writes bytes on all platforms (mobile SAF, desktop
-        // saveBytesToFile, web Blob download) — no manual write needed.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Full backup exported successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      _log.severe("Failed to export full backup", e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export full backup: $e')),
-        );
-      }
     }
   }
 

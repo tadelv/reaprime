@@ -224,6 +224,20 @@ class DataSyncHandler {
   }
 
   Map<String, dynamic> _errorResult(Object error) {
+    if (error is DataExportException) {
+      return {
+        'error': 'Local export failed',
+        'section': error.section,
+        'message': '${error.message} No data was sent to the target.',
+      };
+    }
+    if (error is DataExportSelectionException) {
+      return {
+        'error': 'Local export failed',
+        'section': error.sections.join(', '),
+        'message': '${error.message} No data was sent to the target.',
+      };
+    }
     if (error is SyncTargetException) {
       return {
         'error': 'Target error',

@@ -43,6 +43,22 @@ class MockExportSection implements DataExportSection {
   }
 }
 
+class FailingExportSection implements DataExportSection {
+  @override
+  final String filename;
+
+  FailingExportSection({required this.filename});
+
+  @override
+  Future<dynamic> export() async => throw Exception('Export failed');
+
+  @override
+  Future<SectionImportResult> import(
+    dynamic data,
+    ConflictStrategy strategy,
+  ) async => const SectionImportResult();
+}
+
 List<int> buildZip(Map<String, dynamic> files) {
   final archive = Archive();
   for (final entry in files.entries) {
@@ -62,8 +78,13 @@ void main() {
     );
   });
 
-  Handler buildSyncHandler(http.Client client) {
-    final exportHandler = DataExportHandler(sections: [profileSection]);
+  Handler buildSyncHandler(
+    http.Client client, {
+    List<DataExportSection>? sections,
+  }) {
+    final exportHandler = DataExportHandler(
+      sections: sections ?? [profileSection],
+    );
     final syncHandler = DataSyncHandler(
       exportHandler: exportHandler,
       httpClient: client,
@@ -377,6 +398,33 @@ void main() {
         final body = jsonDecode(await response.readAsString());
         expect(body['push']['error'], 'Target unreachable');
       });
+
+      test(
+        'push aborts before contacting target when local export fails',
+        () async {
+          var requestCount = 0;
+          final client = http_testing.MockClient((_) async {
+            requestCount++;
+            return http.Response('{}', 200);
+          });
+          final handler = buildSyncHandler(
+            client,
+            sections: [FailingExportSection(filename: 'shots.json')],
+          );
+
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'push',
+          });
+
+          expect(response.statusCode, 502);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['push']['error'], 'Local export failed');
+          expect(body['push']['section'], 'shots');
+          expect(body['push']['message'], contains('No data was sent'));
+          expect(requestCount, 0);
+        },
+      );
     });
 
     group('two_way mode', () {
@@ -432,6 +480,39 @@ void main() {
         expect(body['pull'], contains('profiles'));
         expect(body['push']['error'], 'Target error');
       });
+
+      test(
+        'returns 207 when pull succeeds but local push export fails',
+        () async {
+          final targetZip = buildZip({
+            'metadata.json': {'formatVersion': 1},
+          });
+          var importRequestCount = 0;
+          final client = http_testing.MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response.bytes(targetZip, 200);
+            }
+            importRequestCount++;
+            return http.Response('{}', 200);
+          });
+          final handler = buildSyncHandler(
+            client,
+            sections: [FailingExportSection(filename: 'shots.json')],
+          );
+
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'two_way',
+          });
+
+          expect(response.statusCode, 207);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['pull'], isEmpty);
+          expect(body['push']['error'], 'Local export failed');
+          expect(body['push']['section'], 'shots');
+          expect(importRequestCount, 0);
+        },
+      );
 
       test('returns 207 when push succeeds but pull fails', () async {
         final client = http_testing.MockClient((request) async {

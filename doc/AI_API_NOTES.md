@@ -24,6 +24,10 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 - Content-based hash IDs for profile deduplication (`ProfileController`).
 - ETag / `If-None-Match` support on cacheable resources (#203).
 
+### Backup Export Invariant
+
+Backup exports are fail-closed. A normal ZIP response always contains every requested section; it must never represent an omitted failed section. Callers of `exportToBytes` must treat section failure as operation failure, and data-sync push must not transmit partial archives. UI download clients must validate both status and media type before saving a backup.
+
 ## WebSocket Conventions
 
 - WebSocket topics are path-based: `/ws/v1/machine/state`, `/ws/v1/machine/shotState`, `/ws/v1/scale/snapshot`, etc.

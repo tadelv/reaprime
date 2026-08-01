@@ -3752,6 +3752,11 @@ paths:
         and KV store data. The archive also contains a metadata.json with export
         information (format version, app version, commit SHA, timestamp, platform).
 
+        A successful application/zip response is complete for every registered
+        section. Export is never a silent best-effort subset: if a required
+        section fails, archive generation is aborted and no ZIP is returned.
+        Successful archive filenames and JSON contents are unchanged.
+
         ZIP contents:
         - metadata.json — export metadata (formatVersion, appVersion, commitSha, branch, exportTimestamp, platform)
         - profiles.json — all profiles (including hidden and deleted)
@@ -3774,7 +3779,23 @@ paths:
                 type: string
               description: 'attachment; filename="decent_export_{timestamp}.zip"'
         "500":
-          description: Internal server error
+          description: A required section failed and no backup archive was created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, section, message]
+                properties:
+                  error:
+                    type: string
+                    example: Backup export failed
+                  section:
+                    type: string
+                    description: Filename key of the section that failed
+                    example: shots
+                  message:
+                    type: string
+                    example: A required backup section could not be exported. No backup archive was created.
   /api/v1/data/import:
     post:
       summary: Import app data from archive
@@ -3844,6 +3865,9 @@ paths:
         - **push**: exports data from this instance to the target
         - **two_way**: performs pull then push (returns 207 if one phase fails)
 
+        A push generates the local archive before contacting the target. If local
+        export fails, the push stops and no import request is sent.
+
         Only the specified sections are synced. If no sections are provided,
         all available sections are synced.
       tags: [Data Management]
@@ -3879,7 +3903,7 @@ paths:
                   items:
                     type: string
                     enum: [profiles, shots, workflow, settings, store, beans, grinders]
-                  description: Data sections to sync. Defaults to all sections if omitted.
+                  description: Data sections to sync. Defaults to all sections if omitted. An explicitly empty list creates a metadata-only local export.
       responses:
         "200":
           description: Sync completed successfully
