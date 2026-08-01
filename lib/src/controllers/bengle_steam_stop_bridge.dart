@@ -9,8 +9,8 @@ import 'package:reaprime/src/models/errors.dart';
 
 /// Reflects `SteamSettings.stopAtTemperature` into the connected
 /// Bengle's `setStopAtTemperatureTarget` MMR endpoint. Mirrors
-/// [BengleSawBridge] — same debounce + generation-token + re-assert on
-/// reconnect shape.
+/// [BengleSawBridge] — same debounce + serialized latest-value drain +
+/// re-assert on reconnect shape.
 ///
 /// **Scaffolding.** While the FW MMR slot is stubbed
 /// (`BengleSteamMmr.stopAtTemperatureTarget.address == 0x00000000`),
@@ -37,57 +37,91 @@ class BengleSteamStopBridge {
 
   StreamSubscription<De1Interface?>? _de1Sub;
   Timer? _debounceTimer;
-  int _generation = 0;
   double? _lastPushed;
+  double? _desired;
+  double? _inFlight;
+  bool _forcePush = false;
+  bool _pushing = false;
+  bool _disposed = false;
 
   double _currentTarget() =>
       _workflow.currentWorkflow.steamSettings.stopAtTemperature;
 
   void _onWorkflowChange() {
     final next = _currentTarget();
-    if (next == _lastPushed) return;
+    _forcePush = false;
+    if (next == _lastPushed && (_inFlight == null || _inFlight == next)) {
+      _desired = null;
+      _debounceTimer?.cancel();
+      _debounceTimer = null;
+      return;
+    }
+    _desired = next;
     _debounceTimer?.cancel();
-    final generation = ++_generation;
-    _debounceTimer = Timer(debounce, () => _push(next, generation));
+    _debounceTimer = Timer(debounce, () {
+      _debounceTimer = null;
+      unawaited(_drain());
+    });
   }
 
   void _onDe1Change(De1Interface? device) {
     if (device is! BengleInterface) return;
-    final next = _currentTarget();
-    final generation = ++_generation;
-    _push(next, generation);
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _desired = _currentTarget();
+    _forcePush = true;
+    unawaited(_drain());
   }
 
-  Future<void> _push(double celsius, int generation) async {
-    if (generation != _generation) {
-      _log.fine(
-        'Steam-stop write superseded '
-        '(gen=$generation, current=$_generation)',
-      );
-      return;
-    }
-    final machine = _de1.connectedDe1OrNull;
-    if (machine is! BengleInterface) {
-      _log.fine('Steam-stop write skipped — connected machine is not Bengle');
-      return;
-    }
+  Future<void> _drain() async {
+    if (_pushing || _disposed) return;
+    _pushing = true;
     try {
-      await machine.setStopAtTemperatureTarget(celsius);
-      if (generation == _generation) {
-        _lastPushed = celsius;
+      while (!_disposed) {
+        final celsius = _desired;
+        if (celsius == null || (!_forcePush && celsius == _lastPushed)) {
+          _desired = null;
+          _forcePush = false;
+          return;
+        }
+        final machine = _de1.connectedDe1OrNull;
+        if (machine is! BengleInterface) {
+          _log.fine(
+            'Steam-stop write skipped — connected machine is not Bengle',
+          );
+          return;
+        }
+        _inFlight = celsius;
+        try {
+          await machine.setStopAtTemperatureTarget(celsius);
+          if (_disposed) return;
+          _lastPushed = celsius;
+          _forcePush = false;
+          if (_desired == celsius) _desired = null;
+          _log.info('Stop-at-temperature target written: $celsius°C');
+        } on DeviceNotConnectedException {
+          _log.fine(
+            'Steam-stop write aborted — machine disconnected mid-call',
+          );
+          if (_desired == celsius) return;
+        } catch (e, st) {
+          _log.warning('Steam-stop write failed', e, st);
+          if (_desired == celsius) return;
+        } finally {
+          _inFlight = null;
+        }
       }
-      _log.info('Stop-at-temperature target written: $celsius°C');
-    } on DeviceNotConnectedException {
-      _log.fine('Steam-stop write aborted — machine disconnected mid-call');
-    } catch (e, st) {
-      _log.warning('Steam-stop write failed', e, st);
+    } finally {
+      _pushing = false;
     }
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     _workflow.removeListener(_onWorkflowChange);
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    _desired = null;
     await _de1Sub?.cancel();
     _de1Sub = null;
   }

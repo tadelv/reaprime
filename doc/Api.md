@@ -177,7 +177,8 @@ cross-request or cross-client coalescing. Partial updates are deep-merged agains
 workflow state when each request executes, and each response contains that request's resulting
 workflow. Requests may wait behind machine I/O; the server does not debounce high-frequency
 input, so clients should throttle controls themselves. Machine-write failures return an error
-without rolling back already-completed machine writes or controller state.
+before the controller workflow is committed. Multi-step machine writes may be partially
+applied, and retrying the same request re-attempts the requested settings.
 
 ### Beans
 

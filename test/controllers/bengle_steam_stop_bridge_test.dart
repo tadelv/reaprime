@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/bengle_steam_stop_bridge.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -32,11 +34,28 @@ class _RecordingBengle implements BengleInterface {
 
   final List<double> stopAtTempWrites = [];
   double _target = 0.0;
+  double? blockedTarget;
+  Completer<void>? targetEntered;
+  Completer<void>? targetRelease;
+  int _inFlight = 0;
+  int maxInFlight = 0;
 
   @override
   Future<void> setStopAtTemperatureTarget(double celsius) async {
     stopAtTempWrites.add(celsius);
-    _target = celsius;
+    _inFlight++;
+    maxInFlight = maxInFlight < _inFlight ? _inFlight : maxInFlight;
+    try {
+      if (celsius == blockedTarget) {
+        if (!(targetEntered?.isCompleted ?? true)) {
+          targetEntered!.complete();
+        }
+        await targetRelease!.future;
+      }
+      _target = celsius;
+    } finally {
+      _inFlight--;
+    }
   }
 
   @override
@@ -143,6 +162,36 @@ void main() {
     await pumpDebounce();
 
     expect(bengle.stopAtTempWrites, [65.0]);
+    await bridge.dispose();
+  });
+
+  test('latest target waits for an in-flight write', () async {
+    final bengle = _RecordingBengle();
+    await connectBengle(bengle);
+
+    final bridge = BengleSteamStopBridge(
+      workflowController: workflow,
+      de1Controller: de1Controller,
+      debounce: _debounce,
+    );
+    await Future<void>.delayed(Duration.zero);
+    bengle.stopAtTempWrites.clear();
+
+    bengle.blockedTarget = 65.0;
+    bengle.targetEntered = Completer<void>();
+    bengle.targetRelease = Completer<void>();
+    setStopAtTemp(65.0);
+    await bengle.targetEntered!.future;
+
+    setStopAtTemp(70.0);
+    await pumpDebounce();
+    expect(bengle.stopAtTempWrites, [65.0]);
+    expect(bengle.maxInFlight, 1);
+
+    bengle.targetRelease!.complete();
+    await pumpDebounce();
+    expect(bengle.stopAtTempWrites, [65.0, 70.0]);
+    expect(bengle.maxInFlight, 1);
     await bridge.dispose();
   });
 

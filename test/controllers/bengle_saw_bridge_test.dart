@@ -38,11 +38,28 @@ class _RecordingBengle implements BengleInterface {
 
   final List<double> sawWrites = [];
   double _saw = 0.0;
+  double? blockedSaw;
+  Completer<void>? sawEntered;
+  Completer<void>? sawRelease;
+  int _inFlight = 0;
+  int maxInFlight = 0;
 
   @override
   Future<void> setStopAtWeightTarget(double grams) async {
     sawWrites.add(grams);
-    _saw = grams;
+    _inFlight++;
+    maxInFlight = maxInFlight < _inFlight ? _inFlight : maxInFlight;
+    try {
+      if (grams == blockedSaw) {
+        if (!(sawEntered?.isCompleted ?? true)) {
+          sawEntered!.complete();
+        }
+        await sawRelease!.future;
+      }
+      _saw = grams;
+    } finally {
+      _inFlight--;
+    }
   }
 
   @override
@@ -147,6 +164,37 @@ void main() {
     await pumpDebounce();
 
     expect(bengle.sawWrites, [32.0]);
+    await bridge.dispose();
+  });
+
+  test('latest target waits for an in-flight write', () async {
+    final bengle = _RecordingBengle();
+    await connectBengle(bengle);
+
+    final bridge = BengleSawBridge(
+      workflowController: workflow,
+      de1Controller: de1Controller,
+      debounce: _debounce,
+    );
+    await Future<void>.delayed(Duration.zero);
+    bengle.sawWrites.clear();
+
+    final base = workflow.currentWorkflow.context ?? const WorkflowContext();
+    bengle.blockedSaw = 30.0;
+    bengle.sawEntered = Completer<void>();
+    bengle.sawRelease = Completer<void>();
+    workflow.updateWorkflow(context: base.copyWith(targetYield: 30.0));
+    await bengle.sawEntered!.future;
+
+    workflow.updateWorkflow(context: base.copyWith(targetYield: 31.0));
+    await pumpDebounce();
+    expect(bengle.sawWrites, [30.0]);
+    expect(bengle.maxInFlight, 1);
+
+    bengle.sawRelease!.complete();
+    await pumpDebounce();
+    expect(bengle.sawWrites, [30.0, 31.0]);
+    expect(bengle.maxInFlight, 1);
     await bridge.dispose();
   });
 
