@@ -10,25 +10,65 @@ import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
-const _weightFrame = <int>[
+const _weightBody = <int>[0xDF, 0x06, 0x00, 0x00, 0x01, 0x00];
+const _realWeightFrame = <int>[
   0xEF,
   0xDD,
   0x0C,
-  0x06,
+  0x0C,
   0x05,
-  0xE8,
-  0x03,
+  0xDF,
+  0x06,
   0x00,
   0x00,
   0x01,
   0x00,
+  0x07,
+  0x00,
+  0x00,
+  0x02,
+  0xF3,
+  0x0D,
 ];
 
+List<int> _frame(int command, List<int> payload) {
+  final body = [payload.length + 1, ...payload];
+  var even = 0;
+  var odd = 0;
+  for (var i = 0; i < body.length; i++) {
+    if (i.isEven) {
+      even = (even + body[i]) & 0xFF;
+    } else {
+      odd = (odd + body[i]) & 0xFF;
+    }
+  }
+  return [0xEF, 0xDD, command, ...body, even, odd];
+}
+
+List<int> _eventFrame(int eventType, List<int> payload) =>
+    _frame(0x0C, [eventType, ...payload]);
+
+List<int> _minimalWeightFrame() => _eventFrame(5, _weightBody);
+
+List<int> _heartbeatWeightFrame() => _eventFrame(11, [0, 0, 5, ..._weightBody]);
+
+List<int> _heartbeatTimerFrame() =>
+    _eventFrame(11, [0, 0, 7, 0x01, 0x1E, 0x05]);
+
+List<int> _heartbeatButtonFrame() => _eventFrame(11, [0, 0, 8, 0]);
+
+List<int> _settingsFrame(int battery) => _frame(0x08, [battery, 0]);
+
 class _AcaiaTransport extends BLETransport {
-  _AcaiaTransport({required this.services, this.emitWeightDuringInit = true});
+  _AcaiaTransport({
+    required this.services,
+    this.emitWeightDuringInit = true,
+    this.initializationFrame = _realWeightFrame,
+  });
 
   final List<String> services;
   final bool emitWeightDuringInit;
+  final List<int> initializationFrame;
   final BehaviorSubject<ConnectionState> states = BehaviorSubject.seeded(
     ConnectionState.discovered,
   );
@@ -92,7 +132,7 @@ class _AcaiaTransport extends BLETransport {
     writes.add(data.toList());
     if (emitWeightDuringInit && !_initWeightSent && data[2] == 0x0C) {
       _initWeightSent = true;
-      scheduleMicrotask(() => emit(_weightFrame));
+      scheduleMicrotask(() => emit(initializationFrame));
     }
     await writeBehavior?.call(data);
   }
@@ -106,9 +146,13 @@ class _AcaiaTransport extends BLETransport {
   Future<void> dispose() async => states.close();
 }
 
-_AcaiaTransport _ips({bool emitWeightDuringInit = true}) => _AcaiaTransport(
+_AcaiaTransport _ips({
+  bool emitWeightDuringInit = true,
+  List<int> initializationFrame = _realWeightFrame,
+}) => _AcaiaTransport(
   services: const ['00001820-0000-1000-8000-00805f9b34fb'],
   emitWeightDuringInit: emitWeightDuringInit,
+  initializationFrame: initializationFrame,
 );
 
 Future<(AcaiaScale, _AcaiaTransport)> _connected() async {
@@ -144,47 +188,194 @@ void main() {
   });
 
   test(
-    'timer event 11 emits no weight and weight selector emits 100g',
+    'timer event 11 emits no weight and weight selector emits 175.9g',
     () async {
       final (scale, transport) = await _connected();
       final snapshots = <ScaleSnapshot>[];
       final subscription = scale.currentSnapshot.listen(snapshots.add);
 
-      transport.emit(const [
-        0xEF,
-        0xDD,
-        0x0C,
-        0x09,
-        0x0B,
-        0x00,
-        0x00,
-        0x07,
-        0x12,
-        0x34,
-        0x56,
-        0x78,
-        0x9A,
-        0xBC,
-      ]);
-      transport.emit(const [
-        0xEF,
-        0xDD,
-        0x0C,
-        0x09,
-        0x0B,
-        0x00,
-        0x00,
-        0x05,
-        0xE8,
-        0x03,
-        0x00,
-        0x00,
-        0x01,
-        0x00,
-      ]);
+      transport.emit(_heartbeatTimerFrame());
+      transport.emit(_heartbeatWeightFrame());
       await Future<void>.delayed(Duration.zero);
 
-      expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+      expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    },
+  );
+
+  test(
+    'real multi-record direct frame completes initialization once',
+    () async {
+      final transport = _ips(initializationFrame: _realWeightFrame);
+      final scale = AcaiaScale(transport: transport);
+      final snapshots = <ScaleSnapshot>[];
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+      await scale.onConnect();
+
+      expect(await scale.connectionState.first, ConnectionState.connected);
+      expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+      expect(_realWeightFrame[3], 0x0C);
+
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    },
+  );
+
+  test(
+    'initialization requests the reference timer notification interval',
+    () async {
+      final (scale, transport) = await _connected();
+      final request = transport.writes.firstWhere((write) => write[2] == 0x0C);
+
+      expect(request.sublist(3, 12), [9, 0, 1, 1, 2, 2, 5, 3, 4]);
+
+      await scale.disconnect();
+      await transport.dispose();
+    },
+  );
+
+  test('minimal direct weight uses the declared protocol length', () async {
+    final frame = _minimalWeightFrame();
+    final transport = _ips(initializationFrame: frame);
+    final scale = AcaiaScale(transport: transport);
+    final snapshots = <ScaleSnapshot>[];
+    final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+    await scale.onConnect();
+
+    expect(frame[3], 8);
+    expect(await scale.connectionState.first, ConnectionState.connected);
+    expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+
+    await subscription.cancel();
+    await scale.disconnect();
+    await transport.dispose();
+  });
+
+  test('heartbeat-wrapped weight completes initialization', () async {
+    final frame = _heartbeatWeightFrame();
+    final transport = _ips(initializationFrame: frame);
+    final scale = AcaiaScale(transport: transport);
+    final snapshots = <ScaleSnapshot>[];
+    final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+    await scale.onConnect();
+
+    expect(frame[3], 11);
+    expect(await scale.connectionState.first, ConnectionState.connected);
+    expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+
+    await subscription.cancel();
+    await scale.disconnect();
+    await transport.dispose();
+  });
+
+  test('heartbeat timer and button records never publish weight', () async {
+    final (scale, transport) = await _connected();
+    final snapshots = <ScaleSnapshot>[];
+    final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+    transport.emit(_heartbeatTimerFrame());
+    transport.emit(_heartbeatButtonFrame());
+    await Future<void>.delayed(Duration.zero);
+
+    expect(snapshots, isEmpty);
+    await subscription.cancel();
+    await scale.disconnect();
+    await transport.dispose();
+  });
+
+  test('unknown and incomplete heartbeat records are rejected', () async {
+    for (final frame in [
+      _eventFrame(11, [0, 0, 9, 0]),
+      _eventFrame(11, [0, 0, 5, ..._weightBody.sublist(0, 5)]),
+    ]) {
+      final (scale, transport) = await _connected();
+      final snapshots = <ScaleSnapshot>[];
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+      transport.emit([...frame, ..._minimalWeightFrame()]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    }
+  });
+
+  test('direct weight accepts complete trailing records', () async {
+    final frame = _eventFrame(5, [..._weightBody, 7, 0x01, 0x1E, 0x05]);
+    final (scale, transport) = await _connected();
+    final snapshots = <ScaleSnapshot>[];
+    final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+    transport.emit(frame);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+    await subscription.cancel();
+    await scale.disconnect();
+    await transport.dispose();
+  });
+
+  test(
+    'truncated direct and heartbeat weights recover before a valid frame',
+    () async {
+      for (final frame in [_minimalWeightFrame(), _heartbeatWeightFrame()]) {
+        final (scale, transport) = await _connected();
+        final snapshots = <ScaleSnapshot>[];
+        final subscription = scale.currentSnapshot.listen(snapshots.add);
+        final weightOffset = frame[4] == 5 ? 5 : 8;
+
+        transport.emit(frame.sublist(0, weightOffset + 5));
+        await Future<void>.delayed(Duration.zero);
+        expect(snapshots, isEmpty);
+
+        transport.emit(_minimalWeightFrame());
+        await Future<void>.delayed(Duration.zero);
+        expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+
+        await subscription.cancel();
+        await scale.disconnect();
+        await transport.dispose();
+      }
+    },
+  );
+
+  test(
+    'two complete weight frames in one notification are both consumed',
+    () async {
+      final (scale, transport) = await _connected();
+      final snapshots = <ScaleSnapshot>[];
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+      transport.emit([..._minimalWeightFrame(), ..._heartbeatWeightFrame()]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(snapshots.map((snapshot) => snapshot.weight), [175.9, 175.9]);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    },
+  );
+
+  test(
+    'embedded header bytes remain inside a complete weight payload',
+    () async {
+      final frame = _eventFrame(5, [0xEF, 0xDD, 0x00, 0x00, 0x01, 0x00]);
+      final (scale, transport) = await _connected();
+      final snapshots = <ScaleSnapshot>[];
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+      transport.emit(frame);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(snapshots.map((snapshot) => snapshot.weight), [5681.5]);
       await subscription.cancel();
       await scale.disconnect();
       await transport.dispose();
@@ -196,17 +387,17 @@ void main() {
     () async {
       for (final prefix in [
         [0xEF, 0xDD, 0x0C, 0x02, 0x05, 0xAA, 0xBB],
-        [0xEF, 0xDD, 0x0C, 0x0C, 0x05, 0xAA, 0xBB],
+        [0xEF, 0xDD, 0x0C, 0x0C, 0x05, ..._weightBody.sublist(0, 2)],
         [0xEF, 0xDD, 0x0C, 0xFF, 0x05, 0x00],
       ]) {
         final (scale, transport) = await _connected();
         final snapshots = <ScaleSnapshot>[];
         final subscription = scale.currentSnapshot.listen(snapshots.add);
 
-        transport.emit([...prefix, ..._weightFrame]);
+        transport.emit([...prefix, ..._realWeightFrame]);
         await Future<void>.delayed(Duration.zero);
 
-        expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+        expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
         await subscription.cancel();
         await scale.disconnect();
         await transport.dispose();
@@ -220,17 +411,12 @@ void main() {
     final subscription = scale.currentSnapshot.listen(snapshots.add);
 
     transport.emit([
-      0xEF,
-      0xDD,
-      0x0B,
-      0x0B,
-      0x01,
-      ..._weightFrame,
-      ..._weightFrame,
+      ..._frame(0x0B, [0x01, ..._minimalWeightFrame()]),
+      ..._minimalWeightFrame(),
     ]);
     await Future<void>.delayed(Duration.zero);
 
-    expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+    expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
     await subscription.cancel();
     await scale.disconnect();
     await transport.dispose();
@@ -238,14 +424,14 @@ void main() {
 
   test('concatenated settings and weight frames are both processed', () async {
     for (final frames in [
-      [0xEF, 0xDD, 0x08, 0x03, 72, 0, 0, 0, ..._weightFrame],
-      [..._weightFrame, 0xEF, 0xDD, 0x08, 0x03, 72, 0, 0, 0],
+      [..._settingsFrame(72), ..._minimalWeightFrame()],
+      [..._minimalWeightFrame(), ..._settingsFrame(72)],
     ]) {
       final (scale, transport) = await _connected();
       final snapshots = <ScaleSnapshot>[];
       final subscription = scale.currentSnapshot.listen(snapshots.add);
       transport.emit(frames);
-      transport.emit(_weightFrame);
+      transport.emit(_minimalWeightFrame());
       await Future<void>.delayed(Duration.zero);
       expect(snapshots.last.batteryLevel, 72);
       await subscription.cancel();
@@ -255,16 +441,16 @@ void main() {
   });
 
   test('split frames and split headers are retained', () async {
-    for (final split in [1, 7]) {
+    for (final split in [1, 3, 4, 8, 12, 16]) {
       final (scale, transport) = await _connected();
       final snapshots = <ScaleSnapshot>[];
       final subscription = scale.currentSnapshot.listen(snapshots.add);
-      transport.emit([0x99, ..._weightFrame.sublist(0, split)]);
+      transport.emit([0x99, ..._realWeightFrame.sublist(0, split)]);
       await Future<void>.delayed(Duration.zero);
       expect(snapshots, isEmpty);
-      transport.emit(_weightFrame.sublist(split));
+      transport.emit(_realWeightFrame.sublist(split));
       await Future<void>.delayed(Duration.zero);
-      expect(snapshots.map((snapshot) => snapshot.weight), [100.0]);
+      expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
       await subscription.cancel();
       await scale.disconnect();
       await transport.dispose();
@@ -274,13 +460,13 @@ void main() {
   test('battery high bit is masked and invalid battery is retained', () async {
     final (scale, transport) = await _connected();
     var snapshot = scale.currentSnapshot.first;
-    transport.emit(const [0xEF, 0xDD, 0x08, 0x03, 0xC8, 0, 0, 0]);
-    transport.emit(_weightFrame);
+    transport.emit(_settingsFrame(0xC8));
+    transport.emit(_minimalWeightFrame());
     expect((await snapshot).batteryLevel, 72);
 
     snapshot = scale.currentSnapshot.first;
-    transport.emit(const [0xEF, 0xDD, 0x08, 0x03, 0xE5, 0, 0, 0]);
-    transport.emit(_weightFrame);
+    transport.emit(_settingsFrame(0xE5));
+    transport.emit(_minimalWeightFrame());
     expect((await snapshot).batteryLevel, 72);
     await scale.disconnect();
     await transport.dispose();
@@ -304,11 +490,29 @@ void main() {
     });
   });
 
+  test('heartbeat timer initialization does not establish readiness', () {
+    fakeAsync((async) {
+      final transport = _ips(initializationFrame: _heartbeatTimerFrame());
+      final scale = AcaiaScale(transport: transport);
+      final snapshots = <ScaleSnapshot>[];
+      final states = <ConnectionState>[];
+      scale.currentSnapshot.listen(snapshots.add);
+      scale.connectionState.listen(states.add);
+
+      scale.onConnect();
+      async.elapse(const Duration(seconds: 9));
+      async.flushMicrotasks();
+
+      expect(snapshots, isEmpty);
+      expect(states, isNot(contains(ConnectionState.connected)));
+      expect(states.last, ConnectionState.disconnected);
+      expect(transport.disconnectCalls, 1);
+      transport.dispose();
+    });
+  });
+
   test('event 5 and event 11 weight complete initialization', () {
-    for (final frame in [
-      _weightFrame,
-      const [0xEF, 0xDD, 0x0C, 0x09, 0x0B, 0, 0, 0x05, 0xE8, 0x03, 0, 0, 1, 0],
-    ]) {
+    for (final frame in [_minimalWeightFrame(), _heartbeatWeightFrame()]) {
       fakeAsync((async) {
         final transport = _ips(emitWeightDuringInit: false);
         transport.writeBehavior = (data) async {
@@ -331,7 +535,7 @@ void main() {
       final transport = _ips(emitWeightDuringInit: false);
       transport.writeBehavior = (data) async {
         if (data[2] != 0x0C) return;
-        scheduleMicrotask(() => transport.emit(_weightFrame));
+        scheduleMicrotask(() => transport.emit(_minimalWeightFrame()));
         Timer(
           const Duration(milliseconds: 100),
           () => transport.states.add(ConnectionState.disconnected),
