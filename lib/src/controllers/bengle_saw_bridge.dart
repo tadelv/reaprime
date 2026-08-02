@@ -46,10 +46,12 @@ class BengleSawBridge {
   StreamSubscription<De1Interface?>? _de1Sub;
   Timer? _debounceTimer;
   double? _lastPushed;
+  int? _lastPushedGeneration;
   double? _desired;
+  int? _desiredGeneration;
   double? _inFlight;
-  bool _forcePush = false;
   bool _pushing = false;
+  bool _restartAfterDrain = false;
   bool _disposed = false;
 
   double _currentTargetYield() =>
@@ -57,14 +59,18 @@ class BengleSawBridge {
 
   void _onWorkflowChange() {
     final next = _currentTargetYield();
-    _forcePush = false;
-    if (next == _lastPushed && (_inFlight == null || _inFlight == next)) {
+    final generation = _de1.connectionGeneration;
+    if (next == _lastPushed &&
+        _lastPushedGeneration == generation &&
+        (_inFlight == null || _inFlight == next)) {
       _desired = null;
+      _desiredGeneration = null;
       _debounceTimer?.cancel();
       _debounceTimer = null;
       return;
     }
     _desired = next;
+    _desiredGeneration = generation;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(debounce, () {
       _debounceTimer = null;
@@ -73,13 +79,21 @@ class BengleSawBridge {
   }
 
   void _onDe1Change(De1Interface? device) {
-    if (device is! BengleInterface) return;
+    if (device is! BengleInterface) {
+      if (_pushing) _restartAfterDrain = true;
+      return;
+    }
     _debounceTimer?.cancel();
     _debounceTimer = null;
     _desired = _currentTargetYield();
-    _forcePush = true;
+    _desiredGeneration = _de1.connectionGeneration;
+    if (_pushing) _restartAfterDrain = true;
     unawaited(_drain());
   }
+
+  bool _isCurrent(De1Interface machine, int generation) =>
+      identical(machine, _de1.connectedDe1OrNull) &&
+      generation == _de1.connectionGeneration;
 
   Future<void> _drain() async {
     if (_pushing || _disposed) return;
@@ -87,9 +101,11 @@ class BengleSawBridge {
     try {
       while (!_disposed) {
         final grams = _desired;
-        if (grams == null || (!_forcePush && grams == _lastPushed)) {
+        if (grams == null ||
+            (grams == _lastPushed &&
+                _desiredGeneration == _lastPushedGeneration)) {
           _desired = null;
-          _forcePush = false;
+          _desiredGeneration = null;
           return;
         }
         final machine = _de1.connectedDe1OrNull;
@@ -97,26 +113,49 @@ class BengleSawBridge {
           _log.fine('SAW write skipped — connected machine is not Bengle');
           return;
         }
+        final generation = _de1.connectionGeneration;
         _inFlight = grams;
         try {
           await machine.setStopAtWeightTarget(grams);
           if (_disposed) return;
+          if (!_isCurrent(machine, generation)) continue;
           _lastPushed = grams;
-          _forcePush = false;
-          if (_desired == grams) _desired = null;
+          _lastPushedGeneration = generation;
+          if (_desired == grams && _desiredGeneration == generation) {
+            _desired = null;
+            _desiredGeneration = null;
+          }
           _log.info('SAW target written: ${grams}g');
         } on DeviceNotConnectedException {
           _log.fine('SAW write aborted — machine disconnected mid-call');
-          if (_desired == grams) return;
+          if (!_isCurrent(machine, generation) ||
+              _desired != grams ||
+              _desiredGeneration != generation) {
+            continue;
+          }
+          return;
         } catch (e, st) {
           _log.warning('SAW write failed', e, st);
-          if (_desired == grams) return;
+          if (!_isCurrent(machine, generation) ||
+              _desired != grams ||
+              _desiredGeneration != generation) {
+            continue;
+          }
+          return;
         } finally {
           _inFlight = null;
         }
       }
     } finally {
+      final restart = _restartAfterDrain;
+      _restartAfterDrain = false;
       _pushing = false;
+      if (!_disposed &&
+          restart &&
+          _desired != null &&
+          _de1.connectedDe1OrNull is BengleInterface) {
+        unawaited(_drain());
+      }
     }
   }
 
@@ -126,6 +165,8 @@ class BengleSawBridge {
     _debounceTimer?.cancel();
     _debounceTimer = null;
     _desired = null;
+    _desiredGeneration = null;
+    _restartAfterDrain = false;
     await _de1Sub?.cancel();
     _de1Sub = null;
   }

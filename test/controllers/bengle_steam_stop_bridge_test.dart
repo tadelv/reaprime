@@ -195,6 +195,36 @@ void main() {
     await bridge.dispose();
   });
 
+  test('reconnect writes the target to the replacement Bengle', () async {
+    final oldBengle = _RecordingBengle();
+    await connectBengle(oldBengle);
+
+    final bridge = BengleSteamStopBridge(
+      workflowController: workflow,
+      de1Controller: de1Controller,
+      debounce: _debounce,
+    );
+    await Future<void>.delayed(Duration.zero);
+    oldBengle.stopAtTempWrites.clear();
+
+    oldBengle.blockedTarget = 65.0;
+    oldBengle.targetEntered = Completer<void>();
+    oldBengle.targetRelease = Completer<void>();
+    setStopAtTemp(65.0);
+    await oldBengle.targetEntered!.future.timeout(const Duration(seconds: 2));
+
+    final replacement = _RecordingBengle();
+    await connectBengle(replacement);
+    await Future<void>.delayed(Duration.zero);
+    expect(replacement.stopAtTempWrites, isEmpty);
+
+    oldBengle.targetRelease!.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(replacement.stopAtTempWrites, [65.0]);
+    expect(oldBengle.maxInFlight, 1);
+    await bridge.dispose();
+  });
+
   test('no write when connected machine is not Bengle', () async {
     final de1 = TestDe1();
     await de1Controller.connectToDe1(de1);

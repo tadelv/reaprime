@@ -63,37 +63,40 @@ class WorkflowHandler {
 
   Future<Response> _applyUpdate(Map<String, dynamic> merge) async {
     try {
-      final oldWorkflow = _controller.currentWorkflow;
-      final currentJson = oldWorkflow.toJson();
-      final resultJson = deepMergeJson(currentJson, merge);
-      final updatedWorkflow = Workflow.fromJson(resultJson);
+      while (true) {
+        final oldWorkflow = _controller.currentWorkflow;
+        final revision = _controller.revision;
+        final currentJson = oldWorkflow.toJson();
+        final resultJson = deepMergeJson(currentJson, merge);
+        final updatedWorkflow = Workflow.fromJson(resultJson);
 
-      if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-        await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+        if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
+          await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+        }
+        if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
+          await _de1controller.updateSteamSettings(
+            SteamFormSettings(
+              steamEnabled: updatedWorkflow.steamSettings.duration > 0,
+              targetTemp: updatedWorkflow.steamSettings.targetTemperature,
+              targetDuration: updatedWorkflow.steamSettings.duration,
+              targetFlow: updatedWorkflow.steamSettings.flow,
+            ),
+          );
+        }
+        if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
+          await _de1controller.updateHotWaterSettings(
+            HotWaterFormSettings(
+              targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
+              flow: updatedWorkflow.hotWaterData.flow,
+              volume: updatedWorkflow.hotWaterData.volume,
+              duration: updatedWorkflow.hotWaterData.duration,
+            ),
+          );
+        }
+        if (_controller.setWorkflowIfRevision(updatedWorkflow, revision)) {
+          return jsonOk(updatedWorkflow.toJson());
+        }
       }
-      if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-        await _de1controller.updateSteamSettings(
-          SteamFormSettings(
-            steamEnabled: updatedWorkflow.steamSettings.duration > 0,
-            targetTemp: updatedWorkflow.steamSettings.targetTemperature,
-            targetDuration: updatedWorkflow.steamSettings.duration,
-            targetFlow: updatedWorkflow.steamSettings.flow,
-          ),
-        );
-      }
-      if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-        await _de1controller.updateHotWaterSettings(
-          HotWaterFormSettings(
-            targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
-            flow: updatedWorkflow.hotWaterData.flow,
-            volume: updatedWorkflow.hotWaterData.volume,
-            duration: updatedWorkflow.hotWaterData.duration,
-          ),
-        );
-      }
-      _controller.setWorkflow(updatedWorkflow);
-
-      return jsonOk(updatedWorkflow.toJson());
     } on ArgumentError catch (e) {
       return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } on FormatException catch (e) {
