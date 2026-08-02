@@ -86,6 +86,7 @@ class AcaiaScale implements Scale {
   Timer? _maintenanceTimer;
   Timer? _watchdogTimer;
   List<int> _buffer = [];
+  bool _partialFramePending = false;
   DateTime _lastValidFrame = DateTime.now();
   int _batteryLevel = 0;
   int _generation = 0;
@@ -190,6 +191,7 @@ class AcaiaScale implements Scale {
     _hasValidWeight = false;
     _badBatteryLogged = false;
     _buffer = [];
+    _partialFramePending = false;
     await _transport.subscribe(
       _serviceUuid,
       _notifyCharacteristic,
@@ -402,11 +404,21 @@ class AcaiaScale implements Scale {
 
       final frameLength = _metadataLength + declaredLength;
       if (_buffer.length < frameLength) {
-        if (_resyncPartialWeightFrame(messageType, eventType)) continue;
+        if (_resyncPartialWeightFrame(messageType, eventType)) {
+          _partialFramePending = false;
+          continue;
+        }
+        _partialFramePending = true;
         return;
       }
       final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
       _buffer = _buffer.sublist(frameLength);
+      if (_partialFramePending && _hasPartialWeightHeader(frame, eventType)) {
+        _partialFramePending = false;
+        _buffer = [...frame.sublist(_findHeader(frame, start: 2)), ..._buffer];
+        continue;
+      }
+      _partialFramePending = false;
       final result = _processFrame(frame);
       if (result == _AcaiaFrameResult.malformed) {
         _resyncMalformedFrame(frame);
@@ -433,14 +445,12 @@ class AcaiaScale implements Scale {
     int eventType,
   ) {
     if (messageType == 0x08) {
-      return declaredLength == 3
-          ? null
-          : 'settings frame requires declared length 3';
+      return declaredLength >= 3 ? null : 'settings frame is too short';
     }
     if (messageType != 0x0C) return null;
     final minimumLength = switch (eventType) {
       5 => 2 + _weightBodyLength,
-      11 => 8,
+      11 => 5,
       _ => 2,
     };
     return declaredLength >= minimumLength
@@ -476,6 +486,20 @@ class AcaiaScale implements Scale {
       }
     }
     return false;
+  }
+
+  bool _hasPartialWeightHeader(List<int> frame, int eventType) {
+    final weightOffset = switch (eventType) {
+      5 => _metadataLength,
+      11
+          when frame.length > _metadataLength + 2 &&
+              frame[_metadataLength + 2] == 5 =>
+        _metadataLength + 3,
+      _ => -1,
+    };
+    if (weightOffset < 0) return false;
+    final nextHeader = _findHeader(frame, start: 2);
+    return nextHeader == weightOffset + _weightBodyLength - 1;
   }
 
   void _resyncMalformedFrame(List<int> frame) {
@@ -542,9 +566,6 @@ class AcaiaScale implements Scale {
       if (!_hasValidWeightBody(payload, 0)) {
         return _rejectFrame(frame, 'invalid direct weight body');
       }
-      if (!_hasCompleteRecordChain(payload, _weightBodyLength)) {
-        return _rejectFrame(frame, 'incomplete or unknown trailing record');
-      }
       _decodeWeight(payload.sublist(0, _weightBodyLength));
       return _AcaiaFrameResult.accepted;
     }
@@ -570,13 +591,6 @@ class AcaiaScale implements Scale {
         innerTag: innerTag,
       );
     }
-    if (!_hasCompleteRecordChain(payload, innerBodyStart + innerBodyLength)) {
-      return _rejectFrame(
-        frame,
-        'incomplete or unknown heartbeat trailing record',
-        innerTag: innerTag,
-      );
-    }
     if (innerTag == 5) {
       if (!_hasValidWeightBody(payload, innerBodyStart)) {
         return _rejectFrame(
@@ -588,6 +602,14 @@ class AcaiaScale implements Scale {
       _decodeWeight(
         payload.sublist(innerBodyStart, innerBodyStart + _weightBodyLength),
       );
+      return _AcaiaFrameResult.accepted;
+    }
+    if (!_hasCompleteRecordChain(payload, innerBodyStart + innerBodyLength)) {
+      return _rejectFrame(
+        frame,
+        'incomplete or unknown heartbeat trailing record',
+        innerTag: innerTag,
+      );
     }
     return _AcaiaFrameResult.accepted;
   }
@@ -595,8 +617,7 @@ class AcaiaScale implements Scale {
   bool _hasValidWeightBody(List<int> payload, int offset) {
     if (offset + _weightBodyLength > payload.length) return false;
     final unit = payload[offset + 4];
-    final flags = payload[offset + 5];
-    return unit >= 1 && unit <= 4 && flags <= 2;
+    return unit >= 1 && unit <= 4;
   }
 
   bool _hasCompleteRecordChain(List<int> payload, int offset) {
@@ -614,7 +635,7 @@ class AcaiaScale implements Scale {
     final magnitude = (body[2] << 16) | (body[1] << 8) | body[0];
     final exponent = body[4];
     var weight = magnitude / pow(10, exponent);
-    if (body[5] > 1) weight *= -1;
+    if ((body[5] & 0x02) != 0) weight *= -1;
     _hasValidWeight = true;
     _streamController.add(
       ScaleSnapshot(
