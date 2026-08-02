@@ -179,6 +179,8 @@ workflow. Requests may wait behind machine I/O; the server does not debounce hig
 input, so clients should throttle controls themselves. Machine-write failures return an error
 before the controller workflow is committed. Multi-step machine writes may be partially
 applied, and retrying the same request re-attempts the requested settings.
+Request bodies have a 30-second read timeout; body-read failures return an error
+without poisoning later queued mutations.
 
 ### Beans
 
