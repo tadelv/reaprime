@@ -435,12 +435,15 @@ class De1Handler {
   }
 
   Future<Response> _profileHandler(Request request) async {
-    return withDe1((de1) async {
+    return withDe1((_) async {
       final payload = await request.readAsString();
 
       Map<String, dynamic> json = jsonDecode(payload);
       Profile profile = Profile.fromJson(json);
-      await de1.setProfile(profile);
+      await _controller.runDeviceWrite(
+        (device) => device.setProfile(profile),
+        retryOnReplacement: true,
+      );
       return jsonOk(null);
     });
   }

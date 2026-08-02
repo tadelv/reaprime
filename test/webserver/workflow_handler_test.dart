@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/controllers/workflow_device_sync.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/firmware_update_state.dart';
@@ -28,7 +29,7 @@ import '../helpers/mock_device_discovery_service.dart';
 /// read-modify-write races on the controller surface reproduce here
 /// exactly like they do on the running app.
 class SpyDe1 implements De1Interface {
-  SpyDe1({De1ShotSettings? seed}) {
+  SpyDe1({De1ShotSettings? seed, this.readyState = true}) {
     _shotSettings = BehaviorSubject.seeded(
       seed ??
           De1ShotSettings(
@@ -45,6 +46,7 @@ class SpyDe1 implements De1Interface {
   }
 
   late final BehaviorSubject<De1ShotSettings> _shotSettings;
+  final bool readyState;
 
   final List<De1ShotSettings> updateShotSettingsCalls = [];
   final List<Profile> setProfileCalls = [];
@@ -181,7 +183,7 @@ class SpyDe1 implements De1Interface {
   @override
   Future<void> requestState(MachineState newState) async {}
   @override
-  Stream<bool> get ready => Stream.value(true);
+  Stream<bool> get ready => Stream.value(readyState);
   @override
   Stream<De1WaterLevels> get waterLevels => const Stream.empty();
   @override
@@ -702,6 +704,68 @@ void main() {
       },
     );
 
+    test('a workflow PUT retries on a replacement machine', () async {
+      await _settleHandler();
+      final nextFlow =
+          workflowController.currentWorkflow.steamSettings.flow + 1;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      spy.blockedSteamFlow = nextFlow;
+      spy.steamFlowEntered = entered;
+      spy.steamFlowRelease = release;
+
+      final future = put({
+        'steamSettings': {'flow': nextFlow},
+      });
+      await entered.future.timeout(const Duration(seconds: 2));
+
+      final replacement = SpyDe1(readyState: false);
+      await de1Controller.connectToDe1(replacement);
+      release.complete();
+
+      final response = await future.timeout(const Duration(seconds: 2));
+      expect(response.statusCode, 200);
+      expect(replacement.setSteamFlowCalls, [nextFlow]);
+      expect(workflowController.currentWorkflow.steamSettings.flow, nextFlow);
+      await replacement.dispose();
+    });
+
+    test('profile sync waits behind a workflow device write', () async {
+      await _settleHandler();
+      final sync = WorkflowDeviceSync(
+        workflowController: workflowController,
+        de1Controller: de1Controller,
+      );
+      addTearDown(sync.dispose);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      spy.setProfileCalls.clear();
+      final nextFlow =
+          workflowController.currentWorkflow.steamSettings.flow + 1;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      spy.blockedSteamFlow = nextFlow;
+      spy.steamFlowEntered = entered;
+      spy.steamFlowRelease = release;
+
+      final future = put({
+        'steamSettings': {'flow': nextFlow},
+      });
+      await entered.future.timeout(const Duration(seconds: 2));
+      final initial = workflowController.currentWorkflow;
+      final profile = Profile.fromJson({
+        ...initial.profile.toJson(),
+        'title': 'Queued profile',
+      });
+      workflowController.setWorkflow(initial.copyWith(profile: profile));
+      await Future<void>.delayed(Duration.zero);
+      expect(spy.setProfileCalls, isEmpty);
+
+      release.complete();
+      expect((await future).statusCode, 200);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(spy.setProfileCalls, [profile]);
+    });
+
     test('a failed workflow PUT does not poison later queue entries', () async {
       await _settleHandler();
       final initial = workflowController.currentWorkflow;
@@ -905,6 +969,103 @@ void main() {
         }
       },
     );
+
+    test('an oversized workflow body returns 413', () async {
+      final limitedHandler = WorkflowHandler(
+        controller: workflowController,
+        de1controller: de1Controller,
+        maxBodyBytes: 16,
+      );
+      final limitedApp = Router().plus;
+      limitedHandler.addRoutes(limitedApp);
+
+      final response = await limitedApp.call(
+        Request(
+          'PUT',
+          Uri.parse('http://localhost/api/v1/workflow'),
+          body: jsonEncode({'name': 'this body is too large'}),
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+
+      expect(response.statusCode, 413);
+    });
+
+    test('workflow queue rejects excess requests with 429', () async {
+      final limitedHandler = WorkflowHandler(
+        controller: workflowController,
+        de1controller: de1Controller,
+        maxPendingRequests: 1,
+      );
+      final limitedApp = Router().plus;
+      limitedHandler.addRoutes(limitedApp);
+      final body = StreamController<List<int>>();
+      final first = limitedApp.call(
+        Request(
+          'PUT',
+          Uri.parse('http://localhost/api/v1/workflow'),
+          body: body.stream,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+
+      final rejected = await limitedApp.call(
+        Request(
+          'PUT',
+          Uri.parse('http://localhost/api/v1/workflow'),
+          body: jsonEncode({'name': 'rejected'}),
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+      expect(rejected.statusCode, 429);
+
+      body.add(utf8.encode(jsonEncode({'name': 'accepted'})));
+      await body.close();
+      expect((await first).statusCode, 200);
+    });
+
+    test('an expired queued workflow PUT is skipped with 503', () async {
+      final limitedHandler = WorkflowHandler(
+        controller: workflowController,
+        de1controller: de1Controller,
+        queueWaitTimeout: const Duration(milliseconds: 20),
+      );
+      final limitedApp = Router().plus;
+      limitedHandler.addRoutes(limitedApp);
+      final initial = workflowController.currentWorkflow;
+      final blockedFlow = initial.steamSettings.flow + 1;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      spy.blockedSteamFlow = blockedFlow;
+      spy.steamFlowEntered = entered;
+      spy.steamFlowRelease = release;
+
+      final first = limitedApp.call(
+        Request(
+          'PUT',
+          Uri.parse('http://localhost/api/v1/workflow'),
+          body: jsonEncode({
+            'steamSettings': {'flow': blockedFlow},
+          }),
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+      await entered.future.timeout(const Duration(seconds: 2));
+      final expired = await limitedApp.call(
+        Request(
+          'PUT',
+          Uri.parse('http://localhost/api/v1/workflow'),
+          body: jsonEncode({'name': 'expired'}),
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+
+      expect(expired.statusCode, 503);
+      release.complete();
+      expect((await first).statusCode, 200);
+      await Future<void>.delayed(Duration.zero);
+      expect(workflowController.currentWorkflow.name, initial.name);
+    });
 
     test(
       'malformed or non-object JSON returns 400 without poisoning the queue',

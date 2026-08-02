@@ -915,6 +915,9 @@ paths:
         committed. The machine writes are multi-step and may be partially applied; retrying
         the same request re-attempts the requested settings.
 
+        Bodies are limited to 1 MiB. At most eight workflow requests may be active or queued,
+        and a request that waits more than 30 seconds for its turn is skipped.
+
         You can update the complete workflow or just specific fields:
         - **context**: Set dose, grinder, coffee, and people metadata (recommended)
         - **profile**: Update the brewing profile
@@ -1020,8 +1023,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "413":
+          description: Request body exceeds the 1 MiB workflow payload limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Eight workflow requests are already active or queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
           description: A required direct machine write or request body read failed; the controller workflow remains unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The request waited more than 30 seconds for its turn and was skipped
           content:
             application/json:
               schema:

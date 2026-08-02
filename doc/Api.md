@@ -176,9 +176,11 @@ Each `PUT /api/v1/workflow` is one independent mutation. Requests run in FIFO or
 cross-request or cross-client coalescing. Partial updates are deep-merged against the latest
 workflow state when each request executes, and each response contains that request's resulting
 workflow. Requests may wait behind machine I/O; the server does not debounce high-frequency
-input, so clients should throttle controls themselves. Machine-write failures return an error
-before the controller workflow is committed. Multi-step machine writes may be partially
-applied, and retrying the same request re-attempts the requested settings.
+input, so clients should throttle controls themselves. Bodies larger than 1 MiB return `413`,
+requests beyond the eight-entry active/queued limit return `429`, and requests waiting more
+than 30 seconds for execution return `503` without being applied. Machine-write failures
+return an error before the controller workflow is committed. Multi-step machine writes may
+be partially applied, and retrying the same request re-attempts the requested settings.
 Request bodies have a 30-second read timeout; body-read failures return an error
 without poisoning later queued mutations.
 

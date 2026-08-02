@@ -122,7 +122,7 @@ class WorkflowDeviceSync {
           return;
         }
         try {
-          await _de1.connectedDe1().setProfile(profile);
+          await _de1.runDeviceWrite((device) => device.setProfile(profile));
           if (generation != _generation) return;
           _lastPushedProfile = profile;
           _attempt = 0;

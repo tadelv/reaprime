@@ -53,6 +53,12 @@ Response jsonNotFound(Object? data) =>
 Response jsonConflict(Object? data) =>
     Response(409, body: jsonEncode(data), headers: _jsonHeaders);
 
+Response jsonPayloadTooLarge(Object? data) =>
+    Response(413, body: jsonEncode(data), headers: _jsonHeaders);
+
+Response jsonTooManyRequests(Object? data) =>
+    Response(429, body: jsonEncode(data), headers: _jsonHeaders);
+
 Response jsonError(Object? data) =>
     Response.internalServerError(body: jsonEncode(data), headers: _jsonHeaders);
 

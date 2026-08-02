@@ -110,7 +110,11 @@ class BengleSteamStopBridge {
         final generation = _de1.connectionGeneration;
         _inFlight = celsius;
         try {
-          await machine.setStopAtTemperatureTarget(celsius);
+          await _de1.runDeviceWrite((device) async {
+            if (identical(device, machine)) {
+              await machine.setStopAtTemperatureTarget(celsius);
+            }
+          });
           if (_disposed) return;
           if (!_isCurrent(machine, generation)) continue;
           _lastPushed = celsius;
