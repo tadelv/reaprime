@@ -401,6 +401,11 @@ class De1Controller {
       final device = connectedDe1();
       final generation = _connectionGeneration;
       try {
+        await _waitForInitialization(device, generation);
+        if (generation != _connectionGeneration || !identical(device, _de1)) {
+          if (attempt + 1 < attempts) continue;
+          break;
+        }
         final result = await write(device);
         if (generation == _connectionGeneration && identical(device, _de1)) {
           return result;
@@ -413,6 +418,19 @@ class De1Controller {
       }
     }
     throw StateError('Machine changed during device write');
+  }
+
+  Future<void> _waitForInitialization(
+    De1Interface device,
+    int generation,
+  ) async {
+    if (_initSettledSubject.valueOrNull == generation) return;
+    await _initSettledSubject.stream.firstWhere(
+      (settled) =>
+          settled == generation ||
+          generation != _connectionGeneration ||
+          !identical(device, _de1),
+    );
   }
 
   Future<SteamFormSettings> steamSettings() async {
