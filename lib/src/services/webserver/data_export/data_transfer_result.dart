@@ -22,7 +22,6 @@ class DataSectionOutcome {
 
   bool get hasProgress =>
       status == DataSectionStatus.complete ||
-      status == DataSectionStatus.partial ||
       _count('imported') > 0 ||
       _count('skipped') > 0;
 
@@ -34,10 +33,8 @@ class DataSectionOutcome {
     }
 
     final result = Map<String, dynamic>.from(value);
-    final declaredStatus = result.containsKey('status')
-        ? _parseStatus(result['status'])
-        : null;
-    if (result.containsKey('status') && declaredStatus == null) {
+    if (result.containsKey('status') &&
+        _parseStatus(result['status']) == null) {
       return _failed(key, 'Invalid status for section "$key".');
     }
 
@@ -53,8 +50,7 @@ class DataSectionOutcome {
         (result.containsKey('skipped') && !_validCount(result['skipped']))) {
       return _failed(key, 'Invalid counts for section "$key".');
     }
-    if (declaredStatus == null &&
-        !result.containsKey('imported') &&
+    if (!result.containsKey('imported') &&
         !result.containsKey('skipped') &&
         !result.containsKey('errors')) {
       return _failed(key, 'Missing semantic result for section "$key".');
@@ -68,12 +64,7 @@ class DataSectionOutcome {
               ? DataSectionStatus.partial
               : DataSectionStatus.failed
         : DataSectionStatus.complete;
-    final status = switch (declaredStatus) {
-      null => derivedStatus,
-      DataSectionStatus.complete when hasErrors => derivedStatus,
-      final declared => declared,
-    };
-    return DataSectionOutcome(key: key, status: status, result: result);
+    return DataSectionOutcome(key: key, status: derivedStatus, result: result);
   }
 
   static DataSectionOutcome missing(String key) => _failed(
@@ -184,7 +175,7 @@ class DataTransferPhaseOutcome {
     dynamic value,
     List<String> expectedSections,
   ) {
-    if (value is! Map) {
+    if (value is! Map || value.keys.any((key) => key is! String)) {
       return DataTransferPhaseOutcome(
         status: DataTransferStatus.failed,
         sections: {},
@@ -194,14 +185,33 @@ class DataTransferPhaseOutcome {
     }
 
     final object = Map<String, dynamic>.from(value);
+    final declaredStatus = object.containsKey('status')
+        ? _parseRemoteStatus(object['status'])
+        : null;
+    if (object.containsKey('status') && declaredStatus == null) {
+      return _invalidRemote('The target returned an invalid phase status.');
+    }
+
+    final complete = object['complete'];
+    final partial = object['partial'];
+    if ((object.containsKey('complete') && complete is! bool) ||
+        (object.containsKey('partial') && partial is! bool)) {
+      return _invalidRemote('The target returned invalid phase flags.');
+    }
+
+    final error = object['error'];
+    final message = object['message'];
+    final reason = object['reason'];
+    if ((error != null && error is! String) ||
+        (message != null && message is! String) ||
+        (reason != null && reason is! String)) {
+      return _invalidRemote('The target returned invalid phase metadata.');
+    }
+
     final nested = object['sections'];
-    if (nested != null && nested is! Map) {
-      return DataTransferPhaseOutcome(
-        status: DataTransferStatus.failed,
-        sections: {},
-        error: 'Invalid target response',
-        message: 'The target returned an invalid sections object.',
-      );
+    if (nested != null &&
+        (nested is! Map || nested.keys.any((key) => key is! String))) {
+      return _invalidRemote('The target returned an invalid sections object.');
     }
 
     final rawSections = nested is Map
@@ -211,11 +221,67 @@ class DataTransferPhaseOutcome {
               if (!_metadataKeys.contains(entry.key) && entry.value is Map)
                 entry.key: entry.value,
           };
-    return fromSections(
+    final outcome = fromSections(
       rawSections: rawSections,
       expectedSections: expectedSections,
     );
+    final status = _remoteStatus(
+      outcome.status,
+      declaredStatus: declaredStatus,
+      complete: complete as bool?,
+      partial: partial as bool?,
+      hasError: error != null,
+    );
+    return DataTransferPhaseOutcome(
+      status: status,
+      sections: outcome.sections,
+      error: error as String? ?? outcome.error,
+      message: message as String? ?? outcome.message,
+      reason: reason as String? ?? outcome.reason,
+    );
   }
+
+  static DataTransferPhaseOutcome _invalidRemote(String message) =>
+      DataTransferPhaseOutcome(
+        status: DataTransferStatus.failed,
+        sections: {},
+        error: 'Invalid target response',
+        message: message,
+      );
+
+  static DataTransferStatus _remoteStatus(
+    DataTransferStatus derived, {
+    required DataTransferStatus? declaredStatus,
+    required bool? complete,
+    required bool? partial,
+    required bool hasError,
+  }) {
+    final statuses = [derived];
+    if (declaredStatus != null) statuses.add(declaredStatus);
+    if (partial == true) statuses.add(DataTransferStatus.partial);
+    if (hasError) statuses.add(DataTransferStatus.failed);
+    if (complete == false &&
+        partial != true &&
+        declaredStatus != DataTransferStatus.partial &&
+        derived == DataTransferStatus.complete) {
+      statuses.add(DataTransferStatus.failed);
+    }
+    if (statuses.contains(DataTransferStatus.failed)) {
+      return DataTransferStatus.failed;
+    }
+    if (statuses.contains(DataTransferStatus.partial)) {
+      return DataTransferStatus.partial;
+    }
+    return DataTransferStatus.complete;
+  }
+
+  static DataTransferStatus? _parseRemoteStatus(dynamic value) =>
+      switch (value) {
+        'complete' => DataTransferStatus.complete,
+        'partial' => DataTransferStatus.partial,
+        'failed' => DataTransferStatus.failed,
+        _ => null,
+      };
 
   static DataTransferPhaseOutcome failed({
     required String error,

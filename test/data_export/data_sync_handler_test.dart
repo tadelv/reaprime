@@ -93,29 +93,16 @@ void main() {
 
   group('DataSyncHandler', () {
     group('validation', () {
-      test('uses all registered sections when sections are omitted', () async {
-        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+      test('requires sections for pull and two_way', () async {
+        final handler = buildSyncHandler(
+          http_testing.MockClient((_) async => http.Response('', 200)),
+        );
+
         for (final mode in ['pull', 'two_way']) {
-          final client = http_testing.MockClient((request) async {
-            if (request.method == 'GET') {
-              return http.Response.bytes(targetZip, 200);
-            }
-            return http.Response(
-              '{"profiles":{"imported":1},"shots":{"imported":1}}',
-              200,
-            );
-          });
-          final response = await sendSync(
-            buildSyncHandler(client),
-            requestBody(mode: mode),
-          );
+          final response = await sendSync(handler, requestBody(mode: mode));
           final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 200);
-          expect(body['mode'], mode);
-          expect(body['phases']['pull']['status'], 'complete');
-          if (mode == 'two_way') {
-            expect(body['phases']['push']['status'], 'complete');
-          }
+          expect(response.statusCode, 400);
+          expect(body['message'], contains('sections'));
         }
       });
 
@@ -123,13 +110,15 @@ void main() {
         final handler = buildSyncHandler(
           http_testing.MockClient((_) async => http.Response('', 200)),
         );
-        final response = await sendSync(
-          handler,
-          requestBody(mode: 'pull', selectedSections: []),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 400);
-        expect(body['message'], contains('sections'));
+        for (final mode in ['pull', 'two_way']) {
+          final response = await sendSync(
+            handler,
+            requestBody(mode: mode, selectedSections: []),
+          );
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 400);
+          expect(body['message'], contains('sections'));
+        }
       });
 
       test('deduplicates sections and rejects unknown names', () async {
@@ -236,6 +225,48 @@ void main() {
         expect(body['phases']['push']['status'], 'partial');
         expect(body['push']['profiles']['imported'], 2);
         expect(body['push']['shots']['errors'], contains('bad row'));
+      });
+
+      test('honors a structured remote failed phase', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"status":"failed","complete":false,"error":"Import commit failed","message":"The target rejected the import.","sections":{"profiles":{"status":"complete","imported":2}}}',
+            200,
+          ),
+        );
+        final response = await sendSync(
+          buildSyncHandler(client),
+          requestBody(mode: 'push', selectedSections: ['profiles']),
+        );
+        final body = jsonDecode(await response.readAsString());
+
+        expect(response.statusCode, 502);
+        expect(body['status'], 'failed');
+        expect(body['push']['profiles']['status'], 'complete');
+        expect(body['phases']['push']['status'], 'failed');
+        expect(body['phases']['push']['error'], 'Import commit failed');
+        expect(
+          body['phases']['push']['message'],
+          'The target rejected the import.',
+        );
+      });
+
+      test('honors a structured remote partial phase', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"status":"partial","complete":false,"partial":true,"sections":{"profiles":{"status":"complete","imported":2}}}',
+            200,
+          ),
+        );
+        final response = await sendSync(
+          buildSyncHandler(client),
+          requestBody(mode: 'push', selectedSections: ['profiles']),
+        );
+        final body = jsonDecode(await response.readAsString());
+
+        expect(response.statusCode, 502);
+        expect(body['status'], 'partial');
+        expect(body['phases']['push']['status'], 'partial');
       });
 
       test('warnings and conflict skips remain complete', () async {
