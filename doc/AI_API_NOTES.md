@@ -132,7 +132,7 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 
 - Sync phase success is derived from requested section semantics, not transport status alone.
 - Existing direct `pull.<section>` and `push.<section>` paths are compatibility surfaces; semantic phase data is additive under `phases`.
-- Pull and two-way requests require an explicit nonempty expected section list. Missing requested archive or import sections prevent completion.
+- Omitted sections mean all locally registered sections; explicit empty lists are invalid. Missing requested archive or import sections prevent completion.
 - Legacy HTTP `200` import bodies with embedded errors are partial or failed according to section progress.
 - Two-way push requires a complete pull unless `continueOnPullFailure: true` is explicitly requested.
 - Skipped push is represented as a `skipped` phase, and partial section processing is not transactional.
