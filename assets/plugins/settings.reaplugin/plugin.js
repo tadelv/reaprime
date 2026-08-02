@@ -911,7 +911,7 @@ function createPlugin(host) {
                         <div class="setting-item">
                             <label class="setting-label" for="syncMode">Direction</label>
                             <div class="setting-control">
-                                <select id="syncMode">
+                                <select id="syncMode" onchange="updateSyncContinueVisibility()">
                                     <option value="push">Push (local to remote)</option>
                                     <option value="pull">Pull (remote to local)</option>
                                     <option value="two_way">Two-way</option>
@@ -927,6 +927,10 @@ function createPlugin(host) {
                                 </select>
                             </div>
                         </div>
+                        <label id="syncContinueOption" style="display: none; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="syncContinue">
+                            Continue with push if pull is incomplete
+                        </label>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <span class="setting-label" style="display: block; margin-bottom: 8px;">Sections to sync:</span>
@@ -1334,11 +1338,18 @@ function createPlugin(host) {
                     headers: { 'Content-Type': 'application/zip' },
                     body: fileInput.files[0]
                 });
-                if (response.ok) {
+                const result = await response.json().catch(() => ({}));
+                if (response.status === 200) {
                     showToast('Data imported successfully');
                     setTimeout(() => location.reload(), 1000);
+                } else if (response.status === 207) {
+                    const errors = Object.values(result)
+                        .filter(section => section && Array.isArray(section.errors))
+                        .flatMap(section => section.errors);
+                    const detail = errors.length ? ': ' + errors.join('; ') : '';
+                    showToast('Data import partially completed' + detail, true);
                 } else {
-                    const error = await response.text();
+                    const error = result.message || result.error || ('Server returned ' + response.status);
                     showToast('Failed to import data: ' + error, true);
                 }
             } catch (e) {
@@ -1352,6 +1363,7 @@ function createPlugin(host) {
 
             const mode = document.getElementById('syncMode').value;
             const onConflict = document.getElementById('syncConflict').value;
+            const continueOnPullFailure = document.getElementById('syncContinue').checked;
             const sectionCheckboxes = document.querySelectorAll('.sync-section:checked');
             const sections = Array.from(sectionCheckboxes).map(cb => cb.value);
 
@@ -1365,19 +1377,65 @@ function createPlugin(host) {
                 const response = await fetch(baseUrl + '/api/v1/data/sync', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target, mode, onConflict, sections })
+                    body: JSON.stringify({
+                        target,
+                        mode,
+                        onConflict,
+                        sections,
+                        ...(mode === 'two_way' && continueOnPullFailure
+                            ? { continueOnPullFailure: true }
+                            : {})
+                    })
                 });
-                if (response.ok) {
-                    const result = await response.json();
+                const result = await response.json().catch(() => null);
+                const detail = syncResultDetail(result);
+                if (result && result.complete === true) {
                     showToast('Sync completed successfully');
+                } else if (result && result.partial === true) {
+                    showToast(
+                        response.status === 207
+                            ? 'Sync partially completed' + detail
+                            : 'Sync failed with partial progress' + detail,
+                        true
+                    );
                 } else {
-                    const error = await response.text();
-                    showToast('Sync failed: ' + error, true);
+                    showToast('Sync failed' + detail, true);
                 }
             } catch (e) {
                 showToast('Error syncing data: ' + e.message, true);
             }
         }
+
+        function updateSyncContinueVisibility() {
+            const enabled = document.getElementById('syncMode').value === 'two_way';
+            const option = document.getElementById('syncContinueOption');
+            const checkbox = document.getElementById('syncContinue');
+            option.style.display = enabled ? 'flex' : 'none';
+            if (!enabled) checkbox.checked = false;
+        }
+
+        function syncResultDetail(result) {
+            if (!result || typeof result !== 'object') return '';
+            const details = [];
+            Object.entries(result.phases || {}).forEach(([phase, value]) => {
+                if (!value || typeof value !== 'object') return;
+                if (value.status) details.push(phase + ': ' + value.status);
+                if (value.message) details.push(value.message);
+            });
+            Object.entries({ pull: result.pull, push: result.push }).forEach(([phase, sections]) => {
+                if (!sections || typeof sections !== 'object') return;
+                Object.entries(sections).forEach(([section, value]) => {
+                    if (!value || typeof value !== 'object') return;
+                    const errors = Array.isArray(value.errors) ? value.errors.join('; ') : '';
+                    if (value.status || errors) {
+                        details.push(phase + '.' + section + ': ' + (value.status || 'failed') + (errors ? ' (' + errors + ')' : ''));
+                    }
+                });
+            });
+            return details.length ? ': ' + details.join('; ') : '';
+        }
+
+        updateSyncContinueVisibility();
 
         // --- Plugin Management ---
         async function enablePlugin(id) {

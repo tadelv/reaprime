@@ -4,35 +4,33 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_result.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// Sync modes for data synchronization between two Decent instances.
 enum SyncMode { pull, push, twoWay }
 
-/// Exception thrown when the sync target returns an error.
 class SyncTargetException implements Exception {
+  final String error;
   final String message;
-  final int? statusCode;
-  final String? responseBody;
 
-  SyncTargetException(this.message, {this.statusCode, this.responseBody});
+  const SyncTargetException(this.error, this.message);
 
   @override
   String toString() => 'SyncTargetException: $message';
 }
 
-/// Handles data synchronization between two Decent instances.
-///
-/// Supports three modes:
-/// - **pull**: Fetch data from a remote instance and import it locally.
-/// - **push**: Export local data and send it to a remote instance.
-/// - **two_way**: Pull then push (both directions).
-///
-/// Uses the existing export/import ZIP format via [DataExportHandler].
+class _LocalExportException implements Exception {
+  final Object cause;
+
+  const _LocalExportException(this.cause);
+}
+
 class DataSyncHandler {
   static const _requestTimeout = Duration(seconds: 30);
+  static const _skippedPushMessage =
+      'Push was not attempted because pull did not complete.';
 
   final DataExportHandler _exportHandler;
   final http.Client _httpClient;
@@ -49,30 +47,27 @@ class DataSyncHandler {
   }
 
   Future<Response> _handleSync(Request request) async {
-    // Parse request body
-    final String bodyStr;
+    final dynamic decoded;
     try {
-      bodyStr = await request.readAsString();
-    } catch (e) {
-      return jsonBadRequest({'error': 'Could not read request body'});
-    }
-
-    final Map<String, dynamic> body;
-    try {
-      body = jsonDecode(bodyStr) as Map<String, dynamic>;
-    } catch (e) {
+      decoded = jsonDecode(await request.readAsString());
+    } catch (_) {
       return jsonBadRequest({'error': 'Invalid JSON'});
     }
+    if (decoded is! Map) {
+      return jsonBadRequest({
+        'error': 'Invalid JSON',
+        'message': 'The request body must be a JSON object.',
+      });
+    }
+    final body = Map<String, dynamic>.from(decoded);
 
-    // Validate required fields
-    final target = body['target'] as String?;
-    if (target == null || target.isEmpty) {
+    final target = body['target'];
+    if (target is! String || target.isEmpty) {
       return jsonBadRequest({
         'error': 'Missing required field',
         'message': '"target" is required',
       });
     }
-
     final targetUri = Uri.tryParse(target);
     if (targetUri == null ||
         !targetUri.hasScheme ||
@@ -84,163 +79,310 @@ class DataSyncHandler {
       });
     }
 
-    final modeStr = body['mode'] as String?;
-    if (modeStr == null) {
+    final modeValue = body['mode'];
+    if (modeValue is! String) {
       return jsonBadRequest({
         'error': 'Missing required field',
         'message': '"mode" is required. Valid values: pull, push, two_way',
       });
     }
-
-    final SyncMode mode;
-    switch (modeStr) {
-      case 'pull':
-        mode = SyncMode.pull;
-      case 'push':
-        mode = SyncMode.push;
-      case 'two_way':
-        mode = SyncMode.twoWay;
-      default:
-        return jsonBadRequest({
-          'error': 'Invalid mode',
-          'message': 'Valid values: pull, push, two_way',
-        });
+    final mode = _parseMode(modeValue);
+    if (mode == null) {
+      return jsonBadRequest({
+        'error': 'Invalid mode',
+        'message': 'Valid values: pull, push, two_way',
+      });
     }
 
-    final onConflict = body['onConflict'] as String? ?? 'skip';
-    final ConflictStrategy strategy;
-    switch (onConflict) {
-      case 'skip':
-        strategy = ConflictStrategy.skip;
-      case 'overwrite':
-        strategy = ConflictStrategy.overwrite;
-      default:
-        return jsonBadRequest({
-          'error': 'Invalid onConflict value',
-          'message': 'Valid values: skip, overwrite',
-        });
+    final onConflict = body['onConflict'];
+    if (onConflict != null && onConflict is! String) {
+      return jsonBadRequest({
+        'error': 'Invalid onConflict value',
+        'message': 'Valid values: skip, overwrite',
+      });
+    }
+    final strategy = _parseStrategy(onConflict as String? ?? 'skip');
+    if (strategy == null) {
+      return jsonBadRequest({
+        'error': 'Invalid onConflict value',
+        'message': 'Valid values: skip, overwrite',
+      });
     }
 
-    final sections = (body['sections'] as List<dynamic>?)?.cast<String>();
+    final continueValue = body['continueOnPullFailure'];
+    if (continueValue != null && continueValue is! bool) {
+      return jsonBadRequest({
+        'error': 'Invalid continueOnPullFailure value',
+        'message': 'continueOnPullFailure must be a boolean',
+      });
+    }
+    final continueOnPullFailure = continueValue as bool? ?? false;
+    if (continueOnPullFailure && mode != SyncMode.twoWay) {
+      return jsonBadRequest({
+        'error': 'Invalid continueOnPullFailure value',
+        'message': 'continueOnPullFailure applies only to two_way mode',
+      });
+    }
 
-    // Execute sync
-    final results = <String, dynamic>{};
-    bool pullFailed = false;
-    bool pushFailed = false;
+    final sectionsResult = _parseSections(body['sections'], mode);
+    if (sectionsResult.error != null) {
+      return jsonBadRequest(sectionsResult.error!);
+    }
+    final sections = sectionsResult.sections;
+    final expectedSections = sections ?? _exportHandler.sectionKeys;
 
-    // Pull phase
+    DataTransferPhaseOutcome? pull;
+    DataTransferPhaseOutcome? push;
+
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
       try {
-        final pullResult = await _pull(target, strategy, sections);
-        results['pull'] = pullResult;
-      } catch (e) {
-        pullFailed = true;
-        results['pull'] = _errorResult(e);
+        pull = await _pull(target, strategy, expectedSections);
+      } catch (error) {
+        pull = _failure(error);
       }
     }
 
-    // Push phase
-    if (mode == SyncMode.push || mode == SyncMode.twoWay) {
+    if (mode == SyncMode.push) {
       try {
-        final pushResult = await _push(target, strategy, sections);
-        results['push'] = pushResult;
-      } catch (e) {
-        pushFailed = true;
-        results['push'] = _errorResult(e);
+        push = await _push(target, strategy, sections, expectedSections);
+      } catch (error) {
+        push = _failure(error);
+      }
+    } else if (mode == SyncMode.twoWay) {
+      if (pull!.complete || continueOnPullFailure) {
+        try {
+          push = await _push(target, strategy, sections, expectedSections);
+        } catch (error) {
+          push = _failure(error);
+        }
+      } else {
+        push = DataTransferPhaseOutcome(
+          status: DataTransferStatus.skipped,
+          sections: {},
+          reason: 'pull_not_complete',
+          message: _skippedPushMessage,
+        );
       }
     }
 
-    // Determine response status:
-    // - 200: all phases succeeded
-    // - 207: partial success in two_way mode (one phase failed)
-    // - 502: all phases failed, or single-direction mode failed
-    if (mode == SyncMode.twoWay && (pullFailed != pushFailed)) {
-      return jsonMultiStatus(results);
-    }
-
-    if (pullFailed || pushFailed) {
-      return jsonBadGateway(results);
-    }
-
-    return jsonOk(results);
+    return _response(mode: mode, pull: pull, push: push);
   }
 
-  /// Pull data from the target instance and import it locally.
-  Future<Map<String, dynamic>> _pull(
+  Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
-    List<String>? sections,
+    List<String> expectedSections,
   ) async {
     _log.info('Pulling data from $target');
-
-    final uri = Uri.parse('$target/api/v1/data/export');
-    final response = await _httpClient.get(uri).timeout(_requestTimeout);
-
+    final response = await _httpClient
+        .get(Uri.parse('$target/api/v1/data/export'))
+        .timeout(_requestTimeout);
     if (response.statusCode != 200) {
       throw SyncTargetException(
+        'Target error',
         'Target returned status ${response.statusCode}',
-        statusCode: response.statusCode,
-        responseBody: response.body,
       );
     }
 
-    return await _exportHandler.importFromBytes(
+    final outcome = await _exportHandler.importFromBytes(
       response.bodyBytes,
       strategy,
-      sections: sections,
+      sections: expectedSections,
     );
+    return outcome.phase;
   }
 
-  /// Export local data and push it to the target instance.
-  Future<Map<String, dynamic>> _push(
+  Future<DataTransferPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
     List<String>? sections,
+    List<String> expectedSections,
   ) async {
     _log.info('Pushing data to $target');
+    final List<int> zipBytes;
+    try {
+      zipBytes = await _exportHandler.exportToBytes(sections: sections);
+    } catch (error) {
+      throw _LocalExportException(error);
+    }
 
-    final zipBytes = await _exportHandler.exportToBytes(sections: sections);
-
-    final uri = Uri.parse(
-      '$target/api/v1/data/import?onConflict=${strategy.name}',
-    );
     final response = await _httpClient
         .post(
-          uri,
+          Uri.parse('$target/api/v1/data/import?onConflict=${strategy.name}'),
           body: zipBytes,
           headers: {'Content-Type': 'application/octet-stream'},
         )
         .timeout(_requestTimeout);
-
-    if (response.statusCode != 200) {
+    if (response.statusCode != 200 && response.statusCode != 207) {
       throw SyncTargetException(
+        'Target error',
         'Target returned status ${response.statusCode}',
-        statusCode: response.statusCode,
-        responseBody: response.body,
       );
     }
 
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      return DataTransferPhaseOutcome.failed(
+        error: 'Invalid target response',
+        message: 'The target returned invalid JSON.',
+        reason: 'invalid_json',
+      );
+    }
+    return DataTransferPhaseOutcome.fromRemote(decoded, expectedSections);
   }
 
-  Map<String, dynamic> _errorResult(Object error) {
+  Response _response({
+    required SyncMode mode,
+    required DataTransferPhaseOutcome? pull,
+    required DataTransferPhaseOutcome? push,
+  }) {
+    final phases = [pull, push].whereType<DataTransferPhaseOutcome>().toList();
+    final status = _operationStatus(mode, phases);
+    final result = <String, dynamic>{
+      'status': status.name,
+      'complete': status == DataTransferStatus.complete,
+      'partial': status == DataTransferStatus.partial,
+      'mode': mode.name,
+      if (pull != null) 'pull': pull.sectionResults,
+      if (push != null) 'push': push.sectionResults,
+      'phases': {
+        if (pull != null) 'pull': pull.toMetadata(),
+        if (push != null) 'push': push.toMetadata(),
+      },
+    };
+
+    if (status == DataTransferStatus.complete) return jsonOk(result);
+    if (mode == SyncMode.twoWay && status == DataTransferStatus.partial) {
+      return jsonMultiStatus(result);
+    }
+    return jsonBadGateway(result);
+  }
+
+  DataTransferStatus _operationStatus(
+    SyncMode mode,
+    List<DataTransferPhaseOutcome> phases,
+  ) {
+    if (phases.every((phase) => phase.complete)) {
+      return DataTransferStatus.complete;
+    }
+    if (mode == SyncMode.twoWay &&
+        phases.any(
+          (phase) =>
+              phase.status == DataTransferStatus.complete ||
+              phase.status == DataTransferStatus.partial,
+        )) {
+      return DataTransferStatus.partial;
+    }
+    if (mode != SyncMode.twoWay &&
+        phases.any((phase) => phase.status == DataTransferStatus.partial)) {
+      return DataTransferStatus.partial;
+    }
+    return DataTransferStatus.failed;
+  }
+
+  DataTransferPhaseOutcome _failure(Object error) {
+    if (error is InvalidBackupException) {
+      return DataTransferPhaseOutcome.failed(
+        error: 'Invalid backup archive',
+        message: error.message,
+        reason: error.reason,
+      );
+    }
+    if (error is _LocalExportException) {
+      return DataTransferPhaseOutcome.failed(
+        error: 'Local export failed',
+        message: '${error.cause}',
+        reason: 'local_export_failed',
+      );
+    }
     if (error is SyncTargetException) {
-      return {
-        'error': 'Target error',
-        'status': error.statusCode,
-        'message': error.message,
-      };
+      return DataTransferPhaseOutcome.failed(
+        error: error.error,
+        message: error.message,
+        reason: 'target_error',
+      );
     }
     if (error is http.ClientException) {
-      return {'error': 'Target unreachable', 'message': error.message};
+      return DataTransferPhaseOutcome.failed(
+        error: 'Target unreachable',
+        message: error.message,
+        reason: 'target_unreachable',
+      );
     }
     if (error is TimeoutException) {
-      return {
-        'error': 'Target unreachable',
-        'message':
-            'Request timed out after ${_requestTimeout.inSeconds} seconds',
-      };
+      return DataTransferPhaseOutcome.failed(
+        error: 'Target unreachable',
+        message: 'Request timed out after ${_requestTimeout.inSeconds} seconds',
+        reason: 'timeout',
+      );
     }
-    return {'error': 'Sync failed', 'message': '$error'};
+    return DataTransferPhaseOutcome.failed(
+      error: 'Sync failed',
+      message: '$error',
+      reason: 'unexpected_error',
+    );
   }
+
+  _SectionsResult _parseSections(dynamic value, SyncMode mode) {
+    if (value == null) {
+      if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
+        return _SectionsResult.errorResult({
+          'error': 'Missing required field',
+          'message': '"sections" is required and must not be empty for $mode',
+        });
+      }
+      return const _SectionsResult(null);
+    }
+    if (value is! List || value.any((section) => section is! String)) {
+      return _SectionsResult.errorResult({
+        'error': 'Invalid sections value',
+        'message': 'sections must be an array of section names',
+      });
+    }
+
+    final sections = <String>[];
+    for (final section in value.cast<String>()) {
+      if (!sections.contains(section)) sections.add(section);
+    }
+    if (sections.isEmpty) {
+      return _SectionsResult.errorResult({
+        'error': 'Invalid sections value',
+        'message': 'sections must not be empty',
+      });
+    }
+    final unknown = sections
+        .where((section) => !_exportHandler.sectionKeys.contains(section))
+        .toList(growable: false);
+    if (unknown.isNotEmpty) {
+      return _SectionsResult.errorResult({
+        'error': 'Unknown section',
+        'message': 'Unknown data section(s): ${unknown.join(', ')}',
+      });
+    }
+    return _SectionsResult(sections);
+  }
+
+  SyncMode? _parseMode(String value) => switch (value) {
+    'pull' => SyncMode.pull,
+    'push' => SyncMode.push,
+    'two_way' => SyncMode.twoWay,
+    _ => null,
+  };
+
+  ConflictStrategy? _parseStrategy(String value) => switch (value) {
+    'skip' => ConflictStrategy.skip,
+    'overwrite' => ConflictStrategy.overwrite,
+    _ => null,
+  };
+}
+
+class _SectionsResult {
+  final List<String>? sections;
+  final Map<String, dynamic>? error;
+
+  const _SectionsResult(this.sections) : error = null;
+
+  const _SectionsResult.errorResult(this.error) : sections = null;
 }
