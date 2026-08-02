@@ -14,6 +14,8 @@ import 'package:rxdart/subjects.dart';
 
 enum AcaiaProtocol { ips, pyxis }
 
+enum _AcaiaFrameResult { accepted, ignored, malformed }
+
 class AcaiaScale implements Scale {
   static final _ipsService = BleServiceIdentifier.short('1820');
   static final _ipsCharacteristic = BleServiceIdentifier.short('2a80');
@@ -37,7 +39,10 @@ class AcaiaScale implements Scale {
   static const _header1 = 0xEF;
   static const _header2 = 0xDD;
   static const _metadataLength = 5;
+  static const _checksumLength = 2;
+  static const _weightBodyLength = 6;
   static const _maxPayloadLength = 64;
+  static const _recordBodyLengths = <int, int>{5: 6, 6: 1, 7: 3, 8: 1, 11: 2};
   static const _identPayload = [
     0x30,
     0x31,
@@ -62,7 +67,7 @@ class AcaiaScale implements Scale {
     0x01,
     0x02,
     0x02,
-    0x01,
+    0x05,
     0x03,
     0x04,
   ];
@@ -363,15 +368,9 @@ class AcaiaScale implements Scale {
   Future<void> resetTimer() async {}
 
   void _parseNotification(List<int> data) {
-    _buffer.addAll(data);
+    _buffer = [..._buffer, ...data];
     while (true) {
-      var headerIndex = -1;
-      for (var i = 0; i + 1 < _buffer.length; i++) {
-        if (_buffer[i] == _header1 && _buffer[i + 1] == _header2) {
-          headerIndex = i;
-          break;
-        }
-      }
+      final headerIndex = _findHeader(_buffer);
 
       if (headerIndex < 0) {
         _buffer = _buffer.isNotEmpty && _buffer.last == _header1
@@ -382,21 +381,36 @@ class AcaiaScale implements Scale {
       if (headerIndex > 0) _buffer = _buffer.sublist(headerIndex);
       if (_buffer.length < _metadataLength) return;
 
-      final payloadLength = _buffer[3];
-      if (payloadLength > _maxPayloadLength) {
-        _buffer = _buffer.sublist(2);
-        continue;
-      }
-      if (!_hasValidKnownLength(_buffer[2], payloadLength, _buffer[4])) {
+      final messageType = _buffer[2];
+      final declaredLength = _buffer[3];
+      final eventType = _buffer[4];
+      final lengthReason = _knownLengthError(
+        messageType,
+        declaredLength,
+        eventType,
+      );
+      if (declaredLength > _maxPayloadLength || lengthReason != null) {
+        _logRejectedFrame(
+          command: messageType,
+          declaredLength: declaredLength,
+          eventType: eventType,
+          reason: lengthReason ?? 'declared length exceeds maximum',
+        );
         _buffer = _buffer.sublist(2);
         continue;
       }
 
-      final frameLength = _metadataLength + payloadLength;
-      if (_buffer.length < frameLength) return;
+      final frameLength = _metadataLength + declaredLength;
+      if (_buffer.length < frameLength) {
+        if (_resyncPartialWeightFrame(messageType, eventType)) continue;
+        return;
+      }
       final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
       _buffer = _buffer.sublist(frameLength);
-      if (_processFrame(frame)) {
+      final result = _processFrame(frame);
+      if (result == _AcaiaFrameResult.malformed) {
+        _resyncMalformedFrame(frame);
+      } else if (result == _AcaiaFrameResult.accepted) {
         _lastValidFrame = DateTime.now();
         if (_protocol == AcaiaProtocol.pyxis &&
             _connectionStateController.value == ConnectionState.connected) {
@@ -406,17 +420,102 @@ class AcaiaScale implements Scale {
     }
   }
 
-  bool _hasValidKnownLength(int messageType, int payloadLength, int eventType) {
-    if (messageType == 0x08) return payloadLength == 3;
-    if (messageType != 0x0C) return true;
-    return switch (eventType) {
-      5 => payloadLength == 6,
-      11 => payloadLength == 9,
-      _ => true,
-    };
+  int _findHeader(List<int> data, {int start = 0}) {
+    for (var i = start; i + 1 < data.length; i++) {
+      if (data[i] == _header1 && data[i + 1] == _header2) return i;
+    }
+    return -1;
   }
 
-  bool _processFrame(List<int> frame) {
+  String? _knownLengthError(
+    int messageType,
+    int declaredLength,
+    int eventType,
+  ) {
+    if (messageType == 0x08) {
+      return declaredLength == 3
+          ? null
+          : 'settings frame requires declared length 3';
+    }
+    if (messageType != 0x0C) return null;
+    final minimumLength = switch (eventType) {
+      5 => 2 + _weightBodyLength,
+      11 => 8,
+      _ => 2,
+    };
+    return declaredLength >= minimumLength
+        ? null
+        : 'declared length is below the minimum for event type $eventType';
+  }
+
+  bool _resyncPartialWeightFrame(int messageType, int eventType) {
+    if (messageType != 0x0C) return false;
+    final weightOffset = switch (eventType) {
+      5 => _metadataLength,
+      11
+          when _buffer.length > _metadataLength + 2 &&
+              _buffer[_metadataLength + 2] == 5 =>
+        _metadataLength + 3,
+      _ => -1,
+    };
+    if (weightOffset < 0 || !_hasValidWeightBody(_buffer, weightOffset)) {
+      final bodyEnd = weightOffset + _weightBodyLength;
+      if (weightOffset >= 0 && _buffer.length >= bodyEnd) {
+        final nextHeader = _findHeader(_buffer, start: 2);
+        if (nextHeader >= 0 && nextHeader < bodyEnd) {
+          _logRejectedFrame(
+            command: messageType,
+            declaredLength: _buffer[3],
+            eventType: eventType,
+            innerTag: eventType == 11 ? _buffer[7] : null,
+            reason: 'invalid weight body before the next frame',
+          );
+          _buffer = _buffer.sublist(nextHeader);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void _resyncMalformedFrame(List<int> frame) {
+    final nextHeader = _findHeader(frame, start: 2);
+    if (nextHeader >= 0) {
+      _buffer = [...frame.sublist(nextHeader), ..._buffer];
+    }
+  }
+
+  void _logRejectedFrame({
+    required int command,
+    required int declaredLength,
+    int? eventType,
+    int? innerTag,
+    required String reason,
+  }) {
+    final event = eventType == null ? '' : ' eventType=$eventType';
+    final inner = innerTag == null ? '' : ' innerTag=$innerTag';
+    _log.fine(
+      'Rejected Acaia frame command=$command declaredLength=$declaredLength'
+      '$event$inner: $reason',
+    );
+  }
+
+  _AcaiaFrameResult _rejectFrame(
+    List<int> frame,
+    String reason, {
+    int? innerTag,
+  }) {
+    _logRejectedFrame(
+      command: frame[2],
+      declaredLength: frame[3],
+      eventType: frame[4],
+      innerTag: innerTag,
+      reason: reason,
+    );
+    return _AcaiaFrameResult.malformed;
+  }
+
+  _AcaiaFrameResult _processFrame(List<int> frame) {
     final messageType = frame[2];
     final eventType = frame[4];
 
@@ -428,27 +527,94 @@ class AcaiaScale implements Scale {
         _badBatteryLogged = true;
         _log.warning('Ignoring out-of-range Acaia battery value $battery');
       }
-      return true;
+      return _AcaiaFrameResult.accepted;
     }
-    if (messageType != 0x0C) return false;
+    if (messageType != 0x0C) return _AcaiaFrameResult.ignored;
 
+    final payload = frame.sublist(
+      _metadataLength,
+      frame.length - _checksumLength,
+    );
     if (eventType == 5) {
-      _decodeWeight(frame, _metadataLength);
-      return true;
+      if (payload.length < _weightBodyLength) {
+        return _rejectFrame(frame, 'incomplete direct weight body');
+      }
+      if (!_hasValidWeightBody(payload, 0)) {
+        return _rejectFrame(frame, 'invalid direct weight body');
+      }
+      if (!_hasCompleteRecordChain(payload, _weightBodyLength)) {
+        return _rejectFrame(frame, 'incomplete or unknown trailing record');
+      }
+      _decodeWeight(payload.sublist(0, _weightBodyLength));
+      return _AcaiaFrameResult.accepted;
     }
-    if (eventType != 11) return false;
-    if (frame[7] == 7) return true;
-    if (frame[7] != 5) return false;
-    _decodeWeight(frame, _metadataLength + 3);
+    if (eventType != 11) return _AcaiaFrameResult.ignored;
+    if (payload.length < 3) {
+      return _rejectFrame(frame, 'incomplete heartbeat wrapper');
+    }
+
+    final innerTag = payload[2];
+    final innerBodyLength = _recordBodyLengths[innerTag];
+    if (innerBodyLength == null) {
+      return _rejectFrame(
+        frame,
+        'unknown heartbeat inner tag',
+        innerTag: innerTag,
+      );
+    }
+    final innerBodyStart = 3;
+    if (payload.length < innerBodyStart + innerBodyLength) {
+      return _rejectFrame(
+        frame,
+        'incomplete heartbeat inner record',
+        innerTag: innerTag,
+      );
+    }
+    if (!_hasCompleteRecordChain(payload, innerBodyStart + innerBodyLength)) {
+      return _rejectFrame(
+        frame,
+        'incomplete or unknown heartbeat trailing record',
+        innerTag: innerTag,
+      );
+    }
+    if (innerTag == 5) {
+      if (!_hasValidWeightBody(payload, innerBodyStart)) {
+        return _rejectFrame(
+          frame,
+          'invalid heartbeat weight body',
+          innerTag: innerTag,
+        );
+      }
+      _decodeWeight(
+        payload.sublist(innerBodyStart, innerBodyStart + _weightBodyLength),
+      );
+    }
+    return _AcaiaFrameResult.accepted;
+  }
+
+  bool _hasValidWeightBody(List<int> payload, int offset) {
+    if (offset + _weightBodyLength > payload.length) return false;
+    final unit = payload[offset + 4];
+    final flags = payload[offset + 5];
+    return unit >= 1 && unit <= 4 && flags <= 2;
+  }
+
+  bool _hasCompleteRecordChain(List<int> payload, int offset) {
+    while (offset < payload.length) {
+      final bodyLength = _recordBodyLengths[payload[offset]];
+      if (bodyLength == null || offset + 1 + bodyLength > payload.length) {
+        return false;
+      }
+      offset += 1 + bodyLength;
+    }
     return true;
   }
 
-  void _decodeWeight(List<int> frame, int offset) {
-    final magnitude =
-        (frame[offset + 2] << 16) | (frame[offset + 1] << 8) | frame[offset];
-    final exponent = frame[offset + 4];
+  void _decodeWeight(List<int> body) {
+    final magnitude = (body[2] << 16) | (body[1] << 8) | body[0];
+    final exponent = body[4];
     var weight = magnitude / pow(10, exponent);
-    if (frame[offset + 5] > 1) weight *= -1;
+    if (body[5] > 1) weight *= -1;
     _hasValidWeight = true;
     _streamController.add(
       ScaleSnapshot(
