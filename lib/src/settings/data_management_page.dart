@@ -21,6 +21,7 @@ import 'package:reaprime/src/import/widgets/import_summary_view.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/settings/backup_import_response.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
@@ -536,13 +537,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
         final response = await request.close();
         final responseBody = await response.transform(utf8.decoder).join();
 
-        if (response.statusCode != 200) {
-          throw Exception(
-            'Server returned ${response.statusCode}: $responseBody',
-          );
-        }
-
-        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
+        final importResponse = BackupImportResponse.fromHttp(
+          response.statusCode,
+          responseBody,
+        );
 
         if (!mounted) return;
 
@@ -552,12 +550,21 @@ class _DataManagementPageState extends State<DataManagementPage> {
         if (!mounted) return;
 
         // Show result summary
-        await _showImportResultDialog(responseJson);
+        await _showImportResultDialog(importResponse);
 
-        // Notify listeners that shots have changed
-        widget.persistenceController.notifyShotsChanged();
+        if (importResponse.shouldNotifyShotsChanged) {
+          widget.persistenceController.notifyShotsChanged();
+        }
       } finally {
         client.close();
+      }
+    } on BackupImportException catch (e) {
+      _log.severe("Failed to import backup", e);
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       _log.severe("Failed to import backup", e);
@@ -896,15 +903,20 @@ class _DataManagementPageState extends State<DataManagementPage> {
     }
   }
 
-  Future<void> _showImportResultDialog(Map<String, dynamic> response) async {
+  Future<void> _showImportResultDialog(BackupImportResponse response) async {
     final sections = <Widget>[];
 
-    for (final entry in response.entries) {
+    for (final entry in response.sections.entries) {
       if (entry.value is Map<String, dynamic>) {
         final data = entry.value as Map<String, dynamic>;
         final imported = data['imported'] ?? 0;
         final skipped = data['skipped'] ?? 0;
-        final errors = data['errors'] as List<dynamic>? ?? [];
+        final errors = data['errors'] is List
+            ? data['errors'] as List<dynamic>
+            : const <dynamic>[];
+        final warnings = data['warnings'] is List
+            ? data['warnings'] as List<dynamic>
+            : const <dynamic>[];
 
         sections.add(
           Text(
@@ -916,12 +928,16 @@ class _DataManagementPageState extends State<DataManagementPage> {
         for (final error in errors) {
           sections.add(
             Text(
-              '  Warning: $error',
+              '  Error: $error',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.error,
               ),
             ),
           );
+        }
+
+        for (final warning in warnings) {
+          sections.add(Text('  Warning: $warning'));
         }
       }
     }
@@ -929,7 +945,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     await showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-        title: const Text('Import Complete'),
+        title: Text(backupImportDialogTitle(response.status)),
         actions: [
           ShadButton(
             onPressed: () => Navigator.of(context).pop(),

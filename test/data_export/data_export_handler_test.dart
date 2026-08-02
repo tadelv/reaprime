@@ -126,6 +126,14 @@ void main() {
     return ZipEncoder().encode(archive);
   }
 
+  List<int> buildZipEntries(Map<String, String> files) {
+    final archive = Archive();
+    for (final entry in files.entries) {
+      archive.addFile(ArchiveFile.string(entry.key, entry.value));
+    }
+    return ZipEncoder().encode(archive);
+  }
+
   group('DataExportHandler', () {
     group('GET /api/v1/data/export', () {
       test(
@@ -286,19 +294,64 @@ void main() {
         expect(body['error'], 'Invalid onConflict value');
       });
 
-      test('returns 200 with empty results for unrecognized data', () async {
-        // The archive library is lenient: unrecognized bytes produce an empty
-        // archive rather than throwing ArchiveException. The handler treats
-        // that as "nothing to import" and returns an empty summary.
+      test(
+        'returns 400 when the body is not a recognized backup archive',
+        () async {
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: [0, 1, 2, 3, 4, 5],
+          );
+
+          expect(response.statusCode, 400);
+          expect(
+            response.headers['content-type'],
+            contains('application/json'),
+          );
+          final body =
+              jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+          expect(body['error'], 'Invalid backup archive');
+          expect(body['message'], contains('recognized data sections'));
+          expect(body, isNot(contains('profiles')));
+        },
+      );
+
+      test('returns 400 for an empty ZIP', () async {
         final response = await sendPost(
           '/api/v1/data/import',
-          body: [0, 1, 2, 3, 4, 5],
+          body: buildZip({}),
         );
 
-        expect(response.statusCode, 200);
+        expect(response.statusCode, 400);
         final body = jsonDecode(await response.readAsString());
-        // No sections matched, so results are empty
-        expect(body, isEmpty);
+        expect(body['error'], 'Invalid backup archive');
+        expect(body['message'], contains('recognized data sections'));
+      });
+
+      test(
+        'returns 400 for an archive containing only unknown files',
+        () async {
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: buildZip({'notes.txt': 'not a backup', 'unknown.json': {}}),
+          );
+
+          expect(response.statusCode, 400);
+          expect(profileSection.importCalled, isFalse);
+          expect(shotsSection.importCalled, isFalse);
+        },
+      );
+
+      test('returns 400 for a metadata-only archive', () async {
+        final response = await sendPost(
+          '/api/v1/data/import',
+          body: buildZip({
+            'metadata.json': {'formatVersion': 1},
+          }),
+        );
+
+        expect(response.statusCode, 400);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['message'], contains('recognized data sections'));
       });
 
       test('returns 400 when formatVersion is too high', () async {
@@ -310,9 +363,51 @@ void main() {
 
         expect(response.statusCode, 400);
         final body = jsonDecode(await response.readAsString());
-        expect(body['error'], 'Unsupported export format');
+        expect(body['error'], 'Invalid backup archive');
         expect(body['message'], contains('999'));
       });
+
+      test('returns 400 for malformed metadata JSON', () async {
+        final response = await sendPost(
+          '/api/v1/data/import',
+          body: buildZipEntries({
+            'metadata.json': '{not json',
+            'profiles.json': '{}',
+          }),
+        );
+
+        expect(response.statusCode, 400);
+        expect(profileSection.importCalled, isFalse);
+      });
+
+      test('returns 400 when metadata is not an object', () async {
+        final response = await sendPost(
+          '/api/v1/data/import',
+          body: buildZip({
+            'metadata.json': ['not', 'an', 'object'],
+            'profiles.json': {},
+          }),
+        );
+
+        expect(response.statusCode, 400);
+        expect(profileSection.importCalled, isFalse);
+      });
+
+      test(
+        'returns 400 when metadata formatVersion has the wrong type',
+        () async {
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: buildZip({
+              'metadata.json': {'formatVersion': '1'},
+              'profiles.json': {},
+            }),
+          );
+
+          expect(response.statusCode, 400);
+          expect(profileSection.importCalled, isFalse);
+        },
+      );
 
       test('succeeds when metadata.json is missing from archive', () async {
         final zipBytes = buildZip({
@@ -341,6 +436,134 @@ void main() {
         expect(shotsSection.importCalled, isFalse);
       });
 
+      test(
+        'returns 207 when one section succeeds and another throws',
+        () async {
+          final failingSection = FailingExportSection(filename: 'failing.json');
+          final handlerWithFailure = DataExportHandler(
+            sections: [profileSection, failingSection],
+          );
+
+          final app = Router().plus;
+          handlerWithFailure.addRoutes(app);
+          final testHandler = app.call;
+          final response = await testHandler(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/v1/data/import'),
+              body: buildZip({
+                'metadata.json': {'formatVersion': 1},
+                'profiles.json': {},
+                'failing.json': {},
+              }),
+              headers: {'content-type': 'application/octet-stream'},
+            ),
+          );
+
+          expect(response.statusCode, 207);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['profiles']['imported'], 1);
+          expect(body['failing']['errors'], isList);
+        },
+      );
+
+      test('returns 207 when a section result contains errors', () async {
+        final errorSection = MockExportSection(
+          filename: 'profiles.json',
+          importResult: const SectionImportResult(
+            imported: 2,
+            errors: ['One record could not be imported'],
+          ),
+        );
+        final handlerWithError = DataExportHandler(sections: [errorSection]);
+        final app = Router().plus;
+        handlerWithError.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/import'),
+            body: buildZip({'profiles.json': {}}),
+            headers: {'content-type': 'application/octet-stream'},
+          ),
+        );
+
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['profiles']['imported'], 2);
+        expect(
+          body['profiles']['errors'],
+          contains('One record could not be imported'),
+        );
+      });
+
+      test('warnings and skipped records alone return 200', () async {
+        final warningSection = MockExportSection(
+          filename: 'profiles.json',
+          importResult: const SectionImportResult(
+            skipped: 3,
+            warnings: ['Device preferences need re-pairing'],
+          ),
+        );
+        final handlerWithWarning = DataExportHandler(
+          sections: [warningSection],
+        );
+        final app = Router().plus;
+        handlerWithWarning.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/import'),
+            body: buildZip({'profiles.json': {}}),
+            headers: {'content-type': 'application/octet-stream'},
+          ),
+        );
+
+        expect(response.statusCode, 200);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['profiles']['skipped'], 3);
+        expect(body['profiles']['warnings'], isNotEmpty);
+      });
+
+      test('returns 207 when every recognized section fails', () async {
+        final handlerWithFailures = DataExportHandler(
+          sections: [
+            FailingExportSection(filename: 'profiles.json'),
+            FailingExportSection(filename: 'shots.json'),
+          ],
+        );
+        final app = Router().plus;
+        handlerWithFailures.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/import'),
+            body: buildZip({'profiles.json': {}, 'shots.json': {}}),
+            headers: {'content-type': 'application/octet-stream'},
+          ),
+        );
+
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body.keys, containsAll(['profiles', 'shots']));
+        expect(body['profiles']['errors'], isNotEmpty);
+        expect(body['shots']['errors'], isNotEmpty);
+      });
+
+      test('returns 207 for malformed JSON in a recognized section', () async {
+        final response = await sendPost(
+          '/api/v1/data/import',
+          body: buildZipEntries({
+            'profiles.json': '{not json',
+            'shots.json': '{}',
+          }),
+        );
+
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['profiles']['errors'], isNotEmpty);
+        expect(body['shots']['imported'], 2);
+      });
+
       test('reports errors when a section import fails', () async {
         final failingSection = FailingExportSection(filename: 'failing.json');
         final handlerWithFailure = DataExportHandler(
@@ -365,7 +588,7 @@ void main() {
           ),
         );
 
-        expect(response.statusCode, 200);
+        expect(response.statusCode, 207);
         final body = jsonDecode(await response.readAsString());
         expect(body['failing']['errors'], isList);
         expect((body['failing']['errors'] as List).first, contains('Failed'));
@@ -408,15 +631,50 @@ void main() {
           },
         });
 
-        final results = await handler.importFromBytes(
+        final outcome = await handler.importFromBytes(
           zipBytes,
           ConflictStrategy.skip,
         );
 
-        expect(results, contains('profiles'));
-        expect(results, contains('shots'));
+        expect(outcome.recognizedSections, 2);
+        expect(outcome.isPartial, isFalse);
+        expect(outcome.sectionResults, contains('profiles'));
+        expect(outcome.sectionResults, contains('shots'));
         expect(profileSection.importCalled, isTrue);
         expect(shotsSection.importCalled, isTrue);
+      });
+
+      test('returned section errors mark the outcome partial', () async {
+        final errorSection = MockExportSection(
+          filename: 'profiles.json',
+          importResult: const SectionImportResult(
+            imported: 2,
+            errors: ['bad record'],
+          ),
+        );
+        final outcome = await DataExportHandler(sections: [errorSection])
+            .importFromBytes(
+              buildZip({'profiles.json': {}}),
+              ConflictStrategy.skip,
+            );
+
+        expect(outcome.recognizedSections, 1);
+        expect(outcome.isPartial, isTrue);
+        expect(outcome.failedSections, contains('profiles'));
+      });
+
+      test('thrown section errors mark the outcome partial', () async {
+        final outcome =
+            await DataExportHandler(
+              sections: [FailingExportSection(filename: 'profiles.json')],
+            ).importFromBytes(
+              buildZip({'profiles.json': {}}),
+              ConflictStrategy.skip,
+            );
+
+        expect(outcome.recognizedSections, 1);
+        expect(outcome.isPartial, isTrue);
+        expect(outcome.sectionResults['profiles']['errors'], isNotEmpty);
       });
 
       test('filters sections when specified', () async {
@@ -434,27 +692,88 @@ void main() {
           },
         });
 
-        final results = await handler.importFromBytes(
+        final outcome = await handler.importFromBytes(
           zipBytes,
           ConflictStrategy.skip,
           sections: ['profiles'],
         );
 
-        expect(results, contains('profiles'));
-        expect(results, isNot(contains('shots')));
+        expect(outcome.recognizedSections, 1);
+        expect(outcome.sectionResults, contains('profiles'));
+        expect(outcome.sectionResults, isNot(contains('shots')));
         expect(profileSection.importCalled, isTrue);
         expect(shotsSection.importCalled, isFalse);
       });
 
-      test('throws FormatException for unsupported format version', () async {
-        final zipBytes = buildZip({
-          'metadata.json': {'formatVersion': 99},
-        });
+      test(
+        'throws InvalidBackupException for unsupported format version',
+        () async {
+          final zipBytes = buildZip({
+            'metadata.json': {'formatVersion': 99},
+          });
 
+          expect(
+            () => handler.importFromBytes(zipBytes, ConflictStrategy.skip),
+            throwsA(isA<InvalidBackupException>()),
+          );
+        },
+      );
+
+      test(
+        'throws InvalidBackupException when no recognized section exists',
+        () async {
+          expect(
+            () => handler.importFromBytes(
+              buildZip({
+                'metadata.json': {'formatVersion': 1},
+              }),
+              ConflictStrategy.skip,
+            ),
+            throwsA(isA<InvalidBackupException>()),
+          );
+        },
+      );
+
+      test(
+        'throws InvalidBackupException for an unknown selected section',
+        () async {
+          expect(
+            () => handler.importFromBytes(
+              buildZip({'profiles.json': {}}),
+              ConflictStrategy.skip,
+              sections: ['unknown'],
+            ),
+            throwsA(isA<InvalidBackupException>()),
+          );
+        },
+      );
+
+      test('rejects a selected section absent from the archive', () async {
         expect(
-          () => handler.importFromBytes(zipBytes, ConflictStrategy.skip),
-          throwsA(isA<FormatException>()),
+          () => handler.importFromBytes(
+            buildZip({'shots.json': {}}),
+            ConflictStrategy.skip,
+            sections: ['profiles'],
+          ),
+          throwsA(isA<InvalidBackupException>()),
         );
+      });
+
+      test('does not import unselected sections or their failures', () async {
+        final failingSection = FailingExportSection(filename: 'shots.json');
+        final selectedHandler = DataExportHandler(
+          sections: [profileSection, failingSection],
+        );
+
+        final outcome = await selectedHandler.importFromBytes(
+          buildZip({'profiles.json': {}, 'shots.json': {}}),
+          ConflictStrategy.skip,
+          sections: ['profiles', 'profiles'],
+        );
+
+        expect(outcome.isPartial, isFalse);
+        expect(outcome.recognizedSections, 1);
+        expect(profileSection.importCalled, isTrue);
       });
     });
   });
