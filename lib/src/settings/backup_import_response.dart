@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum BackupImportStatus { complete, partial }
+enum BackupImportStatus { complete, partial, failed }
 
 class BackupImportException implements Exception {
   final String message;
@@ -42,7 +42,7 @@ class BackupImportResponse {
       }
       return BackupImportResponse(
         status: statusCode == 207
-            ? BackupImportStatus.partial
+            ? _statusForSections(Map<String, dynamic>.from(decoded))
             : BackupImportStatus.complete,
         sections: Map<String, dynamic>.from(decoded),
       );
@@ -53,9 +53,25 @@ class BackupImportResponse {
         : 'The server returned status $statusCode.';
     throw BackupImportException(message, statusCode: statusCode);
   }
+
+  static BackupImportStatus _statusForSections(Map<String, dynamic> sections) =>
+      sections.values.any(_hasProgress)
+      ? BackupImportStatus.partial
+      : BackupImportStatus.failed;
+
+  static bool _hasProgress(dynamic value) {
+    if (value is! Map) return false;
+    final status = value['status'];
+    if (status == 'complete' || status == 'partial') return true;
+    return _positiveCount(value['imported']) ||
+        _positiveCount(value['skipped']);
+  }
+
+  static bool _positiveCount(dynamic value) => value is int && value > 0;
 }
 
-String backupImportDialogTitle(BackupImportStatus status) =>
-    status == BackupImportStatus.partial
-    ? 'Import Partially Complete'
-    : 'Import Complete';
+String backupImportDialogTitle(BackupImportStatus status) => switch (status) {
+  BackupImportStatus.complete => 'Import Complete',
+  BackupImportStatus.partial => 'Import Partially Complete',
+  BackupImportStatus.failed => 'Import Completed with Errors',
+};

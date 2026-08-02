@@ -93,16 +93,29 @@ void main() {
 
   group('DataSyncHandler', () {
     group('validation', () {
-      test('requires sections for pull and two_way', () async {
-        final handler = buildSyncHandler(
-          http_testing.MockClient((_) async => http.Response('', 200)),
-        );
+      test('uses all registered sections when sections are omitted', () async {
+        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+        final client = http_testing.MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response.bytes(targetZip, 200);
+          }
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
+        });
+        final handler = buildSyncHandler(client);
 
         for (final mode in ['pull', 'two_way']) {
           final response = await sendSync(handler, requestBody(mode: mode));
           final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 400);
-          expect(body['message'], contains('sections'));
+          expect(response.statusCode, 200);
+          expect(body['pull']['profiles']['status'], 'complete');
+          expect(body['pull']['shots']['status'], 'complete');
+          if (mode == 'two_way') {
+            expect(body['push']['profiles']['status'], 'complete');
+            expect(body['push']['shots']['status'], 'complete');
+          }
         }
       });
 
@@ -248,6 +261,24 @@ void main() {
         expect(body['push']['profiles']['imported'], 2);
         expect(body['push']['shots']['errors'], contains('bad row'));
       });
+
+      test(
+        'treats remote 207 as partial even with complete sections',
+        () async {
+          final client = http_testing.MockClient(
+            (_) async => http.Response('{"profiles":{"imported":2}}', 207),
+          );
+          final response = await sendSync(
+            buildSyncHandler(client),
+            requestBody(mode: 'push', selectedSections: ['profiles']),
+          );
+          final body = jsonDecode(await response.readAsString());
+
+          expect(response.statusCode, 502);
+          expect(body['push']['profiles']['status'], 'complete');
+          expect(body['phases']['push']['status'], 'partial');
+        },
+      );
 
       test('honors a structured remote failed phase', () async {
         final client = http_testing.MockClient(
@@ -414,6 +445,24 @@ void main() {
         expect(response.statusCode, 502);
         expect(body['status'], 'failed');
         expect(body['phases']['pull']['status'], 'failed');
+      });
+
+      test('preserves fatal target details at the legacy pull path', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response('Target unavailable', 503),
+        );
+        final response = await sendSync(
+          buildSyncHandler(client),
+          requestBody(mode: 'pull', selectedSections: ['profiles']),
+        );
+        final body = jsonDecode(await response.readAsString());
+
+        expect(response.statusCode, 502);
+        expect(body['pull']['error'], 'Target error');
+        expect(body['pull']['message'], 'Target returned status 503');
+        expect(body['pull']['status'], 503);
+        expect(body['phases']['pull']['status'], 'failed');
+        expect(body['phases']['pull']['statusCode'], 503);
       });
 
       test('returns complete only when all sections import cleanly', () async {

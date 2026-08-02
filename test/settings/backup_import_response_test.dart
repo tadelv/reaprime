@@ -23,6 +23,19 @@ void main() {
     expect(response.sections['shots']['errors'], contains('bad row'));
   });
 
+  test('207 with only failed sections does not claim partial completion', () {
+    final response = BackupImportResponse.fromHttp(
+      207,
+      '{"profiles":{"status":"failed","errors":["bad row"]}}',
+    );
+
+    expect(response.status, BackupImportStatus.failed);
+    expect(
+      backupImportDialogTitle(response.status),
+      'Import Completed with Errors',
+    );
+  });
+
   test('partial UI state does not use complete-success wording', () {
     expect(
       backupImportDialogTitle(BackupImportStatus.partial),
@@ -35,8 +48,12 @@ void main() {
   });
 
   test('partial results can refresh changed data', () {
-    final response = BackupImportResponse.fromHttp(207, '{}');
+    final response = BackupImportResponse.fromHttp(
+      207,
+      '{"profiles":{"imported":1},"shots":{"errors":["bad row"]}}',
+    );
 
+    expect(response.status, BackupImportStatus.partial);
     expect(response.shouldNotifyShotsChanged, isTrue);
   });
 

@@ -1344,11 +1344,21 @@ function createPlugin(host) {
                     showToast('Data imported successfully');
                     setTimeout(() => location.reload(), 1000);
                 } else if (response.status === 207) {
-                    const errors = Object.values(result)
+                    const sections = Object.values(result).filter(section => section && typeof section === 'object');
+                    const hasProgress = sections.some(section =>
+                        section.status === 'complete' ||
+                        section.status === 'partial' ||
+                        (Number.isInteger(section.imported) && section.imported > 0) ||
+                        (Number.isInteger(section.skipped) && section.skipped > 0)
+                    );
+                    const errors = sections
                         .filter(section => section && Array.isArray(section.errors))
                         .flatMap(section => section.errors);
                     const detail = errors.length ? ': ' + errors.join('; ') : '';
-                    showToast('Data import partially completed' + detail, true);
+                    showToast(
+                        (hasProgress ? 'Data import partially completed' : 'Data import completed with errors') + detail,
+                        true
+                    );
                 } else {
                     const error = result.message || result.error || ('Server returned ' + response.status);
                     showToast('Failed to import data: ' + error, true);

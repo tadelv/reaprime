@@ -3868,8 +3868,8 @@ paths:
         - **push**: exports data from this instance to the target
         - **two_way**: performs pull then push only after a complete pull by default
 
-        Pull and two_way requests require a nonempty explicit sections list.
-        Push may omit sections, which means all locally registered sections.
+        Sections may be omitted, which means all locally registered sections.
+        An explicitly empty sections list is invalid.
         Duplicate names are deduplicated in first-occurrence order and
         unknown names return 400. Semantic status is derived from section
         results rather than HTTP 200 alone. Existing direct section maps stay
@@ -3911,9 +3911,9 @@ paths:
                   minItems: 1
                   uniqueItems: false
                   description: |
-                    Data sections to sync. Required and nonempty for pull and
-                    two_way. Optional for push; omission means all locally
-                    registered sections. Duplicate names are deduplicated in
+                    Data sections to sync. Optional for every mode; omission
+                    means all locally registered sections. An explicitly empty
+                    list is invalid. Duplicate names are deduplicated in
                     first-occurrence order.
                 continueOnPullFailure:
                   type: boolean
@@ -6010,6 +6010,34 @@ components:
           type: string
         reason:
           type: string
+        statusCode:
+          type: integer
+          format: int32
+
+    SyncLegacyPhaseResult:
+      type: object
+      required: [error, message]
+      description: Fatal phase details preserved at the legacy pull or push path
+      properties:
+        status:
+          oneOf:
+            - type: string
+              enum: [complete, partial, failed, skipped]
+            - type: integer
+              format: int32
+        complete:
+          type: boolean
+        partial:
+          type: boolean
+        error:
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        statusCode:
+          type: integer
+          format: int32
 
     SyncResult:
       type: object
@@ -6030,15 +6058,19 @@ components:
           type: string
           enum: [pull, push, two_way]
         pull:
-          type: object
-          description: Per-section results for the pull phase, preserved at direct paths
-          additionalProperties:
-            $ref: "#/components/schemas/SectionImportResult"
+          oneOf:
+            - type: object
+              description: Per-section results for the pull phase, preserved at direct paths
+              additionalProperties:
+                $ref: "#/components/schemas/SectionImportResult"
+            - $ref: "#/components/schemas/SyncLegacyPhaseResult"
         push:
-          type: object
-          description: Per-section results for the push phase, preserved at direct paths
-          additionalProperties:
-            $ref: "#/components/schemas/SectionImportResult"
+          oneOf:
+            - type: object
+              description: Per-section results for the push phase, preserved at direct paths
+              additionalProperties:
+                $ref: "#/components/schemas/SectionImportResult"
+            - $ref: "#/components/schemas/SyncLegacyPhaseResult"
         phases:
           type: object
           properties:
