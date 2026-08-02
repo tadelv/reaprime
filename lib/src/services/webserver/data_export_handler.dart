@@ -81,6 +81,8 @@ class DataExportHandler {
   DataExportHandler({required List<DataExportSection> sections})
     : _sections = sections;
 
+  List<String> get sectionKeys => List.unmodifiable(_sections.map(_sectionKey));
+
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/data/export', _handleExport);
     app.post('/api/v1/data/import', _handleImport);

@@ -223,7 +223,7 @@ class DataSyncHandler {
       response.bodyBytes,
       strategy,
       sections: sections,
-      strictSections: sections != null,
+      strictSections: true,
     );
     return SyncPhaseOutcome(
       status: switch (outcome.status) {
@@ -284,8 +284,26 @@ class DataSyncHandler {
     }
 
     final result = Map<String, dynamic>.from(decoded);
-    final sectionResults = result.entries
-        .where((entry) => entry.key != 'phaseStatus' && entry.value is Map)
+    final expectedSections = (sections ?? _exportHandler.sectionKeys).toSet();
+    final normalizedResult = Map<String, dynamic>.from(result);
+    for (final section in expectedSections) {
+      normalizedResult[section] = _normalizeSectionResult(
+        result[section],
+        section,
+      );
+    }
+    for (final entry in result.entries) {
+      if (entry.key != 'phaseStatus' &&
+          !expectedSections.contains(entry.key) &&
+          entry.value is Map) {
+        normalizedResult[entry.key] = _normalizeSectionResult(
+          entry.value,
+          entry.key,
+        );
+      }
+    }
+    final sectionResults = expectedSections
+        .map((section) => MapEntry(section, normalizedResult[section]))
         .toList(growable: false);
     if (sectionResults.isEmpty) {
       throw SyncTargetException(
@@ -311,7 +329,7 @@ class DataSyncHandler {
           : failedSections == sectionResults.length
           ? SyncPhaseStatus.failed
           : SyncPhaseStatus.partial,
-      result: result,
+      result: normalizedResult,
     );
   }
 
@@ -355,6 +373,28 @@ class DataSyncHandler {
     final skipped = value['skipped'];
     return !((imported is num && imported > 0) ||
         (skipped is num && skipped > 0));
+  }
+
+  Map<String, dynamic> _normalizeSectionResult(Object? value, String section) {
+    if (value is! Map) {
+      return {
+        'imported': 0,
+        'skipped': 0,
+        'status': DataOutcomeStatus.failed.name,
+        'errors': ['Target returned no result for section: $section.'],
+      };
+    }
+    final normalized = Map<String, dynamic>.from(value);
+    final status = normalized['status'];
+    if (status is! String ||
+        !DataOutcomeStatus.values.any((value) => value.name == status)) {
+      normalized['status'] = _isCompleteSection(normalized)
+          ? DataOutcomeStatus.complete.name
+          : _isFailedSection(normalized)
+          ? DataOutcomeStatus.failed.name
+          : DataOutcomeStatus.partial.name;
+    }
+    return normalized;
   }
 
   Map<String, dynamic> _errorResult(Object error) {

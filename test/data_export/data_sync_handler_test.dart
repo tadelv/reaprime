@@ -338,22 +338,20 @@ void main() {
         expect(body['pull']['profiles']['errors'], contains('bad row'));
       });
 
-      test(
-        'pull returns 502 for an archive with no recognized sections',
-        () async {
-          final client = http_testing.MockClient(
-            (_) async => http.Response.bytes(buildZip({}), 200),
-          );
-          final handler = buildSyncHandler(client);
-          final response = await sendSync(handler, {
-            'target': 'http://192.168.1.50:8080',
-            'mode': 'pull',
-          });
-          expect(response.statusCode, 502);
-          final body = jsonDecode(await response.readAsString());
-          expect(body['pull']['error'], 'Invalid backup archive');
-        },
-      );
+      test('pull reports missing sections for an empty archive', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response.bytes(buildZip({}), 200),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'pull',
+        });
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['pull']['phaseStatus'], 'failed');
+        expect(body['pull']['profiles']['status'], 'failed');
+      });
     });
 
     group('push mode', () {
@@ -457,8 +455,56 @@ void main() {
           final body = jsonDecode(await response.readAsString());
           expect(body['push']['phaseStatus'], 'failed');
           expect(body['push']['profiles']['errors'], contains('bad row'));
+          expect(body['push']['profiles']['status'], 'failed');
         },
       );
+
+      test('push accounts for a missing explicit section result', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response('{"profiles":{"imported":1}}', 200),
+        );
+        final handler = buildSyncHandler(
+          client,
+          exportHandler: DataExportHandler(
+            sections: [
+              MockExportSection(filename: 'profiles.json'),
+              MockExportSection(filename: 'shots.json'),
+            ],
+          ),
+        );
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+          'sections': ['profiles', 'shots'],
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['profiles']['status'], 'complete');
+        expect(body['push']['shots']['status'], 'failed');
+      });
+
+      test('push accounts for a missing default section result', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response('{"profiles":{"imported":1}}', 200),
+        );
+        final handler = buildSyncHandler(
+          client,
+          exportHandler: DataExportHandler(
+            sections: [
+              MockExportSection(filename: 'profiles.json'),
+              MockExportSection(filename: 'shots.json'),
+            ],
+          ),
+        );
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['profiles']['status'], 'complete');
+        expect(body['push']['shots']['status'], 'failed');
+      });
 
       test('push preserves a remote partial section status', () async {
         final client = http_testing.MockClient(
@@ -666,6 +712,42 @@ void main() {
           expect(requestCount, 1);
         },
       );
+
+      test('missing default section blocks the default two-way push', () async {
+        final methods = <String>[];
+        final sections = [
+          MockExportSection(filename: 'profiles.json'),
+          MockExportSection(filename: 'shots.json'),
+        ];
+        final client = http_testing.MockClient((request) async {
+          methods.add(request.method);
+          return http.Response.bytes(
+            buildZip({
+              'profiles.json': {'profiles': []},
+            }),
+            200,
+          );
+        });
+        final handler = buildSyncHandler(
+          client,
+          exportHandler: DataExportHandler(sections: sections),
+        );
+
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'two_way',
+        });
+
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['pull']['shots']['status'], 'failed');
+        expect(
+          body['pull']['shots']['errors'],
+          contains(contains('Missing requested section')),
+        );
+        expect(body['push']['phaseStatus'], 'skipped');
+        expect(methods, ['GET']);
+      });
 
       test('skips push after a partial pull by default', () async {
         var requestCount = 0;
