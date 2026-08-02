@@ -208,6 +208,28 @@ void main() {
         expect(body['phases']['push']['status'], 'partial');
       });
 
+      test(
+        'preserves declared failed status in a flat remote result',
+        () async {
+          final client = http_testing.MockClient(
+            (_) async => http.Response(
+              '{"profiles":{"status":"failed","imported":4}}',
+              200,
+            ),
+          );
+          final response = await sendSync(
+            buildSyncHandler(client),
+            requestBody(mode: 'push', selectedSections: ['profiles']),
+          );
+          final body = jsonDecode(await response.readAsString());
+
+          expect(response.statusCode, 502);
+          expect(body['status'], 'partial');
+          expect(body['push']['profiles']['status'], 'failed');
+          expect(body['phases']['push']['status'], 'partial');
+        },
+      );
+
       test('keeps remote 207 partial for single-direction push', () async {
         final client = http_testing.MockClient(
           (_) async => http.Response(

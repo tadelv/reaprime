@@ -79,7 +79,7 @@ void main() {
     final declaredPartial = DataTransferPhaseOutcome.fromRemote(
       {
         'sections': {
-          'profiles': {'status': 'partial', 'imported': 0},
+          'profiles': {'status': 'partial'},
         },
       },
       ['profiles'],
@@ -92,6 +92,12 @@ void main() {
       },
       ['profiles'],
     );
+    final flatFailedWithProgress = DataTransferPhaseOutcome.fromRemote(
+      {
+        'profiles': {'status': 'failed', 'imported': 4},
+      },
+      ['profiles'],
+    );
 
     expect(invalid.status, DataTransferStatus.failed);
     expect(invalid.sections['profiles']!.status, DataSectionStatus.failed);
@@ -100,15 +106,20 @@ void main() {
       contradictory.sections['profiles']!.status,
       DataSectionStatus.partial,
     );
-    expect(declaredPartial.status, DataTransferStatus.complete);
+    expect(declaredPartial.status, DataTransferStatus.partial);
     expect(
       declaredPartial.sections['profiles']!.status,
-      DataSectionStatus.complete,
+      DataSectionStatus.partial,
     );
-    expect(declaredFailedWithProgress.status, DataTransferStatus.complete);
+    expect(declaredFailedWithProgress.status, DataTransferStatus.partial);
     expect(
       declaredFailedWithProgress.sections['profiles']!.status,
-      DataSectionStatus.complete,
+      DataSectionStatus.failed,
+    );
+    expect(flatFailedWithProgress.status, DataTransferStatus.partial);
+    expect(
+      flatFailedWithProgress.sections['profiles']!.status,
+      DataSectionStatus.failed,
     );
   });
 

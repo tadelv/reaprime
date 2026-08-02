@@ -22,6 +22,7 @@ class DataSectionOutcome {
 
   bool get hasProgress =>
       status == DataSectionStatus.complete ||
+      status == DataSectionStatus.partial ||
       _count('imported') > 0 ||
       _count('skipped') > 0;
 
@@ -33,8 +34,10 @@ class DataSectionOutcome {
     }
 
     final result = Map<String, dynamic>.from(value);
-    if (result.containsKey('status') &&
-        _parseStatus(result['status']) == null) {
+    final declaredStatus = result.containsKey('status')
+        ? _parseStatus(result['status'])
+        : null;
+    if (result.containsKey('status') && declaredStatus == null) {
       return _failed(key, 'Invalid status for section "$key".');
     }
 
@@ -50,7 +53,8 @@ class DataSectionOutcome {
         (result.containsKey('skipped') && !_validCount(result['skipped']))) {
       return _failed(key, 'Invalid counts for section "$key".');
     }
-    if (!result.containsKey('imported') &&
+    if (declaredStatus == null &&
+        !result.containsKey('imported') &&
         !result.containsKey('skipped') &&
         !result.containsKey('errors')) {
       return _failed(key, 'Missing semantic result for section "$key".');
@@ -64,7 +68,11 @@ class DataSectionOutcome {
               ? DataSectionStatus.partial
               : DataSectionStatus.failed
         : DataSectionStatus.complete;
-    return DataSectionOutcome(key: key, status: derivedStatus, result: result);
+    return DataSectionOutcome(
+      key: key,
+      status: _mostSevere(declaredStatus, derivedStatus),
+      result: result,
+    );
   }
 
   static DataSectionOutcome missing(String key) => _failed(
@@ -101,6 +109,20 @@ class DataSectionOutcome {
     'failed' => DataSectionStatus.failed,
     _ => null,
   };
+
+  static DataSectionStatus _mostSevere(
+    DataSectionStatus? declared,
+    DataSectionStatus derived,
+  ) {
+    final statuses = [derived, ?declared];
+    if (statuses.contains(DataSectionStatus.failed)) {
+      return DataSectionStatus.failed;
+    }
+    if (statuses.contains(DataSectionStatus.partial)) {
+      return DataSectionStatus.partial;
+    }
+    return DataSectionStatus.complete;
+  }
 }
 
 class DataTransferPhaseOutcome {
