@@ -146,10 +146,14 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 `WorkflowHandler`. One HTTP request is exactly one queue entry. Separate requests
 must not be coalesced without a future explicit client or session contract. The
 handler reads the workflow base when a queue entry reaches execution, then applies
-only that request's deep merge. Machine side effects from separate workflow PUTs
-must never overlap, and a failure must not poison the queue tail.
+only that request's deep merge. Machine side effects from workflow PUTs, profile
+sync, and Bengle workflow bridges share the `De1Controller` device-write queue.
+Each entry captures one machine and connection generation; workflow setting writes
+retry once on a replacement machine. A failure must not poison the queue tail.
 Request bodies are read with a 30-second timeout before their queued operation
 executes; body-read failures are observed immediately and do not poison the queue.
+Admission is limited to 1 MiB per body and eight active or queued requests. A request
+that waits 30 seconds for execution returns `503` and its queued mutation is skipped.
 
 Direct machine writes complete before controller workflow state is committed. The
 handler commits with a controller revision check; if another workflow source changes

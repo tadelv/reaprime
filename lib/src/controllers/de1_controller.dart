@@ -113,6 +113,7 @@ class De1Controller {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   bool _dataInitialized = false;
   Timer? _shotSettingsDebounce;
+  Future<void> _deviceWriteQueue = Future<void>.value();
 
   /// Bumped every time `_onDisconnect()` runs. Captured by the
   /// `_shotSettingsUpdate` debounce-timer closure at scheduling
@@ -377,6 +378,43 @@ class De1Controller {
   /// catching `DeviceNotConnectedException`.
   De1Interface? get connectedDe1OrNull => _de1;
 
+  Future<T> runDeviceWrite<T>(
+    Future<T> Function(De1Interface device) write, {
+    bool retryOnReplacement = false,
+  }) {
+    final operation = _deviceWriteQueue.then(
+      (_) => _runDeviceWrite(write, retryOnReplacement),
+    );
+    _deviceWriteQueue = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    return operation;
+  }
+
+  Future<T> _runDeviceWrite<T>(
+    Future<T> Function(De1Interface device) write,
+    bool retryOnReplacement,
+  ) async {
+    final attempts = retryOnReplacement ? 2 : 1;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      final device = connectedDe1();
+      final generation = _connectionGeneration;
+      try {
+        final result = await write(device);
+        if (generation == _connectionGeneration && identical(device, _de1)) {
+          return result;
+        }
+      } catch (_) {
+        if (attempt + 1 == attempts ||
+            (generation == _connectionGeneration && identical(device, _de1))) {
+          rethrow;
+        }
+      }
+    }
+    throw StateError('Machine changed during device write');
+  }
+
   Future<SteamFormSettings> steamSettings() async {
     if (_de1 == null) {
       throw const DeviceNotConnectedException.machine();
@@ -393,14 +431,28 @@ class De1Controller {
   }
 
   Future<void> updateSteamSettings(SteamFormSettings settings) async {
-    De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
-    await connectedDe1().setSteamFlow(settings.targetFlow);
-    await connectedDe1().updateShotSettings(
+    await runDeviceWrite(
+      (device) => _writeSteamSettings(device, settings),
+      retryOnReplacement: true,
+    );
+    _publishSteamSettings(settings);
+  }
+
+  Future<void> _writeSteamSettings(
+    De1Interface device,
+    SteamFormSettings settings,
+  ) async {
+    final shotSettings = await device.shotSettings.first;
+    await device.setSteamFlow(settings.targetFlow);
+    await device.updateShotSettings(
       shotSettings.copyWith(
         targetSteamTemp: settings.steamEnabled ? settings.targetTemp : 0,
         targetSteamDuration: settings.targetDuration,
       ),
     );
+  }
+
+  void _publishSteamSettings(SteamFormSettings settings) {
     _steamDataController.add(
       SteamSettings(
         targetTemperature: settings.steamEnabled ? settings.targetTemp : 0,
@@ -425,16 +477,29 @@ class De1Controller {
   }
 
   Future<void> updateHotWaterSettings(HotWaterFormSettings settings) async {
-    await connectedDe1().setHotWaterFlow(settings.flow);
-    await connectedDe1().shotSettings.first.then((s) async {
-      await connectedDe1().updateShotSettings(
-        s.copyWith(
-          targetHotWaterTemp: settings.targetTemperature,
-          targetHotWaterVolume: settings.volume,
-          targetHotWaterDuration: settings.duration,
-        ),
-      );
-    });
+    await runDeviceWrite(
+      (device) => _writeHotWaterSettings(device, settings),
+      retryOnReplacement: true,
+    );
+    _publishHotWaterSettings(settings);
+  }
+
+  Future<void> _writeHotWaterSettings(
+    De1Interface device,
+    HotWaterFormSettings settings,
+  ) async {
+    await device.setHotWaterFlow(settings.flow);
+    final shotSettings = await device.shotSettings.first;
+    await device.updateShotSettings(
+      shotSettings.copyWith(
+        targetHotWaterTemp: settings.targetTemperature,
+        targetHotWaterVolume: settings.volume,
+        targetHotWaterDuration: settings.duration,
+      ),
+    );
+  }
+
+  void _publishHotWaterSettings(HotWaterFormSettings settings) {
     _hotWaterDataController.add(
       HotWaterData(
         targetTemperature: settings.targetTemperature,
@@ -446,13 +511,57 @@ class De1Controller {
   }
 
   Future<void> updateFlushSettings(RinseData settings) async {
-    await connectedDe1().setFlushTimeout(settings.duration.toDouble());
-    await connectedDe1().setFlushFlow(settings.flow);
-    await connectedDe1().setFlushTemperature(
-      settings.targetTemperature.toDouble(),
+    await runDeviceWrite(
+      (device) => _writeFlushSettings(device, settings),
+      retryOnReplacement: true,
     );
-
     _rinseStream.add(settings);
+  }
+
+  Future<void> _writeFlushSettings(
+    De1Interface device,
+    RinseData settings,
+  ) async {
+    await device.setFlushTimeout(settings.duration.toDouble());
+    await device.setFlushFlow(settings.flow);
+    await device.setFlushTemperature(settings.targetTemperature.toDouble());
+  }
+
+  Future<void> updateWorkflowSettings(
+    Workflow previous,
+    Workflow updated,
+  ) async {
+    final rinseChanged = previous.rinseData != updated.rinseData;
+    final steamChanged = previous.steamSettings != updated.steamSettings;
+    final hotWaterChanged = previous.hotWaterData != updated.hotWaterData;
+    if (!rinseChanged && !steamChanged && !hotWaterChanged) return;
+
+    final steam = SteamFormSettings(
+      steamEnabled: updated.steamSettings.duration > 0,
+      targetTemp: updated.steamSettings.targetTemperature,
+      targetDuration: updated.steamSettings.duration,
+      targetFlow: updated.steamSettings.flow,
+    );
+    final hotWater = HotWaterFormSettings(
+      targetTemperature: updated.hotWaterData.targetTemperature,
+      flow: updated.hotWaterData.flow,
+      volume: updated.hotWaterData.volume,
+      duration: updated.hotWaterData.duration,
+    );
+    await runDeviceWrite((device) async {
+      if (rinseChanged) {
+        await _writeFlushSettings(device, updated.rinseData);
+      }
+      if (steamChanged) {
+        await _writeSteamSettings(device, steam);
+      }
+      if (hotWaterChanged) {
+        await _writeHotWaterSettings(device, hotWater);
+      }
+    }, retryOnReplacement: true);
+    if (rinseChanged) _rinseStream.add(updated.rinseData);
+    if (steamChanged) _publishSteamSettings(steam);
+    if (hotWaterChanged) _publishHotWaterSettings(hotWater);
   }
 
   /// Flow setters live outside the DE1 shot-settings characteristic, so
@@ -462,7 +571,10 @@ class De1Controller {
   /// helpers replace it by writing the MMR value and updating the
   /// relevant data-controller directly.
   Future<void> setSteamFlow(double newFlow) async {
-    await connectedDe1().setSteamFlow(newFlow);
+    await runDeviceWrite(
+      (device) => device.setSteamFlow(newFlow),
+      retryOnReplacement: true,
+    );
     final current = _steamDataController.valueOrNull;
     if (current != null) {
       _steamDataController.add(
@@ -476,7 +588,10 @@ class De1Controller {
   }
 
   Future<void> setHotWaterFlow(double newFlow) async {
-    await connectedDe1().setHotWaterFlow(newFlow);
+    await runDeviceWrite(
+      (device) => device.setHotWaterFlow(newFlow),
+      retryOnReplacement: true,
+    );
     final current = _hotWaterDataController.valueOrNull;
     if (current != null) {
       _hotWaterDataController.add(
@@ -491,7 +606,10 @@ class De1Controller {
   }
 
   Future<void> setFlushFlow(double newFlow) async {
-    await connectedDe1().setFlushFlow(newFlow);
+    await runDeviceWrite(
+      (device) => device.setFlushFlow(newFlow),
+      retryOnReplacement: true,
+    );
     final current = _rinseStream.valueOrNull;
     if (current != null) {
       _rinseStream.add(

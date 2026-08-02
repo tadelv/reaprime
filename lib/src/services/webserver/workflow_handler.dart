@@ -1,30 +1,41 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
-import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
-import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/data/json_utils.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 const _workflowBodyReadTimeout = Duration(seconds: 30);
+const _workflowQueueWaitTimeout = Duration(seconds: 30);
+const _workflowMaxBodyBytes = 1024 * 1024;
+const _workflowMaxPendingRequests = 8;
+
+class _WorkflowPayloadTooLarge implements Exception {}
 
 class WorkflowHandler {
   final WorkflowController _controller;
   final De1Controller _de1controller;
   final Duration bodyReadTimeout;
+  final Duration queueWaitTimeout;
+  final int maxBodyBytes;
+  final int maxPendingRequests;
 
   static final _log = Logger('WorkflowHandler');
   Future<void> _workflowQueue = Future<void>.value();
+  int _pendingRequests = 0;
 
   WorkflowHandler({
     required WorkflowController controller,
     required De1Controller de1controller,
     this.bodyReadTimeout = _workflowBodyReadTimeout,
+    this.queueWaitTimeout = _workflowQueueWaitTimeout,
+    this.maxBodyBytes = _workflowMaxBodyBytes,
+    this.maxPendingRequests = _workflowMaxPendingRequests,
   }) : _controller = controller,
        _de1controller = de1controller;
 
@@ -39,21 +50,60 @@ class WorkflowHandler {
   }
 
   Future<Response> _updateWorkflow(Request req) {
-    final payload = req.readAsString().timeout(bodyReadTimeout);
+    if (_pendingRequests >= maxPendingRequests) {
+      return Future.value(
+        jsonTooManyRequests({'error': 'Workflow request queue is full'}),
+      );
+    }
+    _pendingRequests++;
+    final payload = _readPayload(req).timeout(bodyReadTimeout);
     unawaited(
       payload.then<void>(
         (_) {},
         onError: (Object error, StackTrace stackTrace) {},
       ),
     );
-    final operation = _workflowQueue.then((_) => _applyPayload(payload));
+    var expired = false;
+    final response = Completer<Response>();
+    late final Timer waitTimer;
+    final operation = _workflowQueue
+        .then((_) async {
+          if (expired) return;
+          waitTimer.cancel();
+          final result = await _applyPayload(payload);
+          if (!response.isCompleted) response.complete(result);
+        })
+        .whenComplete(() => _pendingRequests--);
     _workflowQueue = operation.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {
         _log.severe('Error completing workflow queue entry', error, stackTrace);
       },
     );
-    return operation;
+    waitTimer = Timer(queueWaitTimeout, () {
+      expired = true;
+      if (!response.isCompleted) {
+        response.complete(
+          jsonServiceUnavailable({'error': 'Workflow request queue timed out'}),
+        );
+      }
+    });
+    return response.future;
+  }
+
+  Future<String> _readPayload(Request req) async {
+    final declaredLength = int.tryParse(req.headers['content-length'] ?? '');
+    if (declaredLength != null && declaredLength > maxBodyBytes) {
+      throw _WorkflowPayloadTooLarge();
+    }
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in req.read()) {
+      if (bytes.length + chunk.length > maxBodyBytes) {
+        throw _WorkflowPayloadTooLarge();
+      }
+      bytes.add(chunk);
+    }
+    return utf8.decode(bytes.takeBytes());
   }
 
   Future<Response> _applyPayload(Future<String> payloadFuture) async {
@@ -63,6 +113,10 @@ class WorkflowHandler {
         return jsonBadRequest({'error': 'Request body must be a JSON object'});
       }
       return await _applyUpdate(Map<String, dynamic>.from(decoded));
+    } on _WorkflowPayloadTooLarge {
+      return jsonPayloadTooLarge({
+        'error': 'Workflow request body is too large',
+      });
     } on FormatException catch (e) {
       return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
@@ -80,29 +134,10 @@ class WorkflowHandler {
         final resultJson = deepMergeJson(currentJson, merge);
         final updatedWorkflow = Workflow.fromJson(resultJson);
 
-        if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-          await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
-        }
-        if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-          await _de1controller.updateSteamSettings(
-            SteamFormSettings(
-              steamEnabled: updatedWorkflow.steamSettings.duration > 0,
-              targetTemp: updatedWorkflow.steamSettings.targetTemperature,
-              targetDuration: updatedWorkflow.steamSettings.duration,
-              targetFlow: updatedWorkflow.steamSettings.flow,
-            ),
-          );
-        }
-        if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-          await _de1controller.updateHotWaterSettings(
-            HotWaterFormSettings(
-              targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
-              flow: updatedWorkflow.hotWaterData.flow,
-              volume: updatedWorkflow.hotWaterData.volume,
-              duration: updatedWorkflow.hotWaterData.duration,
-            ),
-          );
-        }
+        await _de1controller.updateWorkflowSettings(
+          oldWorkflow,
+          updatedWorkflow,
+        );
         if (_controller.setWorkflowIfRevision(updatedWorkflow, revision)) {
           return jsonOk(updatedWorkflow.toJson());
         }

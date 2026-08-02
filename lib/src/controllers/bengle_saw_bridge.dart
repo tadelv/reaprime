@@ -116,7 +116,11 @@ class BengleSawBridge {
         final generation = _de1.connectionGeneration;
         _inFlight = grams;
         try {
-          await machine.setStopAtWeightTarget(grams);
+          await _de1.runDeviceWrite((device) async {
+            if (identical(device, machine)) {
+              await machine.setStopAtWeightTarget(grams);
+            }
+          });
           if (_disposed) return;
           if (!_isCurrent(machine, generation)) continue;
           _lastPushed = grams;
