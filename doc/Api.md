@@ -300,7 +300,7 @@ same request prevent all fields from being stored (validation is atomic).
 | POST | `/api/v1/data/import` | Import from ZIP (raw bytes, `Content-Type: application/zip`) | |
 | POST | `/api/v1/data/sync` | Sync with another Bridge instance | `data_sync_handler.dart` |
 
-Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders).
+Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders), and optional `bestEffort` (boolean, default `false`).
 
 Backups are ZIP archives with one JSON file per registered section. Import
 matches files by their registered section names; unknown files are ignored, but
@@ -318,12 +318,16 @@ section contains errors; successful sections, counts, warnings, and errors are
 all retained. Warnings and conflict-strategy skips alone still return `200`.
 Clients must inspect both the HTTP status and each section result.
 
-Data sync preserves the same phase distinction. A complete pull or push is
-represented by `200`; a partial local import or remote import response is
-represented by `207`. A two-way sync returns `207` when either phase is partial,
-or when one phase is fatal and the other succeeds or is partial. A fatal single
-phase, or two fatal phases, returns `502`. Phase results remain under `pull` and
-`push`, including successful sections and fatal error details.
+Data sync preserves complete, partial, failed, fatal, and skipped phase states.
+Each phase result includes `phaseStatus`. A complete pull or push is represented
+by `200`; a partial or semantically failed import is represented by `207`. In
+`two_way` mode, push is skipped unless pull is complete. Set `bestEffort` to
+`true` to explicitly continue after an incomplete pull. A skipped push is
+reported with `phaseStatus: skipped` and its reason. A fatal single phase, or
+two fatal phases, returns `502`; two-way operations with one fatal phase return
+`207` when the other phase is complete, partial, failed, or skipped. Phase
+results remain under `pull` and `push`, including successful sections and error
+details.
 
 ### Account
 

@@ -11,13 +11,14 @@ import 'package:shelf_plus/shelf_plus.dart';
 /// Sync modes for data synchronization between two Decent instances.
 enum SyncMode { pull, push, twoWay }
 
-enum SyncPhaseStatus { complete, partial, fatal }
+enum SyncPhaseStatus { complete, partial, failed, fatal, skipped }
 
 class SyncPhaseOutcome {
   final SyncPhaseStatus status;
   final Map<String, dynamic> result;
 
-  const SyncPhaseOutcome({required this.status, required this.result});
+  SyncPhaseOutcome({required this.status, required Map<String, dynamic> result})
+    : result = Map.unmodifiable({...result, 'phaseStatus': status.name});
 }
 
 /// Exception thrown when the sync target returns an error.
@@ -131,30 +132,40 @@ class DataSyncHandler {
     }
 
     final sections = (body['sections'] as List<dynamic>?)?.cast<String>();
+    final bestEffortValue = body['bestEffort'];
+    if (bestEffortValue != null && bestEffortValue is! bool) {
+      return jsonBadRequest({
+        'error': 'Invalid bestEffort value',
+        'message': '"bestEffort" must be a boolean',
+      });
+    }
+    final bestEffort = bestEffortValue as bool? ?? false;
 
     // Execute sync
     final results = <String, dynamic>{};
     var fatalPhases = 0;
-    var partialPhase = false;
+    var incompletePhase = false;
+    SyncPhaseOutcome? pullOutcome;
 
     // Pull phase
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
-      final pullOutcome = await _runPhase(
-        () => _pull(target, strategy, sections),
-      );
+      pullOutcome = await _runPhase(() => _pull(target, strategy, sections));
       results['pull'] = pullOutcome.result;
       fatalPhases += pullOutcome.status == SyncPhaseStatus.fatal ? 1 : 0;
-      partialPhase |= pullOutcome.status == SyncPhaseStatus.partial;
+      incompletePhase |= pullOutcome.status != SyncPhaseStatus.complete;
     }
 
     // Push phase
     if (mode == SyncMode.push || mode == SyncMode.twoWay) {
-      final pushOutcome = await _runPhase(
-        () => _push(target, strategy, sections),
-      );
+      final pushOutcome =
+          mode == SyncMode.twoWay &&
+              !bestEffort &&
+              pullOutcome?.status != SyncPhaseStatus.complete
+          ? _skippedPushOutcome()
+          : await _runPhase(() => _push(target, strategy, sections));
       results['push'] = pushOutcome.result;
       fatalPhases += pushOutcome.status == SyncPhaseStatus.fatal ? 1 : 0;
-      partialPhase |= pushOutcome.status == SyncPhaseStatus.partial;
+      incompletePhase |= pushOutcome.status != SyncPhaseStatus.complete;
     }
 
     if (fatalPhases > 0 && mode == SyncMode.twoWay && fatalPhases < 2) {
@@ -165,7 +176,7 @@ class DataSyncHandler {
       return jsonBadGateway(results);
     }
 
-    if (partialPhase) return jsonMultiStatus(results);
+    if (incompletePhase) return jsonMultiStatus(results);
 
     return jsonOk(results);
   }
@@ -208,10 +219,13 @@ class DataSyncHandler {
       sections: sections,
     );
     return SyncPhaseOutcome(
-      status: outcome.isPartial
-          ? SyncPhaseStatus.partial
-          : SyncPhaseStatus.complete,
-      result: outcome.toJson(),
+      status: switch (outcome.status) {
+        DataOutcomeStatus.complete => SyncPhaseStatus.complete,
+        DataOutcomeStatus.partial => SyncPhaseStatus.partial,
+        DataOutcomeStatus.failed => SyncPhaseStatus.failed,
+        DataOutcomeStatus.skipped => SyncPhaseStatus.skipped,
+      },
+      result: outcome.toSyncJson(),
     );
   }
 
@@ -262,17 +276,62 @@ class DataSyncHandler {
       );
     }
 
+    final result = Map<String, dynamic>.from(decoded);
+    final sectionResults = result.entries
+        .where((entry) => entry.key != 'phaseStatus' && entry.value is Map)
+        .toList(growable: false);
+    if (sectionResults.isEmpty) {
+      throw SyncTargetException(
+        'Target returned no section results',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+    final failedSections = sectionResults
+        .where((entry) => _hasSectionErrors(entry.value))
+        .length;
+
     return SyncPhaseOutcome(
       status: response.statusCode == 207
-          ? SyncPhaseStatus.partial
-          : SyncPhaseStatus.complete,
-      result: Map<String, dynamic>.from(decoded),
+          ? failedSections == sectionResults.length
+                ? SyncPhaseStatus.failed
+                : SyncPhaseStatus.partial
+          : failedSections == 0
+          ? SyncPhaseStatus.complete
+          : failedSections == sectionResults.length
+          ? SyncPhaseStatus.failed
+          : SyncPhaseStatus.partial,
+      result: result,
     );
+  }
+
+  SyncPhaseOutcome _skippedPushOutcome() => SyncPhaseOutcome(
+    status: SyncPhaseStatus.skipped,
+    result: {
+      'message':
+          'Push skipped because pull did not complete. Set bestEffort to true to continue.',
+      'reason': 'pull_not_complete',
+    },
+  );
+
+  bool _hasSectionErrors(Object? value) {
+    if (value is! Map) return false;
+    final errors = value['errors'];
+    if (errors == null) return false;
+    if (errors is! List) return true;
+    return errors.isNotEmpty;
   }
 
   Map<String, dynamic> _errorResult(Object error) {
     if (error is InvalidBackupException) {
       return {'error': 'Invalid backup archive', 'message': error.message};
+    }
+    if (error is DataExportException) {
+      return {
+        'error': 'Local export failed',
+        'message': error.message,
+        'sections': error.failedSections.toList(growable: false),
+      };
     }
     if (error is SyncTargetException) {
       return {

@@ -43,6 +43,22 @@ class MockExportSection implements DataExportSection {
   }
 }
 
+class FailingExportSection implements DataExportSection {
+  @override
+  final String filename;
+
+  FailingExportSection({required this.filename});
+
+  @override
+  Future<dynamic> export() async => throw Exception('Export failed');
+
+  @override
+  Future<SectionImportResult> import(
+    dynamic data,
+    ConflictStrategy strategy,
+  ) async => throw Exception('Import failed');
+}
+
 List<int> buildZip(Map<String, dynamic> files) {
   final archive = Archive();
   for (final entry in files.entries) {
@@ -425,6 +441,42 @@ void main() {
         expect(body['push']['shots']['errors'], contains('bad row'));
       });
 
+      test(
+        'push returns 207 for a remote 200 response with section errors',
+        () async {
+          final client = http_testing.MockClient(
+            (_) async =>
+                http.Response('{"profiles":{"errors":["bad row"]}}', 200),
+          );
+          final handler = buildSyncHandler(client);
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'push',
+          });
+          expect(response.statusCode, 207);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['push']['phaseStatus'], 'failed');
+          expect(body['push']['profiles']['errors'], contains('bad row'));
+        },
+      );
+
+      test('push returns 207 when every remote section fails', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"profiles":{"errors":["bad profile"]},"shots":{"errors":["bad shot"]}}',
+            200,
+          ),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['phaseStatus'], 'failed');
+      });
+
       test('push returns 502 for a remote 400 response', () async {
         final client = http_testing.MockClient(
           (_) async => http.Response('{"message":"Invalid backup"}', 400),
@@ -454,6 +506,34 @@ void main() {
         final body = jsonDecode(await response.readAsString());
         expect(body['push']['error'], 'Target unreachable');
       });
+
+      test(
+        'push returns 502 when a requested local section cannot be exported',
+        () async {
+          var postCalled = false;
+          final client = http_testing.MockClient((request) async {
+            postCalled = true;
+            return http.Response('', 200);
+          });
+          final handler = buildSyncHandler(
+            client,
+            exportHandler: DataExportHandler(
+              sections: [FailingExportSection(filename: 'profiles.json')],
+            ),
+          );
+
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'push',
+            'sections': ['profiles'],
+          });
+
+          expect(response.statusCode, 502);
+          expect(postCalled, isFalse);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['push']['error'], 'Local export failed');
+        },
+      );
     });
 
     group('two_way mode', () {
@@ -510,8 +590,10 @@ void main() {
         expect(body['push']['error'], 'Target error');
       });
 
-      test('returns 207 when push succeeds but pull fails', () async {
+      test('skips push after a failed pull by default', () async {
+        var requestCount = 0;
         final client = http_testing.MockClient((request) async {
+          requestCount++;
           if (request.method == 'GET') {
             return http.Response('Server Error', 500);
           }
@@ -527,7 +609,40 @@ void main() {
         expect(response.statusCode, 207);
         final body = jsonDecode(await response.readAsString());
         expect(body['pull']['error'], 'Target error');
-        expect(body['push'], isNotNull);
+        expect(body['push']['phaseStatus'], 'skipped');
+        expect(requestCount, 1);
+      });
+
+      test('skips push after a partial pull by default', () async {
+        var requestCount = 0;
+        final partialSection = MockExportSection(
+          filename: 'profiles.json',
+          importResult: const SectionImportResult(
+            imported: 1,
+            errors: ['bad row'],
+          ),
+        );
+        final client = http_testing.MockClient((request) async {
+          requestCount++;
+          if (request.method == 'GET') {
+            return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
+          }
+          return http.Response('{"profiles":{"imported":1}}', 200);
+        });
+        final handler = buildSyncHandler(
+          client,
+          exportHandler: DataExportHandler(sections: [partialSection]),
+        );
+
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'two_way',
+        });
+
+        expect(response.statusCode, 207);
+        expect(requestCount, 1);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['phaseStatus'], 'skipped');
       });
 
       test(
@@ -550,6 +665,7 @@ void main() {
           final response = await sendSync(handler, {
             'target': 'http://192.168.1.50:8080',
             'mode': 'two_way',
+            'bestEffort': true,
           });
           expect(response.statusCode, 207);
           final body = jsonDecode(await response.readAsString());
@@ -578,6 +694,7 @@ void main() {
           final response = await sendSync(handler, {
             'target': 'http://192.168.1.50:8080',
             'mode': 'two_way',
+            'bestEffort': true,
           });
           expect(response.statusCode, 207);
           final body = jsonDecode(await response.readAsString());
@@ -595,6 +712,7 @@ void main() {
         final response = await sendSync(handler, {
           'target': 'http://192.168.1.50:8080',
           'mode': 'two_way',
+          'bestEffort': true,
         });
 
         expect(response.statusCode, 502);

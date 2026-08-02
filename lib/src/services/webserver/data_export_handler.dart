@@ -23,21 +23,53 @@ class InvalidBackupException implements Exception {
   String toString() => 'InvalidBackupException: $reason';
 }
 
+class DataExportException implements Exception {
+  final String message;
+  final Set<String> failedSections;
+
+  DataExportException({
+    required this.message,
+    required Set<String> failedSections,
+  }) : failedSections = Set.unmodifiable(failedSections);
+
+  @override
+  String toString() => 'DataExportException: $message';
+}
+
 class DataImportOutcome {
   final Map<String, dynamic> sectionResults;
+  final Map<String, DataOutcomeStatus> sectionStatuses;
   final int recognizedSections;
   final Set<String> failedSections;
 
   DataImportOutcome({
     required Map<String, dynamic> sectionResults,
+    required Map<String, DataOutcomeStatus> sectionStatuses,
     required this.recognizedSections,
     required Set<String> failedSections,
   }) : sectionResults = Map.unmodifiable(sectionResults),
+       sectionStatuses = Map.unmodifiable(sectionStatuses),
        failedSections = Set.unmodifiable(failedSections);
 
   bool get isPartial => failedSections.isNotEmpty;
 
+  DataOutcomeStatus get status {
+    if (failedSections.isEmpty) return DataOutcomeStatus.complete;
+    return sectionStatuses.values.every(
+          (status) => status == DataOutcomeStatus.failed,
+        )
+        ? DataOutcomeStatus.failed
+        : DataOutcomeStatus.partial;
+  }
+
+  bool get isFailed => status == DataOutcomeStatus.failed;
+
   Map<String, dynamic> toJson() => sectionResults;
+
+  Map<String, dynamic> toSyncJson() => {
+    'phaseStatus': status.name,
+    ...sectionResults,
+  };
 }
 
 class DataExportHandler {
@@ -60,6 +92,7 @@ class DataExportHandler {
   /// matches an entry in the list are included.
   Future<List<int>> exportToBytes({List<String>? sections}) async {
     final archive = Archive();
+    final failedSections = <String>{};
 
     final metadata = {
       'formatVersion': _currentFormatVersion,
@@ -81,7 +114,15 @@ class DataExportHandler {
         _addJsonToArchive(archive, section.filename, data);
       } catch (e, st) {
         _log.severe('Error exporting ${section.filename}', e, st);
+        failedSections.add(_sectionKey(section));
       }
+    }
+
+    if (failedSections.isNotEmpty) {
+      throw DataExportException(
+        message: 'Failed to export section(s): ${failedSections.join(', ')}.',
+        failedSections: failedSections,
+      );
     }
 
     return ZipEncoder().encode(archive);
@@ -107,6 +148,13 @@ class DataExportHandler {
         },
       );
     } catch (e, st) {
+      if (e is DataExportException) {
+        return jsonError({
+          'error': 'Export failed',
+          'message': e.message,
+          'sections': e.failedSections.toList(growable: false),
+        });
+      }
       _log.severe('Error in _handleExport', e, st);
       return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
@@ -138,6 +186,7 @@ class DataExportHandler {
     final selectedSections = _resolveImportSections(sections);
 
     final results = <String, dynamic>{};
+    final sectionStatuses = <String, DataOutcomeStatus>{};
     final failedSections = <String>{};
     var recognizedSections = 0;
 
@@ -168,12 +217,14 @@ class DataExportHandler {
           );
         }
         results[key] = result.toJson();
+        sectionStatuses[key] = result.status;
         if (result.errors.isNotEmpty) failedSections.add(key);
       } catch (e, st) {
         _log.severe('Error importing ${section.filename}', e, st);
         results[key] = {
           'errors': ['Failed to process ${section.filename}: $e'],
         };
+        sectionStatuses[key] = DataOutcomeStatus.failed;
         failedSections.add(key);
       }
     }
@@ -187,6 +238,7 @@ class DataExportHandler {
 
     return DataImportOutcome(
       sectionResults: results,
+      sectionStatuses: sectionStatuses,
       recognizedSections: recognizedSections,
       failedSections: failedSections,
     );

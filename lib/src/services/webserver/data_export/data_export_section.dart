@@ -1,6 +1,8 @@
 /// Strategy for handling conflicts during import.
 enum ConflictStrategy { skip, overwrite }
 
+enum DataOutcomeStatus { complete, partial, failed, skipped }
+
 /// Result of importing a single section.
 class SectionImportResult {
   final int imported;
@@ -14,6 +16,13 @@ class SectionImportResult {
     this.errors = const [],
     this.warnings = const [],
   });
+
+  DataOutcomeStatus get status {
+    if (errors.isEmpty) return DataOutcomeStatus.complete;
+    return imported > 0 || skipped > 0
+        ? DataOutcomeStatus.partial
+        : DataOutcomeStatus.failed;
+  }
 
   Map<String, dynamic> toJson() => {
     'imported': imported,

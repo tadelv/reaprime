@@ -56,6 +56,35 @@ class ImportResult {
     this.settingsApplied = false,
     this.errors = const [],
   });
+
+  factory ImportResult.fromBackupSections(Map<String, dynamic> sections) {
+    int count(String section, String field) {
+      final value = sections[section];
+      if (value is! Map) return 0;
+      return value[field] is int ? value[field] as int : 0;
+    }
+
+    final errors = <ImportError>[];
+    for (final entry in sections.entries) {
+      final value = entry.value;
+      if (value is! Map || value['errors'] is! List) continue;
+      for (final error in value['errors'] as List) {
+        errors.add(ImportError(filename: entry.key, reason: error.toString()));
+      }
+    }
+
+    return ImportResult(
+      shotsImported: count('shots', 'imported'),
+      shotsSkipped: count('shots', 'skipped'),
+      profilesImported: count('profiles', 'imported'),
+      profilesSkipped: count('profiles', 'skipped'),
+      beansCreated: count('beans', 'imported'),
+      beansSkipped: count('beans', 'skipped'),
+      grindersCreated: count('grinders', 'imported'),
+      grindersSkipped: count('grinders', 'skipped'),
+      errors: errors,
+    );
+  }
   bool get hasErrors => errors.isNotEmpty;
   ImportResult operator +(ImportResult other) {
     return ImportResult(

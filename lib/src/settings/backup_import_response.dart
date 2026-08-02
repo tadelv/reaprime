@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:reaprime/src/import/import_result.dart';
+
 enum BackupImportStatus { complete, partial }
 
 class BackupImportException implements Exception {
@@ -21,6 +23,8 @@ class BackupImportResponse {
   const BackupImportResponse({required this.status, required this.sections});
 
   bool get shouldNotifyShotsChanged => true;
+
+  ImportResult toImportResult() => ImportResult.fromBackupSections(sections);
 
   factory BackupImportResponse.fromHttp(int statusCode, String body) {
     final dynamic decoded;

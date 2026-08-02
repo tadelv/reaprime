@@ -190,36 +190,30 @@ void main() {
         expect(shotsData['shots'], isList);
       });
 
-      test(
-        'continues exporting other sections when one section fails',
-        () async {
-          final failingSection = FailingExportSection(filename: 'failing.json');
-          final goodSection = MockExportSection(
-            filename: 'good.json',
-            exportData: {'data': 'ok'},
-          );
+      test('returns 500 when a section export fails', () async {
+        final failingSection = FailingExportSection(filename: 'failing.json');
+        final goodSection = MockExportSection(
+          filename: 'good.json',
+          exportData: {'data': 'ok'},
+        );
 
-          final handlerWithFailure = DataExportHandler(
-            sections: [failingSection, goodSection],
-          );
+        final handlerWithFailure = DataExportHandler(
+          sections: [failingSection, goodSection],
+        );
 
-          final app = Router().plus;
-          handlerWithFailure.addRoutes(app);
-          final testHandler = app.call;
+        final app = Router().plus;
+        handlerWithFailure.addRoutes(app);
+        final testHandler = app.call;
 
-          final response = await testHandler(
-            Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
-          );
+        final response = await testHandler(
+          Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
+        );
 
-          expect(response.statusCode, 200);
-          final bytes = await response.read().expand((b) => b).toList();
-          final archive = ZipDecoder().decodeBytes(bytes);
-
-          // Should have metadata + good section (failing section skipped)
-          expect(archive.findFile('good.json'), isNotNull);
-          expect(archive.findFile('failing.json'), isNull);
-        },
-      );
+        expect(response.statusCode, 500);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], 'Export failed');
+        expect(body['sections'], contains('failing'));
+      });
     });
 
     group('POST /api/v1/data/import', () {
@@ -553,6 +547,23 @@ void main() {
         expect(archive.findFile('profiles.json'), isNotNull);
         expect(archive.findFile('shots.json'), isNull);
       });
+
+      test('throws when a requested section cannot be exported', () async {
+        final failingHandler = DataExportHandler(
+          sections: [FailingExportSection(filename: 'profiles.json')],
+        );
+
+        expect(
+          () => failingHandler.exportToBytes(sections: ['profiles']),
+          throwsA(
+            isA<DataExportException>().having(
+              (error) => error.failedSections,
+              'failed sections',
+              contains('profiles'),
+            ),
+          ),
+        );
+      });
     });
 
     group('importFromBytes()', () {
@@ -655,7 +666,10 @@ void main() {
       test('section errors make direct outcomes partial', () async {
         final errorSection = MockExportSection(
           filename: 'profiles.json',
-          importResult: const SectionImportResult(errors: ['bad row']),
+          importResult: const SectionImportResult(
+            imported: 2,
+            errors: ['bad row'],
+          ),
         );
         final outcome = await DataExportHandler(sections: [errorSection])
             .importFromBytes(
@@ -664,6 +678,7 @@ void main() {
             );
         expect(outcome.recognizedSections, 1);
         expect(outcome.isPartial, isTrue);
+        expect(outcome.status, DataOutcomeStatus.partial);
         expect(outcome.failedSections, contains('profiles'));
       });
 
@@ -677,6 +692,7 @@ void main() {
             );
         expect(outcome.recognizedSections, 1);
         expect(outcome.isPartial, isTrue);
+        expect(outcome.status, DataOutcomeStatus.failed);
         expect(outcome.sectionResults['profiles']['errors'], isNotEmpty);
       });
 

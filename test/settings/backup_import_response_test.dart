@@ -19,6 +19,9 @@ void main() {
     expect(response.status, BackupImportStatus.partial);
     expect(response.sections['profiles']['imported'], 4);
     expect(response.sections['shots']['errors'], contains('bad row'));
+    final result = response.toImportResult();
+    expect(result.profilesImported, 4);
+    expect(result.errors.single.reason, 'bad row');
   });
 
   test('partial UI state does not use complete wording', () {

@@ -3870,10 +3870,12 @@ paths:
 
         Only the specified sections are synced. If no sections are provided,
         all available sections are synced. A partial local import or remote
-        import response is a partial phase. A fatal single phase returns 502;
-        two-way mode returns 207 when one phase is partial or when one phase is
-        fatal while the other completes or is partial. Two fatal phases return
-        502.
+        import response is a partial or failed phase. By default, two-way mode
+        skips push unless pull is complete. Set `bestEffort` to true to opt in
+        to continuing after an incomplete pull. A fatal single phase returns
+        502; two-way mode returns 207 when one phase is incomplete or fatal
+        while the other is complete, partial, failed, or skipped. Two fatal
+        phases return 502.
       tags: [Data Management]
       requestBody:
         required: true
@@ -3908,6 +3910,13 @@ paths:
                     type: string
                     enum: [profiles, shots, workflow, settings, store, beans, grinders]
                   description: Data sections to sync. Defaults to all sections if omitted.
+                bestEffort:
+                  type: boolean
+                  default: false
+                  description: |
+                    In two_way mode, continue with push after a partial,
+                    failed, or fatal pull. Defaults to false to avoid pushing
+                    stale local data after an unsuccessful pull.
       responses:
         "200":
           description: Sync completed successfully
@@ -3916,7 +3925,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "207":
-          description: At least one phase is partial, or one two-way phase is fatal while the other completes or is partial
+          description: At least one phase is partial, failed, or skipped, or one two-way phase is fatal while the other completes or is incomplete
           content:
             application/json:
               schema:
@@ -5986,12 +5995,22 @@ components:
       properties:
         pull:
           type: object
-          description: Per-section results for the pull phase (present for pull and two_way modes)
+          description: Phase result for pull (present for pull and two_way modes)
+          properties:
+            phaseStatus:
+              type: string
+              enum: [complete, partial, failed, fatal, skipped]
+              description: Semantic status of the phase.
           additionalProperties:
             $ref: "#/components/schemas/SectionImportResult"
         push:
           type: object
-          description: Per-section results for the push phase (present for push and two_way modes)
+          description: Phase result for push (present for push and two_way modes)
+          properties:
+            phaseStatus:
+              type: string
+              enum: [complete, partial, failed, fatal, skipped]
+              description: Semantic status of the phase.
           additionalProperties:
             $ref: "#/components/schemas/SectionImportResult"
         error:

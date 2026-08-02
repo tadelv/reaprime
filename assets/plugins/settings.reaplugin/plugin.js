@@ -927,6 +927,12 @@ function createPlugin(host) {
                                 </select>
                             </div>
                         </div>
+                        <div class="setting-item">
+                            <label class="setting-label" for="syncBestEffort">Continue after incomplete pull</label>
+                            <div class="setting-control">
+                                <input type="checkbox" id="syncBestEffort">
+                            </div>
+                        </div>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <span class="setting-label" style="display: block; margin-bottom: 8px;">Sections to sync:</span>
@@ -1359,6 +1365,7 @@ function createPlugin(host) {
 
             const mode = document.getElementById('syncMode').value;
             const onConflict = document.getElementById('syncConflict').value;
+            const bestEffort = document.getElementById('syncBestEffort').checked;
             const sectionCheckboxes = document.querySelectorAll('.sync-section:checked');
             const sections = Array.from(sectionCheckboxes).map(cb => cb.value);
 
@@ -1372,13 +1379,21 @@ function createPlugin(host) {
                 const response = await fetch(baseUrl + '/api/v1/data/sync', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target, mode, onConflict, sections })
+                    body: JSON.stringify({ target, mode, onConflict, sections, bestEffort })
                 });
-                if (response.ok) {
-                    const result = await response.json();
+                const result = await response.json().catch(() => ({}));
+                if (response.status === 200) {
                     showToast('Sync completed successfully');
+                } else if (response.status === 207) {
+                    const errors = Object.values(result)
+                        .filter(phase => phase && typeof phase === 'object')
+                        .flatMap(phase => Object.values(phase))
+                        .filter(section => section && Array.isArray(section.errors))
+                        .flatMap(section => section.errors);
+                    const detail = errors.length ? ': ' + errors.join('; ') : '';
+                    showToast('Sync partially completed' + detail, true);
                 } else {
-                    const error = await response.text();
+                    const error = result.message || result.error || ('Server returned ' + response.status);
                     showToast('Sync failed: ' + error, true);
                 }
             } catch (e) {
