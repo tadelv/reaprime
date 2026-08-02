@@ -93,37 +93,64 @@ void main() {
 
   group('DataSyncHandler', () {
     group('validation', () {
-      test('uses all registered sections when sections are omitted', () async {
-        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
-        final client = http_testing.MockClient((request) async {
-          if (request.method == 'GET') {
-            return http.Response.bytes(targetZip, 200);
-          }
-          return http.Response(
-            '{"profiles":{"imported":1},"shots":{"imported":1}}',
-            200,
-          );
-        });
-        final handler = buildSyncHandler(client);
+      test(
+        'uses all registered sections when sections are omitted for pull and push',
+        () async {
+          final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+          final client = http_testing.MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response.bytes(targetZip, 200);
+            }
+            return http.Response(
+              '{"profiles":{"imported":1},"shots":{"imported":1}}',
+              200,
+            );
+          });
+          final handler = buildSyncHandler(client);
 
-        for (final mode in ['pull', 'two_way']) {
-          final response = await sendSync(handler, requestBody(mode: mode));
-          final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 200);
-          expect(body['pull']['profiles']['status'], 'complete');
-          expect(body['pull']['shots']['status'], 'complete');
-          if (mode == 'two_way') {
-            expect(body['push']['profiles']['status'], 'complete');
-            expect(body['push']['shots']['status'], 'complete');
+          for (final mode in ['pull', 'push']) {
+            final response = await sendSync(handler, requestBody(mode: mode));
+            final body = jsonDecode(await response.readAsString());
+            expect(response.statusCode, 200);
+            if (mode == 'pull') {
+              expect(body['pull']['profiles']['status'], 'complete');
+              expect(body['pull']['shots']['status'], 'complete');
+            } else {
+              expect(body['push']['profiles']['status'], 'complete');
+              expect(body['push']['shots']['status'], 'complete');
+            }
           }
-        }
-      });
+        },
+      );
+
+      test(
+        'rejects omitted sections for two_way before remote requests',
+        () async {
+          var requestCount = 0;
+          final handler = buildSyncHandler(
+            http_testing.MockClient((_) async {
+              requestCount++;
+              return http.Response('', 200);
+            }),
+          );
+
+          final response = await sendSync(
+            handler,
+            requestBody(mode: 'two_way'),
+          );
+          final body = jsonDecode(await response.readAsString());
+
+          expect(response.statusCode, 400);
+          expect(body['message'], contains('two_way'));
+          expect(requestCount, 0);
+        },
+      );
 
       test('rejects an explicitly empty section list', () async {
         final handler = buildSyncHandler(
           http_testing.MockClient((_) async => http.Response('', 200)),
         );
-        for (final mode in ['pull', 'two_way']) {
+        for (final mode in ['pull', 'push', 'two_way']) {
           final response = await sendSync(
             handler,
             requestBody(mode: mode, selectedSections: []),
