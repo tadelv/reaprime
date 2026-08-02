@@ -30,6 +30,22 @@ const _realWeightFrame = <int>[
   0xF3,
   0x0D,
 ];
+const _realSettingsFrame = <int>[
+  0xEF,
+  0xDD,
+  0x08,
+  0x09,
+  0x5D,
+  0x02,
+  0x02,
+  0x01,
+  0x00,
+  0x01,
+  0x01,
+  0x00,
+  0x0D,
+  0x60,
+];
 
 List<int> _frame(int command, List<int> payload) {
   final body = [payload.length + 1, ...payload];
@@ -289,6 +305,36 @@ void main() {
     await transport.dispose();
   });
 
+  test('short heartbeat button frames refresh Pyxis liveness', () {
+    fakeAsync((async) {
+      final transport = _AcaiaTransport(
+        services: const ['49535343-fe7d-4ae5-8fa9-9fafd205e455'],
+      );
+      final scale = AcaiaScale(transport: transport);
+      final snapshots = <ScaleSnapshot>[];
+      final states = <ConnectionState>[];
+      scale.currentSnapshot.listen(snapshots.add);
+      scale.connectionState.listen(states.add);
+
+      scale.onConnect();
+      async.elapse(const Duration(seconds: 2));
+      async.flushMicrotasks();
+      expect(states.last, ConnectionState.connected);
+
+      snapshots.clear();
+      transport.emit(_heartbeatButtonFrame());
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 4500));
+      async.flushMicrotasks();
+
+      expect(states.last, ConnectionState.connected);
+      expect(snapshots, isEmpty);
+      scale.disconnect();
+      async.flushMicrotasks();
+      transport.dispose();
+    });
+  });
+
   test('unknown and incomplete heartbeat records are rejected', () async {
     for (final frame in [
       _eventFrame(11, [0, 0, 9, 0]),
@@ -318,6 +364,44 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+    await subscription.cancel();
+    await scale.disconnect();
+    await transport.dispose();
+  });
+
+  test(
+    'complete weights ignore unknown or incomplete trailing records',
+    () async {
+      for (final frame in [
+        _eventFrame(5, [..._weightBody, 0x09]),
+        _eventFrame(5, [..._weightBody, 0x07, 0x01]),
+        _eventFrame(11, [0, 0, 5, ..._weightBody, 0x09]),
+        _eventFrame(11, [0, 0, 5, ..._weightBody, 0x07, 0x01]),
+      ]) {
+        final (scale, transport) = await _connected();
+        final snapshots = <ScaleSnapshot>[];
+        final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+        transport.emit(frame);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(snapshots.map((snapshot) => snapshot.weight), [175.9]);
+        await subscription.cancel();
+        await scale.disconnect();
+        await transport.dispose();
+      }
+    },
+  );
+
+  test('weight flags use bit 0x02 for the negative sign', () async {
+    final (scale, transport) = await _connected();
+    final snapshots = <ScaleSnapshot>[];
+    final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+    transport.emit(_eventFrame(5, [..._weightBody.sublist(0, 5), 0x03]));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(snapshots.map((snapshot) => snapshot.weight), [-175.9]);
     await subscription.cancel();
     await scale.disconnect();
     await transport.dispose();
@@ -438,6 +522,19 @@ void main() {
       await scale.disconnect();
       await transport.dispose();
     }
+  });
+
+  test('real declared-length settings frame updates the battery', () async {
+    final (scale, transport) = await _connected();
+    final snapshot = scale.currentSnapshot.first;
+
+    transport.emit(_realSettingsFrame);
+    transport.emit(_minimalWeightFrame());
+
+    expect(_realSettingsFrame[3], 9);
+    expect((await snapshot).batteryLevel, 93);
+    await scale.disconnect();
+    await transport.dispose();
   });
 
   test('split frames and split headers are retained', () async {
