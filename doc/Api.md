@@ -388,8 +388,9 @@ For clients this means:
   `{"error": "No machine connected"}` rather than silently dropping it. The socket stays open and
   resumes normal operation when a machine reconnects. Raw commands are not queued for later delivery.
 
-The one unchanged case: opening a machine socket while **no** machine is connected still returns an
-error frame and closes, so reconnect-until-present loops keep working.
+Machine sockets opened before the first machine connection behave like any later disconnected gap:
+the socket stays open and remains silent until a machine attaches. No error or status frame is emitted
+on the typed telemetry sockets.
 
 ### `shotState` events
 
