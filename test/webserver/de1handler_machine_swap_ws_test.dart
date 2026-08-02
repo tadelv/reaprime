@@ -214,19 +214,26 @@ void main() {
     );
 
     test(
-      'with no machine connected the socket still errors and closes',
+      'with no machine connected the socket waits for the first machine',
       () async {
         final (channel, messages) = connectWs('/ws/v1/machine/snapshot');
+        final received = <Map<String, dynamic>>[];
+        var closed = false;
+        messages.listen(received.add, onDone: () => closed = true);
 
-        final first = await messages.first.timeout(const Duration(seconds: 2));
-        expect(first['error'], 'No machine connected');
+        await settle();
+        expect(received, isEmpty);
+        expect(closed, isFalse);
 
-        // Contract relied on by every ReconnectingWebSocket client: the socket
-        // is CLOSED, so the client retries until a machine appears.
-        await expectLater(
-          messages.drain<void>().timeout(const Duration(seconds: 2)),
-          completes,
-        );
+        final machine = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+        await de1Controller.connectToDe1(machine);
+        await settle();
+
+        received.clear();
+        machine.emitSnapshot(snapshotAt(83.09));
+        await settle();
+
+        expect(received.map((f) => f['groupTemperature']), contains(83.09));
         await channel.sink.close();
       },
     );
@@ -531,6 +538,45 @@ void main() {
 
       await channel.sink.close();
     });
+
+    test(
+      'a socket opened before the first machine waits and then attaches',
+      () async {
+        final (channel, messages) = connectWs('/ws/v1/machine/raw');
+        final received = <Map<String, dynamic>>[];
+        var closed = false;
+        messages.listen(received.add, onDone: () => closed = true);
+
+        await settle();
+        expect(received, isEmpty);
+        expect(closed, isFalse);
+
+        channel.sink.add(jsonEncode(rawCommand()));
+        await settle();
+
+        expect(received, hasLength(1));
+        expect(received.single, {'error': 'No machine connected'});
+        expect(closed, isFalse);
+
+        final machine = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+        await de1Controller.connectToDe1(machine);
+        await settle();
+
+        received.clear();
+        machine.emitRawMessage(
+          rawCommand(
+            type: De1RawMessageType.response,
+            operation: De1RawOperationType.notify,
+            characteristicUUID: '0x05',
+            payload: 'ee',
+          ),
+        );
+        await settle();
+
+        expect(received.map((f) => f['characteristicUUID']), contains('0x05'));
+        await channel.sink.close();
+      },
+    );
 
     test(
       'a command during the disconnected gap returns an error frame',

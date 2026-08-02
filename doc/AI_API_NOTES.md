@@ -99,7 +99,7 @@ A machine power-cycle drops the De1 object and builds a new one under the same d
 
 - **No `{"status": ...}` frames.** Unlike the scale socket, the machine sockets carry a single typed payload per frame and existing clients parse every frame as that type; injecting a status frame would be a breaking change to the wire contract. Link state is already published, instance-independently, on `/ws/v1/devices`.
 
-- **Initial attachment is deterministic.** The initial machine is read from `connectedDe1OrNull` and subscribed immediately, before subscribing to the controller stream. This eliminates the window where a command could arrive while `attached` is still null waiting for the BehaviorSubject replay.
+- **Initial attachment is deterministic.** When `connectedDe1OrNull` returns a machine, it is subscribed immediately before subscribing to the controller stream. When no machine exists, the socket starts detached and waits for the first non-null `De1Controller.de1` event. Telemetry sockets emit nothing until attachment, while raw commands still return the documented detached-command error.
 
 - **Commands during disconnect produce an error frame.** `/ws/v1/machine/raw` commands sent while no machine is attached get a `{"error": "No machine connected"}` response rather than being silently dropped. The socket stays open. Raw commands are never queued for later delivery — a delayed raw read/write could be stale or unsafe.
 

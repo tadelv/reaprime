@@ -299,11 +299,6 @@ class De1Handler {
     void Function(De1Interface de1, dynamic message)? onMessage,
   }) {
     final initial = _controller.connectedDe1OrNull;
-    if (initial == null) {
-      socket.sink.add(jsonEncode({'error': 'No machine connected'}));
-      socket.sink.close();
-      return;
-    }
 
     De1Interface? attached;
     StreamSubscription<dynamic>? payloadSub;
@@ -320,8 +315,10 @@ class De1Handler {
     // controller stream. This eliminates the window where a command could
     // arrive while attached is still null, waiting for the BehaviorSubject
     // replay.
-    attached = initial;
-    payloadSub = attach(initial);
+    if (initial != null) {
+      attached = initial;
+      payloadSub = attach(initial);
+    }
 
     de1Sub = _controller.de1.listen(
       (de1) {
