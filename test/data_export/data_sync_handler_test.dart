@@ -62,8 +62,11 @@ void main() {
     );
   });
 
-  Handler buildSyncHandler(http.Client client) {
-    final exportHandler = DataExportHandler(sections: [profileSection]);
+  Handler buildSyncHandler(
+    http.Client client, {
+    DataExportHandler? exportHandler,
+  }) {
+    exportHandler ??= DataExportHandler(sections: [profileSection]);
     final syncHandler = DataSyncHandler(
       exportHandler: exportHandler,
       httpClient: client,
@@ -293,6 +296,48 @@ void main() {
         final body = jsonDecode(await response.readAsString());
         expect(body['pull']['error'], 'Target unreachable');
       });
+
+      test('pull returns 207 for a partial local import', () async {
+        final partialSection = MockExportSection(
+          filename: 'profiles.json',
+          importResult: const SectionImportResult(
+            imported: 2,
+            errors: ['bad row'],
+          ),
+        );
+        final client = http_testing.MockClient(
+          (_) async =>
+              http.Response.bytes(buildZip({'profiles.json': {}}), 200),
+        );
+        final handler = buildSyncHandler(
+          client,
+          exportHandler: DataExportHandler(sections: [partialSection]),
+        );
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'pull',
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['pull']['profiles']['errors'], contains('bad row'));
+      });
+
+      test(
+        'pull returns 502 for an archive with no recognized sections',
+        () async {
+          final client = http_testing.MockClient(
+            (_) async => http.Response.bytes(buildZip({}), 200),
+          );
+          final handler = buildSyncHandler(client);
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'pull',
+          });
+          expect(response.statusCode, 502);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['pull']['error'], 'Invalid backup archive');
+        },
+      );
     });
 
     group('push mode', () {
@@ -360,6 +405,38 @@ void main() {
         final body = jsonDecode(await response.readAsString());
         expect(body['push']['error'], 'Target error');
         expect(body['push']['status'], 500);
+      });
+
+      test('push returns 207 and preserves a remote partial result', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"profiles":{"imported":2},"shots":{"errors":["bad row"]}}',
+            207,
+          ),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['profiles']['imported'], 2);
+        expect(body['push']['shots']['errors'], contains('bad row'));
+      });
+
+      test('push returns 502 for a remote 400 response', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response('{"message":"Invalid backup"}', 400),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['status'], 400);
       });
 
       test('push returns 502 when target is unreachable', () async {
@@ -452,6 +529,62 @@ void main() {
         expect(body['pull']['error'], 'Target error');
         expect(body['push'], isNotNull);
       });
+
+      test(
+        'returns 207 when one phase is partial and the other completes',
+        () async {
+          final partialSection = MockExportSection(
+            filename: 'profiles.json',
+            importResult: const SectionImportResult(errors: ['bad row']),
+          );
+          final client = http_testing.MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
+            }
+            return http.Response('{"profiles":{"imported":1}}', 200);
+          });
+          final handler = buildSyncHandler(
+            client,
+            exportHandler: DataExportHandler(sections: [partialSection]),
+          );
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'two_way',
+          });
+          expect(response.statusCode, 207);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['pull']['profiles']['errors'], contains('bad row'));
+          expect(body['push']['profiles']['imported'], 1);
+        },
+      );
+
+      test(
+        'returns 207 when one phase is partial and the other fails',
+        () async {
+          final partialSection = MockExportSection(
+            filename: 'profiles.json',
+            importResult: const SectionImportResult(errors: ['bad row']),
+          );
+          final client = http_testing.MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
+            }
+            return http.Response('Server Error', 500);
+          });
+          final handler = buildSyncHandler(
+            client,
+            exportHandler: DataExportHandler(sections: [partialSection]),
+          );
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'two_way',
+          });
+          expect(response.statusCode, 207);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['pull']['profiles']['errors'], contains('bad row'));
+          expect(body['push']['error'], 'Target error');
+        },
+      );
 
       test('returns 502 when both pull and push fail', () async {
         final client = http_testing.MockClient(

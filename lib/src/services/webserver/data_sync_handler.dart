@@ -11,6 +11,15 @@ import 'package:shelf_plus/shelf_plus.dart';
 /// Sync modes for data synchronization between two Decent instances.
 enum SyncMode { pull, push, twoWay }
 
+enum SyncPhaseStatus { complete, partial, fatal }
+
+class SyncPhaseOutcome {
+  final SyncPhaseStatus status;
+  final Map<String, dynamic> result;
+
+  const SyncPhaseOutcome({required this.status, required this.result});
+}
+
 /// Exception thrown when the sync target returns an error.
 class SyncTargetException implements Exception {
   final String message;
@@ -125,48 +134,57 @@ class DataSyncHandler {
 
     // Execute sync
     final results = <String, dynamic>{};
-    bool pullFailed = false;
-    bool pushFailed = false;
+    var fatalPhases = 0;
+    var partialPhase = false;
 
     // Pull phase
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
-      try {
-        final pullResult = await _pull(target, strategy, sections);
-        results['pull'] = pullResult;
-      } catch (e) {
-        pullFailed = true;
-        results['pull'] = _errorResult(e);
-      }
+      final pullOutcome = await _runPhase(
+        () => _pull(target, strategy, sections),
+      );
+      results['pull'] = pullOutcome.result;
+      fatalPhases += pullOutcome.status == SyncPhaseStatus.fatal ? 1 : 0;
+      partialPhase |= pullOutcome.status == SyncPhaseStatus.partial;
     }
 
     // Push phase
     if (mode == SyncMode.push || mode == SyncMode.twoWay) {
-      try {
-        final pushResult = await _push(target, strategy, sections);
-        results['push'] = pushResult;
-      } catch (e) {
-        pushFailed = true;
-        results['push'] = _errorResult(e);
-      }
+      final pushOutcome = await _runPhase(
+        () => _push(target, strategy, sections),
+      );
+      results['push'] = pushOutcome.result;
+      fatalPhases += pushOutcome.status == SyncPhaseStatus.fatal ? 1 : 0;
+      partialPhase |= pushOutcome.status == SyncPhaseStatus.partial;
     }
 
-    // Determine response status:
-    // - 200: all phases succeeded
-    // - 207: partial success in two_way mode (one phase failed)
-    // - 502: all phases failed, or single-direction mode failed
-    if (mode == SyncMode.twoWay && (pullFailed != pushFailed)) {
+    if (fatalPhases > 0 && mode == SyncMode.twoWay && fatalPhases < 2) {
       return jsonMultiStatus(results);
     }
 
-    if (pullFailed || pushFailed) {
+    if (fatalPhases > 0) {
       return jsonBadGateway(results);
     }
+
+    if (partialPhase) return jsonMultiStatus(results);
 
     return jsonOk(results);
   }
 
+  Future<SyncPhaseOutcome> _runPhase(
+    Future<SyncPhaseOutcome> Function() phase,
+  ) async {
+    try {
+      return await phase();
+    } catch (e) {
+      return SyncPhaseOutcome(
+        status: SyncPhaseStatus.fatal,
+        result: _errorResult(e),
+      );
+    }
+  }
+
   /// Pull data from the target instance and import it locally.
-  Future<Map<String, dynamic>> _pull(
+  Future<SyncPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
     List<String>? sections,
@@ -184,15 +202,21 @@ class DataSyncHandler {
       );
     }
 
-    return await _exportHandler.importFromBytes(
+    final outcome = await _exportHandler.importFromBytes(
       response.bodyBytes,
       strategy,
       sections: sections,
     );
+    return SyncPhaseOutcome(
+      status: outcome.isPartial
+          ? SyncPhaseStatus.partial
+          : SyncPhaseStatus.complete,
+      result: outcome.toJson(),
+    );
   }
 
   /// Export local data and push it to the target instance.
-  Future<Map<String, dynamic>> _push(
+  Future<SyncPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
     List<String>? sections,
@@ -212,7 +236,7 @@ class DataSyncHandler {
         )
         .timeout(_requestTimeout);
 
-    if (response.statusCode != 200) {
+    if (response.statusCode != 200 && response.statusCode != 207) {
       throw SyncTargetException(
         'Target returned status ${response.statusCode}',
         statusCode: response.statusCode,
@@ -220,10 +244,36 @@ class DataSyncHandler {
       );
     }
 
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (e) {
+      throw SyncTargetException(
+        'Target returned invalid JSON',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+    if (decoded is! Map) {
+      throw SyncTargetException(
+        'Target returned invalid JSON',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+
+    return SyncPhaseOutcome(
+      status: response.statusCode == 207
+          ? SyncPhaseStatus.partial
+          : SyncPhaseStatus.complete,
+      result: Map<String, dynamic>.from(decoded),
+    );
   }
 
   Map<String, dynamic> _errorResult(Object error) {
+    if (error is InvalidBackupException) {
+      return {'error': 'Invalid backup archive', 'message': error.message};
+    }
     if (error is SyncTargetException) {
       return {
         'error': 'Target error',

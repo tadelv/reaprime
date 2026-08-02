@@ -24,6 +24,15 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 - Content-based hash IDs for profile deduplication (`ProfileController`).
 - ETag / `If-None-Match` support on cacheable resources (#203).
 
+### Backup Import and Sync Invariants
+
+- A successful backup import requires at least one recognized selected payload; metadata alone is not payload.
+- `200` means all processed import sections completed without errors. Any section error, including a returned `SectionImportResult.errors` list, means `207`.
+- Section errors remain isolated so other recognized sections may import. Imports are not transactional and successful sections are not rolled back.
+- `DataImportOutcome` (or its equivalent) is the source of import completeness classification; clients must not infer it by reparsing the section response map.
+- Data sync preserves complete, partial, and fatal phase states. A remote import `207` is a partial push, not a target failure.
+- UI clients must not collapse `207` into complete success.
+
 ## WebSocket Conventions
 
 - WebSocket topics are path-based: `/ws/v1/machine/state`, `/ws/v1/machine/shotState`, `/ws/v1/scale/snapshot`, etc.

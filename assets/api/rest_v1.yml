@@ -3780,10 +3780,18 @@ paths:
       summary: Import app data from archive
       description: |
         Imports app data from a ZIP archive previously created by the export
-        endpoint. Each JSON file in the archive is processed independently —
-        missing files are skipped. Unknown files are ignored for forward
-        compatibility. Use the onConflict parameter to control how duplicate
-        records are handled.
+        endpoint. Each recognized JSON section is processed independently.
+        Missing sections are allowed, but the archive must contain at least one
+        recognized selected section. Unknown files and metadata.json alone do
+        not constitute an importable backup. Metadata is optional for legacy
+        archives without metadata.json, but is validated when present. Use the
+        onConflict parameter to control how duplicate records are handled.
+
+        A 200 response means every processed section completed without errors.
+        A 207 response means recognized sections were processed but at least
+        one section returned or encountered an error. Warnings and conflict
+        skips do not cause 207. Sections are not imported transactionally; a
+        successful section is not rolled back when another section fails.
       tags: [Data Management]
       parameters:
         - in: query
@@ -3805,11 +3813,13 @@ paths:
               format: binary
       responses:
         "200":
-          description: Import completed successfully
+          description: At least one recognized section was processed and all processed sections completed without errors
           content:
             application/json:
               schema:
                 type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/SectionImportResult"
                 properties:
                   profiles:
                     $ref: "#/components/schemas/SectionImportResult"
@@ -3821,8 +3831,22 @@ paths:
                     $ref: "#/components/schemas/SectionImportResult"
                   store:
                     $ref: "#/components/schemas/SectionImportResult"
+                  steams:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  beans:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  grinders:
+                    $ref: "#/components/schemas/SectionImportResult"
+        "207":
+          description: Recognized sections were processed, but one or more sections contain errors
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/SectionImportResult"
         "400":
-          description: Invalid archive, unsupported format version, or invalid onConflict value
+          description: Invalid ZIP, malformed or unsupported metadata, unknown requested selection, no recognized data sections, or invalid onConflict value
           content:
             application/json:
               schema:
@@ -3842,10 +3866,14 @@ paths:
         instance over the network. Supports three modes:
         - **pull**: imports data from the target into this instance
         - **push**: exports data from this instance to the target
-        - **two_way**: performs pull then push (returns 207 if one phase fails)
+        - **two_way**: performs pull then push
 
         Only the specified sections are synced. If no sections are provided,
-        all available sections are synced.
+        all available sections are synced. A partial local import or remote
+        import response is a partial phase. A fatal single phase returns 502;
+        two-way mode returns 207 when one phase is partial or when one phase is
+        fatal while the other completes or is partial. Two fatal phases return
+        502.
       tags: [Data Management]
       requestBody:
         required: true
@@ -3888,7 +3916,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "207":
-          description: Partial success (two_way mode, one phase failed)
+          description: At least one phase is partial, or one two-way phase is fatal while the other completes or is partial
           content:
             application/json:
               schema:

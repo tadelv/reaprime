@@ -302,6 +302,29 @@ same request prevent all fields from being stored (validation is atomic).
 
 Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders).
 
+Backups are ZIP archives with one JSON file per registered section. Import
+matches files by their registered section names; unknown files are ignored, but
+an archive must contain at least one recognized selected section. `metadata.json`
+is not payload: metadata-only, empty, and unknown-only archives return `400`.
+Metadata is optional for legacy archives without it. When present, its JSON and
+`formatVersion` are validated before any section is imported. Sections are
+processed independently and are not transactional, so successful sections are
+not rolled back when another section fails.
+
+`POST /api/v1/data/import` preserves its section-keyed response body. `200`
+means at least one recognized section was processed and every processed section
+completed without errors. `207 Multi-Status` means at least one processed
+section contains errors; successful sections, counts, warnings, and errors are
+all retained. Warnings and conflict-strategy skips alone still return `200`.
+Clients must inspect both the HTTP status and each section result.
+
+Data sync preserves the same phase distinction. A complete pull or push is
+represented by `200`; a partial local import or remote import response is
+represented by `207`. A two-way sync returns `207` when either phase is partial,
+or when one phase is fatal and the other succeeds or is partial. A fatal single
+phase, or two fatal phases, returns `502`. Phase results remain under `pull` and
+`push`, including successful sections and fatal error details.
+
 ### Account
 
 | Method | Path | Description | Handler |

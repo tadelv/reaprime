@@ -1334,11 +1334,18 @@ function createPlugin(host) {
                     headers: { 'Content-Type': 'application/zip' },
                     body: fileInput.files[0]
                 });
-                if (response.ok) {
+                const result = await response.json().catch(() => ({}));
+                if (response.status === 200) {
                     showToast('Data imported successfully');
                     setTimeout(() => location.reload(), 1000);
+                } else if (response.status === 207) {
+                    const errors = Object.values(result)
+                        .filter(section => section && Array.isArray(section.errors))
+                        .flatMap(section => section.errors);
+                    const detail = errors.length ? ': ' + errors.join('; ') : '';
+                    showToast('Data import partially completed' + detail, true);
                 } else {
-                    const error = await response.text();
+                    const error = result.message || result.error || ('Server returned ' + response.status);
                     showToast('Failed to import data: ' + error, true);
                 }
             } catch (e) {
