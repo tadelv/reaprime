@@ -198,6 +198,37 @@ void main() {
     await bridge.dispose();
   });
 
+  test('reconnect writes the target to the replacement Bengle', () async {
+    final oldBengle = _RecordingBengle();
+    await connectBengle(oldBengle);
+
+    final bridge = BengleSawBridge(
+      workflowController: workflow,
+      de1Controller: de1Controller,
+      debounce: _debounce,
+    );
+    await Future<void>.delayed(Duration.zero);
+    oldBengle.sawWrites.clear();
+
+    final base = workflow.currentWorkflow.context ?? const WorkflowContext();
+    oldBengle.blockedSaw = 30.0;
+    oldBengle.sawEntered = Completer<void>();
+    oldBengle.sawRelease = Completer<void>();
+    workflow.updateWorkflow(context: base.copyWith(targetYield: 30.0));
+    await oldBengle.sawEntered!.future.timeout(const Duration(seconds: 2));
+
+    final replacement = _RecordingBengle();
+    await connectBengle(replacement);
+    await Future<void>.delayed(Duration.zero);
+    expect(replacement.sawWrites, isEmpty);
+
+    oldBengle.sawRelease!.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(replacement.sawWrites, [30.0]);
+    expect(oldBengle.maxInFlight, 1);
+    await bridge.dispose();
+  });
+
   test('no write when connected machine is not Bengle', () async {
     final de1 = TestDe1();
     await de1Controller.connectToDe1(de1);

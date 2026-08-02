@@ -149,8 +149,10 @@ handler reads the workflow base when a queue entry reaches execution, then appli
 only that request's deep merge. Machine side effects from separate workflow PUTs
 must never overlap, and a failure must not poison the queue tail.
 
-Direct machine writes complete before controller workflow state is committed. A
-machine-write failure returns `500` and leaves controller workflow state unchanged;
-multi-step device writes may still be partially applied, so a retry re-attempts the
-requested settings. `WorkflowDeviceSync` remains the owner of asynchronous profile
-upload after controller changes.
+Direct machine writes complete before controller workflow state is committed. The
+handler commits with a controller revision check; if another workflow source changes
+the controller during device I/O, the request rebases its merge and repeats the
+required writes before retrying the commit. A machine-write failure returns `500` and
+leaves controller workflow state unchanged; multi-step device writes may still be
+partially applied, so a retry re-attempts the requested settings. `WorkflowDeviceSync`
+remains the owner of asynchronous profile upload after controller changes.

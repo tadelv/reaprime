@@ -17,6 +17,7 @@ class WorkflowController extends ChangeNotifier {
     hotWaterData: HotWaterData.defaults(),
     rinseData: RinseData.defaults(),
   );
+  int _revision = 0;
 
   Workflow newWorkflow() {
     return Workflow(
@@ -33,9 +34,18 @@ class WorkflowController extends ChangeNotifier {
 
   Workflow get currentWorkflow => _currentWorkflow;
 
+  int get revision => _revision;
+
   void setWorkflow(Workflow newWorkflow) {
     _currentWorkflow = newWorkflow;
+    _revision++;
     notifyListeners();
+  }
+
+  bool setWorkflowIfRevision(Workflow newWorkflow, int expectedRevision) {
+    if (_revision != expectedRevision) return false;
+    setWorkflow(newWorkflow);
+    return true;
   }
 
   void updateWorkflow({
@@ -56,6 +66,7 @@ class WorkflowController extends ChangeNotifier {
       hotWaterData: hotWaterData,
       rinseData: rinseData,
     );
+    _revision++;
     notifyListeners();
   }
 }

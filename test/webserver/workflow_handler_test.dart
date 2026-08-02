@@ -761,16 +761,48 @@ void main() {
     );
 
     test(
+      'a concurrent controller mutation survives a blocked REST apply',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final nextFlow = initial.steamSettings.flow + 1;
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        spy.blockedSteamFlow = nextFlow;
+        spy.steamFlowEntered = entered;
+        spy.steamFlowRelease = release;
+
+        final future = put({
+          'steamSettings': {'flow': nextFlow},
+        });
+        await entered.future.timeout(const Duration(seconds: 2));
+
+        workflowController.setWorkflow(
+          initial.copyWith(name: 'Concurrent workflow'),
+        );
+        release.complete();
+
+        final response = await future.timeout(const Duration(seconds: 2));
+        expect(response.statusCode, 200);
+        expect(workflowController.currentWorkflow.name, 'Concurrent workflow');
+        expect(workflowController.currentWorkflow.steamSettings.flow, nextFlow);
+        expect(spy.setSteamFlowCalls, [nextFlow, nextFlow]);
+      },
+    );
+
+    test(
       'request order is reserved before a streamed body completes',
       () async {
         await _settleHandler();
         final body = StreamController<List<int>>();
-        final firstFuture = handler(
-          Request(
-            'PUT',
-            Uri.parse('http://localhost/api/v1/workflow'),
-            body: body.stream,
-            headers: {'content-type': 'application/json'},
+        final firstFuture = Future<Response>.sync(
+          () => handler(
+            Request(
+              'PUT',
+              Uri.parse('http://localhost/api/v1/workflow'),
+              body: body.stream,
+              headers: {'content-type': 'application/json'},
+            ),
           ),
         );
         final secondFuture = put({'name': 'second'});
