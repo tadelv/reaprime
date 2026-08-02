@@ -131,6 +131,7 @@ class DataTransferPhaseOutcome {
   final String? error;
   final String? message;
   final String? reason;
+  final int? statusCode;
 
   DataTransferPhaseOutcome({
     required this.status,
@@ -138,6 +139,7 @@ class DataTransferPhaseOutcome {
     this.error,
     this.message,
     this.reason,
+    this.statusCode,
   }) : sections = Map.unmodifiable(sections);
 
   bool get complete => status == DataTransferStatus.complete;
@@ -155,6 +157,7 @@ class DataTransferPhaseOutcome {
     if (error != null) 'error': error,
     if (message != null) 'message': message,
     if (reason != null) 'reason': reason,
+    if (statusCode != null) 'statusCode': statusCode,
   };
 
   static DataTransferPhaseOutcome fromSections({
@@ -195,8 +198,9 @@ class DataTransferPhaseOutcome {
 
   static DataTransferPhaseOutcome fromRemote(
     dynamic value,
-    List<String> expectedSections,
-  ) {
+    List<String> expectedSections, {
+    DataTransferStatus? minimumStatus,
+  }) {
     if (value is! Map || value.keys.any((key) => key is! String)) {
       return DataTransferPhaseOutcome(
         status: DataTransferStatus.failed,
@@ -253,6 +257,7 @@ class DataTransferPhaseOutcome {
       complete: complete as bool?,
       partial: partial as bool?,
       hasError: error != null,
+      minimumStatus: minimumStatus,
     );
     return DataTransferPhaseOutcome(
       status: status,
@@ -277,11 +282,13 @@ class DataTransferPhaseOutcome {
     required bool? complete,
     required bool? partial,
     required bool hasError,
+    DataTransferStatus? minimumStatus,
   }) {
     final statuses = [derived];
     if (declaredStatus != null) statuses.add(declaredStatus);
     if (partial == true) statuses.add(DataTransferStatus.partial);
     if (hasError) statuses.add(DataTransferStatus.failed);
+    if (minimumStatus != null) statuses.add(minimumStatus);
     if (complete == false &&
         partial != true &&
         declaredStatus != DataTransferStatus.partial &&
@@ -309,12 +316,14 @@ class DataTransferPhaseOutcome {
     required String error,
     required String message,
     String? reason,
+    int? statusCode,
   }) => DataTransferPhaseOutcome(
     status: DataTransferStatus.failed,
     sections: const {},
     error: error,
     message: message,
     reason: reason,
+    statusCode: statusCode,
   );
 
   static const _metadataKeys = {
@@ -326,5 +335,6 @@ class DataTransferPhaseOutcome {
     'error',
     'message',
     'reason',
+    'statusCode',
   };
 }

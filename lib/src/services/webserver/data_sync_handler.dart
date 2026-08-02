@@ -14,8 +14,9 @@ enum SyncMode { pull, push, twoWay }
 class SyncTargetException implements Exception {
   final String error;
   final String message;
+  final int? statusCode;
 
-  const SyncTargetException(this.error, this.message);
+  const SyncTargetException(this.error, this.message, {this.statusCode});
 
   @override
   String toString() => 'SyncTargetException: $message';
@@ -124,7 +125,7 @@ class DataSyncHandler {
       });
     }
 
-    final sectionsResult = _parseSections(body['sections'], mode);
+    final sectionsResult = _parseSections(body['sections']);
     if (sectionsResult.error != null) {
       return jsonBadRequest(sectionsResult.error!);
     }
@@ -181,6 +182,7 @@ class DataSyncHandler {
       throw SyncTargetException(
         'Target error',
         'Target returned status ${response.statusCode}',
+        statusCode: response.statusCode,
       );
     }
 
@@ -217,6 +219,7 @@ class DataSyncHandler {
       throw SyncTargetException(
         'Target error',
         'Target returned status ${response.statusCode}',
+        statusCode: response.statusCode,
       );
     }
 
@@ -230,7 +233,13 @@ class DataSyncHandler {
         reason: 'invalid_json',
       );
     }
-    return DataTransferPhaseOutcome.fromRemote(decoded, expectedSections);
+    return DataTransferPhaseOutcome.fromRemote(
+      decoded,
+      expectedSections,
+      minimumStatus: response.statusCode == 207
+          ? DataTransferStatus.partial
+          : null,
+    );
   }
 
   Response _response({
@@ -245,8 +254,8 @@ class DataSyncHandler {
       'complete': status == DataTransferStatus.complete,
       'partial': status == DataTransferStatus.partial,
       'mode': _wireMode(mode),
-      if (pull != null) 'pull': pull.sectionResults,
-      if (push != null) 'push': push.sectionResults,
+      if (pull != null) 'pull': _legacyPhaseResult(pull),
+      if (push != null) 'push': _legacyPhaseResult(push),
       'phases': {
         if (pull != null) 'pull': pull.toMetadata(),
         if (push != null) 'push': push.toMetadata(),
@@ -258,6 +267,14 @@ class DataSyncHandler {
       return jsonMultiStatus(result);
     }
     return jsonBadGateway(result);
+  }
+
+  Map<String, dynamic> _legacyPhaseResult(DataTransferPhaseOutcome phase) {
+    if (phase.status == DataTransferStatus.skipped) return {};
+    if (phase.sections.isNotEmpty) return phase.sectionResults;
+    final result = phase.toMetadata();
+    if (phase.statusCode != null) result['status'] = phase.statusCode;
+    return result;
   }
 
   DataTransferStatus _operationStatus(
@@ -302,6 +319,7 @@ class DataSyncHandler {
         error: error.error,
         message: error.message,
         reason: 'target_error',
+        statusCode: error.statusCode,
       );
     }
     if (error is http.ClientException) {
@@ -325,16 +343,8 @@ class DataSyncHandler {
     );
   }
 
-  _SectionsResult _parseSections(dynamic value, SyncMode mode) {
+  _SectionsResult _parseSections(dynamic value) {
     if (value == null) {
-      if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
-        final modeName = mode == SyncMode.twoWay ? 'two_way' : 'pull';
-        return _SectionsResult.errorResult({
-          'error': 'Missing required field',
-          'message':
-              '"sections" is required and must not be empty for $modeName mode',
-        });
-      }
       return const _SectionsResult(null);
     }
     if (value is! List || value.any((section) => section is! String)) {
