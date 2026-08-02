@@ -408,6 +408,38 @@ void main() {
         reason: 'identical profile must not be re-sent',
       );
     });
+
+    test(
+      'stop-at-temperature-only PUT commits without direct DE1 writes',
+      () async {
+        await _settleHandler();
+        spy.updateShotSettingsCalls.clear();
+        spy.setSteamFlowCalls.clear();
+        spy.setHotWaterFlowCalls.clear();
+        spy.setFlushFlowCalls.clear();
+        spy.setFlushTimeoutCalls.clear();
+        spy.setFlushTemperatureCalls.clear();
+        await de1Controller.dispose();
+
+        final future = put({
+          'steamSettings': {'stopAtTemperature': 60},
+        });
+        await _settleHandler();
+        final response = await future;
+
+        expect(response.statusCode, equals(200));
+        expect(
+          workflowController.currentWorkflow.steamSettings.stopAtTemperature,
+          equals(60),
+        );
+        expect(spy.updateShotSettingsCalls, isEmpty);
+        expect(spy.setSteamFlowCalls, isEmpty);
+        expect(spy.setHotWaterFlowCalls, isEmpty);
+        expect(spy.setFlushFlowCalls, isEmpty);
+        expect(spy.setFlushTimeoutCalls, isEmpty);
+        expect(spy.setFlushTemperatureCalls, isEmpty);
+      },
+    );
   });
 
   group('PUT /api/v1/workflow — parse errors (issue #338)', () {

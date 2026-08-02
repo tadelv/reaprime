@@ -913,8 +913,9 @@ paths:
         rolled back. Retrying the same request is safe because a failed batch did not commit
         its workflow state, so the required writes are attempted again.
 
-        Profile synchronization remains asynchronous and is handled separately by
-        `WorkflowDeviceSync` after a successful workflow commit.
+        Profile synchronization and Bengle stop-at-temperature target updates
+        remain asynchronous and are handled separately by `WorkflowDeviceSync`
+        and `BengleSteamStopBridge` after a successful workflow commit.
 
         You can update the complete workflow or just specific fields:
         - **context**: Set dose, grinder, coffee, and people metadata (recommended)

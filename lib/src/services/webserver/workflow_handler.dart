@@ -85,20 +85,25 @@ class WorkflowHandler {
         final resultJson = deepMergeJson(oldWorkflow.toJson(), merge);
         final updatedWorkflow = Workflow.fromJson(resultJson);
 
-        // Profile push is owned by WorkflowDeviceSync — it observes
-        // `setWorkflow` and uploads the profile if it changed. Keeping a
-        // second setProfile call here would race against that listener and
-        // write every BLE frame twice (see the profile-double-upload P0).
+        // Profile push and Bengle stop-at-temperature target updates are
+        // owned by listeners after `setWorkflow` commits the workflow.
         if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
           await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
         }
-        if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
+        final oldSteamSettings = oldWorkflow.steamSettings;
+        final updatedSteamSettings = updatedWorkflow.steamSettings;
+        final steamSettingsChanged =
+            oldSteamSettings.targetTemperature !=
+                updatedSteamSettings.targetTemperature ||
+            oldSteamSettings.duration != updatedSteamSettings.duration ||
+            oldSteamSettings.flow != updatedSteamSettings.flow;
+        if (steamSettingsChanged) {
           await _de1controller.updateSteamSettings(
             SteamFormSettings(
-              steamEnabled: updatedWorkflow.steamSettings.duration > 0,
-              targetTemp: updatedWorkflow.steamSettings.targetTemperature,
-              targetDuration: updatedWorkflow.steamSettings.duration,
-              targetFlow: updatedWorkflow.steamSettings.flow,
+              steamEnabled: updatedSteamSettings.duration > 0,
+              targetTemp: updatedSteamSettings.targetTemperature,
+              targetDuration: updatedSteamSettings.duration,
+              targetFlow: updatedSteamSettings.flow,
             ),
           );
         }

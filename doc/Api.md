@@ -136,8 +136,9 @@ enters `steam` and finalized when it leaves. Today no probe is wired in
 production, so `SteamSnapshot.milkTemperature` is `null` on every frame —
 the API surface is scaffolding for skin developers and for future
 probe / FW support. `SteamSettings.stopAtTemperature` (in
-`/api/v1/workflow`) is the target the future FW-autonomous stop or
-in-app stop will trigger on.
+`/api/v1/workflow`) is stored in the workflow and applied asynchronously by
+`BengleSteamStopBridge` when a Bengle is connected. It is the target the
+future FW-autonomous stop or in-app stop will trigger on.
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
@@ -182,8 +183,9 @@ If a required direct machine write fails, the endpoint returns `500` and the
 controller workflow remains unchanged. Earlier individual machine writes are
 not rolled back, so this is controller commit atomicity rather than machine
 rollback. Retrying the exact request reissues the required writes. Profile
-uploads remain asynchronous and are owned and retried separately by
-`WorkflowDeviceSync` after the successful workflow commit.
+uploads and Bengle stop-at-temperature target updates remain asynchronous and
+are owned and retried separately by `WorkflowDeviceSync` and
+`BengleSteamStopBridge` after the successful workflow commit.
 
 ### Beans
 

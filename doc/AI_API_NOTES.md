@@ -129,6 +129,8 @@ debounced batches are serialized so later merges include earlier successful
 commits and failed batches leave the next batch reading the unchanged state.
 
 `WorkflowDeviceSync` remains responsible only for asynchronous profile upload
-and retry after the eventual successful controller commit. This provides
-controller commit atomicity, not machine rollback: individual writes that
-completed before a later failure may already have reached the machine.
+and retry after the eventual successful controller commit. `BengleSteamStopBridge`
+similarly applies `SteamSettings.stopAtTemperature` asynchronously after the
+commit when a Bengle is connected. This provides controller commit atomicity,
+not machine rollback: individual writes that completed before a later failure
+may already have reached the machine.
