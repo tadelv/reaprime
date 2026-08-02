@@ -3868,8 +3868,10 @@ paths:
         - **push**: exports data from this instance to the target
         - **two_way**: performs pull then push only after a complete pull by default
 
-        Sections may be omitted, which means all locally registered sections.
-        An explicitly empty sections list is invalid.
+        Pull and push requests may omit sections, which means all locally
+        registered sections. Two_way requests require a nonempty explicit
+        sections list. An explicitly empty sections list is invalid for every
+        mode.
         Duplicate names are deduplicated in first-occurrence order and
         unknown names return 400. Semantic status is derived from section
         results rather than HTTP 200 alone. Existing direct section maps stay
@@ -3911,9 +3913,10 @@ paths:
                   minItems: 1
                   uniqueItems: false
                   description: |
-                    Data sections to sync. Optional for every mode; omission
-                    means all locally registered sections. An explicitly empty
-                    list is invalid. Duplicate names are deduplicated in
+                    Data sections to sync. Optional for pull and push; omission
+                    means all locally registered sections. Required and
+                    nonempty for two_way. An explicitly empty list is invalid
+                    for every mode. Duplicate names are deduplicated in
                     first-occurrence order.
                 continueOnPullFailure:
                   type: boolean
@@ -3936,7 +3939,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "400":
-          description: Validation error (missing required fields, invalid mode, etc.)
+          description: Validation error (missing required fields, invalid mode, missing two_way sections, etc.)
           content:
             application/json:
               schema:
