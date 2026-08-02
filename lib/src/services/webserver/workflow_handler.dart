@@ -11,9 +11,12 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
+const _workflowBodyReadTimeout = Duration(seconds: 30);
+
 class WorkflowHandler {
   final WorkflowController _controller;
   final De1Controller _de1controller;
+  final Duration bodyReadTimeout;
 
   static final _log = Logger('WorkflowHandler');
   Future<void> _workflowQueue = Future<void>.value();
@@ -21,6 +24,7 @@ class WorkflowHandler {
   WorkflowHandler({
     required WorkflowController controller,
     required De1Controller de1controller,
+    this.bodyReadTimeout = _workflowBodyReadTimeout,
   }) : _controller = controller,
        _de1controller = de1controller;
 
@@ -35,7 +39,13 @@ class WorkflowHandler {
   }
 
   Future<Response> _updateWorkflow(Request req) {
-    final payload = req.readAsString();
+    final payload = req.readAsString().timeout(bodyReadTimeout);
+    unawaited(
+      payload.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {},
+      ),
+    );
     final operation = _workflowQueue.then((_) => _applyPayload(payload));
     _workflowQueue = operation.then<void>(
       (_) {},

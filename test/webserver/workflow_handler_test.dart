@@ -827,6 +827,86 @@ void main() {
     );
 
     test(
+      'a queued body-read failure is observed without poisoning the queue',
+      () async {
+        await _settleHandler();
+        final initial = workflowController.currentWorkflow;
+        final blockedFlow = initial.steamSettings.flow + 1;
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        spy.blockedSteamFlow = blockedFlow;
+        spy.steamFlowEntered = entered;
+        spy.steamFlowRelease = release;
+
+        final firstFuture = put({
+          'steamSettings': {'flow': blockedFlow},
+        });
+        await entered.future.timeout(const Duration(seconds: 2));
+
+        final body = StreamController<List<int>>();
+        final failedFuture = Future<Response>.sync(
+          () => handler(
+            Request(
+              'PUT',
+              Uri.parse('http://localhost/api/v1/workflow'),
+              body: body.stream,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        body.addError(StateError('body read failed'));
+        await body.close();
+        await Future<void>.delayed(Duration.zero);
+        release.complete();
+
+        final responses = await Future.wait([
+          firstFuture.timeout(const Duration(seconds: 2)),
+          failedFuture.timeout(const Duration(seconds: 2)),
+        ]);
+        expect(responses[0].statusCode, 200);
+        expect(responses[1].statusCode, 500);
+        final nextResponse = await put({'name': 'after body failure'});
+        expect(nextResponse.statusCode, 200);
+      },
+    );
+
+    test(
+      'a stalled body cannot hold the workflow queue indefinitely',
+      () async {
+        await _settleHandler();
+        final timeoutHandler = WorkflowHandler(
+          controller: workflowController,
+          de1controller: de1Controller,
+          bodyReadTimeout: const Duration(milliseconds: 20),
+        );
+        final timeoutApp = Router().plus;
+        timeoutHandler.addRoutes(timeoutApp);
+        final body = StreamController<List<int>>();
+        final stalledFuture = Future<Response>.sync(
+          () => timeoutApp.call(
+            Request(
+              'PUT',
+              Uri.parse('http://localhost/api/v1/workflow'),
+              body: body.stream,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+
+        try {
+          final stalledResponse = await stalledFuture.timeout(
+            const Duration(seconds: 2),
+          );
+          expect(stalledResponse.statusCode, 500);
+          final nextResponse = await put({'name': 'after body timeout'});
+          expect(nextResponse.statusCode, 200);
+        } finally {
+          await body.close();
+        }
+      },
+    );
+
+    test(
       'malformed or non-object JSON returns 400 without poisoning the queue',
       () async {
         await _settleHandler();

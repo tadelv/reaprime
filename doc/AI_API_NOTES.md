@@ -148,6 +148,8 @@ must not be coalesced without a future explicit client or session contract. The
 handler reads the workflow base when a queue entry reaches execution, then applies
 only that request's deep merge. Machine side effects from separate workflow PUTs
 must never overlap, and a failure must not poison the queue tail.
+Request bodies are read with a 30-second timeout before their queued operation
+executes; body-read failures are observed immediately and do not poison the queue.
 
 Direct machine writes complete before controller workflow state is committed. The
 handler commits with a controller revision check; if another workflow source changes

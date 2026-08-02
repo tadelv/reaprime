@@ -1021,7 +1021,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "500":
-          description: A required direct machine write failed; the controller workflow remains unchanged
+          description: A required direct machine write or request body read failed; the controller workflow remains unchanged
           content:
             application/json:
               schema:
