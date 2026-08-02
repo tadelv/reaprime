@@ -32,4 +32,70 @@ void main() {
     expect(phase.status, DataTransferStatus.partial);
     expect(phase.sections['shots']!.status, DataSectionStatus.failed);
   });
+
+  test('fails closed for empty and explicitly failed sections', () {
+    final empty = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {'profiles': {}},
+      },
+      ['profiles'],
+    );
+    final failed = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'status': 'failed'},
+        },
+      },
+      ['profiles'],
+    );
+
+    expect(empty.status, DataTransferStatus.failed);
+    expect(empty.sections['profiles']!.status, DataSectionStatus.failed);
+    expect(failed.status, DataTransferStatus.failed);
+    expect(failed.sections['profiles']!.status, DataSectionStatus.failed);
+  });
+
+  test('rejects invalid and contradictory section statuses', () {
+    final invalid = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'status': 'unknown', 'imported': 1},
+        },
+      },
+      ['profiles'],
+    );
+    final contradictory = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {
+            'status': 'complete',
+            'imported': 1,
+            'errors': ['bad row'],
+          },
+        },
+      },
+      ['profiles'],
+    );
+    final declaredPartial = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'status': 'partial'},
+        },
+      },
+      ['profiles'],
+    );
+
+    expect(invalid.status, DataTransferStatus.failed);
+    expect(invalid.sections['profiles']!.status, DataSectionStatus.failed);
+    expect(contradictory.status, DataTransferStatus.partial);
+    expect(
+      contradictory.sections['profiles']!.status,
+      DataSectionStatus.partial,
+    );
+    expect(declaredPartial.status, DataTransferStatus.partial);
+    expect(
+      declaredPartial.sections['profiles']!.status,
+      DataSectionStatus.partial,
+    );
+  });
 }

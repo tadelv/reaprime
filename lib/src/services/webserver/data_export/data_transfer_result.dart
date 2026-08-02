@@ -22,37 +22,57 @@ class DataSectionOutcome {
 
   bool get hasProgress =>
       status == DataSectionStatus.complete ||
+      status == DataSectionStatus.partial ||
       _count('imported') > 0 ||
       _count('skipped') > 0;
 
   Map<String, dynamic> toJson() => {...result, 'status': status.name};
 
   static DataSectionOutcome fromJson(String key, dynamic value) {
-    if (value is! Map) {
+    if (value is! Map || value.keys.any((key) => key is! String)) {
       return _failed(key, 'Invalid result for section "$key".');
     }
 
     final result = Map<String, dynamic>.from(value);
+    final declaredStatus = result.containsKey('status')
+        ? _parseStatus(result['status'])
+        : null;
+    if (result.containsKey('status') && declaredStatus == null) {
+      return _failed(key, 'Invalid status for section "$key".');
+    }
+
     final errors = result['errors'];
     final warnings = result['warnings'];
-    if (errors != null && errors is! List) {
+    if (result.containsKey('errors') && errors is! List) {
       return _failed(key, 'Invalid errors for section "$key".');
     }
-    if (warnings != null && warnings is! List) {
+    if (result.containsKey('warnings') && warnings is! List) {
       return _failed(key, 'Invalid warnings for section "$key".');
     }
-    if (!_validCount(result['imported']) || !_validCount(result['skipped'])) {
+    if ((result.containsKey('imported') && !_validCount(result['imported'])) ||
+        (result.containsKey('skipped') && !_validCount(result['skipped']))) {
       return _failed(key, 'Invalid counts for section "$key".');
+    }
+    if (declaredStatus == null &&
+        !result.containsKey('imported') &&
+        !result.containsKey('skipped') &&
+        !result.containsKey('errors')) {
+      return _failed(key, 'Missing semantic result for section "$key".');
     }
 
     final hasErrors = errors is List && errors.isNotEmpty;
     final hasProgress =
         _countIn(result, 'imported') > 0 || _countIn(result, 'skipped') > 0;
-    final status = hasErrors
+    final derivedStatus = hasErrors
         ? hasProgress
               ? DataSectionStatus.partial
               : DataSectionStatus.failed
         : DataSectionStatus.complete;
+    final status = switch (declaredStatus) {
+      null => derivedStatus,
+      DataSectionStatus.complete when hasErrors => derivedStatus,
+      final declared => declared,
+    };
     return DataSectionOutcome(key: key, status: status, result: result);
   }
 
@@ -82,8 +102,14 @@ class DataSectionOutcome {
     return value is int && value >= 0 ? value : 0;
   }
 
-  static bool _validCount(dynamic value) =>
-      value == null || (value is int && value >= 0);
+  static bool _validCount(dynamic value) => value is int && value >= 0;
+
+  static DataSectionStatus? _parseStatus(dynamic value) => switch (value) {
+    'complete' => DataSectionStatus.complete,
+    'partial' => DataSectionStatus.partial,
+    'failed' => DataSectionStatus.failed,
+    _ => null,
+  };
 }
 
 class DataTransferPhaseOutcome {

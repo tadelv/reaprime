@@ -124,7 +124,7 @@ class DataSyncHandler {
       });
     }
 
-    final sectionsResult = _parseSections(body['sections'], mode);
+    final sectionsResult = _parseSections(body['sections']);
     if (sectionsResult.error != null) {
       return jsonBadRequest(sectionsResult.error!);
     }
@@ -244,7 +244,7 @@ class DataSyncHandler {
       'status': status.name,
       'complete': status == DataTransferStatus.complete,
       'partial': status == DataTransferStatus.partial,
-      'mode': mode.name,
+      'mode': _wireMode(mode),
       if (pull != null) 'pull': pull.sectionResults,
       if (push != null) 'push': push.sectionResults,
       'phases': {
@@ -325,14 +325,8 @@ class DataSyncHandler {
     );
   }
 
-  _SectionsResult _parseSections(dynamic value, SyncMode mode) {
+  _SectionsResult _parseSections(dynamic value) {
     if (value == null) {
-      if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
-        return _SectionsResult.errorResult({
-          'error': 'Missing required field',
-          'message': '"sections" is required and must not be empty for $mode',
-        });
-      }
       return const _SectionsResult(null);
     }
     if (value is! List || value.any((section) => section is! String)) {
@@ -369,6 +363,12 @@ class DataSyncHandler {
     'push' => SyncMode.push,
     'two_way' => SyncMode.twoWay,
     _ => null,
+  };
+
+  String _wireMode(SyncMode mode) => switch (mode) {
+    SyncMode.pull => 'pull',
+    SyncMode.push => 'push',
+    SyncMode.twoWay => 'two_way',
   };
 
   ConflictStrategy? _parseStrategy(String value) => switch (value) {

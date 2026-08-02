@@ -93,17 +93,43 @@ void main() {
 
   group('DataSyncHandler', () {
     group('validation', () {
-      test('requires sections for pull and two_way', () async {
+      test('uses all registered sections when sections are omitted', () async {
+        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+        for (final mode in ['pull', 'two_way']) {
+          final client = http_testing.MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response.bytes(targetZip, 200);
+            }
+            return http.Response(
+              '{"profiles":{"imported":1},"shots":{"imported":1}}',
+              200,
+            );
+          });
+          final response = await sendSync(
+            buildSyncHandler(client),
+            requestBody(mode: mode),
+          );
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 200);
+          expect(body['mode'], mode);
+          expect(body['phases']['pull']['status'], 'complete');
+          if (mode == 'two_way') {
+            expect(body['phases']['push']['status'], 'complete');
+          }
+        }
+      });
+
+      test('rejects an explicitly empty section list', () async {
         final handler = buildSyncHandler(
           http_testing.MockClient((_) async => http.Response('', 200)),
         );
-
-        for (final mode in ['pull', 'two_way']) {
-          final response = await sendSync(handler, requestBody(mode: mode));
-          final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 400);
-          expect(body['message'], contains('sections'));
-        }
+        final response = await sendSync(
+          handler,
+          requestBody(mode: 'pull', selectedSections: []),
+        );
+        final body = jsonDecode(await response.readAsString());
+        expect(response.statusCode, 400);
+        expect(body['message'], contains('sections'));
       });
 
       test('deduplicates sections and rejects unknown names', () async {
@@ -248,7 +274,14 @@ void main() {
       });
 
       test('rejects empty and malformed remote semantic results', () async {
-        for (final remoteBody in ['{}', '[]', 'not json']) {
+        for (final remoteBody in [
+          '{}',
+          '[]',
+          'not json',
+          '{"profiles":{}}',
+          '{"profiles":{"status":"invalid","imported":1}}',
+          '{"sections":{"profiles":{"status":"failed"}}}',
+        ]) {
           final client = http_testing.MockClient(
             (_) async => http.Response(remoteBody, 200),
           );
@@ -372,6 +405,7 @@ void main() {
         expect(response.statusCode, 200);
         expect(requestCount, 2);
         expect(body['status'], 'complete');
+        expect(body['mode'], 'two_way');
         expect(body['phases']['pull']['status'], 'complete');
         expect(body['phases']['push']['status'], 'complete');
       });

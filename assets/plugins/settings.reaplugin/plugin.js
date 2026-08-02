@@ -940,6 +940,7 @@ function createPlugin(host) {
                             <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="workflow" checked> Workflow</label>
                             <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="settings" checked> Settings</label>
                             <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="store" checked> KV Store</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="steams" checked> Steams</label>
                             <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="beans" checked> Beans</label>
                             <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="grinders" checked> Grinders</label>
                         </div>
