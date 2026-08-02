@@ -3868,8 +3868,8 @@ paths:
         - **push**: exports data from this instance to the target
         - **two_way**: performs pull then push only after a complete pull by default
 
-        Pull and two_way requests require a nonempty explicit sections list.
-        Push may omit sections, which means all locally registered sections.
+        An omitted sections list means all locally registered sections.
+        An explicit sections list must be nonempty.
         Duplicate names are deduplicated in first-occurrence order and
         unknown names return 400. Semantic status is derived from section
         results rather than HTTP 200 alone. Existing direct section maps stay
@@ -3907,13 +3907,13 @@ paths:
                   type: array
                   items:
                     type: string
-                    enum: [profiles, shots, workflow, settings, store, beans, grinders]
+                    enum: [profiles, shots, workflow, settings, store, steams, beans, grinders]
                   minItems: 1
                   uniqueItems: false
                   description: |
-                    Data sections to sync. Required and nonempty for pull and
-                    two_way. Optional for push; omission means all locally
-                    registered sections. Duplicate names are deduplicated in
+                    Data sections to sync. Optional for every mode; omission
+                    means all locally registered sections. An explicit list
+                    must be nonempty. Duplicate names are deduplicated in
                     first-occurrence order.
                 continueOnPullFailure:
                   type: boolean
