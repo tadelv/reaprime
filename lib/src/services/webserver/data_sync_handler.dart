@@ -143,16 +143,14 @@ class DataSyncHandler {
 
     // Execute sync
     final results = <String, dynamic>{};
-    var fatalPhases = 0;
-    var incompletePhase = false;
+    final phaseStatuses = <SyncPhaseStatus>[];
     SyncPhaseOutcome? pullOutcome;
 
     // Pull phase
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
       pullOutcome = await _runPhase(() => _pull(target, strategy, sections));
       results['pull'] = pullOutcome.result;
-      fatalPhases += pullOutcome.status == SyncPhaseStatus.fatal ? 1 : 0;
-      incompletePhase |= pullOutcome.status != SyncPhaseStatus.complete;
+      phaseStatuses.add(pullOutcome.status);
     }
 
     // Push phase
@@ -164,21 +162,29 @@ class DataSyncHandler {
           ? _skippedPushOutcome()
           : await _runPhase(() => _push(target, strategy, sections));
       results['push'] = pushOutcome.result;
-      fatalPhases += pushOutcome.status == SyncPhaseStatus.fatal ? 1 : 0;
-      incompletePhase |= pushOutcome.status != SyncPhaseStatus.complete;
+      phaseStatuses.add(pushOutcome.status);
     }
 
-    if (fatalPhases > 0 && mode == SyncMode.twoWay && fatalPhases < 2) {
-      return jsonMultiStatus(results);
+    if (mode != SyncMode.twoWay) {
+      return switch (phaseStatuses.single) {
+        SyncPhaseStatus.complete => jsonOk(results),
+        SyncPhaseStatus.partial => jsonMultiStatus(results),
+        SyncPhaseStatus.failed => jsonBadGateway(results),
+        SyncPhaseStatus.fatal => jsonBadGateway(results),
+        SyncPhaseStatus.skipped => jsonBadGateway(results),
+      };
     }
 
-    if (fatalPhases > 0) {
-      return jsonBadGateway(results);
+    final hasSuccessfulPhase = phaseStatuses.any(
+      (status) =>
+          status == SyncPhaseStatus.complete ||
+          status == SyncPhaseStatus.partial,
+    );
+    if (!hasSuccessfulPhase) return jsonBadGateway(results);
+    if (phaseStatuses.every((status) => status == SyncPhaseStatus.complete)) {
+      return jsonOk(results);
     }
-
-    if (incompletePhase) return jsonMultiStatus(results);
-
-    return jsonOk(results);
+    return jsonMultiStatus(results);
   }
 
   Future<SyncPhaseOutcome> _runPhase(
@@ -217,6 +223,7 @@ class DataSyncHandler {
       response.bodyBytes,
       strategy,
       sections: sections,
+      strictSections: sections != null,
     );
     return SyncPhaseOutcome(
       status: switch (outcome.status) {
@@ -288,15 +295,18 @@ class DataSyncHandler {
       );
     }
     final failedSections = sectionResults
-        .where((entry) => _hasSectionErrors(entry.value))
+        .where((entry) => _isFailedSection(entry.value))
         .length;
+    final allSectionsComplete = sectionResults.every(
+      (entry) => _isCompleteSection(entry.value),
+    );
 
     return SyncPhaseOutcome(
       status: response.statusCode == 207
           ? failedSections == sectionResults.length
                 ? SyncPhaseStatus.failed
                 : SyncPhaseStatus.partial
-          : failedSections == 0
+          : allSectionsComplete
           ? SyncPhaseStatus.complete
           : failedSections == sectionResults.length
           ? SyncPhaseStatus.failed
@@ -316,10 +326,35 @@ class DataSyncHandler {
 
   bool _hasSectionErrors(Object? value) {
     if (value is! Map) return false;
+    final status = value['status'];
+    if (status == 'partial' || status == 'failed' || status == 'skipped') {
+      return true;
+    }
     final errors = value['errors'];
     if (errors == null) return false;
     if (errors is! List) return true;
     return errors.isNotEmpty;
+  }
+
+  bool _isCompleteSection(Object? value) {
+    if (value is! Map) return false;
+    final status = value['status'];
+    if (status is String) return status == DataOutcomeStatus.complete.name;
+    return !_hasSectionErrors(value);
+  }
+
+  bool _isFailedSection(Object? value) {
+    if (value is! Map) return true;
+    final status = value['status'];
+    if (status is String) {
+      return status == DataOutcomeStatus.failed.name ||
+          status == DataOutcomeStatus.skipped.name;
+    }
+    if (!_hasSectionErrors(value)) return false;
+    final imported = value['imported'];
+    final skipped = value['skipped'];
+    return !((imported is num && imported > 0) ||
+        (skipped is num && skipped > 0));
   }
 
   Map<String, dynamic> _errorResult(Object error) {

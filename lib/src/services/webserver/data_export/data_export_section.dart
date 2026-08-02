@@ -25,6 +25,7 @@ class SectionImportResult {
   }
 
   Map<String, dynamic> toJson() => {
+    'status': status.name,
     'imported': imported,
     'skipped': skipped,
     if (errors.isNotEmpty) 'errors': errors,

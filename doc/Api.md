@@ -316,18 +316,20 @@ means at least one recognized section was processed and every processed section
 completed without errors. `207 Multi-Status` means at least one processed
 section contains errors; successful sections, counts, warnings, and errors are
 all retained. Warnings and conflict-strategy skips alone still return `200`.
-Clients must inspect both the HTTP status and each section result.
+Each section result includes a semantic `status`; clients must inspect both the
+HTTP status and each section result.
 
 Data sync preserves complete, partial, failed, fatal, and skipped phase states.
-Each phase result includes `phaseStatus`. A complete pull or push is represented
-by `200`; a partial or semantically failed import is represented by `207`. In
+Each phase result includes `phaseStatus` and each section result includes
+`status`. A complete single-direction operation returns `200`; a partial
+operation returns `207`; a failed or fatal operation returns `502`. In
 `two_way` mode, push is skipped unless pull is complete. Set `bestEffort` to
 `true` to explicitly continue after an incomplete pull. A skipped push is
-reported with `phaseStatus: skipped` and its reason. A fatal single phase, or
-two fatal phases, returns `502`; two-way operations with one fatal phase return
-`207` when the other phase is complete, partial, failed, or skipped. Phase
-results remain under `pull` and `push`, including successful sections and error
-details.
+reported with `phaseStatus: skipped` and its reason. Two-way operations return
+`207` when at least one phase completes or partially completes and another is
+incomplete; operations with no successful or partial phase return `502`.
+Phase results remain under `pull` and `push`, including successful sections and
+phase-level error details.
 
 ### Account
 

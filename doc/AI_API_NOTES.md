@@ -30,7 +30,8 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 - `200` means all processed import sections completed without errors. Any section error, including a returned `SectionImportResult.errors` list, means `207`.
 - Section errors remain isolated so other recognized sections may import. Imports are not transactional and successful sections are not rolled back.
 - `DataImportOutcome` (or its equivalent) is the source of import completeness classification; clients must not infer it by reparsing the section response map.
-- Data sync preserves complete, partial, and fatal phase states. A remote import `207` is a partial push, not a target failure.
+- Section results serialize their `status` (`complete`, `partial`, `failed`, or `skipped`) alongside counts and messages.
+- Data sync preserves complete, partial, failed, fatal, and skipped phase states. A remote import `207` is a partial push, not a target failure. A fully failed single-direction phase returns `502`; two-way returns `207` only when at least one phase completes or partially completes.
 - Data sync classifies remote section errors from the response body even when a legacy peer returns HTTP `200`.
 - Two-way sync skips push after any non-complete pull unless the request explicitly sets `bestEffort: true`.
 - Export section failures are fatal and never produce a ZIP that silently omits a requested section.

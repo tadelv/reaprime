@@ -169,6 +169,7 @@ class DataExportHandler {
     List<int> zipBytes,
     ConflictStrategy strategy, {
     List<String>? sections,
+    bool strictSections = false,
   }) async {
     final Archive archive;
     try {
@@ -193,7 +194,17 @@ class DataExportHandler {
     for (final section in selectedSections) {
       final key = _sectionKey(section);
       final file = archive.findFile(section.filename);
-      if (file == null) continue;
+      if (file == null) {
+        if (strictSections) {
+          final result = SectionImportResult(
+            errors: ['Missing requested section: ${section.filename}.'],
+          );
+          results[key] = result.toJson();
+          sectionStatuses[key] = result.status;
+          failedSections.add(key);
+        }
+        continue;
+      }
       recognizedSections++;
 
       try {
@@ -221,15 +232,17 @@ class DataExportHandler {
         if (result.errors.isNotEmpty) failedSections.add(key);
       } catch (e, st) {
         _log.severe('Error importing ${section.filename}', e, st);
-        results[key] = {
-          'errors': ['Failed to process ${section.filename}: $e'],
-        };
-        sectionStatuses[key] = DataOutcomeStatus.failed;
+        final result = SectionImportResult(
+          errors: ['Failed to process ${section.filename}: $e'],
+        );
+        results[key] = result.toJson();
+        sectionStatuses[key] = result.status;
         failedSections.add(key);
       }
     }
 
-    if (recognizedSections == 0) {
+    if (recognizedSections == 0 &&
+        (!strictSections || selectedSections.isEmpty)) {
       throw const InvalidBackupException(
         message: 'The archive does not contain any recognized data sections.',
         reason: 'no_recognized_sections',

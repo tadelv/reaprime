@@ -442,7 +442,7 @@ void main() {
       });
 
       test(
-        'push returns 207 for a remote 200 response with section errors',
+        'push returns 502 for a remote 200 response with every section failing',
         () async {
           final client = http_testing.MockClient(
             (_) async =>
@@ -453,14 +453,31 @@ void main() {
             'target': 'http://192.168.1.50:8080',
             'mode': 'push',
           });
-          expect(response.statusCode, 207);
+          expect(response.statusCode, 502);
           final body = jsonDecode(await response.readAsString());
           expect(body['push']['phaseStatus'], 'failed');
           expect(body['push']['profiles']['errors'], contains('bad row'));
         },
       );
 
-      test('push returns 207 when every remote section fails', () async {
+      test('push preserves a remote partial section status', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"profiles":{"status":"partial","imported":1,"errors":["bad row"]}}',
+            200,
+          ),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['profiles']['status'], 'partial');
+      });
+
+      test('push returns 502 when every remote section fails', () async {
         final client = http_testing.MockClient(
           (_) async => http.Response(
             '{"profiles":{"errors":["bad profile"]},"shots":{"errors":["bad shot"]}}',
@@ -472,7 +489,7 @@ void main() {
           'target': 'http://192.168.1.50:8080',
           'mode': 'push',
         });
-        expect(response.statusCode, 207);
+        expect(response.statusCode, 502);
         final body = jsonDecode(await response.readAsString());
         expect(body['push']['phaseStatus'], 'failed');
       });
@@ -606,12 +623,49 @@ void main() {
           'mode': 'two_way',
         });
 
-        expect(response.statusCode, 207);
+        expect(response.statusCode, 502);
         final body = jsonDecode(await response.readAsString());
         expect(body['pull']['error'], 'Target error');
         expect(body['push']['phaseStatus'], 'skipped');
         expect(requestCount, 1);
       });
+
+      test(
+        'missing selected section blocks the default two-way push',
+        () async {
+          var requestCount = 0;
+          final sections = [
+            MockExportSection(filename: 'profiles.json'),
+            MockExportSection(filename: 'shots.json'),
+          ];
+          final client = http_testing.MockClient((request) async {
+            requestCount++;
+            expect(request.method, 'GET');
+            return http.Response.bytes(
+              buildZip({
+                'profiles.json': {'profiles': []},
+              }),
+              200,
+            );
+          });
+          final handler = buildSyncHandler(
+            client,
+            exportHandler: DataExportHandler(sections: sections),
+          );
+
+          final response = await sendSync(handler, {
+            'target': 'http://192.168.1.50:8080',
+            'mode': 'two_way',
+            'sections': ['profiles', 'shots'],
+          });
+
+          expect(response.statusCode, 207);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['pull']['shots']['status'], 'failed');
+          expect(body['push']['phaseStatus'], 'skipped');
+          expect(requestCount, 1);
+        },
+      );
 
       test('skips push after a partial pull by default', () async {
         var requestCount = 0;
@@ -650,7 +704,10 @@ void main() {
         () async {
           final partialSection = MockExportSection(
             filename: 'profiles.json',
-            importResult: const SectionImportResult(errors: ['bad row']),
+            importResult: const SectionImportResult(
+              imported: 1,
+              errors: ['bad row'],
+            ),
           );
           final client = http_testing.MockClient((request) async {
             if (request.method == 'GET') {
@@ -679,7 +736,10 @@ void main() {
         () async {
           final partialSection = MockExportSection(
             filename: 'profiles.json',
-            importResult: const SectionImportResult(errors: ['bad row']),
+            importResult: const SectionImportResult(
+              imported: 1,
+              errors: ['bad row'],
+            ),
           );
           final client = http_testing.MockClient((request) async {
             if (request.method == 'GET') {

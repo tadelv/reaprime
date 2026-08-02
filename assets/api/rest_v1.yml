@@ -3872,10 +3872,11 @@ paths:
         all available sections are synced. A partial local import or remote
         import response is a partial or failed phase. By default, two-way mode
         skips push unless pull is complete. Set `bestEffort` to true to opt in
-        to continuing after an incomplete pull. A fatal single phase returns
-        502; two-way mode returns 207 when one phase is incomplete or fatal
-        while the other is complete, partial, failed, or skipped. Two fatal
-        phases return 502.
+        to continuing after an incomplete pull. A complete single-direction
+        operation returns 200, a partial operation returns 207, and a failed
+        or fatal operation returns 502. Two-way mode returns 207 only when at
+        least one phase is complete or partial; it returns 502 when every phase
+        is failed, fatal, or skipped.
       tags: [Data Management]
       requestBody:
         required: true
@@ -3925,7 +3926,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "207":
-          description: At least one phase is partial, failed, or skipped, or one two-way phase is fatal while the other completes or is incomplete
+          description: A single phase is partial, or a two-way operation has at least one complete or partial phase and another incomplete phase
           content:
             application/json:
               schema:
@@ -3942,7 +3943,7 @@ paths:
                   message:
                     type: string
         "502":
-          description: Target Bridge unreachable or returned an error
+          description: Target Bridge unreachable or returned an error, or the requested phase failed without partial success
           content:
             application/json:
               schema:
@@ -5988,34 +5989,49 @@ components:
           items:
             type: string
           description: Warning messages (e.g., platform mismatch for device preferences)
+        status:
+          type: string
+          enum: [complete, partial, failed, skipped]
+          description: Semantic outcome of importing this section
 
     SyncResult:
       type: object
       description: Result of a data sync operation. Contains per-phase results keyed by direction.
       properties:
         pull:
-          type: object
           description: Phase result for pull (present for pull and two_way modes)
-          properties:
-            phaseStatus:
-              type: string
-              enum: [complete, partial, failed, fatal, skipped]
-              description: Semantic status of the phase.
-          additionalProperties:
-            $ref: "#/components/schemas/SectionImportResult"
+          $ref: "#/components/schemas/SyncPhaseResult"
         push:
-          type: object
           description: Phase result for push (present for push and two_way modes)
-          properties:
-            phaseStatus:
-              type: string
-              enum: [complete, partial, failed, fatal, skipped]
-              description: Semantic status of the phase.
-          additionalProperties:
-            $ref: "#/components/schemas/SectionImportResult"
+          $ref: "#/components/schemas/SyncPhaseResult"
+
+    SyncPhaseResult:
+      type: object
+      description: Result of one sync phase, including section results or phase-level failure details
+      properties:
+        phaseStatus:
+          type: string
+          enum: [complete, partial, failed, fatal, skipped]
+          description: Semantic status of the phase
+        message:
+          type: string
+          description: Human-readable phase result or skip reason
+        reason:
+          type: string
+          description: Machine-readable reason for a skipped phase
         error:
           type: string
-          description: Error message if a phase failed (present in 207 responses)
+          description: Phase-level error category
+        status:
+          type: integer
+          description: HTTP status returned by the target, when applicable
+        sections:
+          type: array
+          items:
+            type: string
+          description: Sections that could not be exported
+      additionalProperties:
+        $ref: "#/components/schemas/SectionImportResult"
 
     WorkflowContext:
       type: object

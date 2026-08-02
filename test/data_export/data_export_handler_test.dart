@@ -591,6 +591,8 @@ void main() {
         expect(outcome.isPartial, isFalse);
         expect(outcome.sectionResults, contains('profiles'));
         expect(outcome.sectionResults, contains('shots'));
+        expect(outcome.sectionResults['profiles']['status'], 'complete');
+        expect(outcome.sectionResults['shots']['status'], 'complete');
         expect(profileSection.importCalled, isTrue);
         expect(shotsSection.importCalled, isTrue);
       });
@@ -680,6 +682,7 @@ void main() {
         expect(outcome.isPartial, isTrue);
         expect(outcome.status, DataOutcomeStatus.partial);
         expect(outcome.failedSections, contains('profiles'));
+        expect(outcome.sectionResults['profiles']['status'], 'partial');
       });
 
       test('thrown section errors make direct outcomes partial', () async {
@@ -694,6 +697,7 @@ void main() {
         expect(outcome.isPartial, isTrue);
         expect(outcome.status, DataOutcomeStatus.failed);
         expect(outcome.sectionResults['profiles']['errors'], isNotEmpty);
+        expect(outcome.sectionResults['profiles']['status'], 'failed');
       });
 
       test(
