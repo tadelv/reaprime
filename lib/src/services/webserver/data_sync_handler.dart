@@ -342,12 +342,8 @@ class DataSyncHandler {
     },
   );
 
-  bool _hasSectionErrors(Object? value) {
+  bool _hasActualSectionErrors(Object? value) {
     if (value is! Map) return false;
-    final status = value['status'];
-    if (status == 'partial' || status == 'failed' || status == 'skipped') {
-      return true;
-    }
     final errors = value['errors'];
     if (errors == null) return false;
     if (errors is! List) return true;
@@ -357,22 +353,23 @@ class DataSyncHandler {
   bool _isCompleteSection(Object? value) {
     if (value is! Map) return false;
     final status = value['status'];
-    if (status is String) return status == DataOutcomeStatus.complete.name;
-    return !_hasSectionErrors(value);
+    return status == DataOutcomeStatus.complete.name &&
+        !_hasActualSectionErrors(value);
   }
 
   bool _isFailedSection(Object? value) {
     if (value is! Map) return true;
+    if (_hasActualSectionErrors(value)) return !_hasSuccessfulRecords(value);
     final status = value['status'];
-    if (status is String) {
-      return status == DataOutcomeStatus.failed.name ||
-          status == DataOutcomeStatus.skipped.name;
-    }
-    if (!_hasSectionErrors(value)) return false;
+    return status == DataOutcomeStatus.failed.name ||
+        status == DataOutcomeStatus.skipped.name;
+  }
+
+  bool _hasSuccessfulRecords(Object? value) {
+    if (value is! Map) return false;
     final imported = value['imported'];
     final skipped = value['skipped'];
-    return !((imported is num && imported > 0) ||
-        (skipped is num && skipped > 0));
+    return (imported is num && imported > 0) || (skipped is num && skipped > 0);
   }
 
   Map<String, dynamic> _normalizeSectionResult(Object? value, String section) {
@@ -386,13 +383,14 @@ class DataSyncHandler {
     }
     final normalized = Map<String, dynamic>.from(value);
     final status = normalized['status'];
-    if (status is! String ||
+    final hasErrors = _hasActualSectionErrors(normalized);
+    if (hasErrors) {
+      normalized['status'] = _hasSuccessfulRecords(normalized)
+          ? DataOutcomeStatus.partial.name
+          : DataOutcomeStatus.failed.name;
+    } else if (status is! String ||
         !DataOutcomeStatus.values.any((value) => value.name == status)) {
-      normalized['status'] = _isCompleteSection(normalized)
-          ? DataOutcomeStatus.complete.name
-          : _isFailedSection(normalized)
-          ? DataOutcomeStatus.failed.name
-          : DataOutcomeStatus.partial.name;
+      normalized['status'] = DataOutcomeStatus.complete.name;
     }
     return normalized;
   }

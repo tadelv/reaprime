@@ -523,6 +523,42 @@ void main() {
         expect(body['push']['profiles']['status'], 'partial');
       });
 
+      test('push normalizes complete status with successful errors', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"profiles":{"status":"complete","imported":1,"errors":["bad row"]}}',
+            200,
+          ),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 207);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['phaseStatus'], 'partial');
+        expect(body['push']['profiles']['status'], 'partial');
+      });
+
+      test('push normalizes complete status with only errors', () async {
+        final client = http_testing.MockClient(
+          (_) async => http.Response(
+            '{"profiles":{"status":"complete","errors":["bad row"]}}',
+            200,
+          ),
+        );
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, {
+          'target': 'http://192.168.1.50:8080',
+          'mode': 'push',
+        });
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['phaseStatus'], 'failed');
+        expect(body['push']['profiles']['status'], 'failed');
+      });
+
       test('push returns 502 when every remote section fails', () async {
         final client = http_testing.MockClient(
           (_) async => http.Response(
