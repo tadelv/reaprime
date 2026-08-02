@@ -149,9 +149,13 @@ handler reads the workflow base when a queue entry reaches execution, then appli
 only that request's deep merge. Machine side effects from workflow PUTs, profile
 sync, and Bengle workflow bridges share the `De1Controller` device-write queue.
 Each entry captures one machine and connection generation; workflow setting writes
-retry once on a replacement machine. A failure must not poison the queue tail.
+retry once on a replacement machine after that generation's startup initialization
+settles. Startup defaults finish before the generation barrier releases. A failure
+must not poison the queue tail.
 Request bodies are read with a 30-second timeout before their queued operation
 executes; body-read failures are observed immediately and do not poison the queue.
+The body stream subscription is cancelled on completion, error, size rejection, or
+timeout so expired readers cannot outlive admission accounting.
 Admission is limited to 1 MiB per body and eight active or queued requests. A request
 that waits 30 seconds for execution returns `503` and its queued mutation is skipped.
 

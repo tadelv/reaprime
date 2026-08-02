@@ -56,7 +56,7 @@ class WorkflowHandler {
       );
     }
     _pendingRequests++;
-    final payload = _readPayload(req).timeout(bodyReadTimeout);
+    final payload = _readPayload(req);
     unawaited(
       payload.then<void>(
         (_) {},
@@ -96,14 +96,26 @@ class WorkflowHandler {
     if (declaredLength != null && declaredLength > maxBodyBytes) {
       throw _WorkflowPayloadTooLarge();
     }
+    final deadline = Stopwatch()..start();
     final bytes = BytesBuilder(copy: false);
-    await for (final chunk in req.read()) {
-      if (bytes.length + chunk.length > maxBodyBytes) {
-        throw _WorkflowPayloadTooLarge();
+    final iterator = StreamIterator<List<int>>(req.read());
+    try {
+      while (true) {
+        final remaining = bodyReadTimeout - deadline.elapsed;
+        if (remaining <= Duration.zero) {
+          throw TimeoutException('Workflow request body timed out');
+        }
+        if (!await iterator.moveNext().timeout(remaining)) break;
+        final chunk = iterator.current;
+        if (bytes.length + chunk.length > maxBodyBytes) {
+          throw _WorkflowPayloadTooLarge();
+        }
+        bytes.add(chunk);
       }
-      bytes.add(chunk);
+      return utf8.decode(bytes.takeBytes());
+    } finally {
+      await iterator.cancel();
     }
-    return utf8.decode(bytes.takeBytes());
   }
 
   Future<Response> _applyPayload(Future<String> payloadFuture) async {

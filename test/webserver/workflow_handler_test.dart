@@ -29,7 +29,7 @@ import '../helpers/mock_device_discovery_service.dart';
 /// read-modify-write races on the controller surface reproduce here
 /// exactly like they do on the running app.
 class SpyDe1 implements De1Interface {
-  SpyDe1({De1ShotSettings? seed, this.readyState = true}) {
+  SpyDe1({De1ShotSettings? seed, bool readyState = true}) {
     _shotSettings = BehaviorSubject.seeded(
       seed ??
           De1ShotSettings(
@@ -43,10 +43,11 @@ class SpyDe1 implements De1Interface {
             groupTemp: 94.0,
           ),
     );
+    _ready = BehaviorSubject.seeded(readyState);
   }
 
   late final BehaviorSubject<De1ShotSettings> _shotSettings;
-  final bool readyState;
+  late final BehaviorSubject<bool> _ready;
 
   final List<De1ShotSettings> updateShotSettingsCalls = [];
   final List<Profile> setProfileCalls = [];
@@ -148,9 +149,12 @@ class SpyDe1 implements De1Interface {
   @override
   Future<void> dispose() async {
     _shotSettings.close();
+    _ready.close();
     _connectionState.close();
     _snapshot.close();
   }
+
+  void setReady(bool ready) => _ready.add(ready);
 
   @override
   String get deviceId => 'spy-de1';
@@ -183,7 +187,7 @@ class SpyDe1 implements De1Interface {
   @override
   Future<void> requestState(MachineState newState) async {}
   @override
-  Stream<bool> get ready => Stream.value(readyState);
+  Stream<bool> get ready => _ready.stream;
   @override
   Stream<De1WaterLevels> get waterLevels => const Stream.empty();
   @override
@@ -706,8 +710,10 @@ void main() {
 
     test('a workflow PUT retries on a replacement machine', () async {
       await _settleHandler();
-      final nextFlow =
-          workflowController.currentWorkflow.steamSettings.flow + 1;
+      final initial = workflowController.currentWorkflow;
+      final defaultFlow = initial.steamSettings.flow;
+      final nextFlow = defaultFlow + 1;
+      de1Controller.defaultWorkflow = initial;
       final entered = Completer<void>();
       final release = Completer<void>();
       spy.blockedSteamFlow = nextFlow;
@@ -723,9 +729,18 @@ void main() {
       await de1Controller.connectToDe1(replacement);
       release.complete();
 
+      var completed = false;
+      unawaited(future.then((_) => completed = true));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(completed, isFalse);
+      expect(replacement.setSteamFlowCalls, isEmpty);
+
+      replacement.setReady(true);
+
       final response = await future.timeout(const Duration(seconds: 2));
       expect(response.statusCode, 200);
-      expect(replacement.setSteamFlowCalls, [nextFlow]);
+      expect(replacement.setSteamFlowCalls, [defaultFlow, nextFlow]);
+      expect(replacement.steamFlowCompletionOrder, [defaultFlow, nextFlow]);
       expect(workflowController.currentWorkflow.steamSettings.flow, nextFlow);
       await replacement.dispose();
     });
@@ -945,7 +960,12 @@ void main() {
         );
         final timeoutApp = Router().plus;
         timeoutHandler.addRoutes(timeoutApp);
-        final body = StreamController<List<int>>();
+        final cancelled = Completer<void>();
+        final body = StreamController<List<int>>(
+          onCancel: () {
+            if (!cancelled.isCompleted) cancelled.complete();
+          },
+        );
         final stalledFuture = Future<Response>.sync(
           () => timeoutApp.call(
             Request(
@@ -957,16 +977,15 @@ void main() {
           ),
         );
 
-        try {
-          final stalledResponse = await stalledFuture.timeout(
-            const Duration(seconds: 2),
-          );
-          expect(stalledResponse.statusCode, 500);
-          final nextResponse = await put({'name': 'after body timeout'});
-          expect(nextResponse.statusCode, 200);
-        } finally {
-          await body.close();
-        }
+        final stalledResponse = await stalledFuture.timeout(
+          const Duration(seconds: 2),
+        );
+        expect(stalledResponse.statusCode, 500);
+        await cancelled.future.timeout(const Duration(seconds: 2));
+        expect(body.hasListener, isFalse);
+        final nextResponse = await put({'name': 'after body timeout'});
+        expect(nextResponse.statusCode, 200);
+        await body.close();
       },
     );
 

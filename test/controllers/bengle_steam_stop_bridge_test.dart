@@ -83,12 +83,40 @@ class _RecordingBengle implements BengleInterface {
   @override
   Future<void> disconnect() async {}
 
-  /// Stays `false` so [De1Controller._initializeData] never runs.
   @override
-  Stream<bool> get ready => Stream<bool>.value(false);
+  Stream<bool> get ready => Stream<bool>.value(true);
 
   @override
-  Stream<De1ShotSettings> get shotSettings => const Stream.empty();
+  Stream<De1ShotSettings> get shotSettings => Stream.value(
+    De1ShotSettings(
+      steamSetting: 0,
+      targetSteamTemp: 150,
+      targetSteamDuration: 30,
+      targetHotWaterTemp: 75,
+      targetHotWaterVolume: 50,
+      targetHotWaterDuration: 30,
+      targetShotVolume: 36,
+      groupTemp: 94,
+    ),
+  );
+
+  @override
+  Future<void> setFanThreshhold(int temp) async {}
+
+  @override
+  Future<double> getSteamFlow() async => 0;
+
+  @override
+  Future<double> getHotWaterFlow() async => 0;
+
+  @override
+  Future<double> getFlushFlow() async => 0;
+
+  @override
+  Future<double> getFlushTimeout() async => 0;
+
+  @override
+  Future<double> getFlushTemperature() async => 0;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
