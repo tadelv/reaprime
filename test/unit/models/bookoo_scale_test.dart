@@ -139,6 +139,15 @@ void main() {
     expect(snapshots, isEmpty);
   });
 
+  test('invalid sign byte emits nothing', () async {
+    final packet = _packet(10);
+    packet[6] = 0x00;
+    packet[19] = packet.take(19).fold(0, (sum, byte) => sum ^ byte);
+    transport.emit(packet);
+    await Future<void>.delayed(Duration.zero);
+    expect(snapshots, isEmpty);
+  });
+
   test('invalid battery retains the previous valid level', () async {
     transport.emit(_packet(1, battery: 72));
     transport.emit(_packet(2, battery: 101));
@@ -153,9 +162,9 @@ void main() {
     await scale.resetTimer();
     expect(transport.writes, [
       [0x03, 0x0A, 0x01, 0, 0, 0x08],
-      [0x03, 0x0A, 0x04, 0, 0, 0x0A],
-      [0x03, 0x0A, 0x05, 0, 0, 0x0D],
-      [0x03, 0x0A, 0x06, 0, 0, 0x0C],
+      [0x03, 0x0A, 0x04, 0, 0, 0x0D],
+      [0x03, 0x0A, 0x05, 0, 0, 0x0C],
+      [0x03, 0x0A, 0x06, 0, 0, 0x0F],
     ]);
   });
 

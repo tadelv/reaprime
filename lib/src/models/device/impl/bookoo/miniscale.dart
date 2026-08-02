@@ -94,7 +94,7 @@ class BookooScale implements Scale {
 
   @override
   Future<void> tare() async {
-    await _write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
+    await _write(_command(0x01));
   }
 
   @override
@@ -120,6 +120,7 @@ class BookooScale implements Scale {
 
   void _parseNotification(List<int> data) {
     if (data.length != 20 || data[0] != 0x03 || data[1] != 0x0B) return;
+    if (data[6] != 0x2B && data[6] != 0x2D) return;
     var checksum = 0;
     for (final byte in data.take(data.length - 1)) {
       checksum ^= byte;
@@ -147,18 +148,24 @@ class BookooScale implements Scale {
     );
   }
 
+  List<int> _command(int opcode) {
+    final command = [0x03, 0x0A, opcode, 0x00, 0x00];
+    final checksum = command.fold(0, (value, byte) => value ^ byte);
+    return [...command, checksum];
+  }
+
   @override
   Future<void> startTimer() async {
-    await _write([0x03, 0x0A, 0x04, 0x00, 0x00, 0x0A]);
+    await _write(_command(0x04));
   }
 
   @override
   Future<void> stopTimer() async {
-    await _write([0x03, 0x0A, 0x05, 0x00, 0x00, 0x0D]);
+    await _write(_command(0x05));
   }
 
   @override
   Future<void> resetTimer() async {
-    await _write([0x03, 0x0A, 0x06, 0x00, 0x00, 0x0C]);
+    await _write(_command(0x06));
   }
 }
