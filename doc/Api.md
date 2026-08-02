@@ -300,7 +300,7 @@ same request prevent all fields from being stored (validation is atomic).
 | POST | `/api/v1/data/import` | Import from ZIP (raw bytes, `Content-Type: application/zip`) | |
 | POST | `/api/v1/data/sync` | Sync with another Bridge instance | `data_sync_handler.dart` |
 
-Sync accepts `target` (URL), `mode` (`pull`, `push`, `two_way`), `onConflict` (`skip` or `overwrite`), and `sections` (profiles, shots, workflow, settings, store, steams, beans, grinders). `sections` is optional for every mode; omission means all locally registered sections. An explicit list must be nonempty. Unknown sections return `400`; duplicate names are deduplicated in first-occurrence order.
+Sync accepts `target` (URL), `mode` (`pull`, `push`, `two_way`), `onConflict` (`skip` or `overwrite`), and `sections` (profiles, shots, workflow, settings, store, steams, beans, grinders). `sections` is required and nonempty for `pull` and `two_way`; it is optional for `push`, where omission means all locally registered sections. Unknown sections return `400`; duplicate names are deduplicated in first-occurrence order.
 
 Sync responses use semantic results rather than transport status alone. Each direct section under `pull.<section>` and `push.<section>` remains available and gains `status` (`complete`, `partial`, or `failed`). Additive phase metadata is under `phases.<phase>` with `status`, `complete`, and `partial`; fatal errors and skipped-push reasons are reported there. A phase is complete only when every expected section is represented without errors. Warnings, conflict skips, and zero imported records do not make a valid section partial. Section errors with progress are partial; errors without progress are failed. Partial imports are not transactional.
 

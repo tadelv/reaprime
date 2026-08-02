@@ -55,7 +55,7 @@ void main() {
     expect(failed.sections['profiles']!.status, DataSectionStatus.failed);
   });
 
-  test('rejects invalid and contradictory section statuses', () {
+  test('derives section statuses from their contents', () {
     final invalid = DataTransferPhaseOutcome.fromRemote(
       {
         'sections': {
@@ -79,7 +79,15 @@ void main() {
     final declaredPartial = DataTransferPhaseOutcome.fromRemote(
       {
         'sections': {
-          'profiles': {'status': 'partial'},
+          'profiles': {'status': 'partial', 'imported': 0},
+        },
+      },
+      ['profiles'],
+    );
+    final declaredFailedWithProgress = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'status': 'failed', 'imported': 4},
         },
       },
       ['profiles'],
@@ -92,10 +100,48 @@ void main() {
       contradictory.sections['profiles']!.status,
       DataSectionStatus.partial,
     );
-    expect(declaredPartial.status, DataTransferStatus.partial);
+    expect(declaredPartial.status, DataTransferStatus.complete);
     expect(
       declaredPartial.sections['profiles']!.status,
-      DataSectionStatus.partial,
+      DataSectionStatus.complete,
     );
+    expect(declaredFailedWithProgress.status, DataTransferStatus.complete);
+    expect(
+      declaredFailedWithProgress.sections['profiles']!.status,
+      DataSectionStatus.complete,
+    );
+  });
+
+  test('preserves conservative remote phase declarations and metadata', () {
+    final failed = DataTransferPhaseOutcome.fromRemote(
+      {
+        'status': 'failed',
+        'complete': false,
+        'error': 'Import commit failed',
+        'message': 'The target rejected the import.',
+        'sections': {
+          'profiles': {'status': 'complete', 'imported': 2},
+        },
+      },
+      ['profiles'],
+    );
+    final partial = DataTransferPhaseOutcome.fromRemote(
+      {
+        'status': 'partial',
+        'complete': false,
+        'partial': true,
+        'sections': {
+          'profiles': {'status': 'complete', 'imported': 2},
+        },
+      },
+      ['profiles'],
+    );
+
+    expect(failed.status, DataTransferStatus.failed);
+    expect(failed.error, 'Import commit failed');
+    expect(failed.message, 'The target rejected the import.');
+    expect(failed.sections['profiles']!.status, DataSectionStatus.complete);
+    expect(partial.status, DataTransferStatus.partial);
+    expect(partial.sections['profiles']!.status, DataSectionStatus.complete);
   });
 }
