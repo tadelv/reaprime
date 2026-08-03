@@ -206,7 +206,7 @@ streams published only after the grouped write succeeds):
 
 Every endpoint above can return `503` when the machine disconnects mid-write and no
 replacement appears within the bounded wait, and `400` for malformed JSON bodies
-(machine settings, advanced, reset, calibration, waterLevels, cupWarmer, ledStrip,
+(machine settings, advanced, calibration, waterLevels, cupWarmer, ledStrip,
 profile, and shot settings parse their complete body before reserving a queue entry).
 Machine-write failures otherwise map to `500`.
 
