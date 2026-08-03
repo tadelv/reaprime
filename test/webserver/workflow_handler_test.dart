@@ -980,7 +980,7 @@ void main() {
         final stalledResponse = await stalledFuture.timeout(
           const Duration(seconds: 2),
         );
-        expect(stalledResponse.statusCode, 500);
+        expect(stalledResponse.statusCode, 408);
         await cancelled.future.timeout(const Duration(seconds: 2));
         expect(body.hasListener, isFalse);
         final nextResponse = await put({'name': 'after body timeout'});

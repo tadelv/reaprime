@@ -166,3 +166,15 @@ required writes before retrying the commit. A machine-write failure returns `500
 leaves controller workflow state unchanged; multi-step device writes may still be
 partially applied, so a retry re-attempts the requested settings. `WorkflowDeviceSync`
 remains the owner of asynchronous profile upload after controller changes.
+
+### Status Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | Workflow updated and committed |
+| 400 | Malformed or invalid JSON |
+| 408 | Client did not finish sending the body within the timeout |
+| 413 | Body exceeds 1 MiB limit |
+| 429 | Admission capacity full (8 active or queued requests) |
+| 500 | A required direct machine write failed |
+| 503 | Mutation timed out waiting for its execution turn |

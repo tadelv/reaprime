@@ -129,6 +129,11 @@ class WorkflowHandler {
       return jsonPayloadTooLarge({
         'error': 'Workflow request body is too large',
       });
+    } on TimeoutException {
+      return jsonRequestTimeout({
+        'error': 'Request timeout',
+        'message': 'Client did not finish sending the request body',
+      });
     } on FormatException catch (e) {
       return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {

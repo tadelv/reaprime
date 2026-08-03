@@ -181,7 +181,7 @@ requests beyond the eight-entry active/queued limit return `429`, and requests w
 than 30 seconds for execution return `503` without being applied. Machine-write failures
 return an error before the controller workflow is committed. Multi-step machine writes may
 be partially applied, and retrying the same request re-attempts the requested settings.
-Request bodies have a 30-second read timeout; body-read failures return an error
+Request bodies have a 30-second read timeout; body-read failures return `408`
 without poisoning later queued mutations.
 
 ### Beans

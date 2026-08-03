@@ -425,12 +425,14 @@ class De1Controller {
     int generation,
   ) async {
     if (_initSettledSubject.valueOrNull == generation) return;
-    await _initSettledSubject.stream.firstWhere(
-      (settled) =>
-          settled == generation ||
-          generation != _connectionGeneration ||
-          !identical(device, _de1),
-    );
+    await _initSettledSubject.stream
+        .firstWhere(
+          (settled) =>
+              settled == generation ||
+              generation != _connectionGeneration ||
+              !identical(device, _de1),
+        )
+        .timeout(ConnectionTimings.initialShotSettingsTimeout);
   }
 
   Future<SteamFormSettings> steamSettings() async {
@@ -550,7 +552,11 @@ class De1Controller {
     Workflow updated,
   ) async {
     final rinseChanged = previous.rinseData != updated.rinseData;
-    final steamChanged = previous.steamSettings != updated.steamSettings;
+    final steamChanged =
+        previous.steamSettings.targetTemperature !=
+            updated.steamSettings.targetTemperature ||
+        previous.steamSettings.duration != updated.steamSettings.duration ||
+        previous.steamSettings.flow != updated.steamSettings.flow;
     final hotWaterChanged = previous.hotWaterData != updated.hotWaterData;
     if (!rinseChanged && !steamChanged && !hotWaterChanged) return;
 
