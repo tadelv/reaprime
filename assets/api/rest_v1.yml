@@ -1023,6 +1023,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "408":
+          description: The client did not finish sending the request body within the timeout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "413":
           description: Request body exceeds the 1 MiB workflow payload limit
           content:
@@ -1036,7 +1042,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "500":
-          description: A required direct machine write or request body read failed; the controller workflow remains unchanged
+          description: A required direct machine write failed; the controller workflow remains unchanged
           content:
             application/json:
               schema:

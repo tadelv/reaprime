@@ -165,13 +165,21 @@ class De1Handler {
           await de1.setFanThreshhold(parseInt(json['fan']));
         }
         if (json['flushTemp'] != null) {
-          await de1.setFlushTemperature(parseDouble(json['flushTemp']));
+          await _controller.runDeviceWrite(
+            (device) =>
+                device.setFlushTemperature(parseDouble(json['flushTemp'])),
+            retryOnReplacement: true,
+          );
         }
         if (json['flushFlow'] != null) {
           await _controller.setFlushFlow(parseDouble(json['flushFlow']));
         }
         if (json['flushTimeout'] != null) {
-          await de1.setFlushTimeout(parseDouble(json['flushTimeout']));
+          await _controller.runDeviceWrite(
+            (device) =>
+                device.setFlushTimeout(parseDouble(json['flushTimeout'])),
+            retryOnReplacement: true,
+          );
         }
         if (json['hotWaterFlow'] != null) {
           await _controller.setHotWaterFlow(parseDouble(json['hotWaterFlow']));
@@ -449,12 +457,15 @@ class De1Handler {
   }
 
   Future<Response> _shotSettingsHandler(Request request) async {
-    return withDe1((de1) async {
+    return withDe1((_) async {
       final payload = await request.readAsString();
 
       Map<String, dynamic> json = jsonDecode(payload);
       De1ShotSettings settings = De1ShotSettings.fromJson(json);
-      await de1.updateShotSettings(settings);
+      await _controller.runDeviceWrite(
+        (device) => device.updateShotSettings(settings),
+        retryOnReplacement: true,
+      );
       return jsonOk(null);
     });
   }
