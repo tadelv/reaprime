@@ -139,6 +139,73 @@ void main() {
     expect(outcome.status, DataTransferStatus.failed);
   });
 
+  test('rejects scalar flat sections alongside structured sections', () {
+    final outcome = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'imported': 1},
+        },
+        'profiles': 'failed',
+      },
+      ['profiles'],
+    );
+
+    expect(outcome.status, DataTransferStatus.failed);
+  });
+
+  test('does not hide errors in extra returned sections', () {
+    final withProgress = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'imported': 1},
+          'shots': {
+            'imported': 3,
+            'errors': ['boom'],
+          },
+        },
+      },
+      ['profiles'],
+    );
+    final declaredFailed = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'imported': 1},
+          'shots': {'status': 'failed'},
+        },
+      },
+      ['profiles'],
+    );
+    final malformed = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'imported': 1},
+          'shots': {'imported': 'nope'},
+        },
+      },
+      ['profiles'],
+    );
+    final allFailed = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {
+            'errors': ['boom'],
+          },
+          'shots': {'imported': 'nope'},
+        },
+      },
+      ['profiles'],
+    );
+
+    expect(withProgress.status, DataTransferStatus.partial);
+    expect(withProgress.sections['shots']!.status, DataSectionStatus.partial);
+    expect(declaredFailed.status, DataTransferStatus.partial);
+    expect(declaredFailed.sections['shots']!.status, DataSectionStatus.failed);
+    expect(malformed.status, DataTransferStatus.partial);
+    expect(malformed.sections['shots']!.status, DataSectionStatus.failed);
+    expect(allFailed.status, DataTransferStatus.failed);
+    expect(allFailed.sections['shots']!.status, DataSectionStatus.failed);
+  });
+
   test('rejects invalid errors, warnings, and contradictory phase flags', () {
     for (final value in [
       {

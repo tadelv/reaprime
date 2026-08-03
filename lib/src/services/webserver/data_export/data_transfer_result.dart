@@ -185,11 +185,10 @@ class DataTransferPhaseOutcome {
       );
     }
 
-    final expected = expectedSections.map((key) => sections[key]!).toList();
-    final allComplete = expected.every(
+    final allComplete = sections.values.every(
       (section) => section.status == DataSectionStatus.complete,
     );
-    final hasProgress = expected.any((section) => section.hasProgress);
+    final hasProgress = sections.values.any((section) => section.hasProgress);
     final status = allComplete
         ? DataTransferStatus.complete
         : hasProgress
@@ -256,13 +255,10 @@ class DataTransferPhaseOutcome {
       return _invalidRemote('The target returned an invalid sections object.');
     }
 
-    final flatSectionEntries = object.entries.where(
-      (entry) =>
-          entry.key != 'sections' &&
-          !_metadataKeys.contains(entry.key) &&
-          entry.value is Map,
-    );
-    if (nested != null && flatSectionEntries.isNotEmpty) {
+    if (nested != null &&
+        object.keys.any(
+          (key) => key != 'sections' && !_metadataKeys.contains(key),
+        )) {
       return _invalidRemote(
         'The target returned both structured and flat section results.',
       );
