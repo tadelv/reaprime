@@ -27,7 +27,7 @@ channels:
       and silent while no machine is attached, then automatically attaches when
       the first machine appears. Every frame remains a MachineSnapshot; no
       error or status frame is emitted on this typed telemetry channel.
-      Real-time snapshot data from the espresso machine. The socket re-binds
+      The socket re-binds
       across a machine instance swap: when the machine reconnects (for example
       after a power-cycle) the server re-attaches this socket to the new machine
       and frames simply resume. Clients do not need to reconnect.
@@ -76,9 +76,7 @@ channels:
       accepts inbound commands (read/write requests). Re-binds across a machine
       instance swap — see MachineSnapshot. Commands are delivered to the machine
       the socket is currently bound to, not the one present when the socket was
-      opened. If a command is sent while no machine is connected the server
-      replies with an error frame (`{"error": "No machine connected"}`). The
-      socket stays open across the disconnected gap.
+      opened.
     address: ws/v1/machine/raw
     messages:
       machineRawMessage:
