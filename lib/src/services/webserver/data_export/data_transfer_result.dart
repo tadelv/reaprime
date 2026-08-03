@@ -43,10 +43,12 @@ class DataSectionOutcome {
 
     final errors = result['errors'];
     final warnings = result['warnings'];
-    if (result.containsKey('errors') && errors is! List) {
+    if (result.containsKey('errors') &&
+        (errors is! List || errors.any((value) => value is! String))) {
       return _failed(key, 'Invalid errors for section "$key".');
     }
-    if (result.containsKey('warnings') && warnings is! List) {
+    if (result.containsKey('warnings') &&
+        (warnings is! List || warnings.any((value) => value is! String))) {
       return _failed(key, 'Invalid warnings for section "$key".');
     }
     if ((result.containsKey('imported') && !_validCount(result['imported'])) ||
@@ -224,6 +226,20 @@ class DataTransferPhaseOutcome {
         (object.containsKey('partial') && partial is! bool)) {
       return _invalidRemote('The target returned invalid phase flags.');
     }
+    if (complete == true && partial == true) {
+      return _invalidRemote('The target returned contradictory phase flags.');
+    }
+    if ((complete == true &&
+            declaredStatus != null &&
+            declaredStatus != DataTransferStatus.complete) ||
+        (partial == true &&
+            declaredStatus != null &&
+            declaredStatus != DataTransferStatus.partial) ||
+        (complete == false &&
+            partial == false &&
+            declaredStatus == DataTransferStatus.complete)) {
+      return _invalidRemote('The target returned contradictory phase status.');
+    }
 
     final error = object['error'];
     final message = object['message'];
@@ -240,12 +256,29 @@ class DataTransferPhaseOutcome {
       return _invalidRemote('The target returned an invalid sections object.');
     }
 
+    final flatSectionEntries = object.entries.where(
+      (entry) =>
+          entry.key != 'sections' &&
+          !_metadataKeys.contains(entry.key) &&
+          entry.value is Map,
+    );
+    if (nested != null && flatSectionEntries.isNotEmpty) {
+      return _invalidRemote(
+        'The target returned both structured and flat section results.',
+      );
+    }
+    if (nested == null &&
+        object.entries.any(
+          (entry) => !_metadataKeys.contains(entry.key) && entry.value is! Map,
+        )) {
+      return _invalidRemote('The target returned a malformed section result.');
+    }
+
     final rawSections = nested is Map
         ? Map<String, dynamic>.from(nested)
         : {
             for (final entry in object.entries)
-              if (!_metadataKeys.contains(entry.key) && entry.value is Map)
-                entry.key: entry.value,
+              if (!_metadataKeys.contains(entry.key)) entry.key: entry.value,
           };
     final outcome = fromSections(
       rawSections: rawSections,

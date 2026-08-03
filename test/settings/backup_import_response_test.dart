@@ -47,15 +47,23 @@ void main() {
     );
   });
 
-  test('partial results can refresh changed data', () {
-    final response = BackupImportResponse.fromHttp(
-      207,
-      '{"profiles":{"imported":1},"shots":{"errors":["bad row"]}}',
-    );
+  test(
+    'partial results preserve counts and per-section errors for import UI',
+    () {
+      final response = BackupImportResponse.fromHttp(
+        207,
+        '{"profiles":{"imported":1,"skipped":2},"shots":{"errors":["bad row"]}}',
+      );
+      final result = response.toImportResult();
 
-    expect(response.status, BackupImportStatus.partial);
-    expect(response.shouldNotifyShotsChanged, isTrue);
-  });
+      expect(response.status, BackupImportStatus.partial);
+      expect(response.shouldNotifyShotsChanged, isTrue);
+      expect(result.profilesImported, 1);
+      expect(result.profilesSkipped, 2);
+      expect(result.errors.single.filename, 'shots');
+      expect(result.errors.single.reason, 'bad row');
+    },
+  );
 
   test('400 produces an invalid-backup failure with the server message', () {
     expect(

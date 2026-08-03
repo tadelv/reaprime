@@ -15,16 +15,21 @@ class MockExportSection implements DataExportSection {
 
   final dynamic exportData;
   final SectionImportResult importResult;
+  final bool failExport;
   ConflictStrategy? lastStrategy;
 
   MockExportSection({
     required this.filename,
     this.exportData = const {'mock': true},
     this.importResult = const SectionImportResult(imported: 1),
+    this.failExport = false,
   });
 
   @override
-  Future<dynamic> export() async => exportData;
+  Future<dynamic> export() async {
+    if (failExport) throw Exception('Export failed');
+    return exportData;
+  }
 
   @override
   Future<SectionImportResult> import(
@@ -124,13 +129,20 @@ void main() {
       );
 
       test(
-        'rejects omitted sections for two_way before remote requests',
+        'uses all registered sections when sections are omitted for two_way',
         () async {
+          final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
           var requestCount = 0;
           final handler = buildSyncHandler(
-            http_testing.MockClient((_) async {
+            http_testing.MockClient((request) async {
               requestCount++;
-              return http.Response('', 200);
+              if (request.method == 'GET') {
+                return http.Response.bytes(targetZip, 200);
+              }
+              return http.Response(
+                '{"profiles":{"imported":1},"shots":{"imported":1}}',
+                200,
+              );
             }),
           );
 
@@ -140,26 +152,59 @@ void main() {
           );
           final body = jsonDecode(await response.readAsString());
 
-          expect(response.statusCode, 400);
-          expect(body['message'], contains('two_way'));
+          expect(response.statusCode, 200);
+          expect(body['phases']['pull']['status'], 'complete');
+          expect(body['phases']['push']['status'], 'complete');
+          expect(requestCount, 2);
+        },
+      );
+
+      test(
+        'rejects an explicitly empty section list before network activity',
+        () async {
+          var requestCount = 0;
+          final handler = buildSyncHandler(
+            http_testing.MockClient((_) async {
+              requestCount++;
+              return http.Response('', 200);
+            }),
+          );
+          for (final mode in ['pull', 'push', 'two_way']) {
+            final response = await sendSync(
+              handler,
+              requestBody(mode: mode, selectedSections: []),
+            );
+            final body = jsonDecode(await response.readAsString());
+            expect(response.statusCode, 400);
+            expect(body['message'], contains('sections'));
+          }
           expect(requestCount, 0);
         },
       );
 
-      test('rejects an explicitly empty section list', () async {
-        final handler = buildSyncHandler(
-          http_testing.MockClient((_) async => http.Response('', 200)),
-        );
-        for (final mode in ['pull', 'push', 'two_way']) {
-          final response = await sendSync(
-            handler,
-            requestBody(mode: mode, selectedSections: []),
+      test(
+        'rejects unknown or malformed sections before network activity',
+        () async {
+          var requestCount = 0;
+          final handler = buildSyncHandler(
+            http_testing.MockClient((_) async {
+              requestCount++;
+              return http.Response('', 200);
+            }),
           );
-          final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 400);
-          expect(body['message'], contains('sections'));
-        }
-      });
+
+          for (final sectionsValue in [
+            ['unknown'],
+            ['profiles', 3],
+          ]) {
+            final body = requestBody(mode: 'push')
+              ..['sections'] = sectionsValue;
+            final response = await sendSync(handler, body);
+            expect(response.statusCode, 400);
+          }
+          expect(requestCount, 0);
+        },
+      );
 
       test('deduplicates sections and rejects unknown names', () async {
         final handler = buildSyncHandler(
@@ -223,6 +268,30 @@ void main() {
     });
 
     group('push mode', () {
+      test('local export failure prevents the remote import request', () async {
+        var postCount = 0;
+        final client = http_testing.MockClient((request) async {
+          postCount++;
+          return http.Response('{"profiles":{"imported":1}}', 200);
+        });
+        final handler = buildSyncHandler(
+          client,
+          registeredSections: [
+            MockExportSection(filename: 'profiles.json', failExport: true),
+          ],
+        );
+
+        final response = await sendSync(
+          handler,
+          requestBody(mode: 'push', selectedSections: ['profiles']),
+        );
+        final body = jsonDecode(await response.readAsString());
+
+        expect(response.statusCode, 502);
+        expect(postCount, 0);
+        expect(body['push']['reason'], 'local_export_failed');
+      });
+
       test('classifies legacy 200 errors semantically', () async {
         final client = http_testing.MockClient(
           (_) async => http.Response(
@@ -557,6 +626,28 @@ void main() {
         expect(body['phases']['pull']['status'], 'failed');
         expect(body['phases']['push']['status'], 'skipped');
         expect(body['phases']['push']['reason'], 'pull_not_complete');
+      });
+
+      test('missing expected pull sections block the push request', () async {
+        var postCount = 0;
+        final client = http_testing.MockClient((request) async {
+          if (request.method == 'POST') {
+            postCount++;
+            return http.Response('{"profiles":{"imported":1}}', 200);
+          }
+          return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
+        });
+        final response = await sendSync(
+          buildSyncHandler(client),
+          requestBody(mode: 'two_way', selectedSections: ['profiles', 'shots']),
+        );
+        final body = jsonDecode(await response.readAsString());
+
+        expect(response.statusCode, 207);
+        expect(postCount, 0);
+        expect(body['status'], 'partial');
+        expect(body['phases']['pull']['status'], 'partial');
+        expect(body['phases']['push']['status'], 'skipped');
       });
 
       test('skips push after a partial pull by default', () async {
