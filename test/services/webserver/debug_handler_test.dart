@@ -142,5 +142,13 @@ void main() {
       final res = await machineCommand('frobnicate');
       expect(res.statusCode, 404);
     });
+
+    test(
+      'unknown commands return 404 even without a connected machine',
+      () async {
+        final res = await machineCommand('frobnicate');
+        expect(res.statusCode, 404);
+      },
+    );
   });
 }
