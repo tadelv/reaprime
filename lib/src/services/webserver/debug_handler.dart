@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
@@ -11,13 +13,16 @@ import 'package:shelf_plus/shelf_plus.dart';
 /// Only registered when running in simulate mode.
 class DebugHandler {
   final ScaleController _scaleController;
+  final De1Controller _de1Controller;
   final UpdateCheckService? _updateCheckService;
   final Logger _log = Logger('DebugHandler');
 
   DebugHandler({
     required ScaleController scaleController,
+    required De1Controller de1Controller,
     UpdateCheckService? updateCheckService,
   }) : _scaleController = scaleController,
+       _de1Controller = de1Controller,
        _updateCheckService = updateCheckService;
 
   Map<String, int> get _flowSmoothing => {
@@ -94,6 +99,22 @@ class DebugHandler {
         case 'disconnect':
           _log.info('Simulating MockScale disconnect');
           mock.simulateDisconnect();
+          return jsonOk({'status': 'disconnected'});
+        default:
+          return jsonNotFound({'error': 'Unknown command: $command'});
+      }
+    });
+
+    app.post('/api/v1/debug/machine/<command>', (request, command) async {
+      final de1 = _de1Controller.connectedDe1OrNull;
+      if (de1 is! MockDe1) {
+        return jsonBadRequest({'error': 'Connected machine is not a MockDe1'});
+      }
+
+      switch (command) {
+        case 'disconnect':
+          _log.info('Simulating MockDe1 disconnect');
+          de1.simulateDisconnect();
           return jsonOk({'status': 'disconnected'});
         default:
           return jsonNotFound({'error': 'Unknown command: $command'});

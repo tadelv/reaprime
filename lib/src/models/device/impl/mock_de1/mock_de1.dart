@@ -578,6 +578,14 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     _connectionState.add(ConnectionState.disconnected);
   }
 
+  /// Debug/simulation-only disconnect: emit a disconnected connection
+  /// state explicitly. No automatic reconnect (see
+  /// `POST /api/v1/debug/machine/disconnect`).
+  void simulateDisconnect() {
+    _stateTimer?.cancel();
+    _connectionState.add(ConnectionState.disconnected);
+  }
+
   bool _chargerOn = false;
   int _steamPurgeMode = 0; // 0 = normal, 1 = two tap stop
   double _flowEstimation = 1.0;
@@ -692,11 +700,15 @@ class MockDe1 implements De1Interface, SimulatedDevice {
 
   @override
   Future<int> getFanThreshhold() async {
-    return 50;
+    return _fanThreshhold;
   }
 
   @override
-  Future<void> setFanThreshhold(int temp) async {}
+  Future<void> setFanThreshhold(int temp) async {
+    _fanThreshhold = temp;
+  }
+
+  int _fanThreshhold = 50;
 
   double _steamFlow = 1.0;
   @override
@@ -762,41 +774,47 @@ class MockDe1 implements De1Interface, SimulatedDevice {
 
   @override
   Future<double> getHeaterIdleTemp() async {
-    return 98.0;
+    return _heaterIdleTemp;
   }
 
   @override
   Future<double> getHeaterPhase1Flow() async {
-    return 2.5;
+    return _heaterPhase1Flow;
   }
 
   @override
   Future<double> getHeaterPhase2Flow() async {
-    return 5.0;
+    return _heaterPhase2Flow;
   }
 
   @override
   Future<double> getHeaterPhase2Timeout() async {
-    return 5.0;
+    return _heaterPhase2Timeout;
+  }
+
+  double _heaterIdleTemp = 98.0;
+  double _heaterPhase1Flow = 2.5;
+  double _heaterPhase2Flow = 5.0;
+  double _heaterPhase2Timeout = 5.0;
+
+  @override
+  Future<void> setHeaterIdleTemp(double val) async {
+    _heaterIdleTemp = val;
   }
 
   @override
-  Future<void> setHeaterIdleTemp(double val) async {}
+  Future<void> setHeaterPhase1Flow(double val) async {
+    _heaterPhase1Flow = val;
+  }
 
   @override
-  Future<void> setHeaterPhase1Flow(double val) async {}
-
-  @override
-  Future<void> setHeaterPhase2Flow(double val) async {}
+  Future<void> setHeaterPhase2Flow(double val) async {
+    _heaterPhase2Flow = val;
+  }
 
   @override
   Future<void> setHeaterPhase2Timeout(double val) async {
-    // simulate disconnect
-    _connectionState.add(ConnectionState.disconnected);
-
-    Future.delayed(Duration(seconds: 10), () {
-      _connectionState.add(ConnectionState.connected);
-    });
+    _heaterPhase2Timeout = val;
   }
 
   @override
