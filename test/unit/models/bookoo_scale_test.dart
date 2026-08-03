@@ -168,11 +168,13 @@ void main() {
     ]);
   });
 
-  test('disconnected command failure propagates', () async {
+  test('disconnected command failure is ignored', () async {
     transport.writeError = const DeviceNotConnectedException.scale();
-    await expectLater(
-      scale.tare(),
-      throwsA(isA<DeviceNotConnectedException>()),
-    );
+    await expectLater(scale.tare(), completes);
+  });
+
+  test('unrelated command failure propagates', () async {
+    transport.writeError = StateError('write failed');
+    await expectLater(scale.tare(), throwsStateError);
   });
 }
