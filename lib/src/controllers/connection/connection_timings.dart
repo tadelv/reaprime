@@ -29,4 +29,9 @@ class ConnectionTimings {
   /// state=espresso request that hits the loop before the flash write
   /// returns aborts the shot to HeaterDown.
   static const profileDownloadGuard = Duration(milliseconds: 500);
+
+  /// Bounded wait for a replacement machine after a mid-write
+  /// disconnect before `De1Controller` device-write retry gives up
+  /// (HTTP 503).
+  static const machineReplacementTimeout = Duration(seconds: 10);
 }

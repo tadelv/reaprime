@@ -42,7 +42,7 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | GET | `/api/v1/machine/state` | Current machine state + substate | |
 | PUT | `/api/v1/machine/state/{newState}` | Request state change (`idle`, `sleep`, `espresso`, …) | |
 | GET | `/api/v1/machine/settings` | DE1 machine settings (temps, flows) | |
-| POST | `/api/v1/machine/settings` | Update machine settings | |
+| POST | `/api/v1/machine/settings` | Update machine settings (one grouped, serialized device write per request) | |
 | POST | `/api/v1/machine/shotSettings` | Update shot settings (steam temp, hot water, target volume, group temp) | |
 | GET | `/api/v1/machine/settings/advanced` | Advanced heater/phase settings | |
 | POST | `/api/v1/machine/settings/advanced` | Update advanced settings (heater phase flows/timeouts, idle temp, `heaterVoltage`, `refillKitSetting`) | |
@@ -182,7 +182,12 @@ than 30 seconds for execution return `503` without being applied. Machine-write 
 return an error before the controller workflow is committed. Multi-step machine writes may
 be partially applied, and retrying the same request re-attempts the requested settings.
 Request bodies have a 30-second read timeout; body-read failures return `408`
-without poisoning later queued mutations.
+without poisoning later queued mutations. If the machine disconnects while a
+workflow device write is in flight, the write is retried once on the replacement
+machine (waiting up to 10 seconds for one to appear); if no replacement arrives the
+request returns `503` and the workflow is not committed. A `stopAtTemperature`-only
+workflow change never touches the DE1 directly — the Bengle bridge applies it
+asynchronously — so it commits even while no machine is connected.
 
 ### Beans
 

@@ -110,6 +110,12 @@ extension Defaults on De1Controller {
     _rinseStream.add(settings);
   }
 
+  /// Bulk reset of firmware settings. Deliberately NOT wrapped in the
+  /// device-write retry queue: writing `heaterPh2Timeout` resets the
+  /// heater controller, which drops the connection mid-operation, so
+  /// retry-on-replacement semantics do not apply. Writes are
+  /// device-pinned via `_de1` and the REST route gates on a connected
+  /// machine before calling this.
   Future<void> applySettingsDefaults() async {
     await _de1?.setFanThreshhold(55);
 
