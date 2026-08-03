@@ -46,7 +46,7 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | POST | `/api/v1/machine/shotSettings` | Update shot settings (steam temp, hot water, target volume, group temp) | |
 | GET | `/api/v1/machine/settings/advanced` | Advanced heater/phase settings | |
 | POST | `/api/v1/machine/settings/advanced` | Update advanced settings (heater phase flows/timeouts, idle temp, `heaterVoltage`, `refillKitSetting`) | |
-| DELETE | `/api/v1/machine/settings/reset` | Reset machine settings to defaults (fan, heater idle/phase flows + ph2 timeout, refill kit auto, flow multiplier 1.0, steam purge 0) | |
+| DELETE | `/api/v1/machine/settings/reset` | Reset machine settings to defaults (fan, heater idle/phase flows + ph2 timeout, refill kit auto, flow multiplier 1.0, steam purge 0) — one grouped, serialized device write | |
 | GET | `/api/v1/machine/calibration` | Flow estimation calibration | |
 | POST | `/api/v1/machine/calibration` | Update calibration | |
 | POST | `/api/v1/machine/profile` | Upload profile to machine | |
@@ -386,8 +386,9 @@ Only registered when the app is launched with a non-empty `simulate` Dart define
 | POST | `/api/v1/debug/scale/stall` | Pause mock scale weight emission (stays "connected") | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/resume` | Resume weight emission after stall | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/disconnect` | Simulate scale disconnect (emits disconnected state, stops data) | `debug_handler.dart` |
+| POST | `/api/v1/debug/machine/disconnect` | Simulate mock machine disconnect (emits disconnected state, no auto-reconnect) | `debug_handler.dart` |
 
-Mock-scale command endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`.
+Mock-scale command endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`. The machine command endpoint returns 400 if no machine is connected or the connected machine is not a `MockDe1`, and 404 for unknown commands (any debug route 404s on production builds).
 
 ---
 

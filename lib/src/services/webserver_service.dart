@@ -289,6 +289,7 @@ Future<void> startWebServer(
   if (simulateEnv.isNotEmpty) {
     debugHandler = DebugHandler(
       scaleController: scaleController,
+      de1Controller: de1Controller,
       updateCheckService: updateCheckService,
     );
   }

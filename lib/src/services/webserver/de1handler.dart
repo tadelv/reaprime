@@ -69,8 +69,8 @@ class De1Handler {
       final dynamic json;
       try {
         json = jsonDecode(await r.readAsString());
-      } catch (e, st) {
-        return jsonError({'error': e.toString(), 'st': st.toString()});
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
       }
       if (json is! Map || json['temperature'] == null) {
         return jsonBadRequest({'error': 'temperature required'});
@@ -115,8 +115,8 @@ class De1Handler {
       final dynamic json;
       try {
         json = jsonDecode(await r.readAsString());
-      } catch (e, st) {
-        return jsonError({'error': e.toString(), 'st': st.toString()});
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
       }
       if (json is! Map) {
         return jsonBadRequest({'error': 'invalid JSON body'});
@@ -156,8 +156,8 @@ class De1Handler {
       final dynamic json;
       try {
         json = jsonDecode(await r.readAsString());
-      } catch (e, st) {
-        return jsonError({'error': e.toString(), 'st': st.toString()});
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
       }
       if (json is! Map) {
         return jsonBadRequest({'error': 'Request body must be a JSON object'});
@@ -181,8 +181,8 @@ class De1Handler {
       final dynamic json;
       try {
         json = jsonDecode(await r.readAsString());
-      } catch (e, st) {
-        return jsonError({'error': e.toString(), 'st': st.toString()});
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
       }
       if (json is! Map<String, dynamic>) {
         return jsonBadRequest({'error': 'Request body must be a JSON object'});
@@ -212,26 +212,20 @@ class De1Handler {
           ? null
           : parseInt(json['steamPurgeMode']);
 
-      return withQueuedDe1((device) async {
-        if (usb != null) await device.setUsbChargerMode(usb);
-        if (fan != null) await device.setFanThreshhold(fan);
-        if (flushTemp != null) await device.setFlushTemperature(flushTemp);
-        if (flushFlow != null) await device.setFlushFlow(flushFlow);
-        if (flushTimeout != null) await device.setFlushTimeout(flushTimeout);
-        if (hotWaterFlow != null) await device.setHotWaterFlow(hotWaterFlow);
-        if (steamFlow != null) await device.setSteamFlow(steamFlow);
-        if (tankTemp != null) await device.setTankTempThreshold(tankTemp);
-        if (steamPurgeMode != null) {
-          await device.setSteamPurgeMode(steamPurgeMode);
-        }
-        // Publish controller streams only after the grouped write
-        // succeeded, so the streams never reflect values the machine
-        // did not receive.
-        if (flushFlow != null) _controller.publishFlushFlow(flushFlow);
-        if (hotWaterFlow != null) _controller.publishHotWaterFlow(hotWaterFlow);
-        if (steamFlow != null) _controller.publishSteamFlow(steamFlow);
+      return _mapDe1WriteErrors(() async {
+        await _controller.updateMachineSettings(
+          usb: usb,
+          fan: fan,
+          flushTemp: flushTemp,
+          flushFlow: flushFlow,
+          flushTimeout: flushTimeout,
+          hotWaterFlow: hotWaterFlow,
+          steamFlow: steamFlow,
+          tankTemp: tankTemp,
+          steamPurgeMode: steamPurgeMode,
+        );
         return jsonAccepted();
-      }, retryOnReplacement: true);
+      });
     });
 
     app.get('/api/v1/machine/settings', () async {
@@ -254,8 +248,8 @@ class De1Handler {
       final dynamic json;
       try {
         json = jsonDecode(await r.readAsString());
-      } catch (e, st) {
-        return jsonError({'error': e.toString(), 'st': st.toString()});
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
       }
       if (json is! Map<String, dynamic>) {
         return jsonBadRequest({'error': 'Request body must be a JSON object'});
@@ -329,8 +323,8 @@ class De1Handler {
       final dynamic json;
       try {
         json = jsonDecode(await r.readAsString());
-      } catch (e, st) {
-        return jsonError({'error': e.toString(), 'st': st.toString()});
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
       }
       if (json is! Map) {
         return jsonBadRequest({'error': 'Request body must be a JSON object'});
@@ -347,8 +341,14 @@ class De1Handler {
     });
 
     app.delete('/api/v1/machine/settings/reset', (Request r) async {
-      return withDe1((de1) async {
-        await _controller.applySettingsDefaults();
+      // One shared queue entry: the whole reset retries on a replacement
+      // like other grouped settings writes, and every write uses the
+      // device passed into the queue callback.
+      return _mapDe1WriteErrors(() async {
+        await _controller.runDeviceWrite(
+          (device) => _controller.applySettingsDefaults(device),
+          retryOnReplacement: true,
+        );
         return jsonAccepted();
       });
     });
@@ -368,21 +368,11 @@ class De1Handler {
     }
   }
 
-  /// Like [withDe1], but runs [call] inside the shared device-write
-  /// queue ([De1Controller.runDeviceWrite]), so the physical writes
-  /// cannot interleave with workflow, profile, or shot-settings
-  /// mutations. Machine acquisition happens inside the queue entry;
-  /// a missing machine maps to `500` and an expired bounded
-  /// replacement wait maps to `503`.
-  Future<Response> withQueuedDe1(
-    Future<Response> Function(De1Interface device) call, {
-    bool retryOnReplacement = false,
-  }) async {
+  /// Maps the errors a queued machine write can produce: an expired
+  /// bounded replacement wait is `503`, a missing machine is `500`.
+  Future<Response> _mapDe1WriteErrors(Future<Response> Function() call) async {
     try {
-      return await _controller.runDeviceWrite(
-        call,
-        retryOnReplacement: retryOnReplacement,
-      );
+      return await call();
     } on MachineReplacementTimeoutException catch (e) {
       return jsonServiceUnavailable({
         'error': 'Machine unavailable',
@@ -393,6 +383,24 @@ class De1Handler {
     } catch (e, st) {
       return jsonError({'error': e.toString(), 'st': st.toString()});
     }
+  }
+
+  /// Like [withDe1], but runs [call] inside the shared device-write
+  /// queue ([De1Controller.runDeviceWrite]), so the physical writes
+  /// cannot interleave with workflow, profile, or shot-settings
+  /// mutations. Machine acquisition happens inside the queue entry;
+  /// a missing machine maps to `500` and an expired bounded
+  /// replacement wait maps to `503`.
+  Future<Response> withQueuedDe1(
+    Future<Response> Function(De1Interface device) call, {
+    bool retryOnReplacement = false,
+  }) {
+    return _mapDe1WriteErrors(
+      () => _controller.runDeviceWrite(
+        call,
+        retryOnReplacement: retryOnReplacement,
+      ),
+    );
   }
 
   /// Attach a machine-gated socket to the current [De1Interface] instance and
@@ -551,7 +559,12 @@ class De1Handler {
     return withDe1((_) async {
       final payload = await request.readAsString();
 
-      Map<String, dynamic> json = jsonDecode(payload);
+      Map<String, dynamic> json;
+      try {
+        json = jsonDecode(payload);
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
+      }
       Profile profile = Profile.fromJson(json);
       await _controller.runDeviceWrite(
         (device) => device.setProfile(profile),
@@ -565,7 +578,12 @@ class De1Handler {
     return withDe1((_) async {
       final payload = await request.readAsString();
 
-      Map<String, dynamic> json = jsonDecode(payload);
+      Map<String, dynamic> json;
+      try {
+        json = jsonDecode(payload);
+      } catch (e) {
+        return jsonBadRequest({'error': 'Invalid JSON body'});
+      }
       De1ShotSettings settings = De1ShotSettings.fromJson(json);
       await _controller.runDeviceWrite(
         (device) => device.updateShotSettings(settings),

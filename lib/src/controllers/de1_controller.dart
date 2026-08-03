@@ -638,7 +638,7 @@ class De1Controller {
       (device) => device.setSteamFlow(newFlow),
       retryOnReplacement: true,
     );
-    publishSteamFlow(newFlow);
+    _publishSteamFlow(newFlow);
   }
 
   Future<void> setHotWaterFlow(double newFlow) async {
@@ -646,7 +646,7 @@ class De1Controller {
       (device) => device.setHotWaterFlow(newFlow),
       retryOnReplacement: true,
     );
-    publishHotWaterFlow(newFlow);
+    _publishHotWaterFlow(newFlow);
   }
 
   Future<void> setFlushFlow(double newFlow) async {
@@ -654,13 +654,47 @@ class De1Controller {
       (device) => device.setFlushFlow(newFlow),
       retryOnReplacement: true,
     );
-    publishFlushFlow(newFlow);
+    _publishFlushFlow(newFlow);
+  }
+
+  /// One queued grouped write for `POST /api/v1/machine/settings`.
+  /// All physical writes share one queue entry; the controller flow
+  /// streams are published only after the grouped write completed and
+  /// its final machine-generation check passed, so the streams never
+  /// reflect values a machine did not receive.
+  Future<void> updateMachineSettings({
+    bool? usb,
+    int? fan,
+    double? flushTemp,
+    double? flushFlow,
+    double? flushTimeout,
+    double? hotWaterFlow,
+    double? steamFlow,
+    int? tankTemp,
+    int? steamPurgeMode,
+  }) async {
+    await runDeviceWrite((device) async {
+      if (usb != null) await device.setUsbChargerMode(usb);
+      if (fan != null) await device.setFanThreshhold(fan);
+      if (flushTemp != null) await device.setFlushTemperature(flushTemp);
+      if (flushFlow != null) await device.setFlushFlow(flushFlow);
+      if (flushTimeout != null) await device.setFlushTimeout(flushTimeout);
+      if (hotWaterFlow != null) await device.setHotWaterFlow(hotWaterFlow);
+      if (steamFlow != null) await device.setSteamFlow(steamFlow);
+      if (tankTemp != null) await device.setTankTempThreshold(tankTemp);
+      if (steamPurgeMode != null) {
+        await device.setSteamPurgeMode(steamPurgeMode);
+      }
+    }, retryOnReplacement: true);
+    if (flushFlow != null) _publishFlushFlow(flushFlow);
+    if (hotWaterFlow != null) _publishHotWaterFlow(hotWaterFlow);
+    if (steamFlow != null) _publishSteamFlow(steamFlow);
   }
 
   /// Publish-only steam-flow update. Call only after the physical write
-  /// has been applied (e.g. by a grouped [runDeviceWrite] callback), so
-  /// the stream cannot reflect a value the machine never received.
-  void publishSteamFlow(double newFlow) {
+  /// has been applied, so the stream cannot reflect a value the machine
+  /// never received.
+  void _publishSteamFlow(double newFlow) {
     final current = _steamDataController.valueOrNull;
     if (current != null) {
       _steamDataController.add(
@@ -673,8 +707,8 @@ class De1Controller {
     }
   }
 
-  /// Publish-only hot-water-flow update, see [publishSteamFlow].
-  void publishHotWaterFlow(double newFlow) {
+  /// Publish-only hot-water-flow update, see [_publishSteamFlow].
+  void _publishHotWaterFlow(double newFlow) {
     final current = _hotWaterDataController.valueOrNull;
     if (current != null) {
       _hotWaterDataController.add(
@@ -688,8 +722,8 @@ class De1Controller {
     }
   }
 
-  /// Publish-only flush-flow update, see [publishSteamFlow].
-  void publishFlushFlow(double newFlow) {
+  /// Publish-only flush-flow update, see [_publishSteamFlow].
+  void _publishFlushFlow(double newFlow) {
     final current = _rinseStream.valueOrNull;
     if (current != null) {
       _rinseStream.add(

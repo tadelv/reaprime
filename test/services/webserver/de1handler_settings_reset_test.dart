@@ -125,6 +125,23 @@ void main() {
       expect(body['refillKitSetting'], 2);
     });
 
+    test(
+      'writes and reads back heaterPh2Timeout without disconnecting',
+      () async {
+        final de1 = MockDe1();
+        await wireWith(de1);
+
+        final res = await post('/api/v1/machine/settings/advanced', {
+          'heaterPh2Timeout': 7.0,
+        });
+        expect(res.statusCode, 202);
+
+        expect(await de1.getHeaterPhase2Timeout(), 7.0);
+        // An ordinary MMR write must not drop the machine connection.
+        expect(controller.connectedDe1OrNull, same(de1));
+      },
+    );
+
     test('returns 500 when no DE1 connected', () async {
       await wireWith(null);
       final res = await post('/api/v1/machine/settings/advanced', {
@@ -139,6 +156,24 @@ void main() {
       await wireWith(MockDe1());
       final res = await delete('/api/v1/machine/settings/reset');
       expect(res.statusCode, 202);
+    });
+
+    test('applies the baseline defaults to the mock', () async {
+      final de1 = MockDe1();
+      await wireWith(de1);
+
+      final res = await delete('/api/v1/machine/settings/reset');
+      expect(res.statusCode, 202);
+
+      expect(await de1.getFanThreshhold(), 55);
+      expect(await de1.getHeaterIdleTemp(), 95);
+      expect(await de1.getHeaterPhase1Flow(), 2.0);
+      expect(await de1.getHeaterPhase2Flow(), 4.0);
+      expect(await de1.getHeaterPhase2Timeout(), 4.0);
+      expect(await de1.getRefillKitSettings(), De1RefillKitSettings.auto);
+      expect(await de1.getFlowEstimation(), 1.0);
+      expect(await de1.getSteamPurgeMode(), 0);
+      expect(controller.connectedDe1OrNull, same(de1));
     });
 
     test('returns 500 when no DE1 connected', () async {

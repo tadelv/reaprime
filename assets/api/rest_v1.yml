@@ -337,6 +337,12 @@ paths:
       responses:
         "200":
           description: Profile updated successfully
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/shotSettings:
     post:
       summary: Update Shot Settings
@@ -351,6 +357,12 @@ paths:
       responses:
         "200":
           description: Shot settings updated successfully
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/capabilities:
     get:
       summary: List machine capabilities
@@ -492,6 +504,10 @@ paths:
                 $ref: "#/components/schemas/LedStripState"
         "404":
           description: Machine connected but does not support LED strip
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/settings:
     get:
       summary: Get machine settings
@@ -516,7 +532,13 @@ paths:
               $ref: "#/components/schemas/De1SettingsRequest"
       responses:
         "202":
-          description: Settings update accepted
+          description: Settings update accepted (one grouped serialized device write)
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/settings/advanced:
     get:
@@ -542,7 +564,13 @@ paths:
               $ref: "#/components/schemas/De1AdvancedSettingsRequest"
       responses:
         "202":
-          description: Advanced settings update accepted
+          description: Advanced settings update accepted (one grouped serialized device write)
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/settings/reset:
     delete:
@@ -554,7 +582,9 @@ paths:
       tags: [Machine]
       responses:
         "202":
-          description: Reset accepted
+          description: Reset accepted (one grouped serialized device write)
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
         "500":
           description: No DE1 connected
 
@@ -583,6 +613,12 @@ paths:
       responses:
         "202":
           description: Calibration settings updated successfully
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/waterLevels:
     post:
@@ -597,6 +633,12 @@ paths:
       responses:
         "202":
           description: Levels updated
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/firmware:
     get:
@@ -4202,6 +4244,47 @@ paths:
                     enum: [stalled, resumed, disconnected]
         "400":
           description: No scale connected or scale is not a MockScale
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "404":
+          description: Unknown command or endpoint not available (non-simulate build)
+
+  /api/v1/debug/machine/{command}:
+    post:
+      summary: Control mock machine (simulate mode only)
+      description: |
+        Debug endpoints for controlling the simulated machine. Only available
+        when the app is launched with a non-empty `simulate` Dart define.
+        Returns 404 on production builds.
+      tags: [Debug]
+      parameters:
+        - name: command
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [disconnect]
+          description: |
+            - `disconnect` — simulate machine disconnect (emits disconnected
+              state; no automatic reconnect)
+      responses:
+        "200":
+          description: Command executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [disconnected]
+        "400":
+          description: No machine connected or machine is not a MockDe1
           content:
             application/json:
               schema:
