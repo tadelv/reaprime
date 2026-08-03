@@ -17,6 +17,7 @@ import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
+import 'package:reaprime/src/settings/backup_import_response.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 
@@ -198,14 +199,11 @@ class _ImportStepViewState extends State<_ImportStepView> {
         final response = await request.close();
         final responseBody = await response.transform(utf8.decoder).join();
 
-        if (response.statusCode != 200) {
-          throw Exception(
-            'Server returned ${response.statusCode}: $responseBody',
-          );
-        }
-
-        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
-        final result = _zipResponseToImportResult(responseJson);
+        final importResponse = BackupImportResponse.fromHttp(
+          response.statusCode,
+          responseBody,
+        );
+        final result = importResponse.toImportResult();
 
         widget.persistenceController.notifyShotsChanged();
 
@@ -235,24 +233,6 @@ class _ImportStepViewState extends State<_ImportStepView> {
         });
       }
     }
-  }
-
-  ImportResult _zipResponseToImportResult(Map<String, dynamic> json) {
-    int imported(String key) =>
-        (json[key] is Map ? json[key]['imported'] as int? : null) ?? 0;
-    int skipped(String key) =>
-        (json[key] is Map ? json[key]['skipped'] as int? : null) ?? 0;
-
-    return ImportResult(
-      shotsImported: imported('shots'),
-      shotsSkipped: skipped('shots'),
-      profilesImported: imported('profiles'),
-      profilesSkipped: skipped('profiles'),
-      beansCreated: imported('beans'),
-      beansSkipped: skipped('beans'),
-      grindersCreated: imported('grinders'),
-      grindersSkipped: skipped('grinders'),
-    );
   }
 
   Future<void> _onImportAll() async {

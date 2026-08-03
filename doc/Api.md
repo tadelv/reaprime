@@ -300,20 +300,24 @@ same request prevent all fields from being stored (validation is atomic).
 | POST | `/api/v1/data/import` | Import from ZIP (raw bytes, `Content-Type: application/zip`) | |
 | POST | `/api/v1/data/sync` | Sync with another Bridge instance | `data_sync_handler.dart` |
 
-Sync accepts `target` (URL), `mode` (`pull`, `push`, `two_way`), `onConflict` (`skip` or `overwrite`), and `sections` (profiles, shots, workflow, settings, store, steams, beans, grinders). `sections` is optional for `pull` and `push`, where omission means all locally registered sections. `two_way` requires a nonempty explicit `sections` list; an explicitly empty list is invalid for every mode. Unknown sections return `400`; duplicate names are deduplicated in first-occurrence order.
+Sync accepts `target` (URL), `mode` (`pull`, `push`, `two_way`), `onConflict` (`skip` or `overwrite`), and `sections` (profiles, shots, workflow, settings, store, steams, beans, grinders). `sections` is optional for all three modes; omission means all locally registered sections. An explicitly empty or malformed list, or unknown section, returns `400` before any network request. Duplicate names are deduplicated in first-occurrence order.
 
 Sync responses use semantic results rather than transport status alone. Each direct section under `pull.<section>` and `push.<section>` remains available and gains `status` (`complete`, `partial`, or `failed`). Additive phase metadata is under `phases.<phase>` with `status`, `complete`, and `partial`; fatal phase details remain available at the legacy `pull` or `push` path and are repeated under `phases`. Skipped-push reasons are reported under `phases`. A phase is complete only when every expected section is represented without errors. Warnings, conflict skips, and zero imported records do not make a valid section partial. Section errors with progress are partial; errors without progress are failed. Partial imports are not transactional.
 
-In `two_way` mode, push runs only after a complete pull by default. Set `continueOnPullFailure: true` to opt into best-effort continuation after a partial or failed pull; the option is invalid for single-direction modes and is never inferred from overwrite handling. A complete operation returns `200`, an incomplete single-direction operation returns `502`, and an incomplete two-way operation with meaningful progress returns `207`; a two-way operation with no complete or partial phase returns `502`. Legacy and structured remote import responses are normalized, and HTTP `200` with embedded section errors is not treated as success.
+In `two_way` mode, push runs only after every expected pull section completes by default. Set `continueOnPullFailure: true` to explicitly continue after a partial or failed pull; the option is limited to `two_way` and is never inferred from overwrite handling. A complete operation returns `200`, an incomplete single-direction operation returns `502`, and an incomplete two-way operation with meaningful progress returns `207`; a two-way operation with no complete or partial phase returns `502` (its body may still report `partial` only when meaningful progress exists). Legacy flat and structured remote import responses are supported, but malformed, contradictory, hybrid, missing-section, and HTTP `200` responses with embedded errors are not treated as success.
 
-Backups are ZIP archives with one JSON file per registered section. Import
-matches files by their registered section names; unknown files are ignored, but
-an archive must contain at least one recognized selected section. `metadata.json`
-is not payload: metadata-only, empty, and unknown-only archives return `400`.
-Metadata is optional for legacy archives without it. When present, its JSON and
+Backups are ZIP archives with one JSON file per registered section:
+`profiles.json`, `shots.json`, `workflow.json`, `settings.json`, `store.json`,
+`steams.json`, `beans.json`, and `grinders.json`. Import matches files by their
+registered section names; unknown files are ignored, but an archive must contain
+at least one recognized selected section. `metadata.json` is not payload:
+metadata-only, empty, and unknown-only archives return `400`. Metadata is
+optional for legacy archives without it. When present, its JSON and
 `formatVersion` are validated before any section is imported. Sections are
 processed independently and are not transactional, so successful sections are
-not rolled back when another section fails.
+not rolled back when another section fails. Export is atomic: if any requested
+section fails to export, the request returns an error identifying the failed
+section(s) and no partial ZIP is returned.
 
 `POST /api/v1/data/import` preserves its section-keyed response body. `200`
 means at least one recognized section was processed and every processed section
@@ -323,10 +327,10 @@ all retained. Warnings and conflict-strategy skips alone still return `200`.
 Clients must inspect both the HTTP status and each section result.
 
 Data sync preserves the same phase distinction. A complete pull or push is
-represented by `200`; a partial local import or remote import response is
-represented by `207`. A two-way sync returns `207` when either phase is partial,
-or when one phase is fatal and the other succeeds or is partial. A fatal single
-phase, or two fatal phases, returns `502`. Phase results remain under `pull` and
+represented by `200`. An incomplete single-direction sync returns `502`, even
+when its body reports semantic `partial` progress. A two-way sync returns `207`
+when it has meaningful progress but is incomplete; a two-way sync with no
+complete or partial phase returns `502`. Phase results remain under `pull` and
 `push`, including successful sections and fatal error details.
 
 ### Account

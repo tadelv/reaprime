@@ -3759,6 +3759,9 @@ paths:
         - workflow.json — current workflow/recipe
         - settings.json — all settings, wake schedules, device preferences
         - store.json — all KV store namespaces and key/value pairs
+        - steams.json — all steam records
+        - beans.json — all beans and batches
+        - grinders.json — all grinders
       tags: [Data Management]
       responses:
         "200":
@@ -3774,7 +3777,11 @@ paths:
                 type: string
               description: 'attachment; filename="decent_export_{timestamp}.zip"'
         "500":
-          description: Internal server error
+          description: Export failed atomically; the response identifies failed sections and no partial ZIP is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/v1/data/import:
     post:
       summary: Import app data from archive
@@ -3789,9 +3796,10 @@ paths:
 
         A 200 response means every processed section completed without errors.
         A 207 response means recognized sections were processed but at least
-        one section returned or encountered an error. Warnings and conflict
-        skips do not cause 207. Sections are not imported transactionally; a
-        successful section is not rolled back when another section fails.
+        one section returned or encountered an error, including when all
+        recognized sections failed. Warnings and conflict skips do not cause
+        207. Sections are not imported transactionally; a successful section
+        is not rolled back when another section fails.
       tags: [Data Management]
       parameters:
         - in: query
@@ -3868,10 +3876,9 @@ paths:
         - **push**: exports data from this instance to the target
         - **two_way**: performs pull then push only after a complete pull by default
 
-        Pull and push requests may omit sections, which means all locally
-        registered sections. Two_way requests require a nonempty explicit
-        sections list. An explicitly empty sections list is invalid for every
-        mode.
+        Pull, push, and two_way requests may omit sections, which means all
+        locally registered sections. An explicitly empty sections list is
+        invalid for every mode.
         Duplicate names are deduplicated in first-occurrence order and
         unknown names return 400. Semantic status is derived from section
         results rather than HTTP 200 alone. Existing direct section maps stay
@@ -3913,11 +3920,10 @@ paths:
                   minItems: 1
                   uniqueItems: false
                   description: |
-                    Data sections to sync. Optional for pull and push; omission
-                    means all locally registered sections. Required and
-                    nonempty for two_way. An explicitly empty list is invalid
-                    for every mode. Duplicate names are deduplicated in
-                    first-occurrence order.
+                    Data sections to sync. Optional for every mode; omission
+                    means all locally registered sections. An explicitly empty
+                    list is invalid for every mode. Duplicate names are
+                    deduplicated in first-occurrence order.
                 continueOnPullFailure:
                   type: boolean
                   default: false
@@ -3939,7 +3945,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "400":
-          description: Validation error (missing required fields, invalid mode, missing two_way sections, etc.)
+          description: Validation error (missing required fields, invalid mode, empty or unknown sections, etc.)
           content:
             application/json:
               schema:

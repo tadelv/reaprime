@@ -190,36 +190,28 @@ void main() {
         expect(shotsData['shots'], isList);
       });
 
-      test(
-        'continues exporting other sections when one section fails',
-        () async {
-          final failingSection = FailingExportSection(filename: 'failing.json');
-          final goodSection = MockExportSection(
-            filename: 'good.json',
-            exportData: {'data': 'ok'},
-          );
+      test('aborts ZIP generation when a section export fails', () async {
+        final failingSection = FailingExportSection(filename: 'failing.json');
+        final goodSection = MockExportSection(
+          filename: 'good.json',
+          exportData: {'data': 'ok'},
+        );
 
-          final handlerWithFailure = DataExportHandler(
-            sections: [failingSection, goodSection],
-          );
+        final handlerWithFailure = DataExportHandler(
+          sections: [failingSection, goodSection],
+        );
 
-          final app = Router().plus;
-          handlerWithFailure.addRoutes(app);
-          final testHandler = app.call;
+        final app = Router().plus;
+        handlerWithFailure.addRoutes(app);
+        final response = await app.call(
+          Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
+        );
 
-          final response = await testHandler(
-            Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
-          );
-
-          expect(response.statusCode, 200);
-          final bytes = await response.read().expand((b) => b).toList();
-          final archive = ZipDecoder().decodeBytes(bytes);
-
-          // Should have metadata + good section (failing section skipped)
-          expect(archive.findFile('good.json'), isNotNull);
-          expect(archive.findFile('failing.json'), isNull);
-        },
-      );
+        expect(response.statusCode, 500);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], 'Export failed');
+        expect(body['sections'], contains('failing'));
+      });
     });
 
     group('POST /api/v1/data/import', () {
@@ -663,7 +655,7 @@ void main() {
         expect(outcome.failedSections, contains('profiles'));
       });
 
-      test('thrown section errors mark the outcome partial', () async {
+      test('thrown section errors mark the outcome failed', () async {
         final outcome =
             await DataExportHandler(
               sections: [FailingExportSection(filename: 'profiles.json')],
@@ -673,7 +665,8 @@ void main() {
             );
 
         expect(outcome.recognizedSections, 1);
-        expect(outcome.isPartial, isTrue);
+        expect(outcome.isFailed, isTrue);
+        expect(outcome.isPartial, isFalse);
         expect(outcome.sectionResults['profiles']['errors'], isNotEmpty);
       });
 

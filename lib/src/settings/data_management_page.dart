@@ -21,6 +21,7 @@ import 'package:reaprime/src/import/widgets/import_summary_view.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/settings/backup_export_response.dart';
 import 'package:reaprime/src/settings/backup_import_response.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
@@ -283,7 +284,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     if (!mounted) return;
     _showProgressDialog(context, 'Preparing full backup...');
 
-    final Uint8List responseBytes;
+    late final BackupExportResponse exportResponse;
     final client = HttpClient();
     try {
       final request = await client.getUrl(
@@ -294,13 +295,18 @@ class _DataManagementPageState extends State<DataManagementPage> {
       await for (final chunk in response) {
         builder.add(chunk);
       }
-      responseBytes = builder.takeBytes();
+      exportResponse = BackupExportResponse.fromHttp(
+        statusCode: response.statusCode,
+        mimeType: response.headers.contentType?.mimeType,
+        bytes: builder.takeBytes(),
+      );
     } catch (e) {
       _log.severe("Failed to export full backup", e);
       _dismissProgressDialog();
       if (mounted) {
+        final message = e is BackupExportException ? e.message : '$e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export full backup: $e')),
+          SnackBar(content: Text('Failed to export full backup: $message')),
         );
       }
       return;
@@ -322,7 +328,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final outputFile = await FilePicker.saveFile(
         fileName: fileName,
         dialogTitle: 'Choose where to save backup',
-        bytes: responseBytes,
+        bytes: exportResponse.bytes,
       );
 
       if (outputFile != null) {

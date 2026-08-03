@@ -123,6 +123,51 @@ void main() {
     );
   });
 
+  test('rejects hybrid flat and structured section representations', () {
+    final outcome = DataTransferPhaseOutcome.fromRemote(
+      {
+        'sections': {
+          'profiles': {'imported': 1},
+        },
+        'profiles': {
+          'errors': ['conflicting flat result'],
+        },
+      },
+      ['profiles'],
+    );
+
+    expect(outcome.status, DataTransferStatus.failed);
+  });
+
+  test('rejects invalid errors, warnings, and contradictory phase flags', () {
+    for (final value in [
+      {
+        'sections': {
+          'profiles': {'imported': 1, 'errors': 'bad'},
+        },
+      },
+      {
+        'sections': {
+          'profiles': {
+            'imported': 1,
+            'warnings': ['ok', 2],
+          },
+        },
+      },
+      {
+        'status': 'complete',
+        'complete': true,
+        'partial': true,
+        'sections': {
+          'profiles': {'imported': 1},
+        },
+      },
+    ]) {
+      final outcome = DataTransferPhaseOutcome.fromRemote(value, ['profiles']);
+      expect(outcome.status, DataTransferStatus.failed);
+    }
+  });
+
   test('preserves conservative remote phase declarations and metadata', () {
     final failed = DataTransferPhaseOutcome.fromRemote(
       {

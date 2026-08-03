@@ -32,6 +32,9 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 - `DataImportOutcome` (or its equivalent) is the source of import completeness classification; clients must not infer it by reparsing the section response map.
 - Data sync preserves complete, partial, and fatal phase states. A remote import `207` is a partial push, not a target failure.
 - UI clients must not collapse `207` into complete success.
+- Backup export is atomic: a requested section export failure returns an error and never a partial ZIP. Native callers validate HTTP `200` and `application/zip` before opening a save picker.
+- Remote sync clients accept legacy flat section maps and structured `sections` responses, but fail closed for missing sections, malformed semantic fields, contradictory declarations, or a hybrid representation.
+- In every sync mode, omitted sections mean all locally registered sections; explicit empty, unknown, or malformed section lists are rejected before network activity.
 
 ## WebSocket Conventions
 
@@ -132,7 +135,7 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 
 - Sync phase success is derived from requested section semantics, not transport status alone.
 - Existing direct `pull.<section>` and `push.<section>` paths are compatibility surfaces; semantic phase data is additive under `phases`.
-- Pull and push may omit sections; omission means all locally registered sections. Two-way requires an explicit nonempty section list, and explicit empty lists are invalid in every mode. Missing requested archive or import sections prevent completion.
+- Pull, push, and two-way may omit sections; omission means all locally registered sections. Explicit empty lists are invalid in every mode. Missing requested archive or import sections prevent completion.
 - Legacy HTTP `200` import bodies with embedded errors are partial or failed according to section progress.
 - Two-way push requires a complete pull unless `continueOnPullFailure: true` is explicitly requested.
 - Skipped push is represented as a `skipped` phase, and partial section processing is not transactional.

@@ -125,7 +125,7 @@ class DataSyncHandler {
       });
     }
 
-    final sectionsResult = _parseSections(body['sections'], mode);
+    final sectionsResult = _parseSections(body['sections']);
     if (sectionsResult.error != null) {
       return jsonBadRequest(sectionsResult.error!);
     }
@@ -343,17 +343,8 @@ class DataSyncHandler {
     );
   }
 
-  _SectionsResult _parseSections(dynamic value, SyncMode mode) {
-    if (value == null) {
-      if (mode == SyncMode.twoWay) {
-        return _SectionsResult.errorResult({
-          'error': 'Missing required field',
-          'message':
-              '"sections" is required and must not be empty for two_way mode',
-        });
-      }
-      return const _SectionsResult(null);
-    }
+  _SectionsResult _parseSections(dynamic value) {
+    if (value == null) return const _SectionsResult(null);
     if (value is! List || value.any((section) => section is! String)) {
       return _SectionsResult.errorResult({
         'error': 'Invalid sections value',
