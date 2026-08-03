@@ -30,6 +30,7 @@ const _realWeightFrame = <int>[
   0xF3,
   0x0D,
 ];
+const _secondWeightBody = <int>[0xA4, 0x01, 0x00, 0x00, 0x01, 0x00];
 const _realSettingsFrame = <int>[
   0xEF,
   0xDD,
@@ -430,6 +431,26 @@ void main() {
       }
     },
   );
+
+  test('truncated real records preserve the following weight frame', () async {
+    for (var cut = 11; cut < _realWeightFrame.length; cut++) {
+      final (scale, transport) = await _connected();
+      final snapshots = <ScaleSnapshot>[];
+      final subscription = scale.currentSnapshot.listen(snapshots.add);
+
+      transport.emit(_realWeightFrame.sublist(0, cut));
+      await Future<void>.delayed(Duration.zero);
+      expect(snapshots, isEmpty);
+
+      transport.emit(_eventFrame(5, _secondWeightBody));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(snapshots.map((snapshot) => snapshot.weight), [42.0]);
+      await subscription.cancel();
+      await scale.disconnect();
+      await transport.dispose();
+    }
+  });
 
   test(
     'two complete weight frames in one notification are both consumed',

@@ -370,6 +370,7 @@ class AcaiaScale implements Scale {
   Future<void> resetTimer() async {}
 
   void _parseNotification(List<int> data) {
+    final continuationBoundary = _partialFramePending ? _buffer.length : null;
     _buffer = [..._buffer, ...data];
     while (true) {
       final headerIndex = _findHeader(_buffer);
@@ -412,10 +413,18 @@ class AcaiaScale implements Scale {
         return;
       }
       final frame = List<int>.unmodifiable(_buffer.sublist(0, frameLength));
+      final partialWeightHeader = _partialFramePending
+          ? _partialWeightHeader(
+              _buffer,
+              messageType,
+              eventType,
+              continuationBoundary,
+            )
+          : null;
       _buffer = _buffer.sublist(frameLength);
-      if (_partialFramePending && _hasPartialWeightHeader(frame, eventType)) {
+      if (partialWeightHeader != null) {
         _partialFramePending = false;
-        _buffer = [...frame.sublist(_findHeader(frame, start: 2)), ..._buffer];
+        _buffer = [...frame.sublist(partialWeightHeader), ..._buffer];
         continue;
       }
       _partialFramePending = false;
@@ -460,14 +469,7 @@ class AcaiaScale implements Scale {
 
   bool _resyncPartialWeightFrame(int messageType, int eventType) {
     if (messageType != 0x0C) return false;
-    final weightOffset = switch (eventType) {
-      5 => _metadataLength,
-      11
-          when _buffer.length > _metadataLength + 2 &&
-              _buffer[_metadataLength + 2] == 5 =>
-        _metadataLength + 3,
-      _ => -1,
-    };
+    final weightOffset = _weightBodyOffset(_buffer, eventType);
     if (weightOffset < 0 || !_hasValidWeightBody(_buffer, weightOffset)) {
       final bodyEnd = weightOffset + _weightBodyLength;
       if (weightOffset >= 0 && _buffer.length >= bodyEnd) {
@@ -488,8 +490,8 @@ class AcaiaScale implements Scale {
     return false;
   }
 
-  bool _hasPartialWeightHeader(List<int> frame, int eventType) {
-    final weightOffset = switch (eventType) {
+  int _weightBodyOffset(List<int> frame, int eventType) {
+    return switch (eventType) {
       5 => _metadataLength,
       11
           when frame.length > _metadataLength + 2 &&
@@ -497,9 +499,38 @@ class AcaiaScale implements Scale {
         _metadataLength + 3,
       _ => -1,
     };
-    if (weightOffset < 0) return false;
-    final nextHeader = _findHeader(frame, start: 2);
-    return nextHeader == weightOffset + _weightBodyLength - 1;
+  }
+
+  int? _partialWeightHeader(
+    List<int> frame,
+    int messageType,
+    int eventType,
+    int? continuationBoundary,
+  ) {
+    if (messageType != 0x0C || continuationBoundary == null) return null;
+    final weightOffset = _weightBodyOffset(frame, eventType);
+    if (weightOffset < 0) return null;
+    final bodyEnd = weightOffset + _weightBodyLength;
+    if (continuationBoundary == bodyEnd - 1) {
+      return frame[continuationBoundary] == _header1 &&
+              continuationBoundary + 1 < frame.length &&
+              frame[continuationBoundary + 1] == _header2
+          ? continuationBoundary
+          : null;
+    }
+    if (continuationBoundary < bodyEnd) return null;
+    for (final headerIndex in [
+      continuationBoundary,
+      continuationBoundary - 1,
+    ]) {
+      if (headerIndex >= 2 &&
+          headerIndex + 1 < frame.length &&
+          frame[headerIndex] == _header1 &&
+          frame[headerIndex + 1] == _header2) {
+        return headerIndex;
+      }
+    }
+    return null;
   }
 
   void _resyncMalformedFrame(List<int> frame) {
