@@ -148,9 +148,8 @@ class BookooScale implements Scale {
         commandCharacteristic.long,
         Uint8List.fromList(command),
       );
-    } on DeviceNotConnectedException {
-      return;
-    }
+      // ignore: empty_catches
+    } on DeviceNotConnectedException {}
   }
 
   List<int> _command(int opcode) {
