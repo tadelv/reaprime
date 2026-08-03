@@ -4,6 +4,7 @@ import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -141,11 +142,15 @@ class BookooScale implements Scale {
   }
 
   Future<void> _write(List<int> command) async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList(command),
-    );
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        Uint8List.fromList(command),
+      );
+    } on DeviceNotConnectedException {
+      return;
+    }
   }
 
   List<int> _command(int opcode) {
