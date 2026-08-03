@@ -175,8 +175,9 @@ callback receives the machine acquired inside the retry loop, so a disconnected
 interval (controller holding no machine) is handled by waiting — bounded by
 `ConnectionTimings.machineReplacementTimeout` (10 s) — for a non-null replacement and
 that generation's startup initialization to settle, then re-running the complete
-grouped write once on the replacement. The old machine is never written after the
-generation changes. If no replacement appears within the bound, the handler returns
+grouped write once on the replacement. The old machine is never acquired for a new
+write after the generation changes (an already-running write may still finish on it,
+see below). If no replacement appears within the bound, the handler returns
 `503 Machine unavailable`; if there was never a machine at all, the first attempt
 fails fast with `500` (unchanged behavior). The first attempt never waits: the bounded
 wait only applies to retries after a mid-write disconnect.
@@ -197,7 +198,7 @@ streams published only after the grouped write succeeds):
 - `POST /api/v1/machine/shotSettings`
 - `POST /api/v1/machine/settings` (all fields, one entry)
 - `POST /api/v1/machine/settings/advanced`
-- `POST /api/v1/machine/settings/reset` (complete reset, one entry)
+- `DELETE /api/v1/machine/settings/reset` (complete reset, one entry)
 - `POST /api/v1/machine/calibration`
 - `POST /api/v1/machine/waterLevels`
 - `PUT /api/v1/machine/cupWarmer`, `PUT /api/v1/machine/ledStrip`,
@@ -222,8 +223,9 @@ Documented bypasses:
 `MockDe1.simulateDisconnect()` emits a disconnected connection state explicitly; it
 does not schedule a reconnect. It is exposed only through the simulate-mode
 `POST /api/v1/debug/machine/disconnect` route (via `DebugHandler`), mirroring the
-scale debug commands. Writing `heaterPh2Timeout` is an ordinary MMR write on both
-`MockDe1` and real hardware — it never disconnects or resets the machine.
+scale debug commands. Writing `heaterPh2Timeout` is an ordinary MMR write on
+`MockDe1`; on real hardware Decaid treats it as an ordinary MMR write — no reset
+behavior is documented.
 
 ### Status Codes
 

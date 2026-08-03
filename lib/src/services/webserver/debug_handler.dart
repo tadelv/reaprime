@@ -106,19 +106,18 @@ class DebugHandler {
     });
 
     app.post('/api/v1/debug/machine/<command>', (request, command) async {
+      // Validate the command before touching the machine so an unknown
+      // command always returns 404 regardless of connection state.
+      if (command != 'disconnect') {
+        return jsonNotFound({'error': 'Unknown command: $command'});
+      }
       final de1 = _de1Controller.connectedDe1OrNull;
       if (de1 is! MockDe1) {
         return jsonBadRequest({'error': 'Connected machine is not a MockDe1'});
       }
-
-      switch (command) {
-        case 'disconnect':
-          _log.info('Simulating MockDe1 disconnect');
-          de1.simulateDisconnect();
-          return jsonOk({'status': 'disconnected'});
-        default:
-          return jsonNotFound({'error': 'Unknown command: $command'});
-      }
+      _log.info('Simulating MockDe1 disconnect');
+      de1.simulateDisconnect();
+      return jsonOk({'status': 'disconnected'});
     });
   }
 }

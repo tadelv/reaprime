@@ -416,9 +416,13 @@ paths:
         "200":
           description: Setpoint accepted
         "400":
-          description: Temperature missing or out of range 0.0–80.0
+          description: Temperature missing or out of range 0.0–80.0, or malformed JSON
         "404":
           description: Machine connected but does not support cup warmer
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/ledStrip:
     get:
       summary: Get LED strip configuration
@@ -454,9 +458,13 @@ paths:
         "200":
           description: Configuration accepted
         "400":
-          description: Invalid request body
+          description: Invalid request body or malformed JSON
         "404":
           description: Machine connected but does not support LED strip
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/ledStrip/commit:
     post:
@@ -478,6 +486,10 @@ paths:
           description: Commit accepted
         "404":
           description: Machine connected but does not support LED strip
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/ledStrip/reset:
     post:
