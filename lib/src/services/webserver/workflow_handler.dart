@@ -7,6 +7,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/json_utils.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
@@ -64,24 +65,39 @@ class WorkflowHandler {
       ),
     );
     var expired = false;
+    var slotReleased = false;
+    // Release the admission slot exactly once, no matter which path
+    // (timer expiry, normal completion, or skipped queue entry) wins.
+    void releaseSlot() {
+      if (slotReleased) return;
+      slotReleased = true;
+      _pendingRequests--;
+    }
+
     final response = Completer<Response>();
     late final Timer waitTimer;
-    final operation = _workflowQueue
-        .then((_) async {
-          if (expired) return;
-          waitTimer.cancel();
-          final result = await _applyPayload(payload);
-          if (!response.isCompleted) response.complete(result);
-        })
-        .whenComplete(() => _pendingRequests--);
+    final operation = _workflowQueue.then((_) async {
+      if (expired) return;
+      waitTimer.cancel();
+      try {
+        final result = await _applyPayload(payload);
+        if (!response.isCompleted) response.complete(result);
+      } finally {
+        releaseSlot();
+      }
+    });
     _workflowQueue = operation.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {
         _log.severe('Error completing workflow queue entry', error, stackTrace);
+        releaseSlot();
       },
     );
     waitTimer = Timer(queueWaitTimeout, () {
       expired = true;
+      // Release the slot immediately even though the skipped queue
+      // entry may not have reached the front yet.
+      releaseSlot();
       if (!response.isCompleted) {
         response.complete(
           jsonServiceUnavailable({'error': 'Workflow request queue timed out'}),
@@ -159,6 +175,11 @@ class WorkflowHandler {
           return jsonOk(updatedWorkflow.toJson());
         }
       }
+    } on MachineReplacementTimeoutException catch (e) {
+      return jsonServiceUnavailable({
+        'error': 'Machine unavailable',
+        'message': '$e',
+      });
     } on ArgumentError catch (e) {
       return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } on FormatException catch (e) {

@@ -7,7 +7,6 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
-import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -17,32 +16,19 @@ import '../../helpers/mock_settings_service.dart';
 import '../../helpers/test_scale.dart';
 import '../../helpers/test_scale_controller.dart';
 
-class _FixedDe1Controller extends De1Controller {
-  _FixedDe1Controller({required super.controller, this.device});
-
-  De1Interface? device;
-
-  @override
-  De1Interface connectedDe1() {
-    final d = device;
-    if (d == null) throw const DeviceNotConnectedException.machine();
-    return d;
-  }
-}
-
 void main() {
   late Handler handler;
-  late _FixedDe1Controller controller;
+  late De1Controller controller;
   late SettingsController settingsController;
   late TestScaleController scaleController;
 
   Future<void> wireWith(De1Interface? device) async {
     final deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
-    controller = _FixedDe1Controller(
-      controller: deviceController,
-      device: device,
-    );
+    controller = De1Controller(controller: deviceController);
+    if (device != null) {
+      await controller.connectToDe1(device);
+    }
 
     final mockSettings = MockSettingsService();
     settingsController = SettingsController(mockSettings);

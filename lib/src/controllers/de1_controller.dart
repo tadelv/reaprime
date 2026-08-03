@@ -135,8 +135,16 @@ class De1Controller {
 
   int get connectionGeneration => _connectionGeneration;
 
-  De1Controller({required DeviceController controller})
-    : _deviceController = controller {
+  /// Bounded wait for a replacement machine after a mid-write
+  /// disconnect (see [ConnectionTimings.machineReplacementTimeout]).
+  /// Overridable in tests to keep the timeout short.
+  final Duration machineReplacementTimeout;
+
+  De1Controller({
+    required DeviceController controller,
+    this.machineReplacementTimeout =
+        ConnectionTimings.machineReplacementTimeout,
+  }) : _deviceController = controller {
     _log.info("checking ${_deviceController.devices}");
   }
 
@@ -398,26 +406,57 @@ class De1Controller {
   ) async {
     final attempts = retryOnReplacement ? 2 : 1;
     for (var attempt = 0; attempt < attempts; attempt++) {
-      final device = connectedDe1();
+      // Machine acquisition is inside the retry logic: a disconnected
+      // interval (no machine at this moment) only blocks the first
+      // attempt when there was never a machine to begin with. After a
+      // generation change the retry waits for a replacement.
+      De1Interface device;
+      try {
+        device = connectedDe1();
+      } on DeviceNotConnectedException {
+        if (!retryOnReplacement || attempt == 0) rethrow;
+        final replacement = await _waitForMachineReplacement(
+          machineReplacementTimeout,
+        );
+        if (replacement == null) {
+          throw MachineReplacementTimeoutException(machineReplacementTimeout);
+        }
+        device = replacement;
+      }
       final generation = _connectionGeneration;
       try {
         await _waitForInitialization(device, generation);
-        if (generation != _connectionGeneration || !identical(device, _de1)) {
+        if (generation != _connectionGeneration ||
+            !identical(device, connectedDe1OrNull)) {
           if (attempt + 1 < attempts) continue;
           break;
         }
         final result = await write(device);
-        if (generation == _connectionGeneration && identical(device, _de1)) {
+        if (generation == _connectionGeneration &&
+            identical(device, connectedDe1OrNull)) {
           return result;
         }
       } catch (_) {
         if (attempt + 1 == attempts ||
-            (generation == _connectionGeneration && identical(device, _de1))) {
+            (generation == _connectionGeneration &&
+                identical(device, connectedDe1OrNull))) {
           rethrow;
         }
       }
     }
     throw StateError('Machine changed during device write');
+  }
+
+  /// Wait up to [timeout] for a non-null machine to appear on the
+  /// controller stream. Returns null if no machine appears in time.
+  Future<De1Interface?> _waitForMachineReplacement(Duration timeout) async {
+    try {
+      return await _de1Controller.stream
+          .firstWhere((de1) => de1 != null)
+          .timeout(timeout);
+    } on TimeoutException {
+      return null;
+    }
   }
 
   Future<void> _waitForInitialization(
@@ -430,7 +469,7 @@ class De1Controller {
           (settled) =>
               settled == generation ||
               generation != _connectionGeneration ||
-              !identical(device, _de1),
+              !identical(device, connectedDe1OrNull),
         )
         .timeout(ConnectionTimings.initialShotSettingsTimeout);
   }
@@ -599,6 +638,29 @@ class De1Controller {
       (device) => device.setSteamFlow(newFlow),
       retryOnReplacement: true,
     );
+    publishSteamFlow(newFlow);
+  }
+
+  Future<void> setHotWaterFlow(double newFlow) async {
+    await runDeviceWrite(
+      (device) => device.setHotWaterFlow(newFlow),
+      retryOnReplacement: true,
+    );
+    publishHotWaterFlow(newFlow);
+  }
+
+  Future<void> setFlushFlow(double newFlow) async {
+    await runDeviceWrite(
+      (device) => device.setFlushFlow(newFlow),
+      retryOnReplacement: true,
+    );
+    publishFlushFlow(newFlow);
+  }
+
+  /// Publish-only steam-flow update. Call only after the physical write
+  /// has been applied (e.g. by a grouped [runDeviceWrite] callback), so
+  /// the stream cannot reflect a value the machine never received.
+  void publishSteamFlow(double newFlow) {
     final current = _steamDataController.valueOrNull;
     if (current != null) {
       _steamDataController.add(
@@ -611,11 +673,8 @@ class De1Controller {
     }
   }
 
-  Future<void> setHotWaterFlow(double newFlow) async {
-    await runDeviceWrite(
-      (device) => device.setHotWaterFlow(newFlow),
-      retryOnReplacement: true,
-    );
+  /// Publish-only hot-water-flow update, see [publishSteamFlow].
+  void publishHotWaterFlow(double newFlow) {
     final current = _hotWaterDataController.valueOrNull;
     if (current != null) {
       _hotWaterDataController.add(
@@ -629,11 +688,8 @@ class De1Controller {
     }
   }
 
-  Future<void> setFlushFlow(double newFlow) async {
-    await runDeviceWrite(
-      (device) => device.setFlushFlow(newFlow),
-      retryOnReplacement: true,
-    );
+  /// Publish-only flush-flow update, see [publishSteamFlow].
+  void publishFlushFlow(double newFlow) {
     final current = _rinseStream.valueOrNull;
     if (current != null) {
       _rinseStream.add(

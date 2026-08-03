@@ -167,6 +167,56 @@ leaves controller workflow state unchanged; multi-step device writes may still b
 partially applied, so a retry re-attempts the requested settings. `WorkflowDeviceSync`
 remains the owner of asynchronous profile upload after controller changes.
 
+### Device-Write Retry and Machine Replacement
+
+`De1Controller.runDeviceWrite()` is the single serialization point for all REST
+machine writes (workflow PUTs, profile, shot settings, machine settings). The write
+callback receives the machine acquired inside the retry loop, so a disconnected
+interval (controller holding no machine) is handled by waiting — bounded by
+`ConnectionTimings.machineReplacementTimeout` (10 s) — for a non-null replacement and
+that generation's startup initialization to settle, then re-running the complete
+grouped write once on the replacement. The old machine is never written after the
+generation changes. If no replacement appears within the bound, the handler returns
+`503 Machine unavailable`; if there was never a machine at all, the first attempt
+fails fast with `500` (unchanged behavior). The first attempt never waits: the bounded
+wait only applies to retries after a mid-write disconnect.
+
+A machine disconnect observed during a workflow or settings write aborts the in-flight
+write (the device call throws), so the retry starts from the beginning of the grouped
+write on the replacement.
+
+### REST Route Serialization Audit
+
+All mutating machine routes in `de1handler.dart` route their physical writes through
+`runDeviceWrite` (one HTTP request = one queue entry, parse-then-write, controller
+streams published only after the grouped write succeeds):
+
+- `PUT /api/v1/workflow` (workflow handler, device writes via `updateWorkflowSettings`)
+- `POST /api/v1/machine/profile`
+- `POST /api/v1/machine/shotSettings`
+- `POST /api/v1/machine/settings` (all fields, one entry)
+- `POST /api/v1/machine/settings/advanced`
+- `POST /api/v1/machine/calibration`
+- `POST /api/v1/machine/waterLevels`
+- `PUT /api/v1/machine/cupWarmer`, `PUT /api/v1/machine/ledStrip`,
+  `POST /api/v1/machine/ledStrip/commit`, `POST /api/v1/machine/ledStrip/reset`
+
+Documented bypasses:
+
+- `PUT /api/v1/machine/state/<newState>`: latency-sensitive machine commands (a stop
+  request must not queue behind a settings or profile write) that target the state
+  characteristic, not the settings/MMR registers the queue serializes.
+- `DELETE /api/v1/machine/settings/reset` (`applySettingsDefaults`): the operation
+  itself resets the heater controller (`heaterPh2Timeout`), dropping the connection
+  mid-run, so retry-on-replacement semantics do not apply; writes are device-pinned
+  via the controller's current machine reference.
+- Raw low-level MMR commands via `/ws/v1/machine/raw`: intentionally unqueued (see
+  the machine WebSocket re-bind section); a delayed raw read/write could be stale.
+
+Writing `heaterPh2Timeout` (settings/advanced or reset) simulates a heater-controller
+disconnect on `MockDe1` and reboots the heater controller on real hardware; a queued
+write interrupted this way may return `500`/`503`.
+
 ### Status Codes
 
 | Code | Meaning |
@@ -177,4 +227,4 @@ remains the owner of asynchronous profile upload after controller changes.
 | 413 | Body exceeds 1 MiB limit |
 | 429 | Admission capacity full (8 active or queued requests) |
 | 500 | A required direct machine write failed |
-| 503 | Mutation timed out waiting for its execution turn |
+| 503 | Mutation timed out waiting for its execution turn, or no replacement machine appeared within the bounded wait |

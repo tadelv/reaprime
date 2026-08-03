@@ -96,6 +96,20 @@ class MmrTimeoutException implements Exception {
       'MmrTimeoutException: no response for $mmrItemName within $timeout';
 }
 
+/// Thrown by `De1Controller` device-write retry when a machine
+/// disconnected mid-write and no replacement machine appeared within
+/// the bounded replacement wait. REST handlers map this to HTTP 503.
+class MachineReplacementTimeoutException implements Exception {
+  final Duration timeout;
+
+  const MachineReplacementTimeoutException(this.timeout);
+
+  @override
+  String toString() =>
+      'MachineReplacementTimeoutException: no replacement machine '
+      'within $timeout';
+}
+
 /// Thrown synchronously by [De1Interface.updateFirmware] when a firmware
 /// operation is already in progress. Callers receive this before any async
 /// work begins, so an API handler can return HTTP 409 before opening a
