@@ -27,7 +27,12 @@ class FakeWebUIStorage extends Fake implements WebUIStorage {
   }
 
   @override
-  Future<void> installFromUrl(String url, {String? sourceIdentifier}) async {
+  Future<void> installFromUrl(
+    String url, {
+    String? sourceIdentifier,
+    String? releaseAssetName,
+    bool? includePrerelease,
+  }) async {
     installFromUrlCalled = true;
   }
 }

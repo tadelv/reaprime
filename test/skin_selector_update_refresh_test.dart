@@ -22,14 +22,14 @@ class _FakeWebUIStorage extends Fake implements WebUIStorage {
   _FakeWebUIStorage(this._version);
 
   String _version;
-  int downloadCount = 0;
+  int updateCount = 0;
 
   WebUISkin get _skin => WebUISkin(
     id: 'streamline.js',
     name: 'Streamline',
     path: '/tmp/streamline.js',
     version: _version,
-    isBundled: true,
+    isBundled: false,
   );
 
   @override
@@ -43,7 +43,7 @@ class _FakeWebUIStorage extends Fake implements WebUIStorage {
 
   @override
   Future<void> updateAllSkins() async {
-    downloadCount++;
+    updateCount++;
     _version = '0.2.3';
   }
 }
@@ -51,7 +51,7 @@ class _FakeWebUIStorage extends Fake implements WebUIStorage {
 void main() {
   testWidgets(
     'skins list refreshes to the new version after "Check for updates" '
-    '(issue #370)',
+    '(issues #370, #503)',
     (tester) async {
       final storage = _FakeWebUIStorage('0.2.2');
 
@@ -81,7 +81,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300)); // settle snackbar
 
       // Storage actually ran the update...
-      expect(storage.downloadCount, 1);
+      expect(storage.updateCount, 1);
       // ...and the list now reflects the new version without leaving the page.
       expect(find.textContaining('0.2.3'), findsOneWidget);
       expect(find.textContaining('0.2.2'), findsNothing);

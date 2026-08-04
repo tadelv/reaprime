@@ -3407,11 +3407,27 @@ Decaid tracks skin metadata in `.rea_metadata.json`:
 }
 ```
 
+`sourceUrl` records where a skin came from so it can be refreshed later:
+
+- `github_branch:owner/repo@branch` — GitHub branch installs
+- `github_release:owner/repo@tag` — GitHub release installs. `releaseAssetName`
+  (the specifically selected asset) and `includePrerelease` (prerelease
+  tracking) are stored alongside and re-applied on every update.
+- A plain `http(s)://` URL — raw URL installs, tracked via `etag` /
+  `lastModified` headers
+
 **Update Detection:**
-- Remote skins are checked for updates when `downloadRemoteSkins()` is called
-- Uses HTTP `ETag` and `Last-Modified` headers for efficient version checking
+- User-installed skins are checked for updates via `updateAllSkins()`, which
+  runs on the app's periodic update check, from `POST /api/v1/webui/skins/update`,
+  from the web settings plugin's "Check for Skin Updates", and from the native
+  skin selector's "Check for updates" button.
+- Raw-URL and GitHub-release skins are compared against their recorded source
+  on every check: URL skins via HTTP `ETag` / `Last-Modified` headers,
+  release skins by re-resolving the latest release (honoring the recorded
+  `releaseAssetName` and `includePrerelease`).
 - Only downloads if remote version differs from installed version
-- Updates are automatic for remote bundled skins and user-installed GitHub branch skins
+- Updates are automatic for remote bundled skins and all user-installed skins
+  (GitHub branch, GitHub release, or raw URL)
 
 ---
 

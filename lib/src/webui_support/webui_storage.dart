@@ -19,6 +19,8 @@ class WebUIReaMetadata {
   final String? lastModified;
   final String? etag;
   final String? commitHash;
+  final String? releaseAssetName;
+  final bool? includePrerelease;
   final DateTime installedAt;
   final DateTime? lastChecked;
 
@@ -28,6 +30,8 @@ class WebUIReaMetadata {
     this.lastModified,
     this.etag,
     this.commitHash,
+    this.releaseAssetName,
+    this.includePrerelease,
     required this.installedAt,
     this.lastChecked,
   });
@@ -39,6 +43,8 @@ class WebUIReaMetadata {
       lastModified: json['lastModified'] as String?,
       etag: json['etag'] as String?,
       commitHash: json['commitHash'] as String?,
+      releaseAssetName: json['releaseAssetName'] as String?,
+      includePrerelease: json['includePrerelease'] as bool?,
       installedAt: DateTime.parse(json['installedAt'] as String),
       lastChecked: json['lastChecked'] != null
           ? DateTime.parse(json['lastChecked'] as String)
@@ -53,6 +59,8 @@ class WebUIReaMetadata {
       'lastModified': lastModified,
       'etag': etag,
       'commitHash': commitHash,
+      'releaseAssetName': releaseAssetName,
+      'includePrerelease': includePrerelease,
       'installedAt': installedAt.toIso8601String(),
       'lastChecked': lastChecked?.toIso8601String(),
     };
@@ -63,6 +71,8 @@ class WebUIReaMetadata {
     String? lastModified,
     String? etag,
     String? commitHash,
+    String? releaseAssetName,
+    bool? includePrerelease,
     DateTime? installedAt,
     DateTime? lastChecked,
   }) {
@@ -72,6 +82,8 @@ class WebUIReaMetadata {
       lastModified: lastModified ?? this.lastModified,
       etag: etag ?? this.etag,
       commitHash: commitHash ?? this.commitHash,
+      releaseAssetName: releaseAssetName ?? this.releaseAssetName,
+      includePrerelease: includePrerelease ?? this.includePrerelease,
       installedAt: installedAt ?? this.installedAt,
       lastChecked: lastChecked ?? this.lastChecked,
     );
@@ -325,7 +337,12 @@ class WebUIStorage {
   /// [sourceIdentifier] is stored as the skin's metadata sourceUrl so that
   /// [updateAllSkins] can find and refresh this skin later (raw URLs default
   /// to the URL itself, ETag/Last-Modified tracked).
-  Future<void> installFromUrl(String url, {String? sourceIdentifier}) async {
+  Future<void> installFromUrl(
+    String url, {
+    String? sourceIdentifier,
+    String? releaseAssetName,
+    bool? includePrerelease,
+  }) async {
     _log.info('Downloading WebUI from URL: $url');
 
     try {
@@ -357,6 +374,8 @@ class WebUIStorage {
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
         skinId: installedSkinId,
         sourceUrl: sourceIdentifier ?? url,
+        releaseAssetName: releaseAssetName,
+        includePrerelease: includePrerelease,
         etag: etag,
         lastModified: lastModified,
         installedAt: DateTime.now(),
@@ -473,10 +492,14 @@ class WebUIStorage {
       _log.info('Downloading asset: ${targetAsset['name']}');
 
       // Download and install, tracking the release so updateAllSkins()
-      // can detect newer releases via the GitHub API.
+      // can detect newer releases via the GitHub API. The requested asset
+      // name and prerelease flag ride along so updates keep the same
+      // selection semantics.
       await installFromUrl(
         downloadUrl,
         sourceIdentifier: 'github_release:$repo@$releaseTag',
+        releaseAssetName: assetName,
+        includePrerelease: includePrerelease,
       );
 
       _log.info(
@@ -595,8 +618,8 @@ class WebUIStorage {
           );
           await _installFromGitHubRelease(
             repo,
-            null,
-            false,
+            entry.value.releaseAssetName,
+            entry.value.includePrerelease ?? false,
             markAsRemoteBundled: false,
           );
         } else if (sourceUrl.startsWith('github_branch:')) {
@@ -751,11 +774,14 @@ class WebUIStorage {
         await _saveRemoteBundledSkinIds();
       }
 
-      // Store REA metadata with release information
+      // Store REA metadata with release information, preserving the
+      // selection options so later updateAllSkins() runs keep them.
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
         skinId: installedSkinId,
         sourceUrl: sourceIdentifier,
         commitHash: releaseTag,
+        releaseAssetName: assetName,
+        includePrerelease: includePrerelease,
         etag: null, // GitHub releases don't use ETags for versioning
         lastModified: publishedAt,
         installedAt: DateTime.now(),
