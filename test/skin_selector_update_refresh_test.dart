@@ -16,7 +16,7 @@ class _FakeWebUIService extends Fake implements WebUIService {
 }
 
 /// Stand-in storage whose single installed skin reports a newer version after
-/// [downloadRemoteSkins] runs — mirroring a real update check that bumps the
+/// [updateAllSkins] runs — mirroring a real update check that bumps the
 /// on-disk skin from 0.2.2 to 0.2.3 and re-scans the registry.
 class _FakeWebUIStorage extends Fake implements WebUIStorage {
   _FakeWebUIStorage(this._version);
@@ -42,7 +42,7 @@ class _FakeWebUIStorage extends Fake implements WebUIStorage {
   WebUISkin? getSkin(String id) => id == _skin.id ? _skin : null;
 
   @override
-  Future<void> downloadRemoteSkins() async {
+  Future<void> updateAllSkins() async {
     downloadCount++;
     _version = '0.2.3';
   }
