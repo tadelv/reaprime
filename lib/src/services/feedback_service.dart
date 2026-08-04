@@ -23,7 +23,7 @@ class FeedbackService {
 
   FeedbackService({
     required String githubToken,
-    String repo = 'tadelv/reaprime',
+    String repo = 'decentespresso/decaid',
   }) : _githubToken = githubToken,
        _repo = repo;
 

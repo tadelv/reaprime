@@ -236,14 +236,14 @@ class UpdateCheckService {
 
   /// Get the GitHub releases page URL
   String getReleasesUrl() {
-    return 'https://github.com/tadelv/reaprime/releases';
+    return 'https://github.com/decentespresso/decaid/releases';
   }
 
   /// Get the specific release URL if an update is available
   String? getReleaseUrl([UpdateInfo? update]) {
     final release = update ?? _availableUpdate;
     if (release == null) return null;
-    return 'https://github.com/tadelv/reaprime/releases/tag/${release.tagName}';
+    return 'https://github.com/decentespresso/decaid/releases/tag/${release.tagName}';
   }
 
   /// Enable automatic update checks
@@ -275,7 +275,7 @@ class UpdateCheckService {
       version: version,
       downloadUrl:
           downloadUrl ??
-          'https://github.com/tadelv/reaprime/releases/download/v0.7.7/decent-android-0.7.7.apk',
+          'https://github.com/decentespresso/decaid/releases/download/v0.7.7/decent-android-0.7.7.apk',
       releaseNotes: 'Forced update for testing the update API.',
       isPrerelease: false,
       tagName: 'v$version',

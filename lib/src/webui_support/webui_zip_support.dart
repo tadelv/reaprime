@@ -11,9 +11,9 @@ import 'package:path/path.dart' as p;
 /// standing up the full storage + asset bundle stack.
 ///
 /// Issues this file addresses:
-///   - https://github.com/tadelv/reaprime/issues/147
+///   - https://github.com/decentespresso/decaid/issues/147
 ///     `_installFromZip` crashed on Windows-reserved filename chars.
-///   - https://github.com/tadelv/reaprime/issues/148
+///   - https://github.com/decentespresso/decaid/issues/148
 ///     `_copyBundledSkins` silently skipped every later bundled skin if any
 ///     earlier one threw.
 
