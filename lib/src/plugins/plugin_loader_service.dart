@@ -11,6 +11,7 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
 import 'package:reaprime/src/services/account/decent_proxy_service.dart';
+import 'package:reaprime/src/util/safe_path.dart';
 
 class PluginSettingsValidationException implements Exception {
   final String message;
@@ -107,6 +108,14 @@ class PluginLoaderService {
     final manifestJson = jsonDecode(await manifestFile.readAsString());
     final manifest = PluginManifest.fromJson(manifestJson);
 
+    // The id becomes a directory name under the plugins root; reject anything
+    // that is not exactly one safe path component before creating it.
+    if (!isSafePathComponent(manifest.id)) {
+      throw FormatException(
+        'Unsafe plugin id "${manifest.id}": must be a single safe path component',
+      );
+    }
+
     // Create plugin directory in plugins folder
     final pluginDir = Directory('${_pluginsDir.path}/${manifest.id}');
     if (pluginDir.existsSync()) {
@@ -127,6 +136,14 @@ class PluginLoaderService {
   /// Remove/uninstall a plugin
   /// This will unload the plugin if it's loaded and delete its files
   Future<void> removePlugin(String pluginId) async {
+    // The id would be joined into a filesystem path; reject unsafe ids
+    // before any unload, cache, or directory operation.
+    if (!isSafePathComponent(pluginId)) {
+      throw FormatException(
+        'Unsafe plugin id "$pluginId": must be a single safe path component',
+      );
+    }
+
     // Unload plugin if it's loaded
     if (isPluginLoaded(pluginId)) {
       await unloadPlugin(pluginId);
@@ -295,6 +312,11 @@ class PluginLoaderService {
 
   /// Get the directory path for a specific plugin
   String getPluginDirectory(String pluginId) {
+    if (!isSafePathComponent(pluginId)) {
+      throw FormatException(
+        'Unsafe plugin id "$pluginId": must be a single safe path component',
+      );
+    }
     if (!_availablePluginsCache.containsKey(pluginId)) {
       throw Exception('Plugin not found: $pluginId');
     }
@@ -470,6 +492,15 @@ class PluginLoaderService {
 
         final manifestJson = jsonDecode(await manifestFile.readAsString());
         final manifest = PluginManifest.fromJson(manifestJson);
+
+        // An unsafe id must not enter the cache, where it could later drive
+        // filesystem paths (issue #547 follow-up).
+        if (!isSafePathComponent(manifest.id)) {
+          _log.warning(
+            'Skipping plugin with unsafe id "${manifest.id}" at ${dir.path}',
+          );
+          continue;
+        }
 
         _availablePluginsCache[manifest.id] = manifest;
         _log.fine('Found plugin: ${manifest.id}');

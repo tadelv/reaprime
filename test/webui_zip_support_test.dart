@@ -222,6 +222,123 @@ void main() {
     );
   });
 
+  group('extractArchiveToDirectory rejects unsafe entry paths', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync(
+        'reaprime_zip_unsafe_test_',
+      );
+    });
+
+    tearDown(() {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    void expectArchiveRejected(Archive archive, String reason) {
+      expect(
+        () => extractArchiveToDirectory(archive, tempDir, sanitize: true),
+        throwsFormatException,
+        reason: reason,
+      );
+    }
+
+    Archive archiveWith(String name) =>
+        Archive()..addFile(ArchiveFile.string(name, 'boom'));
+
+    test('rejects POSIX traversal components', () {
+      for (final name in [
+        '../escape.txt',
+        'a/../../escape.txt',
+        'a/../b.txt',
+      ]) {
+        expectArchiveRejected(archiveWith(name), 'entry "$name"');
+      }
+    });
+
+    test('rejects Windows-style traversal with backslashes', () {
+      for (final name in [
+        r'..\escape.txt',
+        r'a\..\escape.txt',
+        r'..\..\etc\passwd',
+      ]) {
+        expectArchiveRejected(archiveWith(name), 'entry "$name"');
+      }
+    });
+
+    test('rejects absolute POSIX paths', () {
+      for (final name in ['/etc/passwd', '/tmp/escape.txt']) {
+        expectArchiveRejected(archiveWith(name), 'entry "$name"');
+      }
+    });
+
+    test('rejects Windows drive paths', () {
+      for (final name in ['C:\\evil.txt', 'C:/evil.txt']) {
+        expectArchiveRejected(archiveWith(name), 'entry "$name"');
+      }
+    });
+
+    test('rejects UNC-style paths', () {
+      for (final name in [
+        r'\\server\share\evil.txt',
+        '//server/share/evil.txt',
+      ]) {
+        expectArchiveRejected(archiveWith(name), 'entry "$name"');
+      }
+    });
+
+    test('rejects NUL bytes in entry names', () {
+      expectArchiveRejected(archiveWith('bad\x00name.txt'), 'NUL byte');
+    });
+
+    test('rejects the archive before writing anything', () {
+      final sibling = File(
+        p.join(tempDir.parent.path, 'escape_${p.basename(tempDir.path)}.txt'),
+      );
+      if (sibling.existsSync()) sibling.deleteSync();
+
+      final archive = Archive()
+        ..addFile(ArchiveFile.string('good.txt', 'fine'))
+        ..addFile(ArchiveFile.string('../escape.txt', 'boom'));
+
+      expectArchiveRejected(archive, 'traversal entry after a valid entry');
+
+      // Pre-validation must reject the whole archive before any entry is
+      // written — not even the innocent first entry may land.
+      expect(
+        tempDir.listSync(),
+        isEmpty,
+        reason: 'no entries may be written when the archive is rejected',
+      );
+      expect(
+        sibling.existsSync(),
+        isFalse,
+        reason: 'nothing may land outside the extraction directory',
+      );
+      if (sibling.existsSync()) sibling.deleteSync();
+    });
+
+    test(
+      'still extracts a sanitiseable entry (reserved chars are not unsafe)',
+      () {
+        final archive = Archive()
+          ..addFile(ArchiveFile.string('shots/2025:bad.json', 'ok'));
+
+        final result = extractArchiveToDirectory(
+          archive,
+          tempDir,
+          sanitize: true,
+        );
+
+        expect(result.extracted, 1);
+        expect(
+          File(p.join(tempDir.path, 'shots', '2025_bad.json')).existsSync(),
+          isTrue,
+        );
+      },
+    );
+  });
+
   group('installBundledSkinList', () {
     late Logger testLog;
     late List<LogRecord> logged;

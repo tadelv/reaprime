@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/util/safe_path.dart';
 import 'package:reaprime/src/webui_support/webui_zip_support.dart';
 
 /// REA metadata for tracking WebUI skin source and version
@@ -1198,6 +1199,15 @@ class WebUIStorage {
           );
         }
 
+        // An unsafe id (e.g. from a tampered manifest) must not enter the
+        // in-memory registry, where it could later drive filesystem paths.
+        if (!isSafePathComponent(skin.id)) {
+          _log.warning(
+            'Skipping skin with unsafe id "${skin.id}" at ${dir.path}',
+          );
+          continue;
+        }
+
         _installedSkins[skin.id] = skin;
         _log.fine('Found skin: ${skin.id} at ${skin.path}');
       } catch (e) {
@@ -1313,6 +1323,15 @@ class WebUIStorage {
       skinId = manifestJson['id'] as String? ?? p.basename(sourceDir.path);
     } else {
       skinId = p.basename(sourceDir.path);
+    }
+
+    // The id becomes a directory name under the web-ui root; reject anything
+    // that is not exactly one safe path component before constructing or
+    // deleting the destination (issue #547 follow-up).
+    if (!isSafePathComponent(skinId)) {
+      throw FormatException(
+        'Unsafe skin id "$skinId": must be a single safe path component',
+      );
     }
 
     // Check if skin already exists

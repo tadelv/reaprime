@@ -15,6 +15,8 @@ A Decaid plugin consists of two required files:
 
 ### 1. `manifest.json` - Plugin metadata and configuration
 
+> **`id` restrictions:** The plugin id becomes a directory name under the app's `plugins/` folder, so it must be a single safe filesystem path component: no `/` or `\` separators, no `.` or `..`, no leading drive letter or NUL byte, and no Windows-reserved characters. Unsafe ids are rejected with a clear error and the plugin is not installed.
+
 ```json
 {
   "id": "unique.plugin.id",
