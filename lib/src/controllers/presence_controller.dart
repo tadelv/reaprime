@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/keep_awake_occurrence.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
@@ -351,7 +352,12 @@ class PresenceController {
       return true;
     }
     if (state == MachineState.needsWater) {
-      final fwBuild = int.tryParse(_de1?.machineInfo.version ?? '') ?? 0;
+      final de1 = _de1;
+      if (de1 == null ||
+          de1.implementation != DeviceImplementation.unifiedDe1) {
+        return false;
+      }
+      final fwBuild = int.tryParse(de1.machineInfo.version) ?? 0;
       return fwBuild >= _kSleepOnRefillMinFwBuild;
     }
     return false;

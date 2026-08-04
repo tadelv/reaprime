@@ -104,7 +104,7 @@ class _TestDe1 implements De1Interface {
   DeviceType get type => DeviceType.machine;
 
   @override
-  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+  DeviceImplementation get implementation => deviceImplementation;
 
   @override
   TransportType get transportType => TransportType.unknown;
@@ -119,6 +119,7 @@ class _TestDe1 implements De1Interface {
   Stream<bool> get ready => Stream.value(true);
 
   String fwBuild = '1';
+  DeviceImplementation deviceImplementation = DeviceImplementation.unifiedDe1;
 
   @override
   MachineInfo get machineInfo => MachineInfo(
@@ -564,6 +565,41 @@ void main() {
         async.flushMicrotasks();
         async.elapse(const Duration(minutes: 5, seconds: 1));
         expect(testDe1.requestedStates, contains(MachineState.sleeping));
+
+        controller.dispose();
+      });
+    });
+
+    test('needsWater on Bengle does NOT sleep even on FW >= 1357', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        testDe1.fwBuild = '1357';
+        testDe1.deviceImplementation = DeviceImplementation.bengle;
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => clock.now(),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        controller.heartbeat();
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.needsWater);
+        async.flushMicrotasks();
+
+        // Advance well past the timeout while in needsWater.
+        async.elapse(const Duration(minutes: 5, seconds: 1));
+
+        expect(
+          testDe1.requestedStates.where((s) => s == MachineState.sleeping),
+          isEmpty,
+          reason: 'sleep-from-needsWater is DE1-only',
+        );
 
         controller.dispose();
       });
