@@ -318,15 +318,24 @@ class PresenceController {
       return;
     }
 
-    // If machine is in idle or schedIdle, put it to sleep
-    if (_currentMachineState == MachineState.idle ||
-        _currentMachineState == MachineState.schedIdle) {
+    // If machine is in a state we can sleep from (idle/schedIdle, or
+    // needsWater on FW >= 1357), put it to sleep
+    final state = _currentMachineState;
+    if (state != null && _canSleepFromState(state)) {
       _log.info('Sleep timeout fired, putting machine to sleep');
       _de1!.requestState(MachineState.sleeping).catchError((Object e) {
         _log.warning('Failed to request sleep', e);
       });
     }
   }
+
+  /// First DE1 firmware build that honors a BLE sleep request while the
+  /// machine is in refill/needsWater state (with no refill kit present).
+  /// See DE1Firmware `CTopTouchSM::S_Refill` (commit eb21a1d, build 1357).
+  /// Older firmware ignores the request while in refill but keeps it latched,
+  /// honoring it once the machine exits refill (e.g. after the user refills
+  /// the tank) — so we must not send sleep from needsWater below this build.
+  static const int _kSleepOnRefillMinFwBuild = 1357;
 
   /// Returns true for machine states where we should NOT auto-sleep.
   bool _isActiveState(MachineState? state) {
@@ -343,6 +352,22 @@ class PresenceController {
       default:
         return false;
     }
+  }
+
+  /// True when the machine is in a state we may put to sleep from the idle
+  /// timer. `needsWater` (refill) is only included on firmware that honors a
+  /// sleep request while refilling (build >= [_kSleepOnRefillMinFwBuild]);
+  /// older builds latch the request and would sleep the machine right after
+  /// the user refills the tank.
+  bool _canSleepFromState(MachineState state) {
+    if (state == MachineState.idle || state == MachineState.schedIdle) {
+      return true;
+    }
+    if (state == MachineState.needsWater) {
+      final fwBuild = int.tryParse(_de1?.machineInfo.version ?? '') ?? 0;
+      return fwBuild >= _kSleepOnRefillMinFwBuild;
+    }
+    return false;
   }
 
   int _secondsRemaining() {
