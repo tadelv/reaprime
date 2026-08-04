@@ -657,11 +657,13 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
         const SnackBar(content: Text('Checking for skin updates...')),
       );
 
-      await widget.webUIStorage.downloadRemoteSkins();
+      // Updates both remote-bundled skins and user-installed skins with a
+      // sourceUrl (github branch/release or raw URL), then re-scans the
+      // registry so installedSkins reflects any new versions (#503).
+      await widget.webUIStorage.updateAllSkins();
 
-      // downloadRemoteSkins() re-scans the registry, so installedSkins now
-      // reflects any newly downloaded versions. Rebuild so the dropdown shows
-      // them without the user having to leave and re-enter the page (#370).
+      // Rebuild so the dropdown shows newly downloaded versions without the
+      // user having to leave and re-enter the page (#370).
       if (mounted) setState(() {});
 
       if (!context.mounted) return;
