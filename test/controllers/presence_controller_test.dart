@@ -118,8 +118,6 @@ class _TestDe1 implements De1Interface {
   @override
   Stream<bool> get ready => Stream.value(true);
 
-  /// Overridable firmware build reported via [machineInfo]. Default '1' so
-  /// existing tests behave as before (pre-1357, needsWater sleep disabled).
   String fwBuild = '1';
 
   @override
