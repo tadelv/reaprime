@@ -117,9 +117,13 @@ class _TestDe1 implements De1Interface {
       BehaviorSubject.seeded(ConnectionState.connected).stream;
   @override
   Stream<bool> get ready => Stream.value(true);
+  /// Overridable firmware build reported via [machineInfo]. Default '1' so
+  /// existing tests behave as before (pre-1357, needsWater sleep disabled).
+  String fwBuild = '1';
+
   @override
   MachineInfo get machineInfo => MachineInfo(
-    version: '1',
+    version: fwBuild,
     model: '1',
     serialNumber: '1',
     groupHeadControllerPresent: false,
@@ -486,6 +490,87 @@ void main() {
         });
       },
     );
+
+    test(
+      'needsWater on FW >= 1357 sleeps after timeout',
+      () {
+        fakeAsync((async) {
+          settingsController.setSleepTimeoutMinutes(5);
+          async.flushMicrotasks();
+
+          testDe1.fwBuild = '1357';
+          final controller = PresenceController(
+            de1Controller: de1Controller,
+            settingsController: settingsController,
+            clock: () => clock.now(),
+          );
+          controller.initialize();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
+
+          controller.heartbeat();
+          async.flushMicrotasks();
+
+          // Machine runs dry while idle.
+          testDe1.emitState(MachineState.needsWater);
+          async.flushMicrotasks();
+
+          // Advance past the timeout while in needsWater.
+          async.elapse(const Duration(minutes: 5, seconds: 1));
+
+          expect(
+            testDe1.requestedStates,
+            contains(MachineState.sleeping),
+            reason: 'FW >= 1357 honors sleep while in refill',
+          );
+
+          controller.dispose();
+        });
+      },
+    );
+
+    test('needsWater on FW < 1357 does NOT sleep after timeout', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        // Default fwBuild is '1' (< 1357).
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => clock.now(),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        controller.heartbeat();
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.needsWater);
+        async.flushMicrotasks();
+
+        // Advance well past the timeout while in needsWater.
+        async.elapse(const Duration(minutes: 5, seconds: 1));
+
+        expect(
+          testDe1.requestedStates.where((s) => s == MachineState.sleeping),
+          isEmpty,
+          reason: 'FW < 1357 latches the request; must not send sleep from needsWater',
+        );
+
+        // User refills the tank (heartbeat re-arms the timer) and the machine
+        // returns to idle: sleep works there as before.
+        controller.heartbeat();
+        async.flushMicrotasks();
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        async.elapse(const Duration(minutes: 5, seconds: 1));
+        expect(testDe1.requestedStates, contains(MachineState.sleeping));
+
+        controller.dispose();
+      });
+    });
   });
 
   group('scheduled wake', () {
