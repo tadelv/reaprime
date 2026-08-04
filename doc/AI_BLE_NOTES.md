@@ -170,6 +170,12 @@ A queue can produce only one wrapper timeout per faulted generation; followers a
 - `ScanStateGuardian` guards against overlapping scans and tracks adapter state.
 - `ScanOrchestrator` manages single-scan lifecycle.
 
+## Sleep From NeedsWater (Refill State)
+
+DE1 firmware build 1357 (commit `eb21a1d`, `CTopTouchSM::S_Refill`) honors a BLE sleep request while the machine is in refill/needsWater state when no refill kit is present. The app sends sleep from `needsWater` only on FW >= 1357 (`PresenceController._kSleepOnRefillMinFwBuild` / `_canSleepFromState`); idle/schedIdle are always eligible.
+
+**Why the build gate exists:** older firmware ignores the sleep request *while in refill* but keeps it latched in `BLERequestedState`. The machine honors it once it exits refill (e.g. right after the user refills the tank), so sending sleep from needsWater on old FW would put the machine straight back to sleep after a refill. With a refill kit present, the FW ignores the request (kit refill in progress) — the FW owns that guard, the app just sends the request.
+
 ## Comms-Layer Patterns
 
 An awake Decent Scale connection requires a recognised FFF4 status or weight frame after subscription and a status request. Two seconds of silence triggers one immediate re-subscribe and status request; a second silent window tears down the transport without sending the physical power-off command so ConnectionManager owns the next reconnect. A deliberately sleeping reconnect only restores the subscription while remaining dark and defers the same readiness probe until wake.
