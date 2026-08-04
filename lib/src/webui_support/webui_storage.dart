@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
-import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/webui_support/webui_zip_support.dart';
 
@@ -146,15 +145,13 @@ class WebUISkin {
 class WebUIStorage {
   final _log = Logger('WebUIStorage');
   final SettingsController _settingsController;
-  final bool _appStoreMode;
 
   late Directory _webUIDir;
   final Map<String, WebUISkin> _installedSkins = {};
   final Map<String, WebUIReaMetadata> _skinMetadata = {};
   bool _initialized = false;
 
-  WebUIStorage(this._settingsController, {bool? appStoreMode})
-    : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  WebUIStorage(this._settingsController);
 
   /// Test seam: point storage at a specific web-ui directory and mark it
   /// initialized, bypassing the asset/network [initialize] flow so install
@@ -229,11 +226,10 @@ class WebUIStorage {
     // Copy bundled skins from assets
     await _copyBundledSkins();
 
-    // Download and install remote bundled skins (includes version checking)
-    // Skip on App Store builds — bundled skins from assets are the only source.
+    // Download and install remote bundled skins (includes version checking).
     // Skip when downloadRemote is false (cold-boot critical path) — the caller
     // runs downloadRemoteSkinsAndRescan() in the background instead.
-    if (downloadRemote && !_appStoreMode) {
+    if (downloadRemote) {
       await downloadRemoteSkins();
     }
 
@@ -569,7 +565,6 @@ class WebUIStorage {
   /// `initialize(downloadRemote: false)` — [downloadRemoteSkins] does not
   /// rescan on its own, so the explicit [_scanInstalledSkins] is required.
   Future<void> downloadRemoteSkinsAndRescan() async {
-    if (_appStoreMode) return;
     await downloadRemoteSkins();
     await _scanInstalledSkins();
   }
@@ -580,8 +575,6 @@ class WebUIStorage {
   /// to keep all skins up to date. Each skin update is independent — one failure
   /// does not prevent others from updating.
   Future<void> updateAllSkins() async {
-    if (_appStoreMode) return;
-
     _log.info('Starting update check for all skins');
 
     // 1. Update remote-bundled skins

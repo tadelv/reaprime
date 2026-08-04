@@ -3,17 +3,12 @@ part of '../webserver_service.dart';
 final class PluginsHandler {
   final PluginManager pluginManager;
   final PluginLoaderService pluginService;
-  final bool _appStoreMode;
 
   final Logger _log = Logger("PluginsHandler");
 
   final Random _random = Random();
 
-  PluginsHandler({
-    required this.pluginManager,
-    required this.pluginService,
-    bool? appStoreMode,
-  }) : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  PluginsHandler({required this.pluginManager, required this.pluginService});
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/plugins', (Request req) async {
@@ -28,11 +23,6 @@ final class PluginsHandler {
     });
 
     app.post('/api/v1/plugins/install', (Request request) async {
-      if (_appStoreMode) {
-        return jsonForbidden({
-          'error': 'Plugin installation is not available on this platform',
-        });
-      }
       try {
         final payload = await request.readAsString();
         final json = jsonDecode(payload) as Map<String, dynamic>;
@@ -86,11 +76,6 @@ final class PluginsHandler {
     });
 
     app.delete('/api/v1/plugins/<id>', (Request request, String id) async {
-      if (_appStoreMode) {
-        return jsonForbidden({
-          'error': 'Plugin removal is not available on this platform',
-        });
-      }
       try {
         if (pluginService.getPluginManifest(id) == null) {
           return jsonNotFound({'error': 'Plugin not found: $id'});

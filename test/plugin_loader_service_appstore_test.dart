@@ -49,34 +49,13 @@ class FakeKvStore implements KeyValueStoreService {
 
 void main() {
   group('PluginLoaderService App Store mode', () {
-    test('addPlugin throws UnsupportedError when appStoreMode is true', () {
-      final service = PluginLoaderService(
-        kvStore: FakeKvStore(),
-        appStoreMode: true,
-      );
+    test('addPlugin is available in App Store builds', () {
+      final service = PluginLoaderService(kvStore: FakeKvStore());
 
       expect(
         () => service.addPlugin('/some/path'),
-        throwsA(isA<UnsupportedError>()),
+        throwsA(isNot(isA<UnsupportedError>())),
       );
     });
-
-    test(
-      'addPlugin does not throw UnsupportedError when appStoreMode is false',
-      () {
-        final service = PluginLoaderService(
-          kvStore: FakeKvStore(),
-          appStoreMode: false,
-        );
-
-        // Should not throw UnsupportedError — will throw a different error
-        // because the path doesn't exist and the service isn't initialized,
-        // but it should NOT be an UnsupportedError.
-        expect(
-          () => service.addPlugin('/nonexistent/path'),
-          throwsA(isNot(isA<UnsupportedError>())),
-        );
-      },
-    );
   });
 }

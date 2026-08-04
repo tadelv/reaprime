@@ -25,7 +25,7 @@ void main() {
 
       final settingsController = SettingsController(MockSettingsService());
       await settingsController.loadSettings();
-      storage = WebUIStorage(settingsController, appStoreMode: false);
+      storage = WebUIStorage(settingsController);
       storage.debugInitWithWebUIDir(webUIDir);
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(

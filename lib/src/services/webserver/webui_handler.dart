@@ -4,15 +4,10 @@ part of '../webserver_service.dart';
 class WebUIHandler {
   final WebUIStorage _storage;
   final WebUIService _service;
-  final bool _appStoreMode;
 
-  WebUIHandler({
-    required WebUIStorage storage,
-    required WebUIService service,
-    bool? appStoreMode,
-  }) : _storage = storage,
-       _service = service,
-       _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  WebUIHandler({required WebUIStorage storage, required WebUIService service})
+    : _storage = storage,
+      _service = service;
 
   void addRoutes(RouterPlus app) {
     // List all installed skins
@@ -143,11 +138,6 @@ class WebUIHandler {
   ///   "prerelease": false         // optional
   /// }
   Future<Response> _handleInstallFromGitHubRelease(Request request) async {
-    if (_appStoreMode) {
-      return jsonForbidden({
-        'error': 'Skin installation is not available on this platform',
-      });
-    }
     try {
       final body =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
@@ -188,11 +178,6 @@ class WebUIHandler {
   ///   "branch": "main"            // optional, defaults to "main"
   /// }
   Future<Response> _handleInstallFromGitHubBranch(Request request) async {
-    if (_appStoreMode) {
-      return jsonForbidden({
-        'error': 'Skin installation is not available on this platform',
-      });
-    }
     try {
       final body =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
@@ -228,11 +213,6 @@ class WebUIHandler {
   ///   "url": "https://example.com/skin.zip"
   /// }
   Future<Response> _handleInstallFromUrl(Request request) async {
-    if (_appStoreMode) {
-      return jsonForbidden({
-        'error': 'Skin installation is not available on this platform',
-      });
-    }
     try {
       final body =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;

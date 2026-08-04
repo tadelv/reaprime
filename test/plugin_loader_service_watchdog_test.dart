@@ -9,8 +9,7 @@ import 'package:reaprime/src/services/storage/kv_store_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _ControllablePluginLoaderService extends PluginLoaderService {
-  _ControllablePluginLoaderService({required super.kvStore})
-    : super(appStoreMode: false);
+  _ControllablePluginLoaderService({required super.kvStore});
 
   String? _pausedPluginId;
   Completer<void>? _pauseEntered;
@@ -238,10 +237,7 @@ function createPlugin() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('plugin.watchdog.loading', pluginId);
 
-    final nextLaunch = PluginLoaderService(
-      kvStore: _FakeKvStore(),
-      appStoreMode: false,
-    );
+    final nextLaunch = PluginLoaderService(kvStore: _FakeKvStore());
     await nextLaunch.initialize();
 
     expect(await nextLaunch.shouldAutoLoad(pluginId), isFalse);
