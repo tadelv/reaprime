@@ -22,7 +22,7 @@ class _StubFeedbackService implements FeedbackService {
   ) async {
     if (onSubmitted != null) return onSubmitted!(request);
     return FeedbackSubmissionResult.succeeded(
-      issueUrl: 'https://github.com/tadelv/reaprime/issues/999',
+      issueUrl: 'https://github.com/decentespresso/decaid/issues/999',
       issueNumber: 999,
     );
   }
@@ -71,7 +71,7 @@ void main() {
       expect(res.statusCode, 201);
       final body = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
       expect(body['success'], true);
-      expect(body['issueUrl'], 'https://github.com/tadelv/reaprime/issues/999');
+      expect(body['issueUrl'], 'https://github.com/decentespresso/decaid/issues/999');
       expect(body['issueNumber'], 999);
     });
 

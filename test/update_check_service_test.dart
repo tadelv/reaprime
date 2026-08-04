@@ -131,7 +131,7 @@ void main() {
 
       expect(
         svc.getReleaseUrl(_update(version: '1.2.3')),
-        'https://github.com/tadelv/reaprime/releases/tag/v1.2.3',
+        'https://github.com/decentespresso/decaid/releases/tag/v1.2.3',
       );
       svc.dispose();
     });
