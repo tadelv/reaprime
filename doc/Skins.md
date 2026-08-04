@@ -3283,13 +3283,11 @@ Live-edit validates that the selected folder contains an `index.html`.
 
 | Feature | Android | iOS | macOS | Linux | Windows | App Store |
 |---------|---------|-----|-------|-------|---------|-----------|
-| Install from ZIP | yes | yes | yes | yes | yes | no |
+| Install from ZIP | yes | yes | yes | yes | yes | yes |
 | Live-edit folder | yes* | no | yes | yes | yes | no |
-| Delete skins | yes | yes | yes | yes | yes | no |
+| Delete skins | yes | yes | yes | yes | yes | yes |
 
 \* Android requires the **Manage External Storage** permission for live-edit. A permission button appears in Settings when needed.
-
-**App Store Restrictions:** When running as an App Store build, custom skin installation, deletion, and update checks are disabled. Only bundled skins are available.
 
 ### Settings Plugin (Web-Based Management)
 

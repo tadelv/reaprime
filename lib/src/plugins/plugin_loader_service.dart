@@ -11,7 +11,6 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
 import 'package:reaprime/src/services/account/decent_proxy_service.dart';
-import 'package:reaprime/build_info.dart';
 
 class PluginSettingsValidationException implements Exception {
   final String message;
@@ -27,7 +26,6 @@ class PluginLoaderService {
   static const _loadingPluginKey = 'plugin.watchdog.loading';
 
   final PluginManager pluginManager;
-  final bool _appStoreMode;
   final _log = Logger('PluginLoaderService');
 
   late Directory _pluginsDir;
@@ -38,12 +36,10 @@ class PluginLoaderService {
   PluginLoaderService({
     required KeyValueStoreService kvStore,
     DecentProxyService? decentProxyService,
-    bool? appStoreMode,
   }) : pluginManager = PluginManager(
          kvStore: kvStore,
          decentProxyService: decentProxyService,
-       ),
-       _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+       );
 
   bool _initialized = false;
 
@@ -84,12 +80,6 @@ class PluginLoaderService {
   /// user will provide filesystem path and permissions, REA should copy the contents over to
   /// the plugins folder
   Future<void> addPlugin(String sourcePath) async {
-    if (_appStoreMode) {
-      throw UnsupportedError(
-        'Plugin installation is not available on this platform',
-      );
-    }
-
     final source = File(sourcePath);
     final sourceDir = Directory(sourcePath);
 

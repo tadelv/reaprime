@@ -46,7 +46,6 @@ void main() {
     PluginsHandler(
       pluginManager: _FakePluginManager(),
       pluginService: pluginService,
-      appStoreMode: false,
     ).addRoutes(app);
 
     final response = await app.call(

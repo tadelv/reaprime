@@ -28,14 +28,11 @@ void main() {
   });
 
   group('PluginsSettingsView install button visibility', () {
-    testWidgets('shows install button when allowInstall is true', (
-      tester,
-    ) async {
+    testWidgets('shows install button by default', (tester) async {
       await tester.pumpWidget(
         ShadApp(
           home: PluginsSettingsView(
             pluginLoaderService: fakePluginLoaderService,
-            allowInstall: true,
           ),
         ),
       );

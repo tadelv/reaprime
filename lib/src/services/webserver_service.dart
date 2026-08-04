@@ -80,7 +80,6 @@ import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
-import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/app_update_state.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';

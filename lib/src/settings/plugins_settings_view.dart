@@ -5,7 +5,6 @@ import 'package:logging/logging.dart';
 import 'package:saf_stream/saf_stream.dart';
 import 'package:saf_util/saf_util.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 
@@ -80,7 +79,7 @@ class PluginsSettingsView extends StatefulWidget {
   const PluginsSettingsView({
     super.key,
     required this.pluginLoaderService,
-    this.allowInstall = !BuildInfo.appStore,
+    this.allowInstall = true,
   });
 
   static const routeName = '/plugins';
