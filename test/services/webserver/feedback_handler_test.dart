@@ -71,7 +71,10 @@ void main() {
       expect(res.statusCode, 201);
       final body = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
       expect(body['success'], true);
-      expect(body['issueUrl'], 'https://github.com/decentespresso/decaid/issues/999');
+      expect(
+        body['issueUrl'],
+        'https://github.com/decentespresso/decaid/issues/999',
+      );
       expect(body['issueNumber'], 999);
     });
 
