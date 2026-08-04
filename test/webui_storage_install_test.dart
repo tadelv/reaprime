@@ -132,6 +132,125 @@ void main() {
       expect(DateTime.parse(persisted['passione-dist']['lastChecked']), after);
     });
 
+    test('URL install persists source metadata; updateAllSkins refreshes on '
+        'ETag change', () async {
+      final archive = makeGitHubArchive();
+      var urlHeadRequests = 0;
+      var urlGetRequests = 0;
+      var etag = 'url-etag-v1';
+
+      await http.runWithClient(
+        () async {
+          await storage.installFromUrl('https://example.com/skin.zip');
+
+          final metadata = storage.getSkin('passione-dist')!.reaMetadata!;
+          expect(metadata.sourceUrl, 'https://example.com/skin.zip');
+          expect(metadata.etag, 'url-etag-v1');
+          expect(storage.getSkin('passione-dist')!.isBundled, isFalse);
+          expect(urlGetRequests, 1);
+
+          // Unchanged ETag: updateAllSkins skips the re-download.
+          await storage.updateAllSkins();
+          expect(urlGetRequests, 1);
+
+          // Changed ETag: updateAllSkins re-downloads and refreshes metadata.
+          etag = 'url-etag-v2';
+          await storage.updateAllSkins();
+          expect(urlGetRequests, 2);
+          expect(
+            storage.getSkin('passione-dist')!.reaMetadata!.etag,
+            'url-etag-v2',
+          );
+        },
+        () => MockClient((request) async {
+          final url = request.url.toString();
+          if (url != 'https://example.com/skin.zip') {
+            return http.Response('', 404);
+          }
+          if (request.method == 'HEAD') {
+            urlHeadRequests++;
+            return http.Response('', 200, headers: {'etag': etag});
+          }
+          urlGetRequests++;
+          return http.Response.bytes(archive, 200, headers: {'etag': etag});
+        }),
+      );
+
+      expect(urlHeadRequests, greaterThanOrEqualTo(2));
+      final persisted =
+          jsonDecode(
+                File('${webUIDir.path}/.rea_metadata.json').readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(
+        persisted['passione-dist']['sourceUrl'],
+        'https://example.com/skin.zip',
+      );
+    });
+
+    test('GitHub release install tracks release; updateAllSkins picks up new '
+        'releases and keeps the skin removable', () async {
+      final archive = makeGitHubArchive();
+      var apiGets = 0;
+      var assetGets = 0;
+      var releaseTag = 'v1.0.0';
+      Map<String, dynamic> releaseBody() => {
+        'tag_name': releaseTag,
+        'name': 'Custom Skin $releaseTag',
+        'published_at': '2026-01-01T00:00:00Z',
+        'assets': [
+          {
+            'name': 'custom-skin.zip',
+            'browser_download_url':
+                'https://github.com/acme/custom-skin/releases/download/'
+                '$releaseTag/custom-skin.zip',
+            'size': 1234,
+          },
+        ],
+      };
+
+      await http.runWithClient(
+        () async {
+          await storage.installFromGitHubRelease('acme/custom-skin');
+
+          var metadata = storage.getSkin('passione-dist')!.reaMetadata!;
+          expect(metadata.sourceUrl, 'github_release:acme/custom-skin@v1.0.0');
+          expect(storage.getSkin('passione-dist')!.isBundled, isFalse);
+          expect(assetGets, 1);
+
+          // Same tag: updateAllSkins skips the asset download.
+          await storage.updateAllSkins();
+          expect(assetGets, 1);
+
+          // New release: updateAllSkins re-downloads and retargets metadata.
+          releaseTag = 'v1.1.0';
+          await storage.updateAllSkins();
+          expect(assetGets, 2);
+          metadata = storage.getSkin('passione-dist')!.reaMetadata!;
+          expect(metadata.sourceUrl, 'github_release:acme/custom-skin@v1.1.0');
+          // User-installed skin stays removable after an update.
+          expect(storage.getSkin('passione-dist')!.isBundled, isFalse);
+        },
+        () => MockClient((request) async {
+          final url = request.url.toString();
+          if (url ==
+              'https://api.github.com/repos/acme/custom-skin/releases/latest') {
+            apiGets++;
+            return http.Response(jsonEncode(releaseBody()), 200);
+          }
+          if (url.startsWith(
+            'https://github.com/acme/custom-skin/releases/download/',
+          )) {
+            assetGets++;
+            return http.Response.bytes(archive, 200);
+          }
+          return http.Response('', 404);
+        }),
+      );
+
+      expect(apiGets, greaterThanOrEqualTo(2));
+    });
+
     test('overwriteIfExists:false leaves an existing skin untouched', () async {
       // Newer copy installed first (e.g. from a GitHub release).
       await storage.installFromPath(makeSkinSource('0.1.33').path);
