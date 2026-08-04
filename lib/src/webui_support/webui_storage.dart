@@ -321,7 +321,11 @@ class WebUIStorage {
 
   /// Install a WebUI skin from a URL
   /// The URL should point to a zip file
-  Future<void> installFromUrl(String url) async {
+  ///
+  /// [sourceIdentifier] is stored as the skin's metadata sourceUrl so that
+  /// [updateAllSkins] can find and refresh this skin later (raw URLs default
+  /// to the URL itself, ETag/Last-Modified tracked).
+  Future<void> installFromUrl(String url, {String? sourceIdentifier}) async {
     _log.info('Downloading WebUI from URL: $url');
 
     try {
@@ -330,21 +334,35 @@ class WebUIStorage {
       if (response.statusCode != 200) {
         throw Exception('Failed to download: ${response.statusCode}');
       }
+      final etag = response.headers['etag'];
+      final lastModified = response.headers['last-modified'];
 
       // Create temp file for the downloaded zip
       final appDocDir = await getApplicationDocumentsDirectory();
       final tempFile = File('${appDocDir.path}/temp_webui.zip');
       await tempFile.writeAsBytes(response.bodyBytes);
 
+      String installedSkinId;
       try {
         // Install from the downloaded zip
-        await _installFromZip(tempFile.path);
+        installedSkinId = await _installFromZip(tempFile.path);
       } finally {
         // Clean up temp file
         if (tempFile.existsSync()) {
           await tempFile.delete();
         }
       }
+
+      // Persist source metadata so updateAllSkins() can refresh this skin.
+      _skinMetadata[installedSkinId] = WebUIReaMetadata(
+        skinId: installedSkinId,
+        sourceUrl: sourceIdentifier ?? url,
+        etag: etag,
+        lastModified: lastModified,
+        installedAt: DateTime.now(),
+        lastChecked: DateTime.now(),
+      );
+      await _saveSkinMetadata();
 
       // Rescan installed skins
       await _scanInstalledSkins();
@@ -454,8 +472,12 @@ class WebUIStorage {
 
       _log.info('Downloading asset: ${targetAsset['name']}');
 
-      // Download and install
-      await installFromUrl(downloadUrl);
+      // Download and install, tracking the release so updateAllSkins()
+      // can detect newer releases via the GitHub API.
+      await installFromUrl(
+        downloadUrl,
+        sourceIdentifier: 'github_release:$repo@$releaseTag',
+      );
 
       _log.info(
         'Successfully installed WebUI from GitHub release: $releaseTag',
@@ -571,7 +593,12 @@ class WebUIStorage {
           _log.info(
             'Updating user-installed skin "$skinId" from GitHub release: $repo',
           );
-          await _installFromGitHubRelease(repo, null, false);
+          await _installFromGitHubRelease(
+            repo,
+            null,
+            false,
+            markAsRemoteBundled: false,
+          );
         } else if (sourceUrl.startsWith('github_branch:')) {
           final withoutPrefix = sourceUrl.substring('github_branch:'.length);
           final atIndex = withoutPrefix.indexOf('@');
@@ -614,8 +641,9 @@ class WebUIStorage {
   Future<void> _installFromGitHubRelease(
     String repo,
     String? assetName,
-    bool includePrerelease,
-  ) async {
+    bool includePrerelease, {
+    bool markAsRemoteBundled = true,
+  }) async {
     try {
       // Fetch latest release from GitHub API
       final apiUrl = includePrerelease
@@ -716,9 +744,12 @@ class WebUIStorage {
         }
       }
 
-      // Mark this skin as remote bundled
-      _remoteBundledSkinIds.add(installedSkinId);
-      await _saveRemoteBundledSkinIds();
+      // Mark this skin as remote bundled (skip for user-installed skins
+      // being updated, so they stay removable).
+      if (markAsRemoteBundled) {
+        _remoteBundledSkinIds.add(installedSkinId);
+        await _saveRemoteBundledSkinIds();
+      }
 
       // Store REA metadata with release information
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
