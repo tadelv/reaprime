@@ -251,6 +251,154 @@ void main() {
       expect(apiGets, greaterThanOrEqualTo(2));
     });
 
+    test(
+      'GitHub release update preserves a specifically selected asset',
+      () async {
+        final archive = makeGitHubArchive();
+        final requestedAssets = <String>[];
+        var releaseTag = 'v1.0.0';
+        Map<String, dynamic> releaseBody() => {
+          'tag_name': releaseTag,
+          'name': 'Custom Skin $releaseTag',
+          'published_at': '2026-01-01T00:00:00Z',
+          'assets': [
+            {
+              'name': 'first.zip',
+              'browser_download_url':
+                  'https://github.com/acme/custom-skin/releases/download/'
+                  '$releaseTag/first.zip',
+              'size': 100,
+            },
+            {
+              'name': 'second.zip',
+              'browser_download_url':
+                  'https://github.com/acme/custom-skin/releases/download/'
+                  '$releaseTag/second.zip',
+              'size': 200,
+            },
+          ],
+        };
+
+        await http.runWithClient(
+          () async {
+            await storage.installFromGitHubRelease(
+              'acme/custom-skin',
+              assetName: 'second.zip',
+            );
+            expect(requestedAssets, [
+              'https://github.com/acme/custom-skin/releases/download/'
+                  'v1.0.0/second.zip',
+            ]);
+            expect(
+              storage.getSkin('passione-dist')!.reaMetadata!.releaseAssetName,
+              'second.zip',
+            );
+
+            // New release: the update re-selects second.zip, not first.zip.
+            releaseTag = 'v1.1.0';
+            await storage.updateAllSkins();
+            expect(requestedAssets, [
+              'https://github.com/acme/custom-skin/releases/download/'
+                  'v1.0.0/second.zip',
+              'https://github.com/acme/custom-skin/releases/download/'
+                  'v1.1.0/second.zip',
+            ]);
+            expect(
+              storage.getSkin('passione-dist')!.reaMetadata!.releaseAssetName,
+              'second.zip',
+            );
+          },
+          () => MockClient((request) async {
+            final url = request.url.toString();
+            if (url ==
+                'https://api.github.com/repos/acme/custom-skin/releases/latest') {
+              return http.Response(jsonEncode(releaseBody()), 200);
+            }
+            if (url.startsWith(
+              'https://github.com/acme/custom-skin/releases/download/',
+            )) {
+              requestedAssets.add(url);
+              return http.Response.bytes(archive, 200);
+            }
+            return http.Response('', 404);
+          }),
+        );
+      },
+    );
+
+    test('GitHub release update preserves prerelease tracking', () async {
+      final archive = makeGitHubArchive();
+      final latestApiGets = <String>[];
+      var releaseTag = 'v1.0.0-rc.1';
+      Map<String, dynamic> releaseBody() => {
+        'tag_name': releaseTag,
+        'name': 'Custom Skin $releaseTag',
+        'prerelease': true,
+        'published_at': '2026-01-01T00:00:00Z',
+        'assets': [
+          {
+            'name': 'custom-skin.zip',
+            'browser_download_url':
+                'https://github.com/acme/custom-skin/releases/download/'
+                '$releaseTag/custom-skin.zip',
+            'size': 1234,
+          },
+        ],
+      };
+
+      await http.runWithClient(
+        () async {
+          await storage.installFromGitHubRelease(
+            'acme/custom-skin',
+            includePrerelease: true,
+          );
+          expect(
+            storage.getSkin('passione-dist')!.reaMetadata!.includePrerelease,
+            isTrue,
+          );
+
+          // New prerelease: the update hits the /releases list endpoint
+          // (not /releases/latest) and re-selects a prerelease.
+          releaseTag = 'v1.1.0-rc.1';
+          await storage.updateAllSkins();
+          expect(
+            latestApiGets.every((u) => u.endsWith('/releases')),
+            isTrue,
+            reason: 'prerelease updates must use the /releases endpoint',
+          );
+          expect(
+            storage.getSkin('passione-dist')!.reaMetadata!.sourceUrl,
+            'github_release:acme/custom-skin@v1.1.0-rc.1',
+          );
+          expect(
+            storage.getSkin('passione-dist')!.reaMetadata!.includePrerelease,
+            isTrue,
+          );
+        },
+        () => MockClient((request) async {
+          final url = request.url.toString();
+          if (url == 'https://api.github.com/repos/acme/custom-skin/releases' ||
+              url ==
+                  'https://api.github.com/repos/acme/custom-skin/releases/latest') {
+            latestApiGets.add(url);
+            // The /releases list endpoint returns an array.
+            return http.Response(
+              url.endsWith('/releases')
+                  ? jsonEncode([releaseBody()])
+                  : jsonEncode(releaseBody()),
+              200,
+            );
+          }
+          if (url.startsWith(
+            'https://github.com/acme/custom-skin/releases/download/',
+          )) {
+            return http.Response.bytes(archive, 200);
+          }
+          return http.Response('', 404);
+        }),
+      );
+    });
+
     test('overwriteIfExists:false leaves an existing skin untouched', () async {
       // Newer copy installed first (e.g. from a GitHub release).
       await storage.installFromPath(makeSkinSource('0.1.33').path);
