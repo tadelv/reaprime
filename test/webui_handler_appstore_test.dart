@@ -85,7 +85,7 @@ void main() {
             '/api/v1/webui/skins/install/github-release',
             {'repo': 'user/repo'},
           );
-          expect(response.statusCode, isNot(403));
+          expect(response.statusCode, 200);
           expect(fakeStorage.installFromGitHubReleaseCalled, isTrue);
         },
       );
@@ -98,7 +98,7 @@ void main() {
             '/api/v1/webui/skins/install/github-branch',
             {'repo': 'user/repo'},
           );
-          expect(response.statusCode, isNot(403));
+          expect(response.statusCode, 200);
           expect(fakeStorage.installFromGitHubCalled, isTrue);
         },
       );
@@ -109,7 +109,7 @@ void main() {
           '/api/v1/webui/skins/install/url',
           {'url': 'https://example.com/skin.zip'},
         );
-        expect(response.statusCode, isNot(403));
+        expect(response.statusCode, 200);
         expect(fakeStorage.installFromUrlCalled, isTrue);
       });
     });

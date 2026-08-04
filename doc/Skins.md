@@ -2929,6 +2929,8 @@ ApplicationDocuments/
     └── .rea_metadata.json    # Version tracking (managed by REA)
 ```
 
+> **Skin id restrictions:** A skin's id (from `skin-manifest.json`, `manifest.json`, or the install folder name) becomes a directory name under `web-ui/`, so it must be a single safe filesystem path component: no `/` or `\` separators, no `.` or `..`, no leading drive letter or NUL byte, and no Windows-reserved characters. Unsafe ids are rejected with a clear error and the skin is not installed.
+
 ### Cross-Skin Asset Sharing
 
 A skin can fetch files from any other installed skin via:
