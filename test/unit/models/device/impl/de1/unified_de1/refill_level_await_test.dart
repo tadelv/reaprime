@@ -30,8 +30,6 @@ void main() {
       unawaited(de1.setRefillLevel(50).then(completed.complete));
       await writeArrived;
 
-      // The write reached the transport but is blocked on the barrier, so
-      // setRefillLevel must still be in flight.
       expect(completed.isCompleted, isFalse);
 
       barrier.complete();
