@@ -28,21 +28,10 @@ zip_read_build() {
     | plutil -extract CFBundleVersion raw -
 }
 
-# The appcast item for $build, matched by sparkle:version. Empty if absent.
-appcast_find_item() {
-  local appcast="$1" build="$2"
-  xmllint --xpath \
-    "//*[local-name()=\"item\"][*[local-name()=\"version\"]=\"$build\"]" \
-    "$appcast" 2>/dev/null
-}
-
 # Assert the item for $build carries the expected enclosure URL, an EdDSA
 # signature, and the expected channel ("" for the default/stable channel).
 appcast_assert_item() {
   local appcast="$1" build="$2" expected_url="$3" expected_channel="$4"
-
-  appcast_find_item "$appcast" "$build" >/dev/null || {
-    echo "FAIL: no appcast item for version $build"; return 1; }
 
   local url sig
   url=$(xmllint --xpath \

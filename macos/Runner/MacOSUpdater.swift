@@ -8,16 +8,11 @@ import Sparkle
 @MainActor
 protocol SPUUpdaterControlling: AnyObject {
   /// Pre-flight check that the host bundle is configured for Sparkle.
-  /// Defaults to a no-op; the production controller validates Info.plist keys.
   func validateConfiguration() throws
   func startUpdater()
   func checkForUpdates()
   var automaticallyChecksForUpdates: Bool { get set }
   func resetUpdateCycleAfterShortDelay()
-}
-
-extension SPUUpdaterControlling {
-  func validateConfiguration() throws {}
 }
 
 /// Production controller wrapping Sparkle's standard updater controller.
