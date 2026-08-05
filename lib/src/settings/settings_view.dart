@@ -94,9 +94,10 @@ class SettingsView extends StatelessWidget {
                   value: controller.automaticUpdateCheck,
                   onChanged: (v) async {
                     await controller.setAutomaticUpdateCheck(v);
-                    if (Platform.isMacOS) {
+                    if (macosUpdater?.isSupported == true) {
                       await macosUpdater?.setAutomaticChecks(v);
-                    } else if (v) {
+                    }
+                    if (v) {
                       await updateCheckService?.enableAutomaticChecks();
                     } else {
                       await updateCheckService?.disableAutomaticChecks();
@@ -308,7 +309,7 @@ class SettingsView extends StatelessWidget {
   ) async {
     await controller.setUpdateChannel(channel);
     if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-    if (Platform.isMacOS) {
+    if (macosUpdater?.isSupported == true) {
       await macosUpdater?.setChannel(channel);
     } else {
       await updateCheckService?.requestCheck();
@@ -374,7 +375,7 @@ class SettingsView extends StatelessWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
-    if (Platform.isMacOS) {
+    if (macosUpdater?.isSupported == true) {
       await macosUpdater?.checkForUpdates();
       return;
     }

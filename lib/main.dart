@@ -535,10 +535,18 @@ void main(List<String> args) async {
   });
   await settingsController.loadSettings();
   if (macosUpdater != null) {
-    await macosUpdater.configure(
-      automaticChecks: settingsController.automaticUpdateCheck,
-      channel: settingsController.updateChannel,
-    );
+    try {
+      await macosUpdater.configure(
+        automaticChecks: settingsController.automaticUpdateCheck,
+        channel: settingsController.updateChannel,
+      );
+    } catch (e, st) {
+      log.warning(
+        'Sparkle configuration failed; continuing without macOS auto-update',
+        e,
+        st,
+      );
+    }
   }
   bleDiscoveryService.requestLargeMtuNonAndroid = () =>
       settingsController.isFeatureFlagEnabled(.largeBleMtuNonAndroid);

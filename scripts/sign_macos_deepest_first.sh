@@ -5,7 +5,8 @@
 # Autoupdate) must be signed deepest-first, each keeping its own embedded
 # entitlements. `codesign --deep` (especially with --entitlements) rewrites
 # nested code with the host's entitlements, which strips the sandboxed
-# Installer XPC service of what it needs. See doc/plans/521-macos-auto-update-sparkle.md.
+# Installer XPC service of what it needs. See
+# doc/plans/archive/521-macos-auto-update-sparkle/521-macos-auto-update-sparkle.md.
 #
 # Usage: sign_macos_deepest_first.sh <Decaid.app> [identity] [entitlements]
 set -euo pipefail

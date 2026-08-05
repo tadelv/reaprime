@@ -91,8 +91,14 @@ the feed.
    ```
    (A keychain permission prompt appears once.) The appcast job fails fast until the secret and
    `SUPublicEDKey` match.
-4. Enable GitHub Pages for `decentespresso/decaid`: Settings > Pages > Source: **GitHub Actions**.
-5. Verify `https://decentespresso.github.io/decaid/appcast.xml` is publicly reachable.
+4. Enable GitHub Pages for `decentespresso/decaid`: Settings > Pages > Source: **Deploy from a
+   branch** > branch `gh-pages` > folder `/ (root)`. The `publish-appcast` job maintains that
+   branch.
+5. First release only — bootstrap the feed by setting the repo variable
+   `SPARKLE_APPCAST_BOOTSTRAP=true` (Settings > Secrets and variables > Actions > Variables),
+   push the first Sparkle-enabled tag, then delete the variable. The publish job fails fast with
+   instructions until the feed exists; the variable is the explicit one-time escape hatch.
+6. Verify `https://decentespresso.github.io/decaid/appcast.xml` is publicly reachable.
 
 ### What a tag push publishes
 
@@ -100,13 +106,18 @@ the feed.
    nested helpers deepest-first (never `codesign --deep` — see `scripts/sign_macos_deepest_first.sh`)
    and runs `scripts/verify_macos_signature.sh` before and after notarization.
 2. `create-release` attaches the artifacts, then `publish-appcast` (macOS runner):
+   - reads the currently deployed feed from the **`gh-pages` branch through git** (not the Pages
+     CDN), so a transient Pages/TLS failure is never mistaken for a first publication;
    - downloads `decaid-macos-<version>.zip` from the release;
+   - downloads Sparkle 2.9.5's tools with a pinned SHA-256 check;
    - reads `CFBundleVersion` from the ZIP and refuses to publish unless it is strictly greater than
      every item already in the feed (see the version policy below);
    - runs `generate_appcast` with the `SPARKLE_ED_PRIVATE_KEY` secret, embedding the GitHub release
      notes;
+   - asserts total and default-channel item counts never decrease (a beta publication can never
+     erase stable or historical items);
    - validates the feed with `xmllint` + `scripts/appcast_helpers.sh` assertions;
-   - deploys `appcast.xml` to GitHub Pages.
+   - commits `appcast.xml` to the `gh-pages` branch, which Pages serves.
 
 Beta/alpha/rc tags publish feed items with `<sparkle:channel>beta</sparkle:channel>`; stable tags
 publish un-channelled (default) items. A Beta user sees Beta and Stable items; a Stable user sees
