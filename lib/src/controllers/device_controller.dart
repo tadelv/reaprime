@@ -9,12 +9,14 @@ import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/device_watch.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/usb_attach_probe.dart';
 import 'package:reaprime/src/models/device/watch_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
-class DeviceController implements DeviceScanner, DeviceAttachNotifier {
+class DeviceController
+    implements DeviceScanner, DeviceAttachNotifier, UsbAttachProbe {
   final List<DeviceDiscoveryService> _services;
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
@@ -52,6 +54,12 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
   @override
   Stream<DeviceAttachedEvent> get deviceAttached =>
       _deviceAttachedStream.stream;
+
+  /// Originating service per attach event instance, recorded while
+  /// aggregating notifier streams so [connectAttachedMachine] can route
+  /// the probe back to the service that saw the attachment. Events are
+  /// non-replaying edges, so instance identity is stable.
+  final Map<DeviceAttachedEvent, DeviceDiscoveryService> _attachOrigins = {};
 
   final List<StreamSubscription> _serviceSubscriptions = [];
 
@@ -142,6 +150,7 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
         }
         if (service case final DeviceAttachNotifier notifier) {
           final attachSub = notifier.deviceAttached.listen((event) {
+            _attachOrigins[event] = service;
             _log.info("device attached on $service: $event");
             if (!_deviceAttachedStream.isClosed) {
               _deviceAttachedStream.add(event);
@@ -272,6 +281,17 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
       }
     }
     return null;
+  }
+
+  @override
+  Future<AttachProbeResult> connectAttachedMachine(
+    DeviceAttachedEvent event,
+  ) async {
+    final origin = _attachOrigins[event];
+    if (origin case final UsbAttachProbe probe) {
+      return probe.connectAttachedMachine(event);
+    }
+    return const AttachProbeUnsupported();
   }
 
   Iterable<DeviceWatchCapable> get _watchCapableServices => _services
@@ -425,6 +445,7 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
       subscription.cancel();
     }
     _serviceSubscriptions.clear();
+    _attachOrigins.clear();
     _deviceStream.close();
     _scanningStream.close();
     _adapterStateStream.close();

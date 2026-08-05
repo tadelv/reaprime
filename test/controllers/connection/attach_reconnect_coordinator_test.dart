@@ -18,7 +18,7 @@ void main() {
         attachEvents: events.stream,
         settleDelay: settleDelay,
         shouldAttempt: () => true,
-        attempt: () async {
+        attempt: (_) async {
           attempts++;
           return true;
         },
@@ -48,7 +48,7 @@ void main() {
         attachEvents: events.stream,
         settleDelay: settleDelay,
         shouldAttempt: () => true,
-        attempt: () async {
+        attempt: (_) async {
           attempts++;
           return true;
         },
@@ -79,7 +79,7 @@ void main() {
         attachEvents: events.stream,
         settleDelay: settleDelay,
         shouldAttempt: () => true,
-        attempt: () {
+        attempt: (_) {
           attempts++;
           return attemptCompletion.future;
         },
@@ -111,7 +111,7 @@ void main() {
         attachEvents: events.stream,
         settleDelay: settleDelay,
         shouldAttempt: () => false,
-        attempt: () async {
+        attempt: (_) async {
           attempts++;
           return true;
         },
@@ -137,7 +137,7 @@ void main() {
         attachEvents: events.stream,
         settleDelay: settleDelay,
         shouldAttempt: () => true,
-        attempt: () async => false,
+        attempt: (_) async => false,
         recover: () => recoveries++,
       );
 
@@ -160,7 +160,7 @@ void main() {
       attachEvents: events.stream,
       settleDelay: Duration.zero,
       shouldAttempt: () => true,
-      attempt: () {
+      attempt: (_) {
         attemptStarted.complete();
         return attemptCompletion.future;
       },
@@ -192,7 +192,7 @@ void main() {
         attachEvents: events.stream,
         settleDelay: settleDelay,
         shouldAttempt: () => true,
-        attempt: () async {
+        attempt: (_) async {
           attempts++;
           return true;
         },
@@ -204,6 +204,35 @@ void main() {
       async.elapse(settleDelay);
       expect(attempts, 0);
 
+      events.close();
+    });
+  });
+
+  test('attempt receives the latest event of a coalesced burst', () {
+    fakeAsync((async) {
+      final events = StreamController<DeviceAttachedEvent>.broadcast(
+        sync: true,
+      );
+      DeviceAttachedEvent? attemptedEvent;
+      final coordinator = AttachReconnectCoordinator(
+        attachEvents: events.stream,
+        settleDelay: settleDelay,
+        shouldAttempt: () => true,
+        attempt: (event) async {
+          attemptedEvent = event;
+          return true;
+        },
+        recover: () {},
+      );
+
+      events.add(const DeviceAttachedEvent(deviceId: 'first'));
+      events.add(const DeviceAttachedEvent(deviceId: 'second'));
+      events.add(const DeviceAttachedEvent(deviceId: 'third'));
+      async.elapse(settleDelay);
+      async.flushMicrotasks();
+
+      expect(attemptedEvent?.deviceId, 'third');
+      coordinator.dispose();
       events.close();
     });
   });

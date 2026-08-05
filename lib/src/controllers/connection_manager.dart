@@ -30,6 +30,7 @@ import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/usb_attach_probe.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -357,13 +358,44 @@ class ConnectionManager {
   }
 
   bool _shouldAttemptAttachReconnect() {
+    if (_machineConnected) return false;
+    if (_attachProbe != null) return true;
     final preferredMachineId = settingsController.preferredMachineId;
-    return !_machineConnected &&
-        preferredMachineId != null &&
-        preferredMachineId.isNotEmpty;
+    return preferredMachineId != null && preferredMachineId.isNotEmpty;
   }
 
-  Future<bool> _attemptAttachReconnect() async {
+  UsbAttachProbe? get _attachProbe =>
+      deviceScanner is UsbAttachProbe ? deviceScanner as UsbAttachProbe : null;
+
+  /// One coalesced attach probe queued while another connect owned the
+  /// connection guard. Drained first in [_runConnect]'s drain loop.
+  bool _pendingAttachAttempt = false;
+  DeviceAttachedEvent? _pendingAttachEvent;
+
+  Future<bool> _attemptAttachReconnect(DeviceAttachedEvent event) async {
+    if (_machineConnected) return true;
+    if (_attachProbe == null) return _attemptAutomaticConnect();
+    if (_isConnecting) {
+      _pendingAttachEvent = event;
+      _pendingAttachAttempt = true;
+      // Prioritize the attached machine over automatic/recovery scanning:
+      // supersede the in-flight automatic connect via the existing
+      // generation mechanism so the queued probe runs as soon as the
+      // current owner releases. Explicit user scans and scale-only
+      // connects are left alone and the probe simply waits its turn.
+      final intent = currentStatus.intent;
+      if (intent == ConnectionIntent.automatic ||
+          intent == ConnectionIntent.adapterRecovery) {
+        _explicitScanGeneration++;
+        deviceScanner.stopScan();
+      }
+      return true;
+    }
+    await _executeAttachProbe(event);
+    return true;
+  }
+
+  Future<bool> _attemptAutomaticConnect() async {
     _machineReconnect?.cancel();
     _machineReconnect = null;
     _machineReconnectFailures = 0;
@@ -373,6 +405,94 @@ class ConnectionManager {
       _log.fine('Attach-triggered connect failed', e, st);
     }
     return _machineConnected;
+  }
+
+  /// Runs the attach probe under the connection guard so no competing
+  /// connection operation can start in parallel, then settles outcome:
+  /// connected → adopted; failed with a preferred machine → hand back to
+  /// the existing recovery policy; failed without one → failure surfaced.
+  Future<void> _executeAttachProbe(DeviceAttachedEvent event) async {
+    if (_machineConnected) return;
+    _isConnecting = true;
+    try {
+      final succeeded = await _runAttachProbe(event);
+      if (!succeeded &&
+          !_machineConnected &&
+          settingsController.preferredMachineId != null) {
+        _ensureMachineRecoveryArmed();
+      }
+    } finally {
+      _isConnecting = false;
+    }
+  }
+
+  Future<bool> _runAttachProbe(DeviceAttachedEvent event) async {
+    final probe = _attachProbe;
+    if (probe == null) return false;
+    final result = await probe.connectAttachedMachine(event);
+    switch (result) {
+      case AttachProbeConnected(machine: final machine):
+        _log.info(
+          'Attach probe: machine ${machine.name} (${machine.deviceId}) '
+          'connected, adopting',
+        );
+        await _adoptAttachedMachine(machine);
+        return true;
+      case AttachProbeUnsupported():
+        _log.fine('Attach probe: no supported machine on the attached device');
+        return true;
+      case AttachProbeFailed(deviceId: final id, deviceName: final name):
+        if (settingsController.preferredMachineId != null) {
+          _log.info(
+            'Attach probe: attached machine ${name ?? id} failed to connect; '
+            'returning to preferred-machine recovery',
+          );
+          return false;
+        }
+        _log.info(
+          'Attach probe: attached machine ${name ?? id} failed to connect',
+        );
+        _emit(
+          ConnectionError(
+            kind: ConnectionErrorKind.machineConnectFailed,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.now().toUtc(),
+            deviceId: id,
+            deviceName: name,
+            message:
+                'Attached machine ${name ?? id ?? 'device'} failed to '
+                'connect.',
+            suggestion:
+                'Make sure the machine is powered on and the USB '
+                'cable is seated, then try again.',
+          ),
+        );
+        return true;
+    }
+  }
+
+  /// Adopt an already-connected attached machine and settle connection
+  /// and scale state consistently with a successful machine quick-connect.
+  Future<void> _adoptAttachedMachine(De1Interface machine) async {
+    _publishStatus(
+      currentStatus.copyWith(
+        phase: ConnectionPhase.connectingMachine,
+        activeTargetTransport: () => machine.transportType,
+      ),
+    );
+    de1Controller.adoptDevice(machine);
+    await settingsController.setPreferredMachineId(machine.deviceId);
+    _log.info('Attach probe: machine adopted (${machine.deviceId})');
+    if (machine is BengleInterface) {
+      await _attachBengleVirtualScale(machine);
+    } else if (!_scaleConnected) {
+      if (settingsController.preferredScaleId != null) {
+        _ensureScaleReacquisition();
+      } else {
+        _armPostQuickConnectScaleScan();
+      }
+    }
+    _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
   }
 
   void _ensureMachineRecoveryArmed() {
@@ -668,10 +788,25 @@ class ConnectionManager {
     } finally {
       // Single priority-aware drain loop: explicit always evaluated
       // first at each scheduling boundary. An explicit request arriving
-      // during a queued scale-only drain is picked up immediately.
-      while (_queuedExplicitScan != null ||
+      // during a queued scale-only drain is picked up immediately. A
+      // queued attach probe runs before everything else — it is a
+      // targeted connection of a physically attached machine.
+      while (_pendingAttachAttempt ||
+          _queuedExplicitScan != null ||
           _adapterRecoveryQueued ||
           _queuedScaleOnly != null) {
+        if (_pendingAttachAttempt) {
+          _pendingAttachAttempt = false;
+          final event = _pendingAttachEvent;
+          _pendingAttachEvent = null;
+          // Re-check before executing queued work: a machine that
+          // completed connection while we waited is never replaced.
+          if (event != null && !_machineConnected) {
+            await _executeAttachProbe(event);
+          }
+          continue;
+        }
+
         if (_queuedExplicitScan != null) {
           final drain = _queuedExplicitScan!;
           _queuedExplicitScan = null;
