@@ -21,6 +21,13 @@ class AttachProbeUnsupported extends AttachProbeResult {
   const AttachProbeUnsupported();
 }
 
+/// The originating discovery service does not implement the probe
+/// capability. Callers should fall back to the legacy preferred-machine
+/// connection policy.
+class AttachProbeUnavailable extends AttachProbeResult {
+  const AttachProbeUnavailable();
+}
+
 /// A supported machine was detected but connection or identity
 /// initialization failed. All resources were cleaned up.
 class AttachProbeFailed extends AttachProbeResult {

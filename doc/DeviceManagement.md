@@ -190,7 +190,10 @@ and detection, and connects the device only when it is a supported machine
 (`De1Interface`). Scales, sensors, debug ports, keyboards, and other USB
 devices are rejected and their transports disposed. The typed result
 distinguishes a connected machine from "no supported machine attached" from
-"machine detected but connection or identity initialization failed".
+"machine detected but connection or identity initialization failed". When
+the originating service only implements the notifier (no probe capability),
+the result is "probe unavailable" and the legacy preferred-machine policy
+runs instead.
 
 When the scanner implements `UsbAttachProbe`, a physical USB attachment is
 explicit connection intent and wins over passive preferred-machine policy:
@@ -207,8 +210,9 @@ no preference update, and an already scheduled recovery attempt is left
 alone. A machine that is already connected is never replaced; the attach
 attempt re-checks before executing.
 
-When the scanner implements only `DeviceAttachNotifier` (no probe), the
-original behavior applies: a preferred machine must exist, and the normal
+When the probe capability is unavailable (a notifier-only scanner, or a
+`DeviceController` whose originating service cannot probe), the original
+behavior applies: a preferred machine must exist, and the normal
 `ConnectionManager.connect()` policy (remembered-device quick-connect and
 scan fallback) runs, with machine recovery explicitly re-armed after an
 unsuccessful attempt.

@@ -367,8 +367,6 @@ class ConnectionManager {
   UsbAttachProbe? get _attachProbe =>
       deviceScanner is UsbAttachProbe ? deviceScanner as UsbAttachProbe : null;
 
-  /// One coalesced attach probe queued while another connect owned the
-  /// connection guard. Drained first in [_runConnect]'s drain loop.
   bool _pendingAttachAttempt = false;
   DeviceAttachedEvent? _pendingAttachEvent;
 
@@ -378,11 +376,6 @@ class ConnectionManager {
     if (_isConnecting) {
       _pendingAttachEvent = event;
       _pendingAttachAttempt = true;
-      // Prioritize the attached machine over automatic/recovery scanning:
-      // supersede the in-flight automatic connect via the existing
-      // generation mechanism so the queued probe runs as soon as the
-      // current owner releases. Explicit user scans and scale-only
-      // connects are left alone and the probe simply waits its turn.
       final intent = currentStatus.intent;
       if (intent == ConnectionIntent.automatic ||
           intent == ConnectionIntent.adapterRecovery) {
@@ -391,7 +384,14 @@ class ConnectionManager {
       }
       return true;
     }
-    await _executeAttachProbe(event);
+    final handled = await _runConnect(
+      scaleOnly: false,
+      policy: ConnectionAttemptPolicy.automatic,
+      attachEvent: event,
+    );
+    if (!handled && settingsController.preferredMachineId != null) {
+      return _attemptAutomaticConnect();
+    }
     return true;
   }
 
@@ -407,72 +407,62 @@ class ConnectionManager {
     return _machineConnected;
   }
 
-  /// Runs the attach probe under the connection guard so no competing
-  /// connection operation can start in parallel, then settles outcome:
-  /// connected → adopted; failed with a preferred machine → hand back to
-  /// the existing recovery policy; failed without one → failure surfaced.
-  Future<void> _executeAttachProbe(DeviceAttachedEvent event) async {
-    if (_machineConnected) return;
+  Future<bool> _executeAttachProbe(DeviceAttachedEvent event) async {
+    if (_machineConnected) return true;
     _isConnecting = true;
     try {
-      final succeeded = await _runAttachProbe(event);
-      if (!succeeded &&
-          !_machineConnected &&
-          settingsController.preferredMachineId != null) {
-        _ensureMachineRecoveryArmed();
+      final probe = _attachProbe;
+      if (probe == null) return false;
+      final result = await probe.connectAttachedMachine(event);
+      switch (result) {
+        case AttachProbeConnected(machine: final machine):
+          _log.info(
+            'Attach probe: machine ${machine.name} (${machine.deviceId}) '
+            'connected, adopting',
+          );
+          await _adoptAttachedMachine(machine);
+          return true;
+        case AttachProbeUnsupported():
+          _log.fine(
+            'Attach probe: no supported machine on the attached device',
+          );
+          return true;
+        case AttachProbeUnavailable():
+          return false;
+        case AttachProbeFailed(deviceId: final id, deviceName: final name):
+          if (settingsController.preferredMachineId != null) {
+            _log.info(
+              'Attach probe: attached machine ${name ?? id} failed to '
+              'connect; returning to preferred-machine recovery',
+            );
+            _ensureMachineRecoveryArmed();
+            return true;
+          }
+          _log.info(
+            'Attach probe: attached machine ${name ?? id} failed to connect',
+          );
+          _emit(
+            ConnectionError(
+              kind: ConnectionErrorKind.machineConnectFailed,
+              severity: ConnectionErrorSeverity.error,
+              timestamp: DateTime.now().toUtc(),
+              deviceId: id,
+              deviceName: name,
+              message:
+                  'Attached machine ${name ?? id ?? 'device'} failed to '
+                  'connect.',
+              suggestion:
+                  'Make sure the machine is powered on and the USB '
+                  'cable is seated, then try again.',
+            ),
+          );
+          return true;
       }
     } finally {
       _isConnecting = false;
     }
   }
 
-  Future<bool> _runAttachProbe(DeviceAttachedEvent event) async {
-    final probe = _attachProbe;
-    if (probe == null) return false;
-    final result = await probe.connectAttachedMachine(event);
-    switch (result) {
-      case AttachProbeConnected(machine: final machine):
-        _log.info(
-          'Attach probe: machine ${machine.name} (${machine.deviceId}) '
-          'connected, adopting',
-        );
-        await _adoptAttachedMachine(machine);
-        return true;
-      case AttachProbeUnsupported():
-        _log.fine('Attach probe: no supported machine on the attached device');
-        return true;
-      case AttachProbeFailed(deviceId: final id, deviceName: final name):
-        if (settingsController.preferredMachineId != null) {
-          _log.info(
-            'Attach probe: attached machine ${name ?? id} failed to connect; '
-            'returning to preferred-machine recovery',
-          );
-          return false;
-        }
-        _log.info(
-          'Attach probe: attached machine ${name ?? id} failed to connect',
-        );
-        _emit(
-          ConnectionError(
-            kind: ConnectionErrorKind.machineConnectFailed,
-            severity: ConnectionErrorSeverity.error,
-            timestamp: DateTime.now().toUtc(),
-            deviceId: id,
-            deviceName: name,
-            message:
-                'Attached machine ${name ?? id ?? 'device'} failed to '
-                'connect.',
-            suggestion:
-                'Make sure the machine is powered on and the USB '
-                'cable is seated, then try again.',
-          ),
-        );
-        return true;
-    }
-  }
-
-  /// Adopt an already-connected attached machine and settle connection
-  /// and scale state consistently with a successful machine quick-connect.
   Future<void> _adoptAttachedMachine(De1Interface machine) async {
     _publishStatus(
       currentStatus.copyWith(
@@ -758,30 +748,33 @@ class ConnectionManager {
       return _queuedExplicitScan!.future;
     }
     _explicitScanGeneration++;
-    return _runConnect(
+    await _runConnect(
       scaleOnly: false,
       policy: ConnectionAttemptPolicy.explicitScan,
     );
   }
 
-  Future<void> _runConnect({
+  Future<bool> _runConnect({
     required bool scaleOnly,
     required ConnectionAttemptPolicy policy,
     bool adapterRecovery = false,
+    DeviceAttachedEvent? attachEvent,
   }) async {
     if (_isConnecting) {
-      if (adapterRecovery) return;
+      if (adapterRecovery) return true;
       if (scaleOnly) {
         final completer = _queuedScaleOnly ??= Completer<void>();
-        return completer.future;
+        return completer.future.then((_) => true);
       }
-      return;
+      return true;
     }
 
     try {
       if (adapterRecovery) {
         _adapterRecoveryQueued = false;
         await _executeAdapterRecovery();
+      } else if (attachEvent != null) {
+        return await _executeAttachProbe(attachEvent);
       } else {
         await _executeConnect(scaleOnly, policy: policy);
       }
@@ -789,8 +782,7 @@ class ConnectionManager {
       // Single priority-aware drain loop: explicit always evaluated
       // first at each scheduling boundary. An explicit request arriving
       // during a queued scale-only drain is picked up immediately. A
-      // queued attach probe runs before everything else — it is a
-      // targeted connection of a physically attached machine.
+      // queued attach probe runs first.
       while (_pendingAttachAttempt ||
           _queuedExplicitScan != null ||
           _adapterRecoveryQueued ||
@@ -799,10 +791,11 @@ class ConnectionManager {
           _pendingAttachAttempt = false;
           final event = _pendingAttachEvent;
           _pendingAttachEvent = null;
-          // Re-check before executing queued work: a machine that
-          // completed connection while we waited is never replaced.
           if (event != null && !_machineConnected) {
-            await _executeAttachProbe(event);
+            final handled = await _executeAttachProbe(event);
+            if (!handled && settingsController.preferredMachineId != null) {
+              await _attemptAutomaticConnect();
+            }
           }
           continue;
         }
@@ -841,6 +834,7 @@ class ConnectionManager {
         }
       }
     }
+    return true;
   }
 
   Future<void> _executeConnect(

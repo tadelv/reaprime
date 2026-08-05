@@ -55,11 +55,8 @@ class DeviceController
   Stream<DeviceAttachedEvent> get deviceAttached =>
       _deviceAttachedStream.stream;
 
-  /// Originating service per attach event instance, recorded while
-  /// aggregating notifier streams so [connectAttachedMachine] can route
-  /// the probe back to the service that saw the attachment. Events are
-  /// non-replaying edges, so instance identity is stable.
-  final Map<DeviceAttachedEvent, DeviceDiscoveryService> _attachOrigins = {};
+  /// Weak origin association for attach-probe routing.
+  final Expando<DeviceDiscoveryService> _attachOrigins = Expando();
 
   final List<StreamSubscription> _serviceSubscriptions = [];
 
@@ -291,7 +288,7 @@ class DeviceController
     if (origin case final UsbAttachProbe probe) {
       return probe.connectAttachedMachine(event);
     }
-    return const AttachProbeUnsupported();
+    return const AttachProbeUnavailable();
   }
 
   Iterable<DeviceWatchCapable> get _watchCapableServices => _services
@@ -445,7 +442,6 @@ class DeviceController
       subscription.cancel();
     }
     _serviceSubscriptions.clear();
-    _attachOrigins.clear();
     _deviceStream.close();
     _scanningStream.close();
     _adapterStateStream.close();

@@ -220,7 +220,9 @@ only devices not already connected), runs the existing serial admission and
 `_detectDevice` logic, and connects only supported `De1Interface` machines.
 Scales, sensors, debug ports, and arbitrary USB devices are rejected with
 full transport cleanup. The typed result distinguishes connected / nothing
-supported / detected-but-failed.
+supported / detected-but-failed, plus "probe unavailable" when the
+originating service lacks the capability — which falls back to the legacy
+preferred-machine connect policy.
 
 The central distinction: preferred-machine policy controls passive automatic
 discovery; physically attaching a supported USB machine is explicit connection

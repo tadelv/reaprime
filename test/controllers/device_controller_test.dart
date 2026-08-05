@@ -573,7 +573,7 @@ void main() {
       controller.dispose();
     });
 
-    test('events not seen by the controller are unsupported', () async {
+    test('events not seen by the controller are unavailable', () async {
       final origin = _AttachProbeService();
       final controller = DeviceController([origin]);
       await controller.initialize();
@@ -582,8 +582,25 @@ void main() {
         const DeviceAttachedEvent(deviceId: 'usb-unknown'),
       );
 
-      expect(result, isA<AttachProbeUnsupported>());
+      expect(result, isA<AttachProbeUnavailable>());
       expect(origin.probeCalls, 0);
+      controller.dispose();
+    });
+
+    test('events from a notifier-only service are unavailable', () async {
+      final notifierOnly = _AttachNotifierOnlyService();
+      final capable = _AttachProbeService();
+      final controller = DeviceController([notifierOnly, capable]);
+      await controller.initialize();
+
+      final event = const DeviceAttachedEvent(deviceId: 'usb-2e8a-a-1234');
+      notifierOnly.emitAttach(event);
+      await Future<void>.delayed(Duration.zero);
+
+      final result = await controller.connectAttachedMachine(event);
+
+      expect(result, isA<AttachProbeUnavailable>());
+      expect(capable.probeCalls, 0);
       controller.dispose();
     });
   });
@@ -666,4 +683,16 @@ class _AttachProbeService extends _ManualDiscoveryService
     probeCalls++;
     return AttachProbeConnected(_FakeMachine(event.deviceId ?? 'usb'));
   }
+}
+
+class _AttachNotifierOnlyService extends _ManualDiscoveryService
+    implements DeviceAttachNotifier {
+  final _attachEvents = StreamController<DeviceAttachedEvent>.broadcast(
+    sync: true,
+  );
+
+  @override
+  Stream<DeviceAttachedEvent> get deviceAttached => _attachEvents.stream;
+
+  void emitAttach(DeviceAttachedEvent event) => _attachEvents.add(event);
 }
