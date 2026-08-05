@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_attach_notifier.dart';
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/models/device/usb_attach_probe.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
@@ -549,6 +552,41 @@ void main() {
       expect(result, same(device));
     });
   });
+
+  group('attach probe routing', () {
+    test('routes only to the originating capable service', () async {
+      final origin = _AttachProbeService();
+      final other = _AttachProbeService();
+      final plain = _ManualDiscoveryService();
+      final controller = DeviceController([origin, other, plain]);
+      await controller.initialize();
+
+      final event = const DeviceAttachedEvent(deviceId: 'usb-2e8a-a-1234');
+      origin.emitAttach(event);
+      await Future<void>.delayed(Duration.zero);
+
+      final result = await controller.connectAttachedMachine(event);
+
+      expect(result, isA<AttachProbeConnected>());
+      expect(origin.probeCalls, 1);
+      expect(other.probeCalls, 0);
+      controller.dispose();
+    });
+
+    test('events not seen by the controller are unsupported', () async {
+      final origin = _AttachProbeService();
+      final controller = DeviceController([origin]);
+      await controller.initialize();
+
+      final result = await controller.connectAttachedMachine(
+        const DeviceAttachedEvent(deviceId: 'usb-unknown'),
+      );
+
+      expect(result, isA<AttachProbeUnsupported>());
+      expect(origin.probeCalls, 0);
+      controller.dispose();
+    });
+  });
 }
 
 class _QuickConnectService extends _ManualDiscoveryService {
@@ -568,5 +606,64 @@ class _ThrowingQuickConnectService extends _ManualDiscoveryService {
   @override
   Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
     throw StateError('quick-connect failed');
+  }
+}
+
+class _FakeMachine implements De1Interface {
+  @override
+  final String deviceId;
+
+  _FakeMachine(this.deviceId);
+
+  @override
+  String get name => 'DE1';
+
+  @override
+  DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.serial;
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      Stream.value(ConnectionState.connected);
+
+  @override
+  Stream<MachineSnapshot> get currentSnapshot => const Stream.empty();
+
+  @override
+  Stream<bool> get ready => const Stream.empty();
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _AttachProbeService extends _ManualDiscoveryService
+    implements DeviceAttachNotifier, UsbAttachProbe {
+  final _attachEvents = StreamController<DeviceAttachedEvent>.broadcast(
+    sync: true,
+  );
+  int probeCalls = 0;
+
+  @override
+  Stream<DeviceAttachedEvent> get deviceAttached => _attachEvents.stream;
+
+  void emitAttach(DeviceAttachedEvent event) => _attachEvents.add(event);
+
+  @override
+  Future<AttachProbeResult> connectAttachedMachine(
+    DeviceAttachedEvent event,
+  ) async {
+    probeCalls++;
+    return AttachProbeConnected(_FakeMachine(event.deviceId ?? 'usb'));
   }
 }

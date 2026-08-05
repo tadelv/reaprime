@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_attach_notifier.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
@@ -17,6 +18,7 @@ import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/models/device/usb_attach_probe.dart';
 import 'mmr_codec.dart';
 import 'usb_ids.dart';
 import 'utils.dart';
@@ -27,10 +29,11 @@ import 'package:rxdart/subjects.dart';
 import 'package:usb_serial/usb_serial.dart';
 
 class SerialServiceAndroid
-    implements DeviceDiscoveryService, DeviceAttachNotifier {
+    implements DeviceDiscoveryService, DeviceAttachNotifier, UsbAttachProbe {
   final _log = Logger("Android Serial service");
   final Future<List<UsbDevice>> Function() _listDevices;
   final Stream<UsbEvent>? Function() _usbEventStream;
+  final Future<Device?> Function(UsbDevice device)? _detectOverride;
 
   final List<Device> _devices = [];
   StreamSubscription<UsbEvent>? _usbEventSubscription;
@@ -39,8 +42,10 @@ class SerialServiceAndroid
   SerialServiceAndroid({
     Future<List<UsbDevice>> Function()? listDevices,
     Stream<UsbEvent>? Function()? usbEventStream,
+    Future<Device?> Function(UsbDevice device)? detectDevice,
   }) : _listDevices = listDevices ?? UsbSerial.listDevices,
-       _usbEventStream = usbEventStream ?? (() => UsbSerial.usbEventStream);
+       _usbEventStream = usbEventStream ?? (() => UsbSerial.usbEventStream),
+       _detectOverride = detectDevice;
 
   /// Tracks transports created by [_detectDevice] so quick-connect cleanup
   /// can dispose them. Keyed by [Device.deviceId] (== [AndroidSerialPort.id]).
@@ -167,6 +172,120 @@ class SerialServiceAndroid
   }
 
   @override
+  Future<AttachProbeResult> connectAttachedMachine(
+    DeviceAttachedEvent event,
+  ) async {
+    if (_disposed) return const AttachProbeUnsupported();
+    final devices = await _listDevices();
+    final candidates = _attachedCandidates(event, devices);
+    if (candidates.isEmpty) {
+      _log.fine('Attach probe: no USB device correlates with $event');
+      return const AttachProbeUnsupported();
+    }
+    AttachProbeFailed? failure;
+    for (final device in candidates) {
+      final result = await _connectAttachedMachine(device);
+      if (result is AttachProbeConnected) return result;
+      if (result is AttachProbeFailed) failure = result;
+    }
+    return failure ?? const AttachProbeUnsupported();
+  }
+
+  List<UsbDevice> _attachedCandidates(
+    DeviceAttachedEvent event,
+    List<UsbDevice> devices,
+  ) {
+    final id = event.deviceId;
+    if (id != null && id.isNotEmpty) {
+      return devices.where((d) => _stableIdOf(d) == id).toList();
+    }
+    final known = _devices.map((d) => d.deviceId).toSet();
+    return devices.where((d) => !known.contains(_stableIdOf(d))).toList();
+  }
+
+  String _stableIdOf(UsbDevice device) =>
+      computeUsbStableId(
+        vid: device.vid,
+        pid: device.pid,
+        serial: device.serial,
+      ) ??
+      '${device.deviceId}';
+
+  Future<AttachProbeResult> _connectAttachedMachine(UsbDevice device) async {
+    final stableId = _stableIdOf(device);
+    if (_devices.any((d) => d.deviceId == stableId)) {
+      _log.fine('Attach probe: $stableId already known, skipping');
+      return const AttachProbeUnsupported();
+    }
+    if (!serialProbeAllowsProductName(device.productName)) {
+      _log.fine(
+        'Attach probe: ${device.productName} is not a supported product',
+      );
+      return const AttachProbeUnsupported();
+    }
+    Device? detected;
+    try {
+      detected = await _runDetection(device);
+    } catch (e, st) {
+      _log.warning('Attach probe: detection failed for $stableId', e, st);
+      return const AttachProbeUnsupported();
+    }
+    if (detected == null) {
+      _log.fine('Attach probe: no supported device on $stableId');
+      return const AttachProbeUnsupported();
+    }
+    final machine = detected;
+    if (machine is! De1Interface) {
+      _log.info('Attach probe: ${machine.name} is not a machine, rejecting');
+      await _rejectAttachedDevice(machine);
+      return const AttachProbeUnsupported();
+    }
+    try {
+      await machine.onConnect().timeout(const Duration(seconds: 10));
+    } catch (e, st) {
+      _log.warning(
+        'Attach probe: connect failed for ${machine.deviceId}',
+        e,
+        st,
+      );
+      await _rejectAttachedDevice(machine);
+      return AttachProbeFailed(
+        deviceId: machine.deviceId,
+        deviceName: machine.name,
+      );
+    }
+    _devices.add(machine);
+    machine.connectionState.listen((state) {
+      if (state == ConnectionState.disconnected) {
+        _devices.remove(machine);
+        _machineSubject.add(_devices);
+        final t = _transportForDeviceId.remove(machine.deviceId);
+        try {
+          t?.dispose();
+        } catch (_) {}
+      }
+    });
+    _machineSubject.add(_devices);
+    _log.info('Attach probe: connected ${machine.name} (${machine.deviceId})');
+    return AttachProbeConnected(machine);
+  }
+
+  Future<void> _rejectAttachedDevice(Device detected) async {
+    try {
+      await detected.disconnect();
+    } catch (e, st) {
+      _log.fine('Attach probe: rejected device disconnect failed', e, st);
+    }
+    final t = _transportForDeviceId.remove(detected.deviceId);
+    try {
+      await t?.dispose();
+    } catch (_) {}
+  }
+
+  Future<Device?> _runDetection(UsbDevice device) =>
+      (_detectOverride ?? _detectDevice)(device);
+
+  @override
   void stopScan() {}
 
   @override
@@ -189,7 +308,7 @@ class SerialServiceAndroid
       );
       Device? device;
       try {
-        device = await _detectDevice(d);
+        device = await _runDetection(d);
       } catch (e, st) {
         _log.warning('Quick-connect: _detectDevice failed', e, st);
         continue;
@@ -334,7 +453,7 @@ class SerialServiceAndroid
     final results = await Future.wait(
       devices.map((d) async {
         try {
-          final device = await _detectDevice(d);
+          final device = await _runDetection(d);
           _log.info("Port $d -> ${device ?? 'no device'}");
           return device;
         } catch (e, st) {

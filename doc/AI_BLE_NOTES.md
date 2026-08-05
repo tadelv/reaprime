@@ -210,13 +210,35 @@ capability. Attach events are non-replaying hints and may carry incomplete
 metadata; serial scanning and detection remain the support filter. Android can
 broadcast attach before the CDC interface is usable, so
 `AttachReconnectCoordinator` coalesces bursts and waits a configurable 500 ms
-before invoking the normal connection policy.
+before acting.
 
-Only a missing preferred machine enables this path. The attempt therefore uses
-remembered-device quick-connect first, retains scan fallback, and cannot open a
-picker when no preference exists. If the immediate attempt finds nothing or
-fails, the coordinator explicitly re-arms normal machine recovery. BLE, Wi-Fi,
-simulated-device, and scale-only behavior do not expose attach events.
+A second optional capability, `UsbAttachProbe`, lets the originating serial
+service positively identify and connect the specifically attached USB device.
+`SerialServiceAndroid.connectAttachedMachine` correlates the event with a
+newly listed USB device (stable-ID match when Android supplied one, otherwise
+only devices not already connected), runs the existing serial admission and
+`_detectDevice` logic, and connects only supported `De1Interface` machines.
+Scales, sensors, debug ports, and arbitrary USB devices are rejected with
+full transport cleanup. The typed result distinguishes connected / nothing
+supported / detected-but-failed.
+
+The central distinction: preferred-machine policy controls passive automatic
+discovery; physically attaching a supported USB machine is explicit connection
+intent. On a probe-capable scanner, `ConnectionManager` runs the probe ahead of
+any preferred-machine scan — no preference, a stale BLE preference, another
+USB preference, or a simulated preference are all overridden by the attached
+machine, and the machine's USB ID becomes the preferred machine only after a
+successful connection and adoption. Unsupported attachments change nothing;
+failed attachments preserve the previous preference and return control to the
+existing preferred-machine recovery policy (or surface the normal connection
+failure). A connected machine is never replaced.
+
+Attach attempts never run in parallel with another connect. An attach arriving
+while an automatic/recovery connect is in flight supersedes that scan via the
+existing generation mechanism and runs one coalesced probe as soon as the
+ownership releases; explicit user scans and scale-only connects are waited
+out. No BLE, Wi-Fi, simulated-device, or scale-only behavior exposes attach
+events.
 
 ## Quick Connect
 
