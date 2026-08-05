@@ -64,15 +64,17 @@ elif [ "$CHANNEL" != "stable" ]; then
   exit 1
 fi
 
+EXPECTED_CHANNEL=""
+[ "$CHANNEL" = "beta" ] && EXPECTED_CHANNEL="beta"
+
 echo "Running generate_appcast (channel: $CHANNEL)..."
 "${ARGS[@]}" "$STAGING"
 
 if [ "$BOOTSTRAP" = "0" ]; then
-  assert_item_counts_not_decreased "$OLD_COUNTS" "$STAGING/appcast.xml"
+  assert_feed_grew "$OLD_COUNTS" "$STAGING/appcast.xml" "$EXPECTED_CHANNEL"
+  assert_old_items_preserved "$PREVIOUS_FEED" "$STAGING/appcast.xml"
 fi
 
-EXPECTED_CHANNEL=""
-[ "$CHANNEL" = "beta" ] && EXPECTED_CHANNEL="beta"
 appcast_assert_item "$STAGING/appcast.xml" "$BUILD" "${PREFIX}${ZIP_BASENAME}" "$EXPECTED_CHANNEL"
 xmllint --noout "$STAGING/appcast.xml"
 echo "Feed validated: version $BUILD, channel '${CHANNEL}'"

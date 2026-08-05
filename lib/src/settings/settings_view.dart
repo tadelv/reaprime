@@ -94,13 +94,21 @@ class SettingsView extends StatelessWidget {
                   value: controller.automaticUpdateCheck,
                   onChanged: (v) async {
                     await controller.setAutomaticUpdateCheck(v);
-                    if (macosUpdater?.isSupported == true) {
-                      await macosUpdater?.setAutomaticChecks(v);
-                    }
                     if (v) {
                       await updateCheckService?.enableAutomaticChecks();
                     } else {
                       await updateCheckService?.disableAutomaticChecks();
+                    }
+                    if (macosUpdater?.isAvailable == true) {
+                      try {
+                        await macosUpdater?.setAutomaticChecks(v);
+                      } catch (e, st) {
+                        Logger('Settings View').warning(
+                          'Sparkle automatic-check toggle failed',
+                          e,
+                          st,
+                        );
+                      }
                     }
                   },
                   label: const Text('Automatic update checks'),
@@ -309,8 +317,12 @@ class SettingsView extends StatelessWidget {
   ) async {
     await controller.setUpdateChannel(channel);
     if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-    if (macosUpdater?.isSupported == true) {
-      await macosUpdater?.setChannel(channel);
+    if (macosUpdater?.isAvailable == true) {
+      try {
+        await macosUpdater?.setChannel(channel);
+      } catch (e, st) {
+        Logger('Settings View').warning('Sparkle channel change failed', e, st);
+      }
     } else {
       await updateCheckService?.requestCheck();
     }
@@ -375,8 +387,12 @@ class SettingsView extends StatelessWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
-    if (macosUpdater?.isSupported == true) {
-      await macosUpdater?.checkForUpdates();
+    if (macosUpdater?.isAvailable == true) {
+      try {
+        await macosUpdater?.checkForUpdates();
+      } catch (e, st) {
+        Logger('Settings View').warning('Sparkle manual check failed', e, st);
+      }
       return;
     }
     final log = Logger('Settings View');
