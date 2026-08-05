@@ -100,6 +100,66 @@ void main() {
     );
   });
 
+  test(
+    'declared permission forwards POST with body through DecentProxyService',
+    () async {
+      await linkAccount();
+      late http.Request upstream;
+
+      final result =
+          await bridge((request) async {
+            upstream = request;
+            return http.Response(
+              '{"ok":true,"profile_ref":"adaptive_v2@abc"}',
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }).proxyForPlugin(
+            pluginId: 'test.plugin',
+            manifest: manifestWith({PluginPermissions.proxyDecentApi}),
+            path: 'support/api/shot_upload',
+            method: 'POST',
+            body: '{"id":"decaid-1","machine":{"serialNumber":"6262"}}',
+            contentType: 'application/json',
+          );
+
+      expect(result['status'], 200);
+      expect(result['body'], contains('profile_ref'));
+      expect(upstream.method, 'POST');
+      expect(
+        upstream.url.toString(),
+        'https://decentespresso.com/support/api/shot_upload',
+      );
+      expect(
+        upstream.body,
+        '{"id":"decaid-1","machine":{"serialNumber":"6262"}}',
+      );
+      expect(upstream.headers['content-type'], contains('application/json'));
+      expect(
+        upstream.headers['authorization'],
+        'Basic ${base64Encode(utf8.encode('user@example.com:cryptpw_abc123'))}',
+      );
+    },
+  );
+
+  test('unsupported method is rejected', () async {
+    await linkAccount();
+    var upstreamCalled = false;
+    await expectLater(
+      bridge((request) async {
+        upstreamCalled = true;
+        return http.Response('must not happen', 200);
+      }).proxyForPlugin(
+        pluginId: 'test.plugin',
+        manifest: manifestWith({PluginPermissions.proxyDecentApi}),
+        path: 'support/api/sn',
+        method: 'DELETE',
+      ),
+      throwsA(isA<UnsupportedError>()),
+    );
+    expect(upstreamCalled, isFalse);
+  });
+
   test('missing permission rejects before upstream is called', () async {
     await linkAccount();
     var upstreamCalled = false;

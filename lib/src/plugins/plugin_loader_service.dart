@@ -470,6 +470,7 @@ class PluginLoaderService {
       'assets/plugins/settings.reaplugin',
       'assets/plugins/dye2.reaplugin',
       'assets/plugins/decent-profile.reaplugin',
+      'assets/plugins/shot-upload.reaplugin',
       // Add more bundled plugins here as they are added to the app
     ];
   }
