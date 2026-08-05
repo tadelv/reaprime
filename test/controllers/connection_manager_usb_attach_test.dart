@@ -45,12 +45,19 @@ class _ProbeScanner extends _AttachScanner implements UsbAttachProbe {
   int probeCallCount = 0;
   final List<DeviceAttachedEvent> probeEvents = [];
 
+  /// When set, [connectAttachedMachine] waits for this before returning.
+  Completer<void>? probeGate;
+  final Completer<void> probeStarted = Completer<void>();
+
   @override
   Future<AttachProbeResult> connectAttachedMachine(
     DeviceAttachedEvent event,
   ) async {
     probeCallCount++;
     probeEvents.add(event);
+    if (!probeStarted.isCompleted) probeStarted.complete();
+    final gate = probeGate;
+    if (gate != null) await gate.future;
     return probeResult;
   }
 }
@@ -529,5 +536,69 @@ void main() {
         expect(manager.currentStatus.phase, ConnectionPhase.ready);
       },
     );
+
+    test(
+      'explicit scan arriving during an attach probe drains afterwards',
+      () async {
+        probeScanner.probeResult = AttachProbeConnected(
+          _FakeDe1(deviceId: 'usb-machine-id'),
+        );
+        probeScanner.probeGate = Completer<void>();
+        probeScanner.attach();
+        await probeScanner.probeStarted.future;
+
+        final scanning = manager.scanAndConnect();
+        probeScanner.probeGate!.complete();
+        await scanning.timeout(const Duration(seconds: 5));
+
+        expect(probeScanner.probeCallCount, 1);
+        expect(probeScanner.scanCallCount, 1);
+        expect(settings.preferredMachineId, 'usb-machine-id');
+        expect(manager.currentStatus.phase, ConnectionPhase.ready);
+      },
+    );
+
+    test(
+      'scale-only connect arriving during an attach probe drains afterwards',
+      () async {
+        probeScanner.probeResult = AttachProbeConnected(
+          _FakeDe1(deviceId: 'usb-machine-id'),
+        );
+        probeScanner.probeGate = Completer<void>();
+        probeScanner.attach();
+        await probeScanner.probeStarted.future;
+
+        final scaleOnly = manager.connect(scaleOnly: true);
+        probeScanner.probeGate!.complete();
+        await scaleOnly.timeout(const Duration(seconds: 5));
+
+        expect(probeScanner.probeCallCount, 1);
+        expect(probeScanner.scanCallCount, 1);
+        expect(settings.preferredMachineId, 'usb-machine-id');
+        expect(manager.currentStatus.phase, ConnectionPhase.ready);
+      },
+    );
+
+    test('unavailable probe falls back to preferred-machine policy', () async {
+      await settings.setPreferredMachineId('ble-machine-id');
+      probeScanner.probeResult = const AttachProbeUnavailable();
+
+      await attachAndSettle();
+
+      expect(probeScanner.probeCallCount, 1);
+      expect(probeScanner.scanCallCount, 1);
+      expect(settings.preferredMachineId, 'ble-machine-id');
+    });
+
+    test('unavailable probe without preference changes nothing', () async {
+      probeScanner.probeResult = const AttachProbeUnavailable();
+
+      await attachAndSettle();
+
+      expect(probeScanner.probeCallCount, 1);
+      expect(probeScanner.scanCallCount, 0);
+      expect(settings.preferredMachineId, isNull);
+      expect(manager.currentStatus.pendingAmbiguity, isNull);
+    });
   });
 }
