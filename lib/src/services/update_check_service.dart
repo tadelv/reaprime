@@ -166,7 +166,6 @@ class UpdateCheckService {
     );
 
     if (_isMacOS) {
-      // Sparkle owns app updates; the periodic timer only refreshes skins.
       await _updateSkins();
     } else {
       // Check immediately if we haven't checked recently

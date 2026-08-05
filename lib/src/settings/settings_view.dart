@@ -95,8 +95,6 @@ class SettingsView extends StatelessWidget {
                   onChanged: (v) async {
                     await controller.setAutomaticUpdateCheck(v);
                     if (Platform.isMacOS) {
-                      // Sparkle owns the macOS scheduler; the Flutter switch is
-                      // just the control surface.
                       await macosUpdater?.setAutomaticChecks(v);
                     } else if (v) {
                       await updateCheckService?.enableAutomaticChecks();
@@ -311,7 +309,6 @@ class SettingsView extends StatelessWidget {
     await controller.setUpdateChannel(channel);
     if (dialogContext.mounted) Navigator.of(dialogContext).pop();
     if (Platform.isMacOS) {
-      // Sparkle re-resolves the feed; the Dart APK check never runs on macOS.
       await macosUpdater?.setChannel(channel);
     } else {
       await updateCheckService?.requestCheck();
@@ -378,8 +375,6 @@ class SettingsView extends StatelessWidget {
 
   Future<void> _checkForUpdates(BuildContext context) async {
     if (Platform.isMacOS) {
-      // Sparkle presents its own native UI and error handling; the Dart
-      // "checking..." / "latest version" Snackbars would be misleading here.
       await macosUpdater?.checkForUpdates();
       return;
     }

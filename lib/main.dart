@@ -486,9 +486,6 @@ void main(List<String> args) async {
     webUIStorage: webUIStorage,
   );
 
-  // macOS only: the native Sparkle coordinator. Constructed here (after the
-  // Flutter engine is up) so the method channel exists before the first
-  // configure() call; a no-op on every other platform.
   final macosUpdater = Platform.isMacOS ? MacOSUpdater() : null;
 
   try {
@@ -537,9 +534,6 @@ void main(List<String> args) async {
     };
   });
   await settingsController.loadSettings();
-  // Push the persisted settings into Sparkle right after load, before the
-  // 10-minute Dart timer defers any work. Idempotent; the native side migrates
-  // the Flutter default into Sparkle exactly once.
   if (macosUpdater != null) {
     await macosUpdater.configure(
       automaticChecks: settingsController.automaticUpdateCheck,
