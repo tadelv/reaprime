@@ -175,14 +175,17 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
-      - name: Codesign app (hardened runtime)
+      - name: Codesign app (Developer ID, deepest-first)
         run: |
-          APP="build/macos/Build/Products/Release/Decaid.app"
-          codesign --deep --force \
-            --options runtime \
-            --entitlements macos/Runner/Release.entitlements \
-            --sign "Developer ID Application" \
-            "$APP"
+          # Never codesign --deep: it rewrites Sparkle's nested helpers with
+          # the host entitlements, breaking the sandboxed Installer XPC.
+          scripts/sign_macos_deepest_first.sh \
+            build/macos/Build/Products/Release/Decaid.app
+
+      - name: Verify signing gates (pre-notarization)
+        run: |
+          scripts/verify_macos_signature.sh \
+            build/macos/Build/Products/Release/Decaid.app
 
       # ---- Notarize ----
       - name: Zip app for notarization
@@ -224,6 +227,11 @@ jobs:
           done
           echo "Stapling failed after 5 attempts"
           exit 1
+
+      - name: Verify signed + notarized app (spctl + stapler)
+        run: |
+          scripts/verify_macos_signature.sh \
+            build/macos/Build/Products/Release/Decaid.app XLS3XF57J8 1
 
       # ---- Upload ----
       - name: Create development ZIP

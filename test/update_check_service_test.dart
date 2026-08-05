@@ -76,7 +76,7 @@ void main() {
   late MockSettingsService settingsService;
   late WebUIStorage webUIStorage;
 
-  UpdateCheckService build({bool isAndroid = true}) {
+  UpdateCheckService build({bool isAndroid = true, bool isMacOS = false}) {
     updater = _FakeUpdater();
     settingsService = MockSettingsService();
     final settingsController = SettingsController(settingsService);
@@ -86,6 +86,7 @@ void main() {
       webUIStorage: webUIStorage,
       updater: updater,
       platformIsAndroid: isAndroid,
+      platformIsMacOS: isMacOS,
     );
   }
 
@@ -293,6 +294,43 @@ void main() {
 
       // Only the auto-check from downloadAndInstall ran.
       expect(checksDuring, 1);
+      svc.dispose();
+    });
+  });
+
+  group('macOS (Sparkle owns app updates)', () {
+    test('checkForUpdate is a no-op and leaves the state idle', () async {
+      final svc = build(isMacOS: true);
+      updater.nextCheck = _update();
+
+      final result = await svc.checkForUpdate();
+
+      expect(result, isNull);
+      expect(updater.checkCalls, 0);
+      expect(svc.currentState.phase, AppUpdatePhase.idle);
+      expect(svc.currentState.installable, isFalse);
+      svc.dispose();
+    });
+
+    test('requestCheck does not run the APK-based check', () async {
+      final svc = build(isMacOS: true);
+
+      await svc.requestCheck();
+
+      expect(updater.checkCalls, 0);
+      expect(svc.currentState.phase, AppUpdatePhase.idle);
+      svc.dispose();
+    });
+
+    test('initialize schedules skin refresh without an APK check', () async {
+      final svc = build(isMacOS: true);
+
+      // Automatic checks default on; the periodic path must skip the APK
+      // check while still refreshing skins. The network attempt is swallowed
+      // by _updateSkins, so this only asserts the scheduling choice.
+      await svc.initialize();
+
+      expect(updater.checkCalls, 0);
       svc.dispose();
     });
   });

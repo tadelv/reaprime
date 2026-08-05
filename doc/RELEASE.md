@@ -65,6 +65,79 @@ Pre-releases are automatically detected by:
 - Version suffix (beta, alpha, rc)
 - GitHub's pre-release flag
 
+## macOS Auto-Update (Sparkle)
+
+macOS builds check for updates through [Sparkle](https://sparkle-project.org) against a signed
+appcast at `https://decentespresso.github.io/decaid/appcast.xml`. The feed is generated from the
+same GitHub release ZIPs the manual flow publishes, so a tag push publishes both the release and
+the feed.
+
+### One-time setup (required before the first Sparkle-enabled release)
+
+1. On a trusted Mac, generate the EdDSA keypair with Sparkle 2.9.5's `generate_keys`:
+   ```bash
+   curl -sL -o /tmp/Sparkle.tar.xz https://github.com/sparkle-project/Sparkle/releases/download/2.9.5/Sparkle-2.9.5.tar.xz
+   tar -xJf /tmp/Sparkle.tar.xz -C /tmp bin
+   /tmp/bin/generate_keys
+   ```
+   It prints the `SUPublicEDKey` value; the private key is stored in the login keychain.
+2. Put the printed value in `SUPublicEDKey` in `macos/Runner/Info.plist` (keep it in sync with the
+   private key below).
+3. Export the private key from the keychain and store it as the GitHub Actions secret
+   `SPARKLE_ED_PRIVATE_KEY`:
+   ```bash
+   security find-generic-password -s "https://sparkle-project.org" -a ed25519 -w \
+     | gh secret set SPARKLE_ED_PRIVATE_KEY
+   ```
+   (A keychain permission prompt appears once.) The appcast job fails fast until the secret and
+   `SUPublicEDKey` match.
+4. Enable GitHub Pages for `decentespresso/decaid`: Settings > Pages > Source: **GitHub Actions**.
+5. Verify `https://decentespresso.github.io/decaid/appcast.xml` is publicly reachable.
+
+### What a tag push publishes
+
+1. All platform builds, signed + notarized as before. macOS uses Developer ID signing of Sparkle's
+   nested helpers deepest-first (never `codesign --deep` — see `scripts/sign_macos_deepest_first.sh`)
+   and runs `scripts/verify_macos_signature.sh` before and after notarization.
+2. `create-release` attaches the artifacts, then `publish-appcast` (macOS runner):
+   - downloads `decaid-macos-<version>.zip` from the release;
+   - reads `CFBundleVersion` from the ZIP and refuses to publish unless it is strictly greater than
+     every item already in the feed (see the version policy below);
+   - runs `generate_appcast` with the `SPARKLE_ED_PRIVATE_KEY` secret, embedding the GitHub release
+     notes;
+   - validates the feed with `xmllint` + `scripts/appcast_helpers.sh` assertions;
+   - deploys `appcast.xml` to GitHub Pages.
+
+Beta/alpha/rc tags publish feed items with `<sparkle:channel>beta</sparkle:channel>`; stable tags
+publish un-channelled (default) items. A Beta user sees Beta and Stable items; a Stable user sees
+only default-channel items.
+
+### Version policy for macOS
+
+Sparkle compares `CFBundleVersion`, which `flutter_with_commit.sh` derives from the commit count of
+`origin/main`. Every published macOS release must therefore have a strictly greater commit count
+than the previously published macOS item — including beta-to-stable tags cut from the same commit.
+The appcast job rejects equal or lower values rather than publishing an update Sparkle cannot
+select. Keep `CFBundleShortVersionString` as `MAJOR.MINOR.PATCH` (no `-beta.N` suffix); prerelease
+identity lives in the Beta channel and release title.
+
+### Rollback
+
+To stop offering an update: remove or fix the latest appcast item (the feed redeploys without
+rebuilding the app). Keep the GitHub ZIP available for manual installation. Never replace a signed
+archive in place under the same appcast version; publish a corrected release with a strictly higher
+`CFBundleVersion`. Do not rotate the EdDSA key and the Developer ID identity in the same update.
+
+### Testing a macOS update locally
+
+1. Build a release ZIP and generate a feed with `scripts/publish_appcast.sh` (see its usage); a
+   temporary keypair works for local testing as long as `SUPublicEDKey` matches.
+2. Install the older build in `/Applications`, launch once, then check Settings > Check for updates.
+3. Confirm data/settings survive the relaunch and the bundle ID is unchanged.
+
+The first public Sparkle-enabled release is a baseline: older Decaid builds cannot self-update into
+it.
+
 ## Editing Release Notes
 
 The workflow publishes GitHub's generated release notes. After the release is created, review them and edit the release when a shorter summary, screenshots, upgrade instructions, or corrections are needed.

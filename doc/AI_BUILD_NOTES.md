@@ -81,6 +81,24 @@ temporary real-hardware tuning builds where debug endpoints must be reachable.
 
 **Fix:** Finite 500ms per-chunk write timeout + bail on zero-progress, `drainWithTimeout` polling `bytesToWrite`.
 
+## Footgun #3: `codesign --deep` destroys Sparkle's Installer XPC
+
+**Symptom:** After a signed/notarized update, Sparkle's "Update failed" alert or a silent failure to relaunch. The app builds and notarizes fine.
+
+**Root cause:** `codesign --deep --force --entitlements <host.plist>` re-signs every nested binary (Sparkle.framework, Installer.xpc, Updater.app, Autoupdate) with the HOST's entitlements. The sandboxed Installer XPC service needs its own embedded entitlements; clobbering them breaks the sandbox escape that replaces the app in `/Applications`. Sparkle explicitly warns against `--deep`.
+
+**Fix:** `scripts/sign_macos_deepest_first.sh` signs Sparkle's nested helpers deepest-first (`Installer.xpc` → `Downloader.xpc` → `Updater.app` → `Autoupdate` → framework → host), each without `--entitlements` so existing embedded entitlements survive; only the host app gets `Release.entitlements`. Gates in `scripts/verify_macos_signature.sh` (Team ID, Hardened Runtime, mach-lookup names, no `get-task-allow`) run before and after notarization.
+
+## Footgun #4: `codesign` does not expand `$(PRODUCT_BUNDLE_IDENTIFIER)`
+
+**Symptom:** The signed app's entitlements contain the literal string `$(PRODUCT_BUNDLE_IDENTIFIER)-spks`, so Sparkle's XPC lookup fails (the XPC registers as `net.tadel.reaprime-spks`).
+
+**Root cause:** `codesign --entitlements` takes the file as-is; Xcode build-variable expansion happens only in Xcode's own signing step. The signing script sed-expands the bundle id before signing (see `scripts/sign_macos_deepest_first.sh`).
+
+**Fix:** Never hand `Release.entitlements` to `codesign` unexpanded. The verification script also greps for the unexpanded variable.
+
+**Note (App Store):** `com.apple.security.temporary-exception.mach-lookup.global-name` is not permitted in Mac App Store builds. Any future `APP_STORE=true` macOS build must drop the Sparkle keys/entitlements and keep self-update disabled.
+
 ## CLI Parameters
 
 The app supports several command-line flags for headless/calibration-station use. See PR #349 and #352 for full details.

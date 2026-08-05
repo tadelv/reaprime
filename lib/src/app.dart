@@ -48,6 +48,7 @@ import 'package:reaprime/src/debug_feature/scale_debug_view.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/services/macos_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/account/account_page.dart';
@@ -92,6 +93,7 @@ class MyApp extends StatefulWidget {
     required this.connectionManager,
     required this.scanStateGuardian,
     this.updateCheckService,
+    this.macosUpdater,
     this.beanStorage,
     this.grinderStorage,
     this.profileStorageService,
@@ -115,6 +117,7 @@ class MyApp extends StatefulWidget {
   final ConnectionManager connectionManager;
   final ScanStateGuardian scanStateGuardian;
   final UpdateCheckService? updateCheckService;
+  final MacOSUpdater? macosUpdater;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
   final ProfileStorageService? profileStorageService;
@@ -370,6 +373,7 @@ class _MyAppState extends State<MyApp> {
                       return SettingsView(
                         controller: widget.settingsController,
                         updateCheckService: widget.updateCheckService,
+                        macosUpdater: widget.macosUpdater,
                         presenceController: widget.presenceController,
                         webUIStorage: widget.webUIStorage,
                       );

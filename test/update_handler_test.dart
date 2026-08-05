@@ -33,6 +33,7 @@ void main() {
       webUIStorage: WebUIStorage(settingsController),
       updater: _NoopUpdater(),
       platformIsAndroid: isAndroid,
+      platformIsMacOS: false,
     );
   }
 

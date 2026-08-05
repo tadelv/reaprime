@@ -57,6 +57,7 @@ import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
+import 'package:reaprime/src/services/macos_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/cli/cli_args.dart';
@@ -485,6 +486,11 @@ void main(List<String> args) async {
     webUIStorage: webUIStorage,
   );
 
+  // macOS only: the native Sparkle coordinator. Constructed here (after the
+  // Flutter engine is up) so the method channel exists before the first
+  // configure() call; a no-op on every other platform.
+  final macosUpdater = Platform.isMacOS ? MacOSUpdater() : null;
+
   try {
     await startWebServer(
       deviceController,
@@ -531,6 +537,15 @@ void main(List<String> args) async {
     };
   });
   await settingsController.loadSettings();
+  // Push the persisted settings into Sparkle right after load, before the
+  // 10-minute Dart timer defers any work. Idempotent; the native side migrates
+  // the Flutter default into Sparkle exactly once.
+  if (macosUpdater != null) {
+    await macosUpdater.configure(
+      automaticChecks: settingsController.automaticUpdateCheck,
+      channel: settingsController.updateChannel,
+    );
+  }
   bleDiscoveryService.requestLargeMtuNonAndroid = () =>
       settingsController.isFeatureFlagEnabled(.largeBleMtuNonAndroid);
 
@@ -603,6 +618,7 @@ void main(List<String> args) async {
         webUIService: webUIService,
         webUIStorage: webUIStorage,
         updateCheckService: updateCheckService,
+        macosUpdater: macosUpdater,
         webViewLogService: webViewLogService,
         presenceController: presenceController,
         beanStorage: beanStorage,
@@ -784,6 +800,7 @@ class AppRoot extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
+  final MacOSUpdater? macosUpdater;
   final WebViewLogService webViewLogService;
   final PresenceController presenceController;
   final BeanStorageService? beanStorage;
@@ -812,6 +829,7 @@ class AppRoot extends StatefulWidget {
     required this.connectionManager,
     required this.scanStateGuardian,
     this.updateCheckService,
+    this.macosUpdater,
     this.beanStorage,
     this.grinderStorage,
     this.profileStorageService,
@@ -875,6 +893,7 @@ class _AppRootState extends State<AppRoot> {
         webUIService: widget.webUIService,
         webUIStorage: widget.webUIStorage,
         updateCheckService: widget.updateCheckService,
+        macosUpdater: widget.macosUpdater,
         webViewLogService: widget.webViewLogService,
         presenceController: widget.presenceController,
         beanStorage: widget.beanStorage,
