@@ -16,39 +16,44 @@ import '../helpers/barrier_ble_transport.dart';
 import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/mock_settings_service.dart';
 
-/// Locks the end-to-end contract for `POST /api/v1/machine/waterLevels`:
-/// the response and the shared device-write queue stay pending until the
-/// DE1 transport write completes, and transport failures come back
-/// through the REST error mapping instead of as unhandled async errors.
 void main() {
   late BarrierBleTransport transport;
+  late De1Controller de1Controller;
+  late DeviceController deviceController;
+  late ScaleController scaleController;
   late Handler handler;
 
   setUp(() async {
     transport = BarrierBleTransport();
-    addTearDown(transport.dispose);
     transport.queueOnConnectResponses();
 
     final de1 = UnifiedDe1(transport: transport);
 
-    final deviceController = DeviceController([MockDeviceDiscoveryService()]);
+    deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
-    final de1Controller = De1Controller(controller: deviceController);
+    de1Controller = De1Controller(controller: deviceController);
     await de1Controller.connectToDe1(de1);
 
     final settingsController = SettingsController(MockSettingsService());
     await settingsController.loadSettings();
 
+    scaleController = ScaleController();
     final de1Handler = De1Handler(
       controller: de1Controller,
       settingsController: settingsController,
-      scaleController: ScaleController(),
+      scaleController: scaleController,
       workflowController: WorkflowController(),
     );
 
     final app = Router().plus;
     de1Handler.addRoutes(app);
     handler = app.call;
+  });
+
+  tearDown(() async {
+    await de1Controller.dispose();
+    deviceController.dispose();
+    scaleController.dispose();
   });
 
   Future<Response> postWaterLevels(int refillLevel) async {
