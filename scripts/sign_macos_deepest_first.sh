@@ -37,6 +37,14 @@ echo "== Signing Sparkle.framework =="
 codesign --force --options runtime --timestamp --sign "$IDENTITY" \
   "$APP/Contents/Frameworks/Sparkle.framework"
 
+echo "== Signing remaining embedded frameworks =="
+# Flutter's build leaves these ad-hoc signed; notarization requires Developer
+# ID + timestamp on every embedded framework, not just Sparkle's.
+while IFS= read -r -d '' fw; do
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$fw"
+done < <(find "$APP/Contents/Frameworks" -mindepth 1 -maxdepth 1 \
+  -name "*.framework" ! -name "Sparkle.framework" -print0)
+
 echo "== Signing host app =="
 codesign --force --options runtime --timestamp \
   --entitlements "$TMP_ENTITLEMENTS" --sign "$IDENTITY" \

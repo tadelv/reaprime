@@ -32,14 +32,22 @@ if echo "$HOST_DETAILS" | grep -q 'PRODUCT_BUNDLE_IDENTIFIER'; then
   exit 1
 fi
 
-echo "== Gate 4: Sparkle components present and signed by the Team =="
+echo "== Gate 4: all embedded frameworks signed by the Team =="
+# Ad-hoc-signed frameworks pass codesign --verify but fail notarization;
+# every framework must carry the Developer ID Team ID.
+while IFS= read -r -d '' fw; do
+  DETAILS="$(codesign -d --verbose=4 "$fw" 2>&1 || true)"
+  echo "$DETAILS" | grep -q "TeamIdentifier=$TEAM_ID" \
+    || { echo "FAIL: $fw not signed by $TEAM_ID"; echo "$DETAILS"; exit 1; }
+done < <(find "$APP/Contents/Frameworks" -mindepth 1 -maxdepth 1 -name "*.framework" -print0)
+
+echo "== Gate 4b: Sparkle nested helpers present and signed by the Team =="
 FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework/Versions/Current"
 for component in \
   "$FRAMEWORK/XPCServices/Installer.xpc" \
   "$FRAMEWORK/XPCServices/Downloader.xpc" \
   "$FRAMEWORK/Updater.app" \
-  "$FRAMEWORK/Autoupdate" \
-  "$APP/Contents/Frameworks/Sparkle.framework"; do
+  "$FRAMEWORK/Autoupdate"; do
   [ -e "$component" ] || { echo "FAIL: missing $component"; exit 1; }
   DETAILS="$(codesign -d --verbose=4 "$component" 2>&1 || true)"
   echo "$DETAILS" | grep -q "TeamIdentifier=$TEAM_ID" \
