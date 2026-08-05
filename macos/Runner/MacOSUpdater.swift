@@ -118,9 +118,6 @@ final class MacOSUpdater: NSObject, SPUUpdaterDelegate {
       controller.startUpdater()
       configured = true
     }
-    // Copy the pre-Sparkle Flutter default into Sparkle exactly once. After
-    // migration, only setAutomaticChecks(_:) writes to Sparkle so the two
-    // settings surfaces cannot drift.
     if !UserDefaults.standard.bool(forKey: Self.automaticChecksMigrationKey) {
       controller.automaticallyChecksForUpdates = automaticChecks
       UserDefaults.standard.set(true, forKey: Self.automaticChecksMigrationKey)
