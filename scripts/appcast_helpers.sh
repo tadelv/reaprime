@@ -28,6 +28,29 @@ zip_read_build() {
     | plutil -extract CFBundleVersion raw -
 }
 
+# "total default-channel-count" pair for the feed.
+appcast_item_counts() {
+  local appcast="$1"
+  local total default_count
+  total=$(xmllint --xpath 'count(//*[local-name()="item"])' "$appcast" 2>/dev/null)
+  default_count=$(xmllint --xpath \
+    'count(//*[local-name()="item"][not(*[local-name()="channel"])])' "$appcast" 2>/dev/null)
+  echo "$total $default_count"
+}
+
+# Reject a feed that shrank: a beta publication must never erase stable or
+# historical items.
+assert_item_counts_not_decreased() {
+  local old_pair="$1" appcast="$2"
+  local old_total old_default new_total new_default
+  read -r old_total old_default <<< "$old_pair"
+  read -r new_total new_default <<< "$(appcast_item_counts "$appcast")"
+  [ "$new_total" -ge "$old_total" ] || {
+    echo "FAIL: feed item count decreased ($old_total -> $new_total)"; return 1; }
+  [ "$new_default" -ge "$old_default" ] || {
+    echo "FAIL: default-channel item count decreased ($old_default -> $new_default)"; return 1; }
+}
+
 # Assert the item for $build carries the expected enclosure URL, an EdDSA
 # signature, and the expected channel ("" for the default/stable channel).
 appcast_assert_item() {

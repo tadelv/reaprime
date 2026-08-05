@@ -67,6 +67,18 @@ appcast_assert_item "$TMP/fixture.xml" 101 \
   "https://github.com/decentespresso/decaid/releases/download/v2.0.0/decaid-macos-2.0.0.zip" \
   "beta" && echo "ok: beta item assertions pass"
 
+# --- Count assertions ---
+read -r TOTAL DEFAULT_COUNT <<< "$(appcast_item_counts "$TMP/fixture.xml")"
+[ "$TOTAL" = "2" ] || fail "appcast_item_counts total expected 2, got '$TOTAL'"
+[ "$DEFAULT_COUNT" = "1" ] || fail "appcast_item_counts default expected 1, got '$DEFAULT_COUNT'"
+echo "ok: appcast_item_counts = $TOTAL total, $DEFAULT_COUNT default"
+
+assert_item_counts_not_decreased "$TOTAL $DEFAULT_COUNT" "$TMP/fixture.xml" \
+  && echo "ok: equal counts accepted"
+if assert_item_counts_not_decreased "3 2" "$TMP/fixture.xml" >/dev/null 2>&1; then
+  fail "assert_item_counts_not_decreased accepted a shrunken feed"
+fi
+
 if appcast_assert_item "$TMP/fixture.xml" 101 \
   "https://github.com/decentespresso/decaid/releases/download/v2.0.0/decaid-macos-2.0.0.zip" \
   "stable" >/dev/null 2>&1; then

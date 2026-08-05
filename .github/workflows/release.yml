@@ -700,9 +700,7 @@ jobs:
     needs: [create-release]
     runs-on: macos-latest
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      contents: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -723,6 +721,32 @@ jobs:
             echo "channel=stable" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Fetch previous appcast from gh-pages branch
+        id: feed
+        run: |
+          # The gh-pages branch is the durable source of truth, read through
+          # git (not the Pages CDN) so a transient Pages/TLS failure can never
+          # be mistaken for a first publication.
+          if git fetch origin gh-pages 2>/dev/null && git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git show origin/gh-pages:appcast.xml > "$RUNNER_TEMP/previous-appcast.xml"
+            test -s "$RUNNER_TEMP/previous-appcast.xml"
+            echo "feed-present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "feed-present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce one-time bootstrap
+        if: steps.feed.outputs.feed-present == 'false'
+        run: |
+          if [ "${{ vars.SPARKLE_APPCAST_BOOTSTRAP }}" != "true" ]; then
+            echo "No appcast.xml exists on the gh-pages branch."
+            echo "For the FIRST Sparkle release only, set the repo variable"
+            echo "SPARKLE_APPCAST_BOOTSTRAP=true, re-run this workflow on the"
+            echo "release tag, then delete the variable."
+            exit 1
+          fi
+          echo "Bootstrap authorized via SPARKLE_APPCAST_BOOTSTRAP"
+
       - name: Download the release ZIP asset
         run: |
           gh release download "${{ steps.version.outputs.tag }}" \
@@ -740,10 +764,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download Sparkle 2.9.5 release tools
+      - name: Download Sparkle 2.9.5 release tools (pinned checksum)
         run: |
-          curl -sL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+          curl -fSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
             https://github.com/sparkle-project/Sparkle/releases/download/2.9.5/Sparkle-2.9.5.tar.xz
+          echo "015336b601493e05c237964954bff6191370003d94edefe663724c88840d73cc  $RUNNER_TEMP/sparkle.tar.xz" \
+            | shasum -a 256 -c -
           tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP" bin
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           generate_appcast --help >/dev/null
@@ -754,27 +780,38 @@ jobs:
       - name: Generate and validate appcast
         run: |
           ZIP="$(ls "$RUNNER_TEMP/appcast-staging"/decaid-macos-*.zip | head -1)"
-          # Deploy dir holds only the feed (and any future static assets); the
-          # ZIP stays in staging, which generate_appcast uses as its source.
           mkdir -p "$RUNNER_TEMP/pages"
+          PREV=""
+          if [ -f "$RUNNER_TEMP/previous-appcast.xml" ]; then
+            PREV="$RUNNER_TEMP/previous-appcast.xml"
+          fi
           scripts/publish_appcast.sh \
             "$ZIP" \
             "$RUNNER_TEMP/appcast-staging/release-notes.md" \
             "https://github.com/decentespresso/decaid/releases/download/${{ steps.version.outputs.tag }}/" \
             "${{ steps.version.outputs.channel }}" \
             - \
-            "$RUNNER_TEMP/pages/appcast.xml" <<< "${{ secrets.SPARKLE_ED_PRIVATE_KEY }}"
+            "$RUNNER_TEMP/pages/appcast.xml" \
+            "$PREV" <<< "${{ secrets.SPARKLE_ED_PRIVATE_KEY }}"
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: "$RUNNER_TEMP/pages"
-          name: sparkle-appcast
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
-        with:
-          artifact_name: sparkle-appcast
+      - name: Publish appcast to gh-pages branch
+        run: |
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git switch -c gh-pages origin/gh-pages
+          else
+            git switch --orphan gh-pages
+          fi
+          cp "$RUNNER_TEMP/pages/appcast.xml" appcast.xml
+          touch .nojekyll
+          git add appcast.xml .nojekyll
+          if git diff --cached --quiet; then
+            echo "appcast.xml unchanged; nothing to commit"
+          else
+            git -c user.name="github-actions[bot]" \
+                -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                commit -m "appcast: update for ${{ steps.version.outputs.tag }}"
+            git push origin gh-pages
+          fi
 
 
 
