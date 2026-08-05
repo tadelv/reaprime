@@ -114,8 +114,9 @@ the feed.
      every item already in the feed (see the version policy below);
    - runs `generate_appcast` with the `SPARKLE_ED_PRIVATE_KEY` secret, embedding the GitHub release
      notes;
-   - asserts total and default-channel item counts never decrease (a beta publication can never
-     erase stable or historical items);
+   - asserts the feed grows by exactly one item (one more default-channel item for a
+     stable publication) and that every old (version, channel) pair survives — a beta
+     publication can never erase stable or historical items;
    - validates the feed with `xmllint` + `scripts/appcast_helpers.sh` assertions;
    - commits `appcast.xml` to the `gh-pages` branch, which Pages serves.
 

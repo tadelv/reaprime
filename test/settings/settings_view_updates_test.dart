@@ -42,10 +42,14 @@ Future<(UpdateCheckService, _RecordingUpdater)> _pumpSettingsView(
   List<MethodCall> calls, {
   required bool macos,
   bool initializeService = false,
+  bool sparkleConfigureFails = false,
 }) async {
   TestWidgetsFlutterBinding.ensureInitialized();
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(_channel, (call) async {
+        if (sparkleConfigureFails && call.method == 'configure') {
+          throw PlatformException(code: 'configure_failed');
+        }
         calls.add(call);
         return null;
       });
@@ -70,6 +74,14 @@ Future<(UpdateCheckService, _RecordingUpdater)> _pumpSettingsView(
     await updateCheckService.initialize();
   }
 
+  final macosUpdater = MacOSUpdater(supported: macos);
+  try {
+    await macosUpdater.configure(
+      automaticChecks: settingsController.automaticUpdateCheck,
+      channel: settingsController.updateChannel,
+    );
+  } catch (_) {}
+
   // ShadApp provides no ScaffoldMessenger (WidgetsApp-based); SettingsView's
   // own Scaffold supplies the Material ancestor, so only the messenger needs
   // wrapping here.
@@ -79,7 +91,7 @@ Future<(UpdateCheckService, _RecordingUpdater)> _pumpSettingsView(
         child: SettingsView(
           controller: settingsController,
           updateCheckService: updateCheckService,
-          macosUpdater: MacOSUpdater(supported: macos),
+          macosUpdater: macosUpdater,
           presenceController: presenceController,
           webUIStorage: webUIStorage,
         ),
@@ -200,6 +212,65 @@ void main() {
       );
       await tester.pump(const Duration(hours: 13));
       expect(updater.checkCalls, 2);
+    });
+
+    testWidgets('macOS manual check falls back to the Dart path when Sparkle '
+        'configure failed', (tester) async {
+      final calls = <MethodCall>[];
+      await _pumpSettingsView(
+        tester,
+        calls,
+        macos: true,
+        sparkleConfigureFails: true,
+      );
+
+      await tester.tap(find.text('Check for updates'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // No Sparkle delegation: the failed configure disabled the capability.
+      expect(calls.where((c) => c.method == 'checkForUpdates'), isEmpty);
+      expect(find.text('Checking for updates...'), findsOneWidget);
+
+      // The Dart fallback keeps the existing Snackbar flow.
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('You are on the latest version'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('macOS toggle still updates the Dart scheduler when Sparkle '
+        'configure failed', (tester) async {
+      final calls = <MethodCall>[];
+      final (_, updater) = await _pumpSettingsView(
+        tester,
+        calls,
+        macos: true,
+        sparkleConfigureFails: true,
+      );
+
+      // Initial switch value is on; toggle off, then on, then off so no
+      // periodic timer is left pending.
+      await tester.tap(
+        find.widgetWithText(ShadSwitch, 'Automatic update checks'),
+      );
+      await tester.pump();
+      expect(updater.checkCalls, 0); // disable does not check
+
+      await tester.tap(
+        find.widgetWithText(ShadSwitch, 'Automatic update checks'),
+      );
+      await tester.pump();
+      expect(updater.checkCalls, 1); // enable ran the Dart service
+
+      await tester.tap(
+        find.widgetWithText(ShadSwitch, 'Automatic update checks'),
+      );
+      await tester.pump();
+
+      // No Sparkle calls at all in the degraded state.
+      expect(calls.where((c) => c.method == 'setAutomaticChecks'), isEmpty);
     });
 
     testWidgets('non-macOS manual check keeps the existing Snackbar flow', (
