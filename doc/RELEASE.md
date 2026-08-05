@@ -147,8 +147,26 @@ archive in place under the same appcast version; publish a corrected release wit
 2. Install the older build in `/Applications`, launch once, then check Settings > Check for updates.
 3. Confirm data/settings survive the relaunch and the bundle ID is unchanged.
 
-The first public Sparkle-enabled release is a baseline: older Decaid builds cannot self-update into
-it.
+### Acceptance gate: notarized two-build update (required before the first public Sparkle release)
+
+The full procedure lives in `doc/plans/archive/521-macos-auto-update-sparkle/` (Phase 4). Use two
+Developer-ID-signed, notarized builds with increasing `CFBundleVersion` values and a temporary
+signed feed:
+
+1. Install the older build in `/Applications` and launch it once.
+2. Stable channel: publish a Beta item only; a manual check must report no Stable update.
+3. Switch to Beta; a manual check must offer the Beta update.
+4. Accept it; verify download, sandboxed XPC installation, relaunch, the new build number, the
+   same bundle ID, the same application data, and retained settings.
+5. Publish a newer Stable item; both channels must offer it.
+6. Tamper with one byte of the ZIP; Sparkle must reject it before extraction.
+7. Sign an archive with a different EdDSA key or app-signing identity; Sparkle must reject it.
+8. Disable automatic checks, relaunch, and confirm no scheduled check occurs; a manual check must
+   still work.
+
+Do not close #521 until the baseline-to-newer-build update has been demonstrated with
+production-equivalent signatures. The first public Sparkle-enabled release is a baseline: older
+Decaid builds cannot self-update into it.
 
 ## Editing Release Notes
 

@@ -387,12 +387,51 @@ class SettingsView extends StatelessWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
-    if (macosUpdater?.isAvailable == true) {
-      try {
-        await macosUpdater?.checkForUpdates();
-      } catch (e, st) {
-        Logger('Settings View').warning('Sparkle manual check failed', e, st);
+    final updater = macosUpdater;
+    if (updater != null && updater.isSupported) {
+      // macOS: Sparkle owns app updates.
+      if (updater.isAvailable) {
+        try {
+          await updater.checkForUpdates();
+        } catch (e, st) {
+          Logger('Settings View').warning('Sparkle manual check failed', e, st);
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Update check failed: $e')));
+        }
+        return;
       }
+      // Sparkle could not be configured: no functional app-update path exists
+      // on macOS, so never claim a Dart "latest version" result.
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Auto-update unavailable'),
+          content: const Text(
+            'The built-in updater could not be configured on this Mac. '
+            'Download the latest Decaid build from GitHub Releases.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Later'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await launchUrl(
+                  Uri.parse(
+                    'https://github.com/decentespresso/decaid/releases',
+                  ),
+                );
+              },
+              child: const Text('Open Releases'),
+            ),
+          ],
+        ),
+      );
       return;
     }
     final log = Logger('Settings View');

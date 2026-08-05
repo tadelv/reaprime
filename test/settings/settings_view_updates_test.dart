@@ -43,14 +43,19 @@ Future<(UpdateCheckService, _RecordingUpdater)> _pumpSettingsView(
   required bool macos,
   bool initializeService = false,
   bool sparkleConfigureFails = false,
+  bool sparkleCheckThrows = false,
+  bool serviceIsMacOS = false,
 }) async {
   TestWidgetsFlutterBinding.ensureInitialized();
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(_channel, (call) async {
+        calls.add(call);
         if (sparkleConfigureFails && call.method == 'configure') {
           throw PlatformException(code: 'configure_failed');
         }
-        calls.add(call);
+        if (sparkleCheckThrows && call.method == 'checkForUpdates') {
+          throw PlatformException(code: 'check_failed');
+        }
         return null;
       });
 
@@ -68,7 +73,7 @@ Future<(UpdateCheckService, _RecordingUpdater)> _pumpSettingsView(
     webUIStorage: webUIStorage,
     updater: updater,
     platformIsAndroid: false,
-    platformIsMacOS: false,
+    platformIsMacOS: serviceIsMacOS,
   );
   if (initializeService) {
     await updateCheckService.initialize();
@@ -214,31 +219,60 @@ void main() {
       expect(updater.checkCalls, 2);
     });
 
-    testWidgets('macOS manual check falls back to the Dart path when Sparkle '
-        'configure failed', (tester) async {
-      final calls = <MethodCall>[];
-      await _pumpSettingsView(
-        tester,
-        calls,
-        macos: true,
-        sparkleConfigureFails: true,
-      );
+    testWidgets(
+      'macOS manual check with Sparkle unavailable shows the manual-download '
+      'dialog instead of a false latest-version claim',
+      (tester) async {
+        final calls = <MethodCall>[];
+        final (_, updater) = await _pumpSettingsView(
+          tester,
+          calls,
+          macos: true,
+          sparkleConfigureFails: true,
+          // A real macOS service would no-op app checks; the degraded path
+          // must never route through it or claim "latest version".
+          serviceIsMacOS: true,
+        );
 
-      await tester.tap(find.text('Check for updates'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.text('Check for updates'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // No Sparkle delegation: the failed configure disabled the capability.
-      expect(calls.where((c) => c.method == 'checkForUpdates'), isEmpty);
-      expect(find.text('Checking for updates...'), findsOneWidget);
+        // No Sparkle delegation and no APK/GitHub application check.
+        expect(calls.where((c) => c.method == 'checkForUpdates'), isEmpty);
+        expect(updater.checkCalls, 0);
 
-      // The Dart fallback keeps the existing Snackbar flow.
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('You are on the latest version'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pump(const Duration(milliseconds: 300));
-    });
+        // Explicit manual-download prompt, not a false "latest version".
+        expect(find.text('Checking for updates...'), findsNothing);
+        expect(find.text('You are on the latest version'), findsNothing);
+        expect(find.text('Auto-update unavailable'), findsOneWidget);
+        expect(find.text('Open Releases'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'macOS manual check shows failure feedback when Sparkle throws',
+      (tester) async {
+        final calls = <MethodCall>[];
+        await _pumpSettingsView(
+          tester,
+          calls,
+          macos: true,
+          sparkleCheckThrows: true,
+        );
+
+        await tester.tap(find.text('Check for updates'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(calls.where((c) => c.method == 'checkForUpdates'), hasLength(1));
+        expect(find.textContaining('Update check failed'), findsOneWidget);
+
+        // Let the Snackbar expire so no timer is left pending.
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pump(const Duration(milliseconds: 300));
+      },
+    );
 
     testWidgets('macOS toggle still updates the Dart scheduler when Sparkle '
         'configure failed', (tester) async {
