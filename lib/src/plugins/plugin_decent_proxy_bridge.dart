@@ -15,6 +15,8 @@ class PluginDecentProxyBridge {
     required String? path,
     String method = 'GET',
     Map<String, String>? query,
+    String? body,
+    String? contentType,
   }) async {
     if (manifest == null) {
       throw StateError('Plugin is not loaded: $pluginId');
@@ -33,15 +35,36 @@ class PluginDecentProxyBridge {
     }
 
     final normalizedMethod = method.toUpperCase();
-    if (normalizedMethod != 'GET') {
-      throw UnsupportedError('Decent proxy only supports GET for plugins');
+    final callerId = 'plugin:$pluginId';
+    final DecentProxyResponse response;
+    switch (normalizedMethod) {
+      case 'GET':
+        response = await decentProxyService!.proxyGet(
+          callerId: callerId,
+          path: path,
+          query: query,
+        );
+      case 'POST':
+        response = await decentProxyService!.proxyPost(
+          callerId: callerId,
+          path: path,
+          query: query,
+          body: body,
+          contentType: contentType,
+        );
+      case 'PUT':
+        response = await decentProxyService!.proxyPut(
+          callerId: callerId,
+          path: path,
+          query: query,
+          body: body,
+          contentType: contentType,
+        );
+      default:
+        throw UnsupportedError(
+          'Decent proxy supports GET, POST, PUT for plugins',
+        );
     }
-
-    final response = await decentProxyService!.proxyGet(
-      callerId: 'plugin:$pluginId',
-      path: path,
-      query: query,
-    );
     return {
       'status': response.statusCode,
       'headers': response.headers,

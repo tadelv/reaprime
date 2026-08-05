@@ -432,15 +432,23 @@ void main(List<String> args) async {
     decentProxyService = null;
   } else {
     final decentCredentialStore = await createCredentialStore();
+    // Override with --dart-define=DECENT_BASE_URL=http://localhost:8000 for
+    // local server development; defaults to production.
+    const decentBaseUrl = String.fromEnvironment(
+      'DECENT_BASE_URL',
+      defaultValue: 'https://decentespresso.com',
+    );
     decentAccountService = DecentAccountService(
       httpClient: http.Client(),
       credentialStore: decentCredentialStore,
+      baseUrl: decentBaseUrl,
     );
     // Same credential store as the account service: the proxy reads the
     // credentials that account login wrote, and never exposes them to callers.
     decentProxyService = DecentProxyService(
       httpClient: http.Client(),
       credentialStore: decentCredentialStore,
+      baseUrl: decentBaseUrl,
     );
     // User-managed API-client tokens: persisted in the same secure store and
     // loaded into the validator alongside the per-process skin token.

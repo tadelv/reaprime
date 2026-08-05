@@ -85,7 +85,10 @@ class MockDe1 implements De1Interface, SimulatedDevice {
   MachineInfo get machineInfo => MachineInfo(
     version: "1337",
     model: "DE1Pro",
-    serialNumber: "mock-de1",
+    serialNumber: const String.fromEnvironment(
+      'MOCK_DE1_SERIAL',
+      defaultValue: 'mock-de1',
+    ),
     groupHeadControllerPresent: false,
     extra: {},
   );

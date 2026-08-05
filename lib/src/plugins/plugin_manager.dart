@@ -132,7 +132,7 @@ class PluginManager {
           return __nativeFreeze(wrapped);
         }
 
-        function __decentProxy(pluginId, bridgeToken, path, method, query) {
+        function __decentProxy(pluginId, bridgeToken, path, method, query, body, contentType) {
           const requestId = "__decent_proxy_" + __decentProxyNonce + "_" + (++__decentProxySeq);
           const promise = new __NativePromise((resolve, reject) => {
             const pendingByPlugin = __pendingDecentProxyByPlugin(pluginId);
@@ -145,7 +145,9 @@ class PluginManager {
                 requestId: requestId,
                 path: path,
                 method: method,
-                query: query
+                query: query,
+                body: body,
+                contentType: contentType
               });
             } catch (e) {
               __mapDelete(pendingByPlugin, requestId);
@@ -440,7 +442,9 @@ class PluginManager {
               ${jsonEncode(decentProxyBridgeToken)},
               path,
               options.method || "GET",
-              options.query || {}
+              options.query || {},
+              options.body ?? null,
+              options.contentType ?? null
             );
           },
           // Add HTTP request capability
@@ -672,6 +676,8 @@ class PluginManager {
         path: msg['path'] as String?,
         method: (msg['method'] as String?) ?? 'GET',
         query: _stringMap(msg['query']),
+        body: msg['body'] as String?,
+        contentType: msg['contentType'] as String?,
       );
       _completeDecentProxyRequest(pluginId, requestId, response);
     } catch (e) {
@@ -691,6 +697,8 @@ class PluginManager {
     required String? path,
     String method = 'GET',
     Map<String, String>? query,
+    String? body,
+    String? contentType,
   }) async {
     return _decentProxyBridge.proxyForPlugin(
       pluginId: pluginId,
@@ -698,6 +706,8 @@ class PluginManager {
       path: path,
       method: method,
       query: query,
+      body: body,
+      contentType: contentType,
     );
   }
 

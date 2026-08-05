@@ -142,9 +142,16 @@ const response = await host.decentProxy("support/api/sn", {
 if (response.status === 200) {
   const serials = response.body.trim().split("\n");
 }
+
+// POST with a body (reuses the account credentials, never exposed to JS)
+const upload = await host.decentProxy("support/api/shot_upload", {
+  method: "POST",
+  body: JSON.stringify(shot),
+  contentType: "application/json"
+});
 ```
 
-The returned object has `{ status, headers, body }`. Only `GET` is supported for plugins in the phase-1 bridge. The existing proxy allowlist still applies, so plugin requests are restricted to the supported Decent backend path prefix.
+The returned object has `{ status, headers, body }`. `GET`, `POST`, and `PUT` are supported for plugins; pass `body` (string) and `contentType` for writes. The existing proxy allowlist still applies, so plugin requests are restricted to the supported Decent backend path prefix.
 
 ## Events System
 
