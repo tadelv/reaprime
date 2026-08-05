@@ -20,6 +20,10 @@ class UpdateCheckService {
   /// Injectable so the state machine is testable off-device.
   final bool _isAndroid;
 
+  /// Whether Sparkle owns app updates on this platform (macOS only).
+  /// Injectable so scheduling behavior is testable off-device.
+  final bool _isMacOS;
+
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
 
@@ -37,10 +41,12 @@ class UpdateCheckService {
     AndroidUpdater? updater,
     required WebUIStorage webUIStorage,
     bool? platformIsAndroid,
+    bool? platformIsMacOS,
   }) : _settingsService = settingsService,
        _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
        _webUIStorage = webUIStorage,
-       _isAndroid = platformIsAndroid ?? Platform.isAndroid {
+       _isAndroid = platformIsAndroid ?? Platform.isAndroid,
+       _isMacOS = platformIsMacOS ?? Platform.isMacOS {
     _state = BehaviorSubject.seeded(_snapshot(AppUpdatePhase.idle));
   }
 
@@ -151,24 +157,33 @@ class UpdateCheckService {
     }
   }
 
-  /// Start periodic update checks
+  /// Start periodic update checks. On macOS Sparkle owns app updates, so the
+  /// timer only refreshes skins; the APK-based check never runs.
   Future<void> _startPeriodicChecks() async {
     _log.info(
-      'Starting periodic update checks (every ${_checkInterval.inHours} hours)',
+      'Starting periodic update checks (every ${_checkInterval.inHours} hours)'
+      '${_isMacOS ? ' [skins only — Sparkle owns macOS app updates]' : ''}',
     );
 
-    // Check immediately if we haven't checked recently
-    final lastCheck = await _settingsService.lastUpdateCheckTime();
-    if (lastCheck == null ||
-        DateTime.now().difference(lastCheck) > _checkInterval) {
-      await checkForUpdate();
+    if (_isMacOS) {
+      // Sparkle owns app updates; the periodic timer only refreshes skins.
       await _updateSkins();
+    } else {
+      // Check immediately if we haven't checked recently
+      final lastCheck = await _settingsService.lastUpdateCheckTime();
+      if (lastCheck == null ||
+          DateTime.now().difference(lastCheck) > _checkInterval) {
+        await checkForUpdate();
+        await _updateSkins();
+      }
     }
 
     // Schedule periodic checks
     _periodicTimer?.cancel();
     _periodicTimer = Timer.periodic(_checkInterval, (_) async {
-      await checkForUpdate();
+      if (!_isMacOS) {
+        await checkForUpdate();
+      }
       await _updateSkins();
     });
   }
@@ -191,8 +206,14 @@ class UpdateCheckService {
     }
   }
 
-  /// Manually check for updates
+  /// Manually check for updates. No-op on macOS: Sparkle owns app updates and
+  /// presents its own UI; the REST/WS API must not mirror partial Sparkle
+  /// state into [AppUpdateState].
   Future<UpdateInfo?> checkForUpdate() async {
+    if (_isMacOS) {
+      _log.info('macOS app updates are owned by Sparkle; skipping APK check');
+      return null;
+    }
     try {
       _emit(AppUpdatePhase.checking);
       _log.info('Checking for updates (current: ${BuildInfo.version})');

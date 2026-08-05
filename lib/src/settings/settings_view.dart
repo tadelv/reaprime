@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/services/android_updater.dart';
+import 'package:reaprime/src/services/macos_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
 import 'package:reaprime/src/settings/common.dart';
@@ -24,6 +25,7 @@ class SettingsView extends StatelessWidget {
     super.key,
     required this.controller,
     this.updateCheckService,
+    this.macosUpdater,
     required this.presenceController,
     this.webUIStorage,
   });
@@ -33,6 +35,7 @@ class SettingsView extends StatelessWidget {
   final SettingsController controller;
   final PresenceController presenceController;
   final UpdateCheckService? updateCheckService;
+  final MacOSUpdater? macosUpdater;
   final WebUIStorage? webUIStorage;
 
   @override
@@ -91,7 +94,11 @@ class SettingsView extends StatelessWidget {
                   value: controller.automaticUpdateCheck,
                   onChanged: (v) async {
                     await controller.setAutomaticUpdateCheck(v);
-                    if (v) {
+                    if (Platform.isMacOS) {
+                      // Sparkle owns the macOS scheduler; the Flutter switch is
+                      // just the control surface.
+                      await macosUpdater?.setAutomaticChecks(v);
+                    } else if (v) {
                       await updateCheckService?.enableAutomaticChecks();
                     } else {
                       await updateCheckService?.disableAutomaticChecks();
@@ -303,7 +310,12 @@ class SettingsView extends StatelessWidget {
   ) async {
     await controller.setUpdateChannel(channel);
     if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-    await updateCheckService?.requestCheck();
+    if (Platform.isMacOS) {
+      // Sparkle re-resolves the feed; the Dart APK check never runs on macOS.
+      await macosUpdater?.setChannel(channel);
+    } else {
+      await updateCheckService?.requestCheck();
+    }
   }
 
   void _showAboutSection(BuildContext context) {
@@ -365,6 +377,12 @@ class SettingsView extends StatelessWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
+    if (Platform.isMacOS) {
+      // Sparkle presents its own native UI and error handling; the Dart
+      // "checking..." / "latest version" Snackbars would be misleading here.
+      await macosUpdater?.checkForUpdates();
+      return;
+    }
     final log = Logger('Settings View');
     try {
       if (!context.mounted) return;
