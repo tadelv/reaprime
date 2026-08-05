@@ -538,7 +538,7 @@ class UnifiedDe1 implements De1Interface {
     try {
       value.setUint16(0, 0, Endian.big);
       value.setUint16(2, newRefillLevel * 256, Endian.big);
-      _transport.writeWithResponse(
+      await _transport.writeWithResponse(
         Endpoint.waterLevels,
         value.buffer.asUint8List(),
       );
