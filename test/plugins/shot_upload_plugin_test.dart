@@ -91,6 +91,24 @@ PluginManifest _manifest() => PluginManifest.fromJson(
 String _pluginSource() =>
     File('assets/plugins/shot-upload.reaplugin/plugin.js').readAsStringSync();
 
+/// Advance the plugin's async work until [ready] is true (or the deadline
+/// passes). The plugin awaits JS-stubbed `fetch` promises (which resolve via
+/// QuickJS's pending-job queue) and the Dart proxy round-trip (which resolves
+/// via the Dart microtask queue), so a caller that only waits on a Future never
+/// makes progress: this drains QuickJS jobs and yields to the Dart loop each
+/// turn, the way the running app does continuously.
+Future<void> _pumpUntil(
+  PluginManager manager,
+  bool Function() ready, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!ready() && DateTime.now().isBefore(deadline)) {
+    while (manager.js.executePendingJob() > 0) {}
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
 void main() {
   /// Manager wired with a linked account + a MockClient that records the upload
   /// request; the plugin's local REST calls (fetch) are stubbed in JS.
@@ -147,12 +165,19 @@ void main() {
         captured: captured,
       );
 
-      final uploaded = expectLater(
-        manager.emitStream,
-        emits(containsPair('event', 'shotUploaded')),
-      );
+      final events = <Map<String, dynamic>>[];
+      final sub = manager.emitStream.listen(events.add);
       manager.dispatchEvent(_manifest().id, 'shotStored', {'id': 'shot-1'});
-      await uploaded.timeout(const Duration(seconds: 5));
+      await _pumpUntil(
+        manager,
+        () => events.any((e) => e['event'] == 'shotUploaded'),
+      );
+      await sub.cancel();
+      expect(
+        events.any((e) => e['event'] == 'shotUploaded'),
+        isTrue,
+        reason: 'shotUploaded not emitted; events=$events',
+      );
 
       expect(captured, hasLength(1));
       final req = captured.single;
@@ -205,10 +230,6 @@ void main() {
       captured: captured,
     );
 
-    final uploaded = expectLater(
-      manager.emitStream,
-      emits(containsPair('event', 'shotUploaded')),
-    );
     manager.dispatchEvent(_manifest().id, 'httpRequest', {
       'requestId': 'req-1',
       'endpoint': 'upload',
@@ -217,22 +238,20 @@ void main() {
       'body': null,
       'query': <String, String>{},
     });
-    await uploaded.timeout(const Duration(seconds: 5));
+
+    Map<String, dynamic>? response;
+    await _pumpUntil(manager, () {
+      response = manager.getPendingHttpResponse('req-1');
+      return response != null;
+    });
 
     expect(captured, hasLength(1));
     expect(
       captured.single.url.toString(),
       'https://decentespresso.com/support/api/shot_upload',
     );
-
-    Map<String, dynamic>? response;
-    for (var i = 0; i < 30 && response == null; i++) {
-      manager.js.executePendingJob();
-      response = manager.getPendingHttpResponse('req-1');
-      await Future<void>.delayed(Duration.zero);
-    }
     expect(response, isNotNull);
     expect(response!['status'], 200);
-    expect(jsonDecode(response['body'] as String)['ok'], true);
+    expect(jsonDecode(response!['body'] as String)['ok'], true);
   });
 }
