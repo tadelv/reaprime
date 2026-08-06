@@ -734,7 +734,7 @@ class PluginManager {
         ${jsonEncode(response)}
       );
     ''');
-    js.executePendingJob();
+    while (js.executePendingJob() > 0) {}
   }
 
   Future<void> _handlePluginStorage(
@@ -849,7 +849,7 @@ class PluginManager {
       //     }),
       //   ],
       // );
-      js.executePendingJob();
+      while (js.executePendingJob() > 0) {}
     } catch (e) {
       js.sendMessage(
         channelName: "__fetchResponse__",
@@ -857,7 +857,7 @@ class PluginManager {
           jsonEncode({'id': id, 'error': e.toString()}),
         ],
       );
-      js.executePendingJob();
+      while (js.executePendingJob() > 0) {}
     }
   }
 

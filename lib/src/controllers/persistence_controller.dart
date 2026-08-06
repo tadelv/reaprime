@@ -11,10 +11,6 @@ class PersistenceController {
 
   PersistenceController({required this.storageService});
 
-  /// Optional hook fired with the shot id immediately after a shot is
-  /// successfully persisted. Wired in main.dart to broadcast the `shotStored`
-  /// plugin event, giving plugins a reliable point (exact id, post-persistence)
-  /// to react to a newly-stored shot.
   void Function(String shotId)? onShotStored;
 
   /// Fires whenever shots are added, updated, or deleted.
