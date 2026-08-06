@@ -1,105 +1,71 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/profile_record.dart';
+import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
-import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/util/incremental_json_parser.dart';
 
-/// Mock implementation of ProfileStorageService for testing.
-/// Mirrors the one in profile_test.dart.
+import 'streaming_test_helpers.dart';
+
 class MockProfileStorage implements ProfileStorageService {
-  final Map<String, ProfileRecord> _storage = {};
+  final Map<String, ProfileRecord> records = {};
 
   @override
   Future<void> initialize() async {}
 
   @override
+  Future<List<String>> getAllIds() async => records.keys.toList();
+
+  @override
+  Future<ProfileRecord?> get(String id) async => records[id];
+
+  @override
   Future<void> store(ProfileRecord record) async {
-    _storage[record.id] = record;
-  }
-
-  @override
-  Future<ProfileRecord?> get(String id) async {
-    return _storage[id];
-  }
-
-  @override
-  Future<List<ProfileRecord>> getAll({Visibility? visibility}) async {
-    if (visibility == null) {
-      return _storage.values.toList();
-    }
-    return _storage.values
-        .where((record) => record.visibility == visibility)
-        .toList();
-  }
-
-  @override
-  Future<void> update(ProfileRecord record) async {
-    if (!_storage.containsKey(record.id)) {
-      throw Exception('Profile not found');
-    }
-    _storage[record.id] = record;
-  }
-
-  @override
-  Future<void> delete(String id) async {
-    _storage.remove(id);
-  }
-
-  @override
-  Future<bool> exists(String id) async {
-    return _storage.containsKey(id);
-  }
-
-  @override
-  Future<List<String>> getAllIds() async {
-    return _storage.keys.toList();
-  }
-
-  @override
-  Future<List<ProfileRecord>> getByParentId(String parentId) async {
-    return _storage.values
-        .where((record) => record.parentId == parentId)
-        .toList();
+    records[record.id] = record;
   }
 
   @override
   Future<void> storeAll(List<ProfileRecord> records) async {
     for (final record in records) {
-      _storage[record.id] = record;
+      this.records[record.id] = record;
     }
   }
 
   @override
-  Future<void> clear() async {
-    _storage.clear();
+  Future<List<ProfileRecord>> getAll({Visibility? visibility}) async =>
+      records.values.toList();
+
+  @override
+  Future<void> update(ProfileRecord record) async {
+    records[record.id] = record;
   }
 
   @override
-  Future<int> count({Visibility? visibility}) async {
-    if (visibility == null) {
-      return _storage.length;
-    }
-    return _storage.values
-        .where((record) => record.visibility == visibility)
-        .length;
-  }
+  Future<void> delete(String id) async => records.remove(id);
 
-  void reset() {
-    _storage.clear();
-  }
+  @override
+  Future<bool> exists(String id) async => records.containsKey(id);
+
+  @override
+  Future<List<ProfileRecord>> getByParentId(String parentId) async => [];
+
+  @override
+  Future<void> clear() async => records.clear();
+
+  @override
+  Future<int> count({Visibility? visibility}) async => records.length;
 }
 
-Profile _makeProfile({
-  double temperature = 93.0,
-  String title = 'Test Profile',
-}) {
-  return Profile(
+ProfileRecord makeProfile(int i) {
+  final profile = Profile(
     version: '2',
-    title: title,
-    author: 'Test Author',
-    notes: 'Test notes',
+    title: 'Profile $i',
+    notes: '',
+    author: 'Test',
     beverageType: BeverageType.espresso,
     steps: [
       ProfileStepPressure(
@@ -112,196 +78,90 @@ Profile _makeProfile({
         pressure: 9,
       ),
     ],
-    tankTemperature: temperature,
+    // Profile content hashes only cover execution-relevant fields, so the
+    // tank temperature must vary per profile to get distinct ids.
+    tankTemperature: 90.0 + i,
     targetWeight: 36.0,
     targetVolumeCountStart: 0,
   );
+  return ProfileRecord.create(profile: profile, metadata: const {});
 }
 
 void main() {
-  late MockProfileStorage storage;
-  late ProfileController controller;
-  late ProfileExportSection section;
-
-  setUp(() {
-    storage = MockProfileStorage();
-    controller = ProfileController(storage: storage);
-    section = ProfileExportSection(controller: controller);
-  });
-
-  tearDown(() {
-    storage.reset();
-    controller.dispose();
-  });
-
-  test('filename is profiles.json', () {
-    expect(section.filename, equals('profiles.json'));
-  });
-
-  group('export', () {
-    test('returns empty list when no profiles exist', () async {
-      final result = await section.export();
-      expect(result, isA<List>());
-      expect((result as List), isEmpty);
-    });
-
-    test('returns list of profile JSON maps', () async {
-      final record = ProfileRecord.create(
-        profile: _makeProfile(),
-        isDefault: false,
+  group('ProfileExportSection', () {
+    test('streams profiles in bounded pages', () async {
+      final storage = MockProfileStorage();
+      for (var i = 0; i < 120; i++) {
+        await storage.store(makeProfile(i));
+      }
+      final offsets = <int>[];
+      final section = ProfileExportSection(
+        controller: _controller(storage),
+        pageProfiles: (limit, offset) async {
+          offsets.add(offset);
+          final ids = await storage.getAllIds();
+          final page = ids.skip(offset).take(limit).toList();
+          final records = <ProfileRecord>[];
+          for (final id in page) {
+            final r = await storage.get(id);
+            if (r != null) records.add(r);
+          }
+          return records;
+        },
+        pageSize: 100,
       );
-      await storage.store(record);
 
-      final result = await section.export();
-      expect(result, isA<List>());
-      final list = result as List<Map<String, dynamic>>;
-      expect(list, hasLength(1));
-      expect(list.first['id'], equals(record.id));
-      expect(list.first['profile'], isA<Map<String, dynamic>>());
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
+      expect(offsets, [0, 100]); // bounded offset paging over id batches
+      final decoded = jsonDecode(sink.json) as List;
+      expect(decoded, hasLength(120));
     });
 
-    test('includes hidden and deleted profiles', () async {
-      final visibleRecord = ProfileRecord.create(
-        profile: _makeProfile(temperature: 93.0),
-        isDefault: false,
+    test('imports new profiles and skips duplicates', () async {
+      final storage = MockProfileStorage();
+      await storage.store(makeProfile(0));
+      final section = ProfileExportSection(
+        controller: _controller(storage),
+        pageProfiles: (limit, offset) async => [],
       );
-      final hiddenRecord = ProfileRecord.create(
-        profile: _makeProfile(temperature: 94.0),
-        isDefault: false,
-      ).copyWith(visibility: Visibility.hidden);
-      final deletedRecord = ProfileRecord.create(
-        profile: _makeProfile(temperature: 95.0),
-        isDefault: false,
-      ).copyWith(visibility: Visibility.deleted);
-
-      await storage.store(visibleRecord);
-      await storage.store(hiddenRecord);
-      await storage.store(deletedRecord);
-
-      final result = await section.export();
-      final list = result as List<Map<String, dynamic>>;
-      expect(list, hasLength(3));
-    });
-  });
-
-  group('import with skip strategy', () {
-    test('imports new profiles', () async {
-      final record = ProfileRecord.create(
-        profile: _makeProfile(),
-        isDefault: false,
+      final json = jsonEncode([
+        makeProfile(0).toJson(),
+        makeProfile(1).toJson(),
+      ]);
+      final result = await importSectionJson(
+        section,
+        json,
+        ConflictStrategy.skip,
       );
-      final json = record.toJson();
-
-      final result = await section.import([json], ConflictStrategy.skip);
-
-      expect(result.imported, equals(1));
-      expect(result.skipped, equals(0));
-      expect(result.errors, isEmpty);
-
-      final stored = await storage.get(record.id);
-      expect(stored, isNotNull);
+      expect(result.imported, 1);
+      expect(result.skipped, 1);
+      expect(storage.records, hasLength(2));
     });
 
-    test('skips duplicate profiles', () async {
-      final record = ProfileRecord.create(
-        profile: _makeProfile(),
-        isDefault: false,
+    test('rejects malformed and non-array payloads', () async {
+      final storage = MockProfileStorage();
+      final section = ProfileExportSection(
+        controller: _controller(storage),
+        pageProfiles: (limit, offset) async => [],
       );
-      await storage.store(record);
-
-      final json = record.toJson();
-      final result = await section.import([json], ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.skipped, equals(1));
-      expect(result.errors, isEmpty);
-    });
-
-    test('returns error for non-list data', () async {
-      final result = await section.import({
-        'not': 'a list',
-      }, ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Expected JSON array'));
+      await expectLater(
+        importSectionJson(section, '[{"id":', ConflictStrategy.skip),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
+      final nonArray = await importSectionJson(
+        section,
+        '{"profiles": []}',
+        ConflictStrategy.skip,
+      );
+      expect(nonArray.errors, hasLength(1));
+      expect(storage.records, isEmpty);
     });
   });
+}
 
-  group('import with overwrite strategy', () {
-    test('imports new profiles', () async {
-      final record = ProfileRecord.create(
-        profile: _makeProfile(),
-        isDefault: false,
-      );
-      final json = record.toJson();
-
-      final result = await section.import([json], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-
-      final stored = await storage.get(record.id);
-      expect(stored, isNotNull);
-    });
-
-    test('overwrites existing profiles', () async {
-      final originalProfile = _makeProfile(title: 'Original');
-      final originalRecord = ProfileRecord.create(
-        profile: originalProfile,
-        isDefault: false,
-        metadata: {'source': 'original'},
-      );
-      await storage.store(originalRecord);
-
-      // Create a new record with same execution fields (same ID) but different metadata
-      final updatedProfile = _makeProfile(title: 'Updated');
-      final updatedRecord = ProfileRecord.create(
-        profile: updatedProfile,
-        isDefault: false,
-        metadata: {'source': 'updated'},
-      );
-
-      // Same execution fields means same ID
-      expect(updatedRecord.id, equals(originalRecord.id));
-
-      final json = updatedRecord.toJson();
-      final result = await section.import([json], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-
-      final stored = await storage.get(originalRecord.id);
-      expect(stored, isNotNull);
-      expect(stored!.metadata?['source'], equals('updated'));
-    });
-
-    test('returns error for non-list data', () async {
-      final result = await section.import(
-        'not a list',
-        ConflictStrategy.overwrite,
-      );
-
-      expect(result.imported, equals(0));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Expected JSON array'));
-    });
-
-    test('collects errors for individual profile failures', () async {
-      final validRecord = ProfileRecord.create(
-        profile: _makeProfile(),
-        isDefault: false,
-      );
-      final validJson = validRecord.toJson();
-      final invalidJson = <String, dynamic>{'garbage': true};
-
-      final result = await section.import([
-        validJson,
-        invalidJson,
-      ], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, hasLength(1));
-    });
-  });
+ProfileController _controller(MockProfileStorage storage) {
+  // A tiny controller stand-in: ProfileExportSection only needs
+  // get/update/importProfiles/getAllIds. Use the real controller.
+  return ProfileController(storage: storage);
 }

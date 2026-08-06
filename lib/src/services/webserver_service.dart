@@ -30,6 +30,7 @@ import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:reaprime/src/services/webserver/firmware_handler.dart';
 import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_data_sources.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/steam_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
@@ -144,6 +145,7 @@ Future<void> startWebServer(
   BeanStorageService? beanStorage,
   GrinderStorageService? grinderStorage,
   required ConnectionManager connectionManager,
+  required BackupDataSources backupSources,
   WifiScaleDiscoveryService? wifiScaleDiscoveryService,
   RememberedDevicesController? rememberedDevicesController,
   DecentAccountService? decentAccountService,
@@ -257,14 +259,68 @@ Future<void> startWebServer(
 
   final dataExportHandler = DataExportHandler(
     sections: [
-      ProfileExportSection(controller: profileController),
-      ShotExportSection(controller: persistenceController),
-      SteamExportSection(controller: persistenceController),
+      ProfileExportSection(
+        controller: profileController,
+        pageProfiles: (limit, offset) async {
+          // Profile ids are small content hashes; cached for the duration of
+          // the export. Profiles are count-bounded in practice.
+          final ids = await profileController.getAllIds();
+          final page = ids.skip(offset).take(limit).toList();
+          final records = <ProfileRecord>[];
+          for (final id in page) {
+            final record = await profileController.get(id);
+            if (record != null) records.add(record);
+          }
+          return records;
+        },
+      ),
+      ShotExportSection(
+        controller: persistenceController,
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+            backupSources.pageShots(
+              limit,
+              afterTimestamp: afterTimestamp,
+              afterId: afterId,
+            ),
+      ),
+      SteamExportSection(
+        controller: persistenceController,
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+            backupSources.pageSteams(
+              limit,
+              afterTimestamp: afterTimestamp,
+              afterId: afterId,
+            ),
+      ),
       WorkflowExportSection(controller: workflowController),
       SettingsExportSection(controller: settingsController),
-      KvStoreExportSection(store: kvStoreHandler.store),
-      if (beanStorage != null) BeanExportSection(storage: beanStorage),
-      if (grinderStorage != null) GrinderExportSection(storage: grinderStorage),
+      KvStoreExportSection(
+        store: kvStoreHandler.store,
+        pageKvKeys: (namespace, offset, limit) async {
+          final keys = await kvStoreHandler.store.keys(namespace: namespace);
+          return keys.skip(offset).take(limit).toList();
+        },
+      ),
+      if (beanStorage != null)
+        BeanExportSection(
+          storage: beanStorage,
+          pageBeans: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+              backupSources.pageBeans(
+                limit,
+                afterCreatedAt: afterCreatedAt,
+                afterId: afterId,
+              ),
+        ),
+      if (grinderStorage != null)
+        GrinderExportSection(
+          storage: grinderStorage,
+          pageGrinders: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+              backupSources.pageGrinders(
+                limit,
+                afterCreatedAt: afterCreatedAt,
+                afterId: afterId,
+              ),
+        ),
     ],
   );
 

@@ -26,6 +26,30 @@ class SteamDao extends DatabaseAccessor<AppDatabase> with _$SteamDaoMixin {
     )..orderBy([(s) => OrderingTerm.desc(s.timestamp)])).get();
   }
 
+  /// Keyset-paged steam records for streaming export: ordered by (timestamp,
+  /// id) ascending; returns up to [limit] rows strictly after the cursor.
+  Future<List<SteamRecord>> getSteamsForExport({
+    int limit = 200,
+    DateTime? cursorTimestamp,
+    String? cursorId,
+  }) {
+    final query = select(steamRecords)
+      ..orderBy([
+        (s) => OrderingTerm.asc(s.timestamp),
+        (s) => OrderingTerm.asc(s.id),
+      ])
+      ..limit(limit);
+    if (cursorTimestamp != null) {
+      query.where(
+        (s) =>
+            s.timestamp.isBiggerThanValue(cursorTimestamp) |
+            (s.timestamp.equals(cursorTimestamp) &
+                s.id.isBiggerThanValue(cursorId!)),
+      );
+    }
+    return query.get();
+  }
+
   Future<SteamRecord?> getLatestSteam() {
     return (select(steamRecords)
           ..orderBy([(s) => OrderingTerm.desc(s.timestamp)])

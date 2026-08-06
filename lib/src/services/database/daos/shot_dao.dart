@@ -29,6 +29,31 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     )..orderBy([(s) => OrderingTerm.desc(s.timestamp)])).get();
   }
 
+  /// Keyset-paged shots for streaming export: ordered by (timestamp, id)
+  /// ascending; returns up to [limit] rows strictly after the cursor. Stable
+  /// under concurrent inserts/deletes (no duplicates or omissions).
+  Future<List<ShotRecord>> getShotsForExport({
+    int limit = 200,
+    DateTime? cursorTimestamp,
+    String? cursorId,
+  }) {
+    final query = select(shotRecords)
+      ..orderBy([
+        (s) => OrderingTerm.asc(s.timestamp),
+        (s) => OrderingTerm.asc(s.id),
+      ])
+      ..limit(limit);
+    if (cursorTimestamp != null) {
+      query.where(
+        (s) =>
+            s.timestamp.isBiggerThanValue(cursorTimestamp) |
+            (s.timestamp.equals(cursorTimestamp) &
+                s.id.isBiggerThanValue(cursorId!)),
+      );
+    }
+    return query.get();
+  }
+
   /// Paginated shot list without measurements for list views.
   /// Returns rows with measurementsJson set to '[]'.
   Future<List<ShotRecord>> getShotsPaginated({

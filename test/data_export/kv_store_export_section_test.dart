@@ -1,203 +1,126 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_ce_flutter/hive_flutter.dart';
-import 'package:reaprime/src/services/storage/hive_store_service.dart';
+import 'package:reaprime/src/services/storage/kv_store_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
+import 'package:reaprime/src/util/incremental_json_parser.dart';
+
+import 'streaming_test_helpers.dart';
+
+class MockKvStore implements KeyValueStoreService {
+  final Map<String, Map<String, Object>> boxes = {};
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  List<String> get namespaces => boxes.keys.toList();
+
+  @override
+  Future<Map<String, Object>> getAll({String namespace = "default"}) async =>
+      Map.of(boxes[namespace] ?? {});
+
+  @override
+  Future<Object?> get({
+    String namespace = "default",
+    required String key,
+  }) async => boxes[namespace]?[key];
+
+  @override
+  Future<List<String>> keys({String namespace = "default"}) async =>
+      (boxes[namespace] ?? {}).keys.toList();
+
+  @override
+  Future<void> set({
+    String namespace = "default",
+    required String key,
+    required Object value,
+  }) async {
+    boxes.putIfAbsent(namespace, () => {})[key] = value;
+  }
+
+  @override
+  Future<bool> delete({
+    String namespace = "default",
+    required String key,
+  }) async {
+    boxes[namespace]?.remove(key);
+    return true;
+  }
+}
 
 void main() {
-  late HiveStoreService store;
-  late KvStoreExportSection section;
-  late Directory tempDir;
+  group('KvStoreExportSection', () {
+    test('exports namespaces and key/value pairs incrementally', () async {
+      final store = MockKvStore();
+      await store.set(namespace: 'default', key: 'a', value: 1);
+      await store.set(namespace: 'default', key: 'b', value: {'nested': true});
+      await store.set(namespace: 'plugins', key: 'p', value: 'x');
+      await store.set(namespace: 'empty', key: 'k', value: 'v');
+      await store.delete(namespace: 'empty', key: 'k'); // leave namespace empty
 
-  setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('hive_kv_export_test_');
-    Hive.init(tempDir.path);
-    store = HiveStoreService(defaultNamespace: 'testKvExport');
-    await store.initialize();
-    section = KvStoreExportSection(store: store);
-  });
-
-  tearDown(() async {
-    await Hive.close();
-    if (tempDir.existsSync()) {
-      tempDir.deleteSync(recursive: true);
-    }
-  });
-
-  test('filename is store.json', () {
-    expect(section.filename, equals('store.json'));
-  });
-
-  group('export', () {
-    test('exports empty store', () async {
-      final result = await section.export();
-      expect(result, isA<Map<String, dynamic>>());
-      final map = result as Map<String, dynamic>;
-      expect(map, contains('namespaces'));
-      final namespaces = map['namespaces'] as Map<String, dynamic>;
-      expect(namespaces, contains('testKvExport'));
-      expect(namespaces['testKvExport'], isEmpty);
-    });
-
-    test('exports data in default namespace', () async {
-      await store.set(key: 'key1', value: 'value1');
-      await store.set(key: 'key2', value: 42);
-
-      final result = await section.export();
-      final namespaces =
-          (result as Map<String, dynamic>)['namespaces']
-              as Map<String, dynamic>;
-      final defaultNs = namespaces['testKvExport'] as Map<String, Object>;
-      expect(defaultNs['key1'], equals('value1'));
-      expect(defaultNs['key2'], equals(42));
-    });
-
-    test('exports data across multiple namespaces', () async {
-      await store.set(key: 'k1', value: 'v1');
-      await store.set(namespace: 'plugins', key: 'p1', value: 'data1');
-      await store.set(namespace: 'plugins', key: 'p2', value: 'data2');
-
-      final result = await section.export();
-      final namespaces =
-          (result as Map<String, dynamic>)['namespaces']
-              as Map<String, dynamic>;
-
-      expect(namespaces, contains('testKvExport'));
-      expect(namespaces, contains('plugins'));
-
-      final defaultNs = namespaces['testKvExport'] as Map<String, Object>;
-      expect(defaultNs['k1'], equals('v1'));
-
-      final pluginsNs = namespaces['plugins'] as Map<String, Object>;
-      expect(pluginsNs['p1'], equals('data1'));
-      expect(pluginsNs['p2'], equals('data2'));
-    });
-  });
-
-  group('import with skip strategy', () {
-    test('imports new key-value pairs', () async {
-      final data = {
-        'namespaces': {
-          'testKvExport': {'a': 'alpha', 'b': 'beta'},
+      final pages = <String>[];
+      final section = KvStoreExportSection(
+        store: store,
+        pageKvKeys: (namespace, offset, limit) async {
+          pages.add('$namespace@$offset');
+          final keys = await store.keys(namespace: namespace);
+          return keys.skip(offset).take(limit).toList();
         },
-      };
-
-      final result = await section.import(data, ConflictStrategy.skip);
-
-      expect(result.imported, equals(2));
-      expect(result.skipped, equals(0));
-      expect(result.errors, isEmpty);
-
-      expect(await store.get(key: 'a'), equals('alpha'));
-      expect(await store.get(key: 'b'), equals('beta'));
-    });
-
-    test('skips existing keys', () async {
-      await store.set(key: 'existing', value: 'original');
-
-      final data = {
-        'namespaces': {
-          'testKvExport': {'existing': 'new_value'},
-        },
-      };
-
-      final result = await section.import(data, ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.skipped, equals(1));
-
-      // Original value preserved
-      expect(await store.get(key: 'existing'), equals('original'));
-    });
-
-    test('returns error for missing namespaces key', () async {
-      final data = <String, dynamic>{'other': 'stuff'};
-
-      final result = await section.import(data, ConflictStrategy.skip);
-
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Expected "namespaces" key'));
-    });
-  });
-
-  group('import with overwrite strategy', () {
-    test('imports new key-value pairs', () async {
-      final data = {
-        'namespaces': {
-          'testKvExport': {'x': 'y'},
-        },
-      };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-
-      expect(await store.get(key: 'x'), equals('y'));
-    });
-
-    test('overwrites existing keys', () async {
-      await store.set(key: 'existing', value: 'original');
-
-      final data = {
-        'namespaces': {
-          'testKvExport': {'existing': 'overwritten'},
-        },
-      };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.skipped, equals(0));
-
-      expect(await store.get(key: 'existing'), equals('overwritten'));
-    });
-
-    test('imports into new namespaces', () async {
-      final data = {
-        'namespaces': {
-          'newNamespace': {'key1': 'val1'},
-        },
-      };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-
-      expect(
-        await store.get(namespace: 'newNamespace', key: 'key1'),
-        equals('val1'),
       );
+
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
+
+      final decoded = jsonDecode(sink.json) as Map<String, dynamic>;
+      final namespaces = decoded['namespaces'] as Map<String, dynamic>;
+      expect(namespaces.keys.toSet(), {'default', 'plugins', 'empty'});
+      expect(namespaces['default'], {
+        'a': 1,
+        'b': {'nested': true},
+      });
+      expect(namespaces['plugins'], {'p': 'x'});
     });
-  });
 
-  group('round-trip', () {
-    test('export then import preserves data', () async {
-      await store.set(key: 'a', value: 'alpha');
-      await store.set(namespace: 'ns2', key: 'b', value: 'beta');
+    test('imports key/value pairs at depth 3 with skip semantics', () async {
+      final store = MockKvStore();
+      await store.set(namespace: 'default', key: 'existing', value: 1);
+      final section = KvStoreExportSection(
+        store: store,
+        pageKvKeys: (namespace, offset, limit) async => [],
+      );
+      final result = await importSectionJson(
+        section,
+        jsonEncode({
+          'namespaces': {
+            'default': {'existing': 1, 'new': 2},
+            'plugins': {'setting': 'on'},
+          },
+        }),
+        ConflictStrategy.skip,
+      );
+      expect(result.imported, 2); // new + plugins/setting
+      expect(result.skipped, 1); // existing
+      expect(store.boxes['default']!['new'], 2);
+      expect(store.boxes['plugins']!['setting'], 'on');
+    });
 
-      final exported = await section.export();
-
-      // Clear the store by deleting keys
-      await store.delete(key: 'a');
-      await store.delete(namespace: 'ns2', key: 'b');
-
-      // Verify cleared
-      expect(await store.get(key: 'a'), isNull);
-      expect(await store.get(namespace: 'ns2', key: 'b'), isNull);
-
-      // Re-import
-      final result = await section.import(exported, ConflictStrategy.overwrite);
-
-      expect(result.errors, isEmpty);
-      expect(result.imported, equals(2));
-
-      // Verify the specific key-value pairs were restored
-      expect(await store.get(key: 'a'), equals('alpha'));
-      expect(await store.get(namespace: 'ns2', key: 'b'), equals('beta'));
+    test('rejects malformed payloads without importing', () async {
+      final store = MockKvStore();
+      final section = KvStoreExportSection(
+        store: store,
+        pageKvKeys: (namespace, offset, limit) async => [],
+      );
+      await expectLater(
+        importSectionJson(
+          section,
+          '{"namespaces": {"a": {"k":',
+          ConflictStrategy.skip,
+        ),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
+      expect(store.boxes, isEmpty);
     });
   });
 }

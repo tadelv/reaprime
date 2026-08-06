@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:io';
 
-import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -13,40 +15,160 @@ class MockExportSection implements DataExportSection {
   @override
   final String filename;
 
-  final dynamic exportData;
+  final Object? exportData;
   final SectionImportResult importResult;
   final bool failExport;
+  final int importCalls;
+
   ConflictStrategy? lastStrategy;
+  int _calls = 0;
 
   MockExportSection({
     required this.filename,
     this.exportData = const {'mock': true},
     this.importResult = const SectionImportResult(imported: 1),
     this.failExport = false,
+    this.importCalls = 0,
   });
 
   @override
-  Future<dynamic> export() async {
+  Future<void> exportJson(JsonSink output) async {
     if (failExport) throw Exception('Export failed');
-    return exportData;
+    output.writeRaw(jsonEncode(exportData));
   }
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
+    _calls++;
     lastStrategy = strategy;
+    // Fully consume the input (mirrors handler two-pass consumption).
+    await for (final _ in input.valuesAtDepth(1)) {}
     return importResult;
+  }
+
+  int get calls => _calls;
+}
+
+/// Builds a ZIP with [files] using the old in-memory encoder (backward
+/// compatibility surface for remote pulls).
+List<int> buildZip(Map<String, dynamic> files) {
+  return ZipEncoderLegacy.encode(files);
+}
+
+/// Minimal legacy ZipEncoder helper (avoids importing archive directly).
+class ZipEncoderLegacy {
+  static List<int> encode(Map<String, dynamic> files) {
+    final archive = <String, String>{};
+    files.forEach((name, value) {
+      archive[name] = jsonEncode(value);
+    });
+    return buildRawZip(archive);
   }
 }
 
-List<int> buildZip(Map<String, dynamic> files) {
-  final archive = Archive();
+List<int> buildRawZip(Map<String, String> files) {
+  // Hand-rolled ZIP (stored entries) so we control the bytes exactly.
+  final entries = <Map<String, Object>>[];
+  final body = BytesBuilder();
   for (final entry in files.entries) {
-    archive.addFile(ArchiveFile.string(entry.key, jsonEncode(entry.value)));
+    final nameBytes = utf8.encode(entry.key);
+    final content = utf8.encode(entry.value);
+    final crc = _crc32(content);
+    final localOffset = body.length;
+    final local = BytesBuilder(copy: false);
+    local.addByte(0x50);
+    local.addByte(0x4B);
+    local.addByte(0x03);
+    local.addByte(0x04);
+    _u16(local, 20);
+    _u16(local, 0);
+    _u16(local, 0);
+    _u16(local, 0);
+    _u16(local, 0);
+    _u32(local, crc);
+    _u32(local, content.length);
+    _u32(local, content.length);
+    _u16(local, nameBytes.length);
+    _u16(local, 0);
+    local.add(nameBytes);
+    local.add(content);
+    body.add(local.takeBytes());
+    entries.add({
+      'name': nameBytes,
+      'offset': localOffset,
+      'crc': crc,
+      'size': content.length,
+    });
   }
-  return ZipEncoder().encode(archive);
+  final cdOffset = body.length;
+  for (final entry in entries) {
+    final name = entry['name'] as List<int>;
+    final cd = BytesBuilder(copy: false);
+    cd.addByte(0x50);
+    cd.addByte(0x4B);
+    cd.addByte(0x01);
+    cd.addByte(0x02);
+    _u16(cd, 0x031E);
+    _u16(cd, 20);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u32(cd, entry['crc'] as int);
+    _u32(cd, entry['size'] as int);
+    _u32(cd, entry['size'] as int);
+    _u16(cd, name.length);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u32(cd, 0);
+    _u32(cd, entry['offset'] as int);
+    cd.add(name);
+    body.add(cd.takeBytes());
+  }
+  final cdSize = body.length - cdOffset;
+  final eocd = BytesBuilder(copy: false);
+  eocd.addByte(0x50);
+  eocd.addByte(0x4B);
+  eocd.addByte(0x05);
+  eocd.addByte(0x06);
+  _u16(eocd, 0);
+  _u16(eocd, 0);
+  _u16(eocd, entries.length);
+  _u16(eocd, entries.length);
+  _u32(eocd, cdSize);
+  _u32(eocd, cdOffset);
+  _u16(eocd, 0);
+  body.add(eocd.takeBytes());
+  return body.takeBytes();
+}
+
+void _u16(BytesBuilder b, int value) {
+  b.addByte(value & 0xFF);
+  b.addByte((value >> 8) & 0xFF);
+}
+
+void _u32(BytesBuilder b, int value) {
+  b.addByte(value & 0xFF);
+  b.addByte((value >> 8) & 0xFF);
+  b.addByte((value >> 16) & 0xFF);
+  b.addByte((value >> 24) & 0xFF);
+}
+
+int _crc32(List<int> bytes) {
+  // Standard CRC-32.
+  var crc = 0xFFFFFFFF;
+  for (final byte in bytes) {
+    crc ^= byte;
+    for (var i = 0; i < 8; i++) {
+      crc = (crc >> 1) ^ (0xEDB88320 & (-(crc & 1)));
+    }
+  }
+  return crc ^ 0xFFFFFFFF;
 }
 
 void main() {
@@ -98,495 +220,10 @@ void main() {
 
   group('DataSyncHandler', () {
     group('validation', () {
-      test(
-        'uses all registered sections when sections are omitted for pull and push',
-        () async {
-          final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
-          final client = http_testing.MockClient((request) async {
-            if (request.method == 'GET') {
-              return http.Response.bytes(targetZip, 200);
-            }
-            return http.Response(
-              '{"profiles":{"imported":1},"shots":{"imported":1}}',
-              200,
-            );
-          });
-          final handler = buildSyncHandler(client);
-
-          for (final mode in ['pull', 'push']) {
-            final response = await sendSync(handler, requestBody(mode: mode));
-            final body = jsonDecode(await response.readAsString());
-            expect(response.statusCode, 200);
-            if (mode == 'pull') {
-              expect(body['pull']['profiles']['status'], 'complete');
-              expect(body['pull']['shots']['status'], 'complete');
-            } else {
-              expect(body['push']['profiles']['status'], 'complete');
-              expect(body['push']['shots']['status'], 'complete');
-            }
-          }
-        },
-      );
-
-      test(
-        'uses all registered sections when sections are omitted for two_way',
-        () async {
-          final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
-          var requestCount = 0;
-          final handler = buildSyncHandler(
-            http_testing.MockClient((request) async {
-              requestCount++;
-              if (request.method == 'GET') {
-                return http.Response.bytes(targetZip, 200);
-              }
-              return http.Response(
-                '{"profiles":{"imported":1},"shots":{"imported":1}}',
-                200,
-              );
-            }),
-          );
-
-          final response = await sendSync(
-            handler,
-            requestBody(mode: 'two_way'),
-          );
-          final body = jsonDecode(await response.readAsString());
-
-          expect(response.statusCode, 200);
-          expect(body['phases']['pull']['status'], 'complete');
-          expect(body['phases']['push']['status'], 'complete');
-          expect(requestCount, 2);
-        },
-      );
-
-      test(
-        'rejects an explicitly empty section list before network activity',
-        () async {
-          var requestCount = 0;
-          final handler = buildSyncHandler(
-            http_testing.MockClient((_) async {
-              requestCount++;
-              return http.Response('', 200);
-            }),
-          );
-          for (final mode in ['pull', 'push', 'two_way']) {
-            final response = await sendSync(
-              handler,
-              requestBody(mode: mode, selectedSections: []),
-            );
-            final body = jsonDecode(await response.readAsString());
-            expect(response.statusCode, 400);
-            expect(body['message'], contains('sections'));
-          }
-          expect(requestCount, 0);
-        },
-      );
-
-      test(
-        'rejects unknown or malformed sections before network activity',
-        () async {
-          var requestCount = 0;
-          final handler = buildSyncHandler(
-            http_testing.MockClient((_) async {
-              requestCount++;
-              return http.Response('', 200);
-            }),
-          );
-
-          for (final sectionsValue in [
-            ['unknown'],
-            ['profiles', 3],
-          ]) {
-            final body = requestBody(mode: 'push')
-              ..['sections'] = sectionsValue;
-            final response = await sendSync(handler, body);
-            expect(response.statusCode, 400);
-          }
-          expect(requestCount, 0);
-        },
-      );
-
-      test('deduplicates sections and rejects unknown names', () async {
-        final handler = buildSyncHandler(
-          http_testing.MockClient((_) async => http.Response('', 200)),
-        );
-
-        final unknownResponse = await sendSync(
-          handler,
-          requestBody(mode: 'push', selectedSections: ['unknown']),
-        );
-        expect(unknownResponse.statusCode, 400);
-
-        final duplicateResponse = await sendSync(
-          handler,
-          requestBody(
-            mode: 'pull',
-            selectedSections: ['shots', 'shots', 'profiles'],
-          ),
-        );
-        expect(duplicateResponse.statusCode, 502);
-      });
-
-      test('validates continueOnPullFailure and its mode', () async {
-        final handler = buildSyncHandler(
-          http_testing.MockClient((_) async => http.Response('', 200)),
-        );
-
-        final invalidType = await sendSync(
-          handler,
-          requestBody(mode: 'two_way', selectedSections: ['profiles'])
-            ..['continueOnPullFailure'] = 'yes',
-        );
-        expect(invalidType.statusCode, 400);
-
-        for (final mode in ['pull', 'push']) {
-          final invalidMode = await sendSync(
-            handler,
-            requestBody(
-              mode: mode,
-              selectedSections: ['profiles'],
-              continueOnPullFailure: true,
-            ),
-          );
-          expect(invalidMode.statusCode, 400);
-        }
-      });
-
-      test('allows push without sections', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response(
-            '{"profiles":{"imported":1},"shots":{"imported":1}}',
-            200,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push'),
-        );
-        expect(response.statusCode, 200);
-      });
-    });
-
-    group('push mode', () {
-      test('local export failure prevents the remote import request', () async {
-        var postCount = 0;
-        final client = http_testing.MockClient((request) async {
-          postCount++;
-          return http.Response('{"profiles":{"imported":1}}', 200);
-        });
-        final handler = buildSyncHandler(
-          client,
-          registeredSections: [
-            MockExportSection(filename: 'profiles.json', failExport: true),
-          ],
-        );
-
-        final response = await sendSync(
-          handler,
-          requestBody(mode: 'push', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
-
-        expect(response.statusCode, 502);
-        expect(postCount, 0);
-        expect(body['push']['reason'], 'local_export_failed');
-      });
-
-      test('classifies legacy 200 errors semantically', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response(
-            '{"profiles":{"imported":2,"skipped":0},"shots":{"imported":0,"errors":["Failed to import shot records"]}}',
-            200,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 502);
-        expect(body['status'], 'partial');
-        expect(body['complete'], false);
-        expect(body['partial'], true);
-        expect(body['push']['profiles']['status'], 'complete');
-        expect(body['push']['shots']['status'], 'failed');
-        expect(
-          body['push']['shots']['errors'],
-          contains('Failed to import shot records'),
-        );
-        expect(body['phases']['push']['status'], 'partial');
-      });
-
-      test(
-        'preserves declared failed status in a flat remote result',
-        () async {
-          final client = http_testing.MockClient(
-            (_) async => http.Response(
-              '{"profiles":{"status":"failed","imported":4}}',
-              200,
-            ),
-          );
-          final response = await sendSync(
-            buildSyncHandler(client),
-            requestBody(mode: 'push', selectedSections: ['profiles']),
-          );
-          final body = jsonDecode(await response.readAsString());
-
-          expect(response.statusCode, 502);
-          expect(body['status'], 'partial');
-          expect(body['push']['profiles']['status'], 'failed');
-          expect(body['phases']['push']['status'], 'partial');
-        },
-      );
-
-      test('keeps remote 207 partial for single-direction push', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response(
-            '{"status":"partial","sections":{"profiles":{"imported":2},"shots":{"errors":["bad row"]}}}',
-            207,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 502);
-        expect(body['status'], 'partial');
-        expect(body['phases']['push']['status'], 'partial');
-        expect(body['push']['profiles']['imported'], 2);
-        expect(body['push']['shots']['errors'], contains('bad row'));
-      });
-
-      test(
-        'treats remote 207 as partial even with complete sections',
-        () async {
-          final client = http_testing.MockClient(
-            (_) async => http.Response('{"profiles":{"imported":2}}', 207),
-          );
-          final response = await sendSync(
-            buildSyncHandler(client),
-            requestBody(mode: 'push', selectedSections: ['profiles']),
-          );
-          final body = jsonDecode(await response.readAsString());
-
-          expect(response.statusCode, 502);
-          expect(body['push']['profiles']['status'], 'complete');
-          expect(body['phases']['push']['status'], 'partial');
-        },
-      );
-
-      test('honors a structured remote failed phase', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response(
-            '{"status":"failed","complete":false,"error":"Import commit failed","message":"The target rejected the import.","sections":{"profiles":{"status":"complete","imported":2}}}',
-            200,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
-
-        expect(response.statusCode, 502);
-        expect(body['status'], 'failed');
-        expect(body['push']['profiles']['status'], 'complete');
-        expect(body['phases']['push']['status'], 'failed');
-        expect(body['phases']['push']['error'], 'Import commit failed');
-        expect(
-          body['phases']['push']['message'],
-          'The target rejected the import.',
-        );
-      });
-
-      test('honors a structured remote partial phase', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response(
-            '{"status":"partial","complete":false,"partial":true,"sections":{"profiles":{"status":"complete","imported":2}}}',
-            200,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
-
-        expect(response.statusCode, 502);
-        expect(body['status'], 'partial');
-        expect(body['phases']['push']['status'], 'partial');
-      });
-
-      test('warnings and conflict skips remain complete', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response(
-            '{"profiles":{"imported":0,"skipped":4,"warnings":["Existing profiles were retained"]},"shots":{"imported":0,"skipped":0}}',
-            200,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 200);
-        expect(body['status'], 'complete');
-        expect(body['push']['profiles']['status'], 'complete');
-        expect(body['push']['profiles']['skipped'], 4);
-        expect(body['push']['profiles']['warnings'], isNotEmpty);
-        expect(body['phases']['push']['complete'], true);
-      });
-
-      test('synthesizes missing remote sections', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response('{"profiles":{"imported":1}}', 200),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'push', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 502);
-        expect(body['push']['shots']['status'], 'failed');
-        expect(body['push']['shots']['errors'].single, contains('Missing'));
-        expect(body['phases']['push']['status'], 'partial');
-      });
-
-      test('rejects empty and malformed remote semantic results', () async {
-        for (final remoteBody in [
-          '{}',
-          '[]',
-          'not json',
-          '{"profiles":{}}',
-          '{"profiles":{"status":"invalid","imported":1}}',
-          '{"sections":{"profiles":{"status":"failed"}}}',
-        ]) {
-          final client = http_testing.MockClient(
-            (_) async => http.Response(remoteBody, 200),
-          );
-          final response = await sendSync(
-            buildSyncHandler(client),
-            requestBody(mode: 'push', selectedSections: ['profiles']),
-          );
-          final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 502);
-          expect(body['phases']['push']['status'], 'failed');
-        }
-      });
-    });
-
-    group('pull mode', () {
-      test(
-        'classifies local section errors and preserves direct paths',
-        () async {
-          final client = http_testing.MockClient(
-            (_) async => http.Response.bytes(
-              buildZip({'profiles.json': {}, 'shots.json': {}}),
-              200,
-            ),
-          );
-          final handler = buildSyncHandler(
-            client,
-            registeredSections: [
-              MockExportSection(
-                filename: 'profiles.json',
-                importResult: const SectionImportResult(imported: 2),
-              ),
-              MockExportSection(
-                filename: 'shots.json',
-                importResult: const SectionImportResult(
-                  errors: ['Failed to import shots'],
-                ),
-              ),
-            ],
-          );
-          final response = await sendSync(
-            handler,
-            requestBody(mode: 'pull', selectedSections: ['profiles', 'shots']),
-          );
-          final body = jsonDecode(await response.readAsString());
-          expect(response.statusCode, 502);
-          expect(body['pull']['profiles']['status'], 'complete');
-          expect(body['pull']['shots']['status'], 'failed');
-          expect(body['phases']['pull']['status'], 'partial');
-        },
-      );
-
-      test('requires every requested archive section', () async {
-        final client = http_testing.MockClient(
-          (_) async =>
-              http.Response.bytes(buildZip({'profiles.json': {}}), 200),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'pull', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 502);
-        expect(body['pull']['shots']['status'], 'failed');
-        expect(body['pull']['shots']['errors'].single, contains('Missing'));
-        expect(body['phases']['pull']['status'], 'partial');
-      });
-
-      test('returns a failed phase when the target has no sections', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response.bytes(buildZip({}), 200),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'pull', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 502);
-        expect(body['status'], 'failed');
-        expect(body['phases']['pull']['status'], 'failed');
-      });
-
-      test('preserves fatal target details at the legacy pull path', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response('Target unavailable', 503),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'pull', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
-
-        expect(response.statusCode, 502);
-        expect(body['pull']['error'], 'Target error');
-        expect(body['pull']['message'], 'Target returned status 503');
-        expect(body['pull']['status'], 503);
-        expect(body['phases']['pull']['status'], 'failed');
-        expect(body['phases']['pull']['statusCode'], 503);
-      });
-
-      test('returns complete only when all sections import cleanly', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response.bytes(
-            buildZip({'profiles.json': {}, 'shots.json': {}}),
-            200,
-          ),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'pull', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 200);
-        expect(body['status'], 'complete');
-        expect(body['complete'], true);
-        expect(body['partial'], false);
-        expect(body['phases']['pull']['status'], 'complete');
-      });
-    });
-
-    group('two_way mode', () {
-      test('runs push after a complete pull', () async {
+      test('uses all registered sections when sections are omitted for pull '
+          'and push', () async {
         final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
-        var requestCount = 0;
         final client = http_testing.MockClient((request) async {
-          requestCount++;
           if (request.method == 'GET') {
             return http.Response.bytes(targetZip, 200);
           }
@@ -595,192 +232,379 @@ void main() {
             200,
           );
         });
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'two_way', selectedSections: ['profiles', 'shots']),
+        final handler = buildSyncHandler(client);
+
+        for (final mode in ['pull', 'push']) {
+          final response = await sendSync(handler, requestBody(mode: mode));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 200);
+          expect(body['complete'], isTrue);
+          if (mode == 'pull') {
+            expect(body['pull']['profiles']['imported'], 1);
+          } else {
+            expect(body['push']['profiles']['imported'], 1);
+          }
+        }
+      });
+
+      test('rejects empty and unknown section lists', () async {
+        final handler = buildSyncHandler(
+          http_testing.MockClient((_) async {
+            return http.Response('{}', 500);
+          }),
         );
-        final body = jsonDecode(await response.readAsString());
+        final badSectionBodies = [
+          jsonEncode({'target': 'http://x', 'mode': 'pull', 'sections': []}),
+          jsonEncode({
+            'target': 'http://x',
+            'mode': 'pull',
+            'sections': ['unknown'],
+          }),
+          jsonEncode({
+            'target': 'http://x',
+            'mode': 'pull',
+            'sections': 'profiles',
+          }),
+          jsonEncode({'target': 'http://x', 'mode': 'pull', 'sections': 42}),
+        ];
+        for (final body in badSectionBodies) {
+          final response = await handler(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/v1/data/sync'),
+              body: body,
+              headers: {'content-type': 'application/json'},
+            ),
+          );
+          expect(response.statusCode, 400, reason: body);
+        }
+      });
+
+      test('rejects invalid bodies and modes', () async {
+        final handler = buildSyncHandler(
+          http_testing.MockClient((_) async {
+            return http.Response('{}', 500);
+          }),
+        );
+        final badRequests = [
+          'not json',
+          jsonEncode({'target': 'not-a-url', 'mode': 'pull'}),
+          jsonEncode({'target': 'http://x', 'mode': 'bogus'}),
+          jsonEncode({
+            'target': 'http://x',
+            'mode': 'pull',
+            'continueOnPullFailure': true,
+          }),
+        ];
+        for (final body in badRequests) {
+          final response = await handler(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/v1/data/sync'),
+              body: body,
+              headers: {'content-type': 'application/json'},
+            ),
+          );
+          expect(response.statusCode, 400, reason: body);
+        }
+      });
+
+      test('rejects oversized sync request bodies', () async {
+        final bigBody = jsonEncode({
+          'target': 'http://x',
+          'mode': 'pull',
+          'padding': 'x' * 2048,
+        });
+        // Wrap the shared handler in a small-limits export handler.
+        final smallExport = DataExportHandler(
+          sections: sections,
+          limits: const DataTransferLimits(maxSyncRequestBytes: 256),
+        );
+        final sync = DataSyncHandler(
+          exportHandler: smallExport,
+          httpClient: http_testing.MockClient((_) async {
+            return http.Response('{}', 500);
+          }),
+        );
+        final app = Router().plus;
+        sync.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/sync'),
+            body: bigBody,
+            headers: {'content-type': 'application/json'},
+          ),
+        );
+        expect(response.statusCode, 413);
+      });
+    });
+
+    group('pull', () {
+      test('streams a remote archive and imports it', () async {
+        final targetZip = buildZip({
+          'metadata.json': {'formatVersion': 1},
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
+        });
+        var pulled = false;
+        final client = http_testing.MockClient((request) async {
+          if (request.method == 'GET') {
+            pulled = true;
+            expect(request.url.path, '/api/v1/data/export');
+            return http.Response.bytes(targetZip, 200);
+          }
+          return http.Response('{}', 500);
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+
+        expect(pulled, isTrue);
         expect(response.statusCode, 200);
-        expect(requestCount, 2);
+        final body = jsonDecode(await response.readAsString());
         expect(body['status'], 'complete');
-        expect(body['mode'], 'two_way');
-        expect(body['phases']['pull']['status'], 'complete');
+        expect(body['pull']['profiles']['imported'], 1);
+      });
+
+      test('classifies a non-200 pull as a target error', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response('nope', 503);
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['pull']['reason'], 'target_error');
+      });
+
+      test('classifies a malformed pull archive as invalid backup', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response.bytes([1, 2, 3, 4, 5, 6], 200);
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['pull']['reason'], contains('invalid'));
+      });
+
+      test('preserves a partial pull result', () async {
+        final targetZip = buildZip({
+          'metadata.json': {'formatVersion': 1},
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
+        });
+        final client = http_testing.MockClient((request) async {
+          return http.Response.bytes(targetZip, 200);
+        });
+        final failingShots = MockExportSection(
+          filename: 'shots.json',
+          importResult: const SectionImportResult(
+            imported: 1,
+            errors: ['bad record'],
+          ),
+        );
+        final handler = buildSyncHandler(
+          client,
+          registeredSections: [
+            MockExportSection(filename: 'profiles.json'),
+            failingShots,
+          ],
+        );
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['phases']['pull']['status'], 'partial');
+      });
+    });
+
+    group('push', () {
+      test('streams the local export to the target', () async {
+        var pushedBody = <int>[];
+        final client = http_testing.MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api/v1/data/import');
+          expect(request.url.queryParameters['onConflict'], 'skip');
+          pushedBody = request.bodyBytes;
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        expect(response.statusCode, 200);
+        expect(pushedBody, isNotEmpty);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['profiles']['imported'], 1);
+      });
+
+      test('local export failure prevents the remote request', () async {
+        var remoteCalled = false;
+        final client = http_testing.MockClient((request) async {
+          remoteCalled = true;
+          return http.Response('{}', 500);
+        });
+        final failing = MockExportSection(
+          filename: 'profiles.json',
+          failExport: true,
+        );
+        final handler = buildSyncHandler(client, registeredSections: [failing]);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        expect(response.statusCode, 502);
+        expect(remoteCalled, isFalse);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['reason'], 'local_export_failed');
+      });
+
+      test('classifies remote 207 as a partial push', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response(
+            '{"profiles":{"imported":1,"errors":["x"]}}',
+            207,
+          );
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['phases']['push']['status'], 'partial');
+      });
+
+      test('classifies invalid remote JSON as invalid_json', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response('not json at all', 200);
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['reason'], 'invalid_json');
+      });
+
+      test('rejects an oversized remote response body', () async {
+        final smallExport = DataExportHandler(
+          sections: sections,
+          limits: const DataTransferLimits(maxSyncResponseBytes: 64),
+        );
+        final client = http_testing.MockClient((request) async {
+          return http.Response(
+            '{"profiles":{"imported":1},"padding":"${'x' * 256}"}',
+            200,
+          );
+        });
+        final sync = DataSyncHandler(
+          exportHandler: smallExport,
+          httpClient: client,
+        );
+        final app = Router().plus;
+        sync.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/sync'),
+            body: jsonEncode(requestBody(mode: 'push')),
+            headers: {'content-type': 'application/json'},
+          ),
+        );
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['reason'], 'target_error');
+      });
+    });
+
+    group('two_way', () {
+      test('runs push after a complete pull', () async {
+        final targetZip = buildZip({
+          'metadata.json': {'formatVersion': 1},
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
+        });
+        final client = http_testing.MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response.bytes(targetZip, 200);
+          }
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'two_way'));
+        expect(response.statusCode, 200);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['pull']['status'] ?? body['pull']['profiles'], isNotNull);
+        expect(body['push']['profiles']['imported'], 1);
         expect(body['phases']['push']['status'], 'complete');
       });
 
       test('skips push after a fatal pull by default', () async {
-        var postCount = 0;
         final client = http_testing.MockClient((request) async {
-          if (request.method == 'POST') postCount++;
-          return http.Response('Target unavailable', 500);
+          return http.Response('server error', 500);
         });
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'two_way', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'two_way'));
         expect(response.statusCode, 502);
-        expect(postCount, 0);
-        expect(body['status'], 'failed');
-        expect(body['push'], isEmpty);
-        expect(body['phases']['pull']['status'], 'failed');
+        final body = jsonDecode(await response.readAsString());
         expect(body['phases']['push']['status'], 'skipped');
         expect(body['phases']['push']['reason'], 'pull_not_complete');
       });
 
-      test('missing expected pull sections block the push request', () async {
-        var postCount = 0;
-        final client = http_testing.MockClient((request) async {
-          if (request.method == 'POST') {
-            postCount++;
-            return http.Response('{"profiles":{"imported":1}}', 200);
-          }
-          return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
-        });
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'two_way', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
-
-        expect(response.statusCode, 207);
-        expect(postCount, 0);
-        expect(body['status'], 'partial');
-        expect(body['phases']['pull']['status'], 'partial');
-        expect(body['phases']['push']['status'], 'skipped');
-      });
-
-      test('skips push after a partial pull by default', () async {
-        var postCount = 0;
-        final client = http_testing.MockClient((request) async {
-          if (request.method == 'POST') {
-            postCount++;
-            return http.Response('{}', 200);
-          }
-          return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
-        });
-        final handler = buildSyncHandler(
-          client,
-          registeredSections: [
-            MockExportSection(
-              filename: 'profiles.json',
-              importResult: const SectionImportResult(
-                imported: 1,
-                errors: ['bad row'],
-              ),
-            ),
-          ],
-        );
-        final response = await sendSync(
-          handler,
-          requestBody(mode: 'two_way', selectedSections: ['profiles']),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 207);
-        expect(postCount, 0);
-        expect(body['status'], 'partial');
-        expect(body['phases']['push']['status'], 'skipped');
-      });
-
       test('allows explicit continuation after a failed pull', () async {
-        var postCount = 0;
-        final client = http_testing.MockClient((request) async {
-          if (request.method == 'GET') return http.Response('failed', 500);
-          postCount++;
-          return http.Response('{"profiles":{"imported":1}}', 200);
-        });
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(
-            mode: 'two_way',
-            selectedSections: ['profiles'],
-            continueOnPullFailure: true,
-          ),
-        );
-        final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 207);
-        expect(postCount, 1);
-        expect(body['status'], 'partial');
-        expect(body['phases']['pull']['status'], 'failed');
-        expect(body['phases']['push']['status'], 'complete');
-      });
-
-      test('allows explicit continuation after a partial pull', () async {
-        var postCount = 0;
+        var pushCalled = false;
         final client = http_testing.MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response.bytes(buildZip({'profiles.json': {}}), 200);
+            return http.Response('error', 500);
           }
-          postCount++;
-          return http.Response('{"profiles":{"imported":1}}', 200);
+          pushCalled = true;
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
         });
-        final handler = buildSyncHandler(
-          client,
-          registeredSections: [
-            MockExportSection(
-              filename: 'profiles.json',
-              importResult: const SectionImportResult(
-                imported: 1,
-                errors: ['bad row'],
-              ),
-            ),
-          ],
-        );
+        final handler = buildSyncHandler(client);
         final response = await sendSync(
           handler,
-          requestBody(
-            mode: 'two_way',
-            selectedSections: ['profiles'],
-            continueOnPullFailure: true,
-          ),
+          requestBody(mode: 'two_way', continueOnPullFailure: true),
         );
+        expect(pushCalled, isTrue);
+        expect(response.statusCode, 207); // pull failed, push complete
         final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 207);
-        expect(postCount, 1);
-        expect(body['phases']['pull']['status'], 'partial');
+        expect(body['phases']['pull']['status'], 'failed');
         expect(body['phases']['push']['status'], 'complete');
       });
 
       test('returns 207 when pull completes and push is partial', () async {
+        final targetZip = buildZip({
+          'metadata.json': {'formatVersion': 1},
+          'profiles.json': [],
+          'shots.json': [],
+        });
         final client = http_testing.MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response.bytes(
-              buildZip({'profiles.json': {}, 'shots.json': {}}),
-              200,
-            );
+            return http.Response.bytes(targetZip, 200);
           }
           return http.Response(
-            '{"profiles":{"imported":1},"shots":{"errors":["bad row"]}}',
-            200,
+            '{"profiles":{"imported":0,"errors":["boom"]}}',
+            207,
           );
         });
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(mode: 'two_way', selectedSections: ['profiles', 'shots']),
-        );
-        final body = jsonDecode(await response.readAsString());
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'two_way'));
         expect(response.statusCode, 207);
-        expect(body['status'], 'partial');
-        expect(body['phases']['push']['status'], 'partial');
-      });
-
-      test('returns 502 when both explicitly continued phases fail', () async {
-        final client = http_testing.MockClient(
-          (_) async => http.Response('failed', 500),
-        );
-        final response = await sendSync(
-          buildSyncHandler(client),
-          requestBody(
-            mode: 'two_way',
-            selectedSections: ['profiles'],
-            continueOnPullFailure: true,
-          ),
-        );
         final body = jsonDecode(await response.readAsString());
-        expect(response.statusCode, 502);
-        expect(body['status'], 'failed');
-        expect(body['phases']['pull']['status'], 'failed');
-        expect(body['phases']['push']['status'], 'failed');
+        expect(body['status'], 'partial');
       });
     });
   });

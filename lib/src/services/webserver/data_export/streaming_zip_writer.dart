@@ -1,0 +1,357 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:archive/archive.dart' show getCrc32;
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
+
+/// Thrown when a streaming ZIP write fails (limits exceeded, malformed
+/// state, or an I/O error). The caller must call [abort] and delete the
+/// temporary file.
+class ZipWriteException implements Exception {
+  final String message;
+  const ZipWriteException(this.message);
+
+  @override
+  String toString() => 'ZipWriteException: $message';
+}
+
+/// A ZIP writer that deflates each entry through `dart:io`'s chunked zlib
+/// encoder directly into a temporary file, keeping only the current
+/// in-flight chunk in memory (issue #555).
+///
+/// Entries use data descriptors (general-purpose bit 3) so sizes and CRC are
+/// unknown until the entry finishes; the central directory is written on
+/// [close]. The resulting archive is readable by `archive`'s `ZipDecoder`
+/// (data-descriptor handling confirmed in its `ZipFile.read`).
+///
+/// The writer never materializes a whole entry, a whole section, or a whole
+/// archive in memory.
+class StreamingZipWriter {
+  final File _file;
+  final RandomAccessFile _raf;
+  final DataTransferLimits _limits;
+
+  int _offset = 0;
+  int _entryCount = 0;
+  bool _closed = false;
+  bool _aborted = false;
+
+  final List<_CdEntry> _centralDirectory = [];
+  final StringBuffer _nameBuf = StringBuffer();
+
+  StreamingZipWriter._(this._file, this._raf, this._limits);
+
+  /// Creates the temporary ZIP file and opens the writer.
+  static Future<StreamingZipWriter> create(
+    Directory tempDir,
+    DataTransferLimits limits,
+  ) async {
+    final file = File('${tempDir.path}${Platform.pathSeparator}export.zip');
+    final raf = await file.open(mode: FileMode.write);
+    return StreamingZipWriter._(file, raf, limits);
+  }
+
+  /// The completed ZIP file (only valid after [close]).
+  File get file => _file;
+
+  /// Starts a new entry. The returned [ZipEntrySink] accepts raw bytes that
+  /// are deflated incrementally into the file.
+  ZipEntrySink addEntry(String name) {
+    if (_closed || _aborted) {
+      throw const ZipWriteException('The ZIP writer is already closed.');
+    }
+    final nameBytes = _utf8Name(name);
+    if (nameBytes.length > _limits.maxFilenameBytes) {
+      throw ZipWriteException('ZIP entry name is too long: $name');
+    }
+    if (_entryCount >= _limits.maxEntryCount) {
+      throw const ZipWriteException('Too many ZIP entries.');
+    }
+
+    final localHeaderOffset = _offset;
+    final headerLen = 30 + nameBytes.length;
+    if (_offset + headerLen > DataTransferLimits.maxZip32) {
+      throw const ZipWriteException(
+        'Export exceeds the 4 GiB ZIP limit; use selected-section export.',
+      );
+    }
+
+    final now = DateTime.now();
+    final time = _dosTime(now);
+    final date = _dosDate(now);
+    final buf = BytesBuilder(copy: false);
+    _writeUint32(buf, 0x04034b50);
+    _writeUint16(buf, 20); // version needed
+    _writeUint16(buf, 0x0808); // data descriptor + UTF-8 name
+    _writeUint16(buf, 8); // deflate
+    _writeUint16(buf, time);
+    _writeUint16(buf, date);
+    _writeUint32(buf, 0); // crc (in descriptor)
+    _writeUint32(buf, 0); // compressed size (in descriptor)
+    _writeUint32(buf, 0); // uncompressed size (in descriptor)
+    _writeUint16(buf, nameBytes.length);
+    _writeUint16(buf, 0); // extra length
+    buf.add(nameBytes);
+    _raf.writeFromSync(buf.takeBytes());
+    _offset += headerLen;
+
+    final entry = _EntryState(localHeaderOffset, nameBytes, time, date);
+    _entryCount++;
+    return ZipEntrySink._(this, entry);
+  }
+
+  /// Finalizes the archive: flushes the deflate output, writes data
+  /// descriptors, the central directory, and the end-of-central-directory
+  /// record. The file is complete and valid only after this returns.
+  Future<void> close() async {
+    if (_closed || _aborted) return;
+    _closed = true;
+
+    // No entries are left open: addEntry returns sinks that must be closed
+    // by the caller; if a sink is still open the section export threw and we
+    // abort instead. Central directory offset starts after all local data.
+    final cdOffset = _offset;
+    final cd = BytesBuilder(copy: false);
+    for (final entry in _centralDirectory) {
+      _writeCdEntry(cd, entry);
+    }
+    final cdBytes = cd.takeBytes();
+    if (_offset + cdBytes.length > DataTransferLimits.maxZip32) {
+      throw const ZipWriteException(
+        'Export exceeds the 4 GiB ZIP limit; use selected-section export.',
+      );
+    }
+    _raf.writeFromSync(cdBytes);
+    _offset += cdBytes.length;
+
+    final eocd = BytesBuilder(copy: false);
+    _writeUint32(eocd, 0x06054b50);
+    _writeUint16(eocd, 0); // disk number
+    _writeUint16(eocd, 0); // disk with CD start
+    _writeUint16(eocd, _entryCount);
+    _writeUint16(eocd, _entryCount);
+    _writeUint32(eocd, cdBytes.length);
+    _writeUint32(eocd, cdOffset);
+    _writeUint16(eocd, 0); // comment length
+    _raf.writeFromSync(eocd.takeBytes());
+
+    await _raf.close();
+  }
+
+  /// Closes the file handle and deletes the temporary ZIP. Safe to call
+  /// multiple times and after [close] (cleanup on failure paths).
+  Future<void> abort() async {
+    if (_aborted) return;
+    _aborted = true;
+    _closed = true;
+    try {
+      await _raf.close();
+    } catch (_) {
+      // Best effort; the file may already be closed.
+    }
+    try {
+      if (await _file.exists()) await _file.delete();
+    } catch (_) {
+      // Best effort cleanup.
+    }
+  }
+
+  // ---- internal entry state helpers ----
+
+  void _registerEntry(_EntryState entry, {required int compressedSize}) {
+    entry.compressedSize = compressedSize;
+    _centralDirectory.add(
+      _CdEntry(
+        name: entry.nameBytes,
+        localHeaderOffset: entry.localHeaderOffset,
+        crc32: entry.crc32,
+        compressedSize: compressedSize,
+        uncompressedSize: entry.uncompressedSize,
+        time: entry.time,
+        date: entry.date,
+      ),
+    );
+  }
+
+  void _writeCdEntry(BytesBuilder out, _CdEntry e) {
+    _writeUint32(out, 0x02014b50);
+    _writeUint16(out, 0x031E); // version made by: unix << 8 | 30
+    _writeUint16(out, 20); // version needed
+    _writeUint16(out, 0x0808); // flags
+    _writeUint16(out, 8); // method
+    _writeUint16(out, e.time);
+    _writeUint16(out, e.date);
+    _writeUint32(out, e.crc32);
+    _writeUint32(out, e.compressedSize);
+    _writeUint32(out, e.uncompressedSize);
+    _writeUint16(out, e.name.length);
+    _writeUint16(out, 0); // extra length
+    _writeUint16(out, 0); // comment length
+    _writeUint16(out, 0); // disk number start
+    _writeUint16(out, 0); // internal attrs
+    _writeUint32(out, 0); // external attrs
+    _writeUint32(out, e.localHeaderOffset);
+    out.add(e.name);
+  }
+
+  int get _currentOffset => _offset;
+
+  void _writeBytes(Uint8List bytes) {
+    _raf.writeFromSync(bytes);
+    _offset += bytes.length;
+  }
+
+  void _writeDescriptor(_EntryState entry) {
+    final buf = BytesBuilder(copy: false);
+    _writeUint32(buf, 0x08074b50);
+    _writeUint32(buf, entry.crc32);
+    _writeUint32(buf, entry.compressedSize);
+    _writeUint32(buf, entry.uncompressedSize);
+    _writeBytes(buf.takeBytes());
+  }
+
+  Uint8List _utf8Name(String name) {
+    _nameBuf.clear();
+    _nameBuf.write(name);
+    return Uint8List.fromList(utf8.encode(name));
+  }
+
+  static void _writeUint16(BytesBuilder b, int value) {
+    b.addByte(value & 0xFF);
+    b.addByte((value >> 8) & 0xFF);
+  }
+
+  static void _writeUint32(BytesBuilder b, int value) {
+    b.addByte(value & 0xFF);
+    b.addByte((value >> 8) & 0xFF);
+    b.addByte((value >> 16) & 0xFF);
+    b.addByte((value >> 24) & 0xFF);
+  }
+
+  static int _dosTime(DateTime dt) =>
+      ((dt.hour & 0x1F) << 11) |
+      ((dt.minute & 0x3F) << 5) |
+      ((dt.second ~/ 2) & 0x1F);
+
+  static int _dosDate(DateTime dt) =>
+      (((dt.year - 1980) & 0x7F) << 9) |
+      ((dt.month & 0x0F) << 5) |
+      (dt.day & 0x1F);
+}
+
+/// In-progress state of one entry being written.
+class _EntryState {
+  final int localHeaderOffset;
+  final Uint8List nameBytes;
+  final int time;
+  final int date;
+
+  int crc32 = 0;
+  int uncompressedSize = 0;
+  int compressedSize = 0;
+
+  _EntryState(this.localHeaderOffset, this.nameBytes, this.time, this.date);
+}
+
+class _CdEntry {
+  final Uint8List name;
+  final int localHeaderOffset;
+  final int crc32;
+  final int compressedSize;
+  final int uncompressedSize;
+  final int time;
+  final int date;
+
+  _CdEntry({
+    required this.name,
+    required this.localHeaderOffset,
+    required this.crc32,
+    required this.compressedSize,
+    required this.uncompressedSize,
+    required this.time,
+    required this.date,
+  });
+}
+
+/// Accepts raw entry bytes; deflates them incrementally into the ZIP file.
+class ZipEntrySink {
+  final StreamingZipWriter _writer;
+  final _EntryState _entry;
+
+  late final _DeflateFileSink _deflateSink;
+  late final ByteConversionSink _inSink;
+
+  bool _closed = false;
+
+  ZipEntrySink._(StreamingZipWriter writer, _EntryState entry)
+    : _writer = writer,
+      _entry = entry {
+    final encoder = ZLibCodec(raw: true, level: 6).encoder;
+    _deflateSink = _DeflateFileSink(
+      writer,
+      entry,
+      onFinish: () {
+        _writer._registerEntry(entry, compressedSize: entry.compressedSize);
+        _writer._writeDescriptor(entry);
+      },
+    );
+    _inSink = encoder.startChunkedConversion(_deflateSink);
+  }
+
+  /// Feeds raw bytes to the deflater.
+  void write(Uint8List bytes) {
+    if (_closed) {
+      throw const ZipWriteException('The ZIP entry is already closed.');
+    }
+    _entry.uncompressedSize += bytes.length;
+    if (_entry.uncompressedSize > _writer._limits.maxEntryUncompressedBytes) {
+      throw const ZipWriteException('ZIP entry exceeds the size limit.');
+    }
+    _entry.crc32 = getCrc32(bytes, _entry.crc32);
+    _inSink.add(bytes);
+  }
+
+  /// Flushes deflate output, writes the data descriptor, and finalizes the
+  /// entry's central-directory record.
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    _inSink.close();
+    _deflateSink.finalize();
+  }
+}
+
+/// Receives deflated chunks from the zlib encoder and writes them straight to
+/// the ZIP file, tracking the compressed byte count and offset.
+class _DeflateFileSink implements Sink<List<int>> {
+  final StreamingZipWriter _writer;
+  final _EntryState _entry;
+  final void Function() onFinish;
+
+  _DeflateFileSink(this._writer, this._entry, {required this.onFinish});
+
+  @override
+  void add(List<int> chunk) {
+    _entry.compressedSize += chunk.length;
+    if (_writer._currentOffset + chunk.length > DataTransferLimits.maxZip32) {
+      throw const ZipWriteException(
+        'Export exceeds the 4 GiB ZIP limit; use selected-section export.',
+      );
+    }
+    _writer._writeBytes(Uint8List.fromList(chunk));
+  }
+
+  @override
+  void close() {
+    // The encoder calls close() on its output sink after the final chunk;
+    // entry finalization (descriptor + CD record) is deferred to
+    // ZipEntrySink.close via finalize().
+    onFinish();
+  }
+
+  void finalize() {
+    // No-op; close() already handled entry registration. Kept explicit so
+    // ZipEntrySink.close has a deterministic finalization step.
+  }
+}

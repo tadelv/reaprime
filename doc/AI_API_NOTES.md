@@ -140,6 +140,52 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 - Two-way push requires a complete pull unless `continueOnPullFailure: true` is explicitly requested.
 - Skipped push is represented as a `skipped` phase, and partial section processing is not transactional.
 
+## Bounded Backup Streaming (issue #555)
+
+The backup pipeline streams data end to end; peak memory scales with one page
+of records and one JSON record, never with backup size. Rationale and traps:
+
+- **`archive` 4.0.9's ZIP APIs are not memory-bounded.** `ZipEncoder.add()`
+  deflates each entry into an in-memory `OutputMemoryStream` (a
+  section-sized compressed buffer), and `ZipDecoder.decodeStream()`
+  materializes every entry's compressed bytes with `readBytes()`. Neither
+  `ZipFileEncoder` nor `InputFileStream` fixes this. The fix is a small
+  dependency-free writer (`streaming_zip_writer.dart`, raw deflate via
+  `dart:io` `ZLibCodec(raw: true)` chunked conversion, data descriptors, CD
+  written last) and a file-backed reader (`streaming_zip_reader.dart`, EOCD
+  scan + per-entry bounded inflate with CRC/size verification). Both are
+  byte-compatible with the `archive` decoder — new exports decode with
+  `ZipDecoder`, and old `ZipEncoder` backups import.
+- **JSON is parsed with a real incremental parser**
+  (`util/incremental_json_parser.dart`): a token-level state machine that
+  yields complete values at a configured depth (1 for array sections, 3 for
+  the KV `namespaces` map, 0 for singletons), handles strings/escapes/UTF-8
+  boundaries, and throws on truncation, trailing garbage, and bad tokens.
+  Import is two-pass per section: structural validation (nothing imported),
+  then record import. Malformed JSON fails the section without importing a
+  prefix; valid JSON with individually invalid records keeps per-record
+  error accounting.
+- **Sections stream records** via injected page functions (keyset cursors for
+  shots/steams on `(timestamp, id)`, beans/grinders on `(createdAt, id)`;
+  profile ids and KV keys are small, documented exceptions). Storage
+  interfaces are unchanged; `BackupDataSources` carries the DB-backed page
+  functions from `main.dart`, and tests inject instrumented paging seams.
+- **Limits** are centralized in `data_transfer_limits.dart` and injectable
+  for tests: request body 2 GiB, entry count 4096, per-entry uncompressed
+  1 GiB, total uncompressed 2 GiB, metadata 64 KiB, per-record 64 MiB, ZIP
+  header fields 256 B/64 KiB/64 KiB, sync request 1 MiB, target response
+  8 MiB; timeouts 10 s header / 30 s idle / 10 min overall. All are below
+  ZIP64 thresholds so Zip64 can be rejected outright.
+- **Temp files**: every operation owns one unique temp directory
+  (`util/temp_archive_files.dart`), deleted in `finally` or on stream
+  cancel/done. Native export defers cleanup (grace timer) because the OS
+  share sheet reads the file asynchronously.
+- **Legacy compatibility**: entry names, JSON shapes (including
+  `store.json`'s `namespaces` wrapper and beans' embedded `batches`),
+  `metadata.json` semantics, conflict strategies, selected-section behavior,
+  platform warnings, atomic export, non-transactional section isolation, and
+  `200`/`207`/`400` + sync phase semantics are unchanged.
+
 ## Workflow PUT Queue
 
 `PUT /api/v1/workflow` operations are serialized through one queue owned by

@@ -1,46 +1,61 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
-import 'package:reaprime/src/controllers/workflow_controller.dart';
-import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/steam_export_section.dart';
+import 'package:reaprime/src/util/incremental_json_parser.dart';
 
-class _MockStorage implements StorageService {
-  final Map<String, SteamRecord> _steams = {};
+import 'shot_export_section_test.dart' show makeWorkflowJson;
+import 'streaming_test_helpers.dart';
+
+class _RecordingSteamStorage implements StorageService {
+  final Map<String, Map<String, dynamic>> records = {};
+  int stored = 0;
+  int updated = 0;
+  int steamsChangedNotifications = 0;
+
+  @override
+  Future<SteamRecord?> getSteam(String id) async {
+    final json = records[id];
+    return json == null ? null : SteamRecord.fromJson(json);
+  }
 
   @override
   Future<void> storeSteam(SteamRecord record) async {
-    _steams[record.id] = record;
+    records[record.id] = record.toJson();
+    stored++;
   }
 
   @override
   Future<void> updateSteam(SteamRecord record) async {
-    _steams[record.id] = record;
+    records[record.id] = record.toJson();
+    updated++;
   }
 
   @override
   Future<void> deleteSteam(String id) async {
-    _steams.remove(id);
+    records.remove(id);
   }
 
   @override
-  Future<List<String>> getSteamIds() async => _steams.keys.toList();
-  @override
-  Future<List<SteamRecord>> getAllSteams() async => _steams.values.toList();
-  @override
-  Future<SteamRecord?> getSteam(String id) async => _steams[id];
-  @override
-  Future<SteamRecord?> getLatestSteam() async =>
-      _steams.values.isEmpty ? null : _steams.values.last;
-  @override
-  Future<SteamRecord?> getLatestSteamMeta() async => getLatestSteam();
+  Future<List<String>> getSteamIds() async => records.keys.toList();
 
-  void reset() => _steams.clear();
+  @override
+  Future<List<SteamRecord>> getAllSteams() async =>
+      records.values.map(SteamRecord.fromJson).toList();
 
-  // Unused surface --------------------------------------------------
+  @override
+  Future<SteamRecord?> getLatestSteam() async => null;
+
+  @override
+  Future<SteamRecord?> getLatestSteamMeta() async => null;
+
+  // Shot + workflow stubs.
   @override
   Future<void> storeShot(ShotRecord record) async {}
   @override
@@ -53,10 +68,6 @@ class _MockStorage implements StorageService {
   Future<List<ShotRecord>> getAllShots() async => [];
   @override
   Future<ShotRecord?> getShot(String id) async => null;
-  @override
-  Future<void> storeCurrentWorkflow(Workflow workflow) async {}
-  @override
-  Future<Workflow?> loadCurrentWorkflow() async => null;
   @override
   Future<List<ShotRecord>> getShotsPaginated({
     int limit = 20,
@@ -86,95 +97,125 @@ class _MockStorage implements StorageService {
   Future<ShotRecord?> getLatestShot() async => null;
   @override
   Future<ShotRecord?> getLatestShotMeta() async => null;
+  @override
+  Future<void> storeCurrentWorkflow(Workflow workflow) async {}
+  @override
+  Future<Workflow?> loadCurrentWorkflow() async => null;
 }
 
-SteamRecord makeSteam(String id) => SteamRecord(
-  id: id,
-  timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
-  measurements: const [],
-  workflow: WorkflowController().currentWorkflow,
-);
+Map<String, dynamic> makeSteam(int i) => {
+  'id': 'steam-$i',
+  'timestamp': DateTime(2024, 1, 1).add(Duration(minutes: i)).toIso8601String(),
+  'workflow': makeWorkflowJson(),
+  'measurements': <Object?>[],
+};
 
 void main() {
-  late _MockStorage storage;
-  late PersistenceController controller;
-  late SteamExportSection section;
-
-  setUp(() {
-    storage = _MockStorage();
-    controller = PersistenceController(storageService: storage);
-    section = SteamExportSection(controller: controller);
-  });
-
-  tearDown(() {
-    storage.reset();
-    controller.dispose();
-  });
-
-  test('filename is steams.json', () {
-    expect(section.filename, equals('steams.json'));
-  });
-
-  group('export', () {
-    test('returns empty list when no records exist', () async {
-      final result = await section.export();
-      expect(result, isA<List>());
-      expect(result as List, isEmpty);
-    });
-
-    test('returns persisted records as JSON', () async {
-      await controller.persistSteam(makeSteam('s1'));
-      await controller.persistSteam(makeSteam('s2'));
-      final result = await section.export();
-      expect(
-        (result as List).map((m) => (m as Map)['id']),
-        containsAll(['s1', 's2']),
+  group('SteamExportSection', () {
+    test('streams records in bounded pages and encodes a JSON array', () async {
+      final pages = <int>[];
+      final section = SteamExportSection(
+        controller: PersistenceController(
+          storageService: _RecordingSteamStorage(),
+        ),
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          pages.add(limit);
+          final all =
+              List.generate(250, (i) => SteamRecord.fromJson(makeSteam(i)))
+                ..sort((a, b) {
+                  final c = a.timestamp.compareTo(b.timestamp);
+                  return c != 0 ? c : a.id.compareTo(b.id);
+                });
+          final start = all.indexWhere(
+            (s) =>
+                afterTimestamp == null ||
+                s.timestamp.isAfter(afterTimestamp) ||
+                (s.timestamp == afterTimestamp && s.id.compareTo(afterId!) > 0),
+          );
+          final from = start < 0 ? all.length : start;
+          return all.skip(from).take(limit).toList();
+        },
+        pageSize: 100,
       );
-    });
-  });
 
-  group('import', () {
-    test('rejects non-list payloads', () async {
-      final result = await section.import({
-        'not': 'a list',
-      }, ConflictStrategy.skip);
-      expect(result.errors, isNotEmpty);
-      expect(result.imported, 0);
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
+      expect(pages, everyElement(100));
+      expect(pages, hasLength(3));
+      final decoded = jsonDecode(sink.json) as List;
+      expect(decoded, hasLength(250));
+      expect(decoded.last['id'], 'steam-249');
     });
 
-    test('inserts new records', () async {
-      final payload = [makeSteam('s1').toJson(), makeSteam('s2').toJson()];
-      final result = await section.import(payload, ConflictStrategy.skip);
+    test('imports records incrementally with skip and overwrite', () async {
+      final storage = _RecordingSteamStorage();
+      final section = SteamExportSection(
+        controller: PersistenceController(storageService: storage),
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
+      final result = await importSectionJson(
+        section,
+        jsonEncode(List.generate(30, (i) => makeSteam(i))),
+        ConflictStrategy.skip,
+      );
+      expect(result.imported, 30);
+      expect(result.errors, isEmpty);
+      expect(storage.records, hasLength(30));
+
+      final overwrite = await importSectionJson(
+        section,
+        jsonEncode([makeSteam(0)]),
+        ConflictStrategy.overwrite,
+      );
+      expect(overwrite.imported, 1);
+      expect(storage.updated, 1);
+    });
+
+    test('individually invalid records keep partial results', () async {
+      final section = SteamExportSection(
+        controller: PersistenceController(
+          storageService: _RecordingSteamStorage(),
+        ),
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
+      final result = await importSectionJson(
+        section,
+        '[${jsonEncode(makeSteam(1))},'
+        '{"id":"bad","timestamp":null},'
+        '${jsonEncode(makeSteam(2))}]',
+        ConflictStrategy.skip,
+      );
       expect(result.imported, 2);
-      expect(result.skipped, 0);
-      expect(await storage.getSteam('s1'), isNotNull);
-      expect(await storage.getSteam('s2'), isNotNull);
-    });
-
-    test('skip strategy leaves existing records untouched', () async {
-      await controller.persistSteam(makeSteam('s1'));
-      final result = await section.import([
-        makeSteam('s1').toJson(),
-      ], ConflictStrategy.skip);
-      expect(result.imported, 0);
-      expect(result.skipped, 1);
-    });
-
-    test('overwrite strategy updates existing records', () async {
-      await controller.persistSteam(makeSteam('s1'));
-      final result = await section.import([
-        makeSteam('s1').toJson(),
-      ], ConflictStrategy.overwrite);
-      expect(result.imported, 1);
-      expect(result.skipped, 0);
-    });
-
-    test('reports failures as errors', () async {
-      final result = await section.import([
-        {'malformed': true},
-      ], ConflictStrategy.skip);
       expect(result.errors, hasLength(1));
-      expect(result.imported, 0);
     });
+
+    test(
+      'rejects malformed and non-array payloads without importing',
+      () async {
+        final storage = _RecordingSteamStorage();
+        final section = SteamExportSection(
+          controller: PersistenceController(storageService: storage),
+          pageSteams:
+              (limit, {afterTimestamp, afterCreatedAt, afterId}) async => [],
+        );
+        await expectLater(
+          importSectionJson(
+            section,
+            '[${jsonEncode(makeSteam(1))}, ',
+            ConflictStrategy.skip,
+          ),
+          throwsA(isA<JsonStreamFormatException>()),
+        );
+        final nonArray = await importSectionJson(
+          section,
+          '{"a": 1}',
+          ConflictStrategy.skip,
+        );
+        expect(nonArray.errors, hasLength(1));
+        expect(storage.stored, 0);
+      },
+    );
   });
 }

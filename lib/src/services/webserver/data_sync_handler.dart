@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
@@ -7,6 +9,7 @@ import 'package:reaprime/src/services/webserver/data_export/data_export_section.
 import 'package:reaprime/src/services/webserver/data_export/data_transfer_result.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
+import 'package:reaprime/src/util/temp_archive_files.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 enum SyncMode { pull, push, twoWay }
@@ -29,7 +32,6 @@ class _LocalExportException implements Exception {
 }
 
 class DataSyncHandler {
-  static const _requestTimeout = Duration(seconds: 30);
   static const _skippedPushMessage =
       'Push was not attempted because pull did not complete.';
 
@@ -50,7 +52,13 @@ class DataSyncHandler {
   Future<Response> _handleSync(Request request) async {
     final dynamic decoded;
     try {
-      decoded = jsonDecode(await request.readAsString());
+      final body = await _readRequestBody(request);
+      decoded = jsonDecode(body);
+    } on SyncBodyTooLarge {
+      return jsonPayloadTooLarge({
+        'error': 'Request body too large',
+        'message': 'The sync request body exceeds the size limit.',
+      });
     } catch (_) {
       return jsonBadRequest({'error': 'Invalid JSON'});
     }
@@ -134,10 +142,15 @@ class DataSyncHandler {
 
     DataTransferPhaseOutcome? pull;
     DataTransferPhaseOutcome? push;
+    final overallTimeout = _exportHandler.limits.syncOverallTimeout;
 
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
       try {
-        pull = await _pull(target, strategy, expectedSections);
+        pull = await _pull(
+          target,
+          strategy,
+          expectedSections,
+        ).timeout(overallTimeout);
       } catch (error) {
         pull = _failure(error);
       }
@@ -145,14 +158,24 @@ class DataSyncHandler {
 
     if (mode == SyncMode.push) {
       try {
-        push = await _push(target, strategy, sections, expectedSections);
+        push = await _push(
+          target,
+          strategy,
+          sections,
+          expectedSections,
+        ).timeout(overallTimeout);
       } catch (error) {
         push = _failure(error);
       }
     } else if (mode == SyncMode.twoWay) {
       if (pull!.complete || continueOnPullFailure) {
         try {
-          push = await _push(target, strategy, sections, expectedSections);
+          push = await _push(
+            target,
+            strategy,
+            sections,
+            expectedSections,
+          ).timeout(overallTimeout);
         } catch (error) {
           push = _failure(error);
         }
@@ -169,77 +192,134 @@ class DataSyncHandler {
     return _response(mode: mode, pull: pull, push: push);
   }
 
+  /// Streams the local export into a temp ZIP, then imports from the file.
   Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
     List<String> expectedSections,
   ) async {
+    final limits = _exportHandler.limits;
     _log.info('Pulling data from $target');
-    final response = await _httpClient
-        .get(Uri.parse('$target/api/v1/data/export'))
-        .timeout(_requestTimeout);
-    if (response.statusCode != 200) {
-      throw SyncTargetException(
-        'Target error',
-        'Target returned status ${response.statusCode}',
-        statusCode: response.statusCode,
+    final tempDir = await TempArchiveDir.create('reaprime-sync-pull-');
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$target/api/v1/data/export'),
       );
-    }
+      final streamed = await _httpClient
+          .send(request)
+          .timeout(limits.syncHeaderTimeout);
 
-    final outcome = await _exportHandler.importFromBytes(
-      response.bodyBytes,
-      strategy,
-      sections: expectedSections,
-    );
-    return outcome.phase;
+      if (streamed.statusCode != 200) {
+        throw SyncTargetException(
+          'Target error',
+          'Target returned status ${streamed.statusCode}',
+          statusCode: streamed.statusCode,
+        );
+      }
+
+      final zipFile = File(tempDir.filePath('pull.zip'));
+      final raf = await zipFile.open(mode: FileMode.write);
+      var received = 0;
+      try {
+        await for (final chunk in streamed.stream.timeout(
+          limits.syncIdleTimeout,
+        )) {
+          received += chunk.length;
+          if (received > limits.maxImportRequestBytes) {
+            throw InvalidBackupException(
+              message: 'The pulled archive exceeds the size limit.',
+              reason: 'request_too_large',
+            );
+          }
+          raf.writeFromSync(chunk);
+        }
+      } finally {
+        await raf.close();
+      }
+
+      final outcome = await _exportHandler.importFromZipFile(
+        zipFile,
+        strategy,
+        sections: expectedSections,
+      );
+      return outcome.phase;
+    } finally {
+      await tempDir.dispose();
+    }
   }
 
+  /// Exports locally into a temp ZIP and streams it to the target with a
+  /// known content length.
   Future<DataTransferPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
     List<String>? sections,
     List<String> expectedSections,
   ) async {
+    final limits = _exportHandler.limits;
     _log.info('Pushing data to $target');
-    final List<int> zipBytes;
+    final tempDir = await TempArchiveDir.create('reaprime-sync-push-');
     try {
-      zipBytes = await _exportHandler.exportToBytes(sections: sections);
-    } catch (error) {
-      throw _LocalExportException(error);
-    }
+      final File zipFile;
+      try {
+        zipFile = await _exportHandler.exportToZipFile(
+          tempDir.directory,
+          sections: sections,
+        );
+      } catch (error) {
+        throw _LocalExportException(error);
+      }
 
-    final response = await _httpClient
-        .post(
-          Uri.parse('$target/api/v1/data/import?onConflict=${strategy.name}'),
-          body: zipBytes,
-          headers: {'Content-Type': 'application/octet-stream'},
-        )
-        .timeout(_requestTimeout);
-    if (response.statusCode != 200 && response.statusCode != 207) {
-      throw SyncTargetException(
-        'Target error',
-        'Target returned status ${response.statusCode}',
-        statusCode: response.statusCode,
+      final length = await zipFile.length();
+      final request = http.StreamedRequest(
+        'POST',
+        Uri.parse('$target/api/v1/data/import?onConflict=${strategy.name}'),
       );
-    }
+      request.headers['content-type'] = 'application/octet-stream';
+      request.contentLength = length;
+      final bodyFuture = request.sink
+          .addStream(zipFile.openRead())
+          .then((_) => request.sink.close());
 
-    final dynamic decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } catch (_) {
-      return DataTransferPhaseOutcome.failed(
-        error: 'Invalid target response',
-        message: 'The target returned invalid JSON.',
-        reason: 'invalid_json',
+      final streamed = await _httpClient
+          .send(request)
+          .timeout(limits.syncHeaderTimeout);
+      await bodyFuture;
+
+      final statusCode = streamed.statusCode;
+      if (statusCode != 200 && statusCode != 207) {
+        throw SyncTargetException(
+          'Target error',
+          'Target returned status $statusCode',
+          statusCode: statusCode,
+        );
+      }
+
+      final body = await _readBoundedResponse(
+        streamed.stream,
+        limits.maxSyncResponseBytes,
+        limits.syncIdleTimeout,
       );
+
+      final dynamic decoded;
+      try {
+        decoded = jsonDecode(body);
+      } catch (_) {
+        return DataTransferPhaseOutcome.failed(
+          error: 'Invalid target response',
+          message: 'The target returned invalid JSON.',
+          reason: 'invalid_json',
+        );
+      }
+      return DataTransferPhaseOutcome.fromRemote(
+        decoded,
+        expectedSections,
+        minimumStatus: statusCode == 207 ? DataTransferStatus.partial : null,
+      );
+    } finally {
+      await tempDir.dispose();
     }
-    return DataTransferPhaseOutcome.fromRemote(
-      decoded,
-      expectedSections,
-      minimumStatus: response.statusCode == 207
-          ? DataTransferStatus.partial
-          : null,
-    );
   }
 
   Response _response({
@@ -332,7 +412,7 @@ class DataSyncHandler {
     if (error is TimeoutException) {
       return DataTransferPhaseOutcome.failed(
         error: 'Target unreachable',
-        message: 'Request timed out after ${_requestTimeout.inSeconds} seconds',
+        message: 'Request timed out',
         reason: 'timeout',
       );
     }
@@ -341,6 +421,36 @@ class DataSyncHandler {
       message: '$error',
       reason: 'unexpected_error',
     );
+  }
+
+  Future<String> _readRequestBody(Request request) async {
+    final limits = _exportHandler.limits;
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in request.read()) {
+      builder.add(chunk);
+      if (builder.length > limits.maxSyncRequestBytes) {
+        throw const SyncBodyTooLarge();
+      }
+    }
+    return utf8.decode(builder.takeBytes());
+  }
+
+  Future<String> _readBoundedResponse(
+    Stream<List<int>> stream,
+    int maxBytes,
+    Duration idleTimeout,
+  ) async {
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in stream.timeout(idleTimeout)) {
+      builder.add(chunk);
+      if (builder.length > maxBytes) {
+        throw SyncTargetException(
+          'Target error',
+          'Target response is too large.',
+        );
+      }
+    }
+    return utf8.decode(builder.takeBytes());
   }
 
   _SectionsResult _parseSections(dynamic value) {
@@ -392,6 +502,10 @@ class DataSyncHandler {
     'overwrite' => ConflictStrategy.overwrite,
     _ => null,
   };
+}
+
+class SyncBodyTooLarge implements Exception {
+  const SyncBodyTooLarge();
 }
 
 class _SectionsResult {
