@@ -782,6 +782,13 @@ jobs:
 
       - name: Generate and validate appcast
         run: |
+          if [ -z "${{ secrets.SPARKLE_ED_PRIVATE_KEY }}" ]; then
+            echo "FAIL: SPARKLE_ED_PRIVATE_KEY secret is not configured."
+            echo "Export the EdDSA private key from your login keychain"
+            echo "(Sparkle's generate_keys -x private-key-file) and run:"
+            echo "  gh secret set SPARKLE_ED_PRIVATE_KEY < private-key-file"
+            exit 1
+          fi
           ZIP="$(ls "$RUNNER_TEMP/appcast-staging"/decaid-macos-*.zip | head -1)"
           mkdir -p "$RUNNER_TEMP/pages"
           PREV=""
