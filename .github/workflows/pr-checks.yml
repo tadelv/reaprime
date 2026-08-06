@@ -46,13 +46,6 @@ jobs:
           cache: true
           pub-cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: packages/dye2-plugin/package-lock.json
-
       - name: Flutter pub get
         run: flutter pub get
 
@@ -61,11 +54,11 @@ jobs:
       # so populate them before any flutter command that touches assets
       # (analyze emits asset_directory_does_not_exist; test loads the
       # bundled_skins manifest at runtime).
-      - name: Build DYE2 plugin
-        working-directory: packages/dye2-plugin
-        run: |
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Tests only assert manifest shape (non-empty list of string IDs) and
       # `flutter analyze` only needs the asset dir to exist. Skip the real
@@ -116,21 +109,14 @@ jobs:
           cache: true
           pub-cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: packages/dye2-plugin/package-lock.json
-
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build DYE2 plugin
-        working-directory: packages/dye2-plugin
-        run: |
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (unsigned)
         run: flutter build linux --release

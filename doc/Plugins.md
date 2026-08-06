@@ -421,6 +421,8 @@ The DYE2 (Describe Your Espresso) plugin in `packages/dye2-plugin/` is a product
 
 See `packages/dye2-plugin/README.md` for architecture details, build instructions, and extension guide.
 
+The bundled copy is no longer built from `packages/dye2-plugin/`: CI and local setup install it from the latest [allofmeng/dye2](https://github.com/allofmeng/dye2) release via `./scripts/fetch_dye2_plugin.sh`, which unpacks the release asset into `assets/plugins/dye2.reaplugin/`. Pin a specific release with `DYE2_VERSION=v0.1.4`.
+
 ## Plugin Lifecycle Management (REST API)
 
 Plugins can be managed via REST API:
