@@ -1,8 +1,27 @@
-<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+<?xml version="1.0" standalone="yes"?>
+<!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>Decaid</title>
+        <item>
+            <title>0.7.17</title>
+            <pubDate>Thu, 06 Aug 2026 11:07:17 +0000</pubDate>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>2195</sparkle:version>
+            <sparkle:shortVersionString>0.7.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[## What's Changed
+* ci: install DYE2 plugin from allofmeng/dye2 release by @allofmeng in https://github.com/decentespresso/decaid/pull/566
+* Add shot-upload plugin + enable plugin Decent-proxy writes by @johnbuckman in https://github.com/decentespresso/decaid/pull/565
+
+
+**Full Changelog**: https://github.com/decentespresso/decaid/compare/v0.7.17-beta.2...v0.7.17-beta.3
+
+]]></description>
+            <enclosure url="https://github.com/decentespresso/decaid/releases/download/v0.7.17-beta.3/decaid-macos-0.7.17-beta.3.zip" length="71412633" type="application/octet-stream" sparkle:edSignature="QcQSziEKHw1Un0vG40bsUc1sgWO3CxG7oKApkQHjMrWDALA9zhoHhrs5FAPwa0+Ga/DzFNC0fI2wODYSO3bUCA=="/>
+        </item>
         <item>
             <title>0.7.17</title>
             <pubDate>Thu, 06 Aug 2026 05:44:09 +0000</pubDate>
@@ -13,10 +32,11 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <description sparkle:format="markdown"><![CDATA[**Full Changelog**: https://github.com/decentespresso/decaid/compare/v0.7.17-beta.1...v0.7.17-beta.2
 
 ]]></description>
-            <enclosure url="https://github.com/decentespresso/decaid/releases/download/v0.7.17-beta.2/decaid-macos-0.7.17-beta.2.zip" length="70973495" type="application/octet-stream" sparkle:edSignature="BkQKjp71bdaW3Ryy9mAx0A9uQ+9+zFQNFla5y4mElv7xb6F2qrUhKcOYl2BrHEpIMgyJAtF0vagdQ20bQCPgCA=="></enclosure>
+            <enclosure url="https://github.com/decentespresso/decaid/releases/download/v0.7.17-beta.2/decaid-macos-0.7.17-beta.2.zip" length="70973495" type="application/octet-stream" sparkle:edSignature="BkQKjp71bdaW3Ryy9mAx0A9uQ+9+zFQNFla5y4mElv7xb6F2qrUhKcOYl2BrHEpIMgyJAtF0vagdQ20bQCPgCA=="/>
         </item>
     </channel>
-</rss><!-- sparkle-signatures:
-edSignature: phil7ySrxu0A8Byw7juNhwvPJgFIdQOOJe2APTgEJEwis9ekyuycB8+yVPa9mLPH+Agr322Rp9SQnDFm9mIiDA==
-length: 1301
+</rss>
+<!-- sparkle-signatures:
+edSignature: NQmMO01AWq1rFiOhT6RLCccyzk3B8Z9/2yzHQwt1f7Bgbj29iUMEPKzWFMQo4GlnIzDjsP8mOkj3OdOqCVXyCg==
+length: 2427
 -->
