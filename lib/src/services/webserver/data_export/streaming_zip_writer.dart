@@ -34,6 +34,7 @@ class StreamingZipWriter {
 
   int _offset = 0;
   int _entryCount = 0;
+  int _totalUncompressed = 0;
   bool _closed = false;
   bool _aborted = false;
 
@@ -300,6 +301,13 @@ class ZipEntrySink {
     _entry.uncompressedSize += bytes.length;
     if (_entry.uncompressedSize > _writer._limits.maxEntryUncompressedBytes) {
       throw const ZipWriteException('ZIP entry exceeds the size limit.');
+    }
+    _writer._totalUncompressed += bytes.length;
+    if (_writer._totalUncompressed >
+        _writer._limits.maxTotalUncompressedBytes) {
+      throw const ZipWriteException(
+        'Export exceeds the total uncompressed size limit.',
+      );
     }
     _entry.crc32 = getCrc32(bytes, _entry.crc32);
     _inSink.add(bytes);

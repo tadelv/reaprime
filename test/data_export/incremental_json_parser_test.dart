@@ -162,6 +162,40 @@ void main() {
       );
     });
 
+    test('caps container values while they are constructed', () {
+      // Many small keys/values whose sum exceeds maxValueBytes: the object
+      // span must trip the limit even though no single token does.
+      final parser = IncrementalJsonParser(eventDepth: 1, maxValueBytes: 64);
+      final doc =
+          '[{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7,"h":8,"i":9,"j":10,"k":11,"l":12}]';
+      expect(() => parser.feed(doc), throwsA(isA<JsonStreamFormatException>()));
+    });
+
+    test('caps the whole document at eventDepth 0', () {
+      // Depth 0 events (settings/workflow singletons) cover the whole
+      // document; many small elements must trip the cap.
+      final parser = IncrementalJsonParser(eventDepth: 0, maxValueBytes: 64);
+      final doc = '[${List.generate(30, (i) => '$i').join(',')}]';
+      expect(() => parser.feed(doc), throwsA(isA<JsonStreamFormatException>()));
+    });
+
+    test('measures limits in UTF-8 bytes, not UTF-16 code units', () {
+      // 9 '\u00E9' chars + quotes = 20 bytes; 10 chars = 22 bytes. A
+      // UTF-16 length check would admit both.
+      final ok = IncrementalJsonParser(eventDepth: 1, maxValueBytes: 20);
+      final events = <JsonValueEvent>[];
+      ok.feed('["${'\u00E9' * 9}"]');
+      ok.finish();
+      events.addAll(ok.drain());
+      expect(events, hasLength(1));
+
+      final tooBig = IncrementalJsonParser(eventDepth: 1, maxValueBytes: 20);
+      expect(
+        () => tooBig.feed('["${'\u00E9' * 10}"]'),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
+    });
+
     test('never yields a valid prefix of malformed JSON', () {
       final parser = IncrementalJsonParser(eventDepth: 1);
       final events = <JsonValueEvent>[];

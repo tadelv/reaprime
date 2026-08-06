@@ -26,6 +26,7 @@ import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:reaprime/src/services/webserver/firmware_handler.dart';
@@ -326,7 +327,15 @@ Future<void> startWebServer(
 
   final dataSyncHandler = DataSyncHandler(
     exportHandler: dataExportHandler,
-    httpClient: http.Client(),
+    // The sync client needs a bounded connect timeout but must NOT time out
+    // while the target is generating/importing an archive: the target only
+    // responds after it has processed the whole body. connectionTimeout
+    // covers connection establishment only; phases are bounded by
+    // syncOverallTimeout in the handler.
+    httpClient: IOClient(
+      HttpClient()
+        ..connectionTimeout = dataExportHandler.limits.syncHeaderTimeout,
+    ),
   );
 
   final infoHandler = InfoHandler();

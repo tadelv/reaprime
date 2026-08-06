@@ -558,6 +558,38 @@ void main() {
         },
       );
 
+      test('returns 400 when a section entry fails CRC verification', () async {
+        final zipBytes = buildZipEntries({
+          'metadata.json': '{"formatVersion":1}',
+          'shots.json': '[{"id":"s1"}]',
+        });
+        // Flip the CRC field of the shots.json central-directory record
+        // (the entry name appears once in the local header, once in the
+        // CD; the CD copy is the last occurrence). ZIP integrity failures
+        // must abort the whole import as 400, not degrade to a 207 section
+        // failure.
+        final nameBytes = utf8.encode('shots.json');
+        var cdNamePos = -1;
+        for (var i = 0; i <= zipBytes.length - nameBytes.length; i++) {
+          var matches = true;
+          for (var j = 0; j < nameBytes.length; j++) {
+            if (zipBytes[i + j] != nameBytes[j]) {
+              matches = false;
+              break;
+            }
+          }
+          if (matches) cdNamePos = i;
+        }
+        expect(cdNamePos, greaterThan(-1));
+        final crcField = cdNamePos - 46 + 16; // CD entry: crc at +16
+        zipBytes[crcField] ^= 0xFF;
+
+        final response = await sendPost('/api/v1/data/import', body: zipBytes);
+        expect(response.statusCode, 400);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], 'Invalid backup archive');
+      });
+
       test(
         'preserves partial results for individually invalid records',
         () async {

@@ -139,8 +139,10 @@ class StreamingZipReader {
     final cap = entry.uncompressedSize;
 
     if (entry.method == 8) {
-      // Deflate.
-      final accumulator = _ChunkAccumulator();
+      // Deflate. The cap is enforced inside the output sink, so a forged
+      // entry that inflates beyond its declared size is rejected as soon as
+      // the inflater produces the excess, before it accumulates.
+      final accumulator = _ChunkAccumulator(cap);
       final decoder = ZLibCodec(
         raw: true,
         level: 6,
@@ -160,28 +162,22 @@ class StreamingZipReader {
           }
           remaining -= chunk.length;
           decoder.add(chunk);
+          if (accumulator.overflow != null) {
+            throw accumulator.overflow!;
+          }
           for (final out in accumulator.drain()) {
             crc = getCrc32(out, crc);
             produced += out.length;
-            if (produced > cap) {
-              throw const ZipReadException(
-                'ZIP entry exceeds its declared or permitted size.',
-                reason: 'entry_too_large',
-              );
-            }
             yield out;
           }
         }
         decoder.close();
+        if (accumulator.overflow != null) {
+          throw accumulator.overflow!;
+        }
         for (final out in accumulator.drain()) {
           crc = getCrc32(out, crc);
           produced += out.length;
-          if (produced > cap) {
-            throw const ZipReadException(
-              'ZIP entry exceeds its declared or permitted size.',
-              reason: 'entry_too_large',
-            );
-          }
           yield out;
         }
       } on ZipReadException {
@@ -483,12 +479,30 @@ class StreamingZipReader {
 }
 
 /// Collects decoder output between drains so an async* generator can yield
-/// bounded decompressed chunks.
+/// bounded decompressed chunks. The per-entry size cap is enforced here, in
+/// the output sink, so a forged entry is rejected as soon as the inflater
+/// exceeds its declared size instead of after the output accumulates.
 class _ChunkAccumulator implements Sink<List<int>> {
+  final int cap;
   final List<Uint8List> _pending = [];
+  int _produced = 0;
+
+  ZipReadException? overflow;
+
+  _ChunkAccumulator(this.cap);
 
   @override
   void add(List<int> chunk) {
+    if (overflow != null) return;
+    _produced += chunk.length;
+    if (_produced > cap) {
+      overflow = const ZipReadException(
+        'ZIP entry exceeds its declared or permitted size.',
+        reason: 'entry_too_large',
+      );
+      _pending.clear();
+      return;
+    }
     _pending.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
   }
 

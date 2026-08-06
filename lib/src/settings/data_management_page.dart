@@ -311,7 +311,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
       transfer.close();
     }
 
-    if (!mounted) return;
+    if (!mounted) {
+      // The page went away while downloading; the downloaded backup must not
+      // be left behind in the system temp directory.
+      await tempDir.dispose();
+      return;
+    }
     _dismissProgressDialog(); // dismiss progress dialog before picker/share
 
     final timestamp = DateTime.now()

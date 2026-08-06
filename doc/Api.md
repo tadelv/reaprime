@@ -377,8 +377,10 @@ picked files into the import request.
 Limits (documented in `assets/api/rest_v1.yml`): request body 2 GiB, entry
 count 4096, per-entry uncompressed 1 GiB, total uncompressed 2 GiB,
 metadata 64 KiB, per-record 64 MiB, ZIP header fields 256 B/64 KiB/64 KiB;
-sync request body 1 MiB, target response 8 MiB; connection/header 10 s,
-idle 30 s, overall 10 min timeouts.
+sync request body 1 MiB, target response 8 MiB; connection 10 s (TCP
+establishment only — server-side export/import processing is not counted
+against it), idle 30 s, overall 10 min timeouts. The overall timeout
+cancels the transfer explicitly: a timed-out pull never imports.
 
 ### Account
 

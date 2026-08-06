@@ -111,6 +111,22 @@ void main() {
       await w.abort();
       expect(await w.file.exists(), isFalse);
     });
+
+    test('enforces the total uncompressed size limit', () async {
+      final w = await StreamingZipWriter.create(
+        tempDir,
+        const DataTransferLimits(maxTotalUncompressedBytes: 100),
+      );
+      final e = w.addEntry('a.json');
+      e.write(utf8.encode('{"a":"${'x' * 90}"}')); // 98 bytes < 100
+      e.close();
+      final second = w.addEntry('b.json');
+      expect(
+        () => second.write(utf8.encode('{"b":1}')),
+        throwsA(isA<ZipWriteException>()),
+      );
+      await w.abort();
+    });
   });
 
   group('StreamingZipReader', () {

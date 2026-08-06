@@ -48,7 +48,9 @@ class DataTransferLimits {
   /// Cap on the native import JSON response body.
   final int maxImportResponseBytes;
 
-  /// Timeout for establishing a connection / receiving response headers.
+  /// Timeout for establishing the TCP connection (applied as the HTTP
+  /// client's `connectionTimeout`). Server-side export/import processing is
+  /// NOT counted against it; phases are bounded by [syncOverallTimeout].
   final Duration syncHeaderTimeout;
 
   /// Timeout between consecutive response-stream events.
