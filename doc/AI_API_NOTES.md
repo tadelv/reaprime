@@ -177,11 +177,17 @@ of records and one JSON record, never with backup size. Rationale and traps:
   8 MiB; timeouts 10 s connection (TCP establishment only) / 30 s idle /
   10 min deadline per phase covering the NETWORK stages only (upload/
   download + response); local export and the pull-side import run to
-  completion and report their actual results. A timed-out pull cancels the
-  download and never starts its import. A timed-out push aborts its upload
-  via `http.AbortableStreamedRequest` (transport-level), so a push still
-  uploading cannot complete remotely — but once the archive is fully
-  uploaded the remote outcome is unknowable and the phase reports reason
+  completion and report their actual results. Timeouts abort the request
+  at the transport level via `http.AbortableRequest` /
+  `AbortableStreamedRequest`: a timed-out pull is cut off even before
+  headers (while the target is still generating its export) and never
+  starts its import; a timed-out push aborts its upload so a push still
+  uploading cannot complete remotely. The push body is fed with
+  `sink.addStream`, which pauses the file read while the transport is
+  backpressured (the archive is never read ahead of the network); the
+  sink closes only after the file is fully read (`addStream` does not
+  forward the source's done event). Once the archive is fully uploaded
+  the remote outcome is unknowable and the phase reports reason
   `timeout_unknown` rather than claiming the push did not happen. The
   completed export archive is also bounded by the 2 GiB import request
   limit, and per-record caps are measured in UTF-8 bytes. All are below

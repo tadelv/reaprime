@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:http/testing.dart' as http_testing;
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
@@ -222,11 +226,12 @@ void main() {
 
   Map<String, dynamic> requestBody({
     required String mode,
+    String? target,
     List<String>? selectedSections,
     bool? continueOnPullFailure,
     String? onConflict,
   }) => {
-    'target': 'http://192.168.1.50:8080',
+    'target': target ?? 'http://192.168.1.50:8080',
     'mode': mode,
     ...?selectedSections == null ? null : {'sections': selectedSections},
     ...?continueOnPullFailure == null
@@ -407,6 +412,104 @@ void main() {
           expect(response.statusCode, 200);
           expect(body['complete'], isTrue);
           expect(slowShots.calls, 1);
+        },
+      );
+
+      test('pull timeout aborts the connection while the target is '
+          'generating its export', () async {
+        // The target accepts the connection but never responds. The phase
+        // deadline must abort the request at the transport level, not just
+        // stop waiting (which would leave the connection and the target's
+        // export running until they finish on their own).
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final socketClosed = Completer<void>();
+        server.listen((socket) {
+          socket.listen(
+            null,
+            onDone: () => socketClosed.complete(),
+            onError: (Object _) {
+              if (!socketClosed.isCompleted) socketClosed.complete();
+            },
+          );
+        });
+        final client = IOClient(
+          HttpClient()..connectionTimeout = const Duration(seconds: 1),
+        );
+        final handler = buildSyncHandler(
+          client,
+          limits: const DataTransferLimits(
+            syncOverallTimeout: Duration(milliseconds: 300),
+          ),
+        );
+        try {
+          final response = await sendSync(
+            handler,
+            requestBody(
+              mode: 'pull',
+              target: 'http://127.0.0.1:${server.port}',
+            ),
+          );
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 502);
+          expect(body['pull']['reason'], 'timeout');
+          // The abort must have closed the connection promptly after the
+          // deadline; without the transport abort this future never
+          // completes.
+          await socketClosed.future.timeout(const Duration(seconds: 2));
+        } finally {
+          await server.close();
+          client.close();
+        }
+      });
+
+      test(
+        'push pauses the file read while the transport is backpressured',
+        () async {
+          // A server socket that never reads the request body: the kernel
+          // buffer fills, the transport backpressures, and the file read must
+          // pause rather than draining the whole archive into memory. At the
+          // deadline the upload is still in flight, so the outcome is an
+          // interrupted upload ('timeout'), never 'timeout_unknown'.
+          final server = await ServerSocket.bind(
+            InternetAddress.loopbackIPv4,
+            0,
+          );
+          final random = Random(7);
+          const chars =
+              'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          final bigData = String.fromCharCodes(
+            List.generate(
+              6 * 1024 * 1024,
+              (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+            ),
+          );
+          final client = IOClient(
+            HttpClient()..connectionTimeout = const Duration(seconds: 1),
+          );
+          final handler = buildSyncHandler(
+            client,
+            registeredSections: [
+              MockExportSection(filename: 'profiles.json', exportData: bigData),
+            ],
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 300),
+            ),
+          );
+          try {
+            final response = await sendSync(
+              handler,
+              requestBody(
+                mode: 'push',
+                target: 'http://127.0.0.1:${server.port}',
+              ),
+            );
+            final body = jsonDecode(await response.readAsString());
+            expect(response.statusCode, 502);
+            expect(body['push']['reason'], 'timeout');
+          } finally {
+            await server.close();
+            client.close();
+          }
         },
       );
 

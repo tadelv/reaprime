@@ -381,14 +381,15 @@ fields 256 B/64 KiB/64 KiB; sync request body 1 MiB, target response
 8 MiB; connection 10 s (TCP establishment only — server-side
 export/import processing is not counted against it), idle 30 s, and one
 deadline (10 min) per phase covering the network stages (upload/download
-and response). Local export and the pull-side import run to completion
-and report their actual results. A timed-out pull cancels the download
-and never starts its import. A timed-out push aborts its upload at the
-transport level, so a push that is still uploading cannot complete
-remotely; but if the archive was already fully uploaded before the
-deadline, the remote outcome is unknown and the phase reports reason
-`timeout_unknown`. A generated archive is also bounded by the 2 GiB
-import request limit.
+and response). Timeouts abort the request at the transport level: a
+timed-out pull is cut off even while the target is still generating its
+export (before headers) and never starts its import; a timed-out push
+aborts its upload, and the upload is backpressured so the archive file
+is never read ahead of the network. Local export and the pull-side
+import run to completion and report their actual results. If the archive
+was already fully uploaded before the deadline, the remote outcome is
+unknown and the phase reports reason `timeout_unknown`. A generated
+archive is also bounded by the 2 GiB import request limit.
 
 ### Account
 
