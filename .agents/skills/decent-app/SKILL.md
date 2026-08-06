@@ -1,6 +1,6 @@
 ---
 name: decent-app
-description: Use when touching the Flutter app, its REST/WebSocket API, profiles, shots, simulated devices, or real BLE/USB hardware via an Android tablet or desktop, or whenever exercising a code change against a running Decent instance. Covers the dev loop (sb-dev start/reload/stop in simulate or real-hardware mode), REST calls via curl, WebSocket streams via websocat, and smoke-test verification.
+description: Use when touching the Decent Flutter app, its REST/WebSocket API, profiles, shots, simulated devices, or real BLE/USB hardware via an Android tablet or desktop, or whenever exercising a code change against a running Decent instance. Covers the sb-dev dev loop and shell-based verification.
 ---
 
 # Decent — agent skill
@@ -18,9 +18,34 @@ The skill lives under `.agents/skills/decent-app/` following the [agentskills.io
 | Read/write WebSocket streams | `websocket.md` |
 | Work with MockDe1 / MockScale | `simulated-devices.md` |
 | Smoke-test a code change | `verification.md` |
-| End-to-end regression recipes | `scenarios/` |
+| End-to-end regression recipes | `scenarios/` (index below) |
 
 All files above are siblings of this `SKILL.md` under `.agents/skills/decent-app/`. Relative paths in the sub-files resolve against that directory.
+
+### Scenario index
+
+Pick the scenario that matches the task, run it verbatim, and finish before calling related work done. Each file lists preconditions, a `curl` / `websocat` sequence, expected output hints, and postconditions.
+
+| Scenario | File |
+|---|---|
+| BLE error surfacing (adapterOff, scaleConnectFailed, sticky errors) | `scenarios/ble-error-surfacing.md` |
+| Device scan + connection policy | `scenarios/device-scan-connection-policy.md` |
+| Onboarding connection phases (MockDe1 + MockScale auto-connect) | `scenarios/onboarding-connection-phases.md` |
+| Preferred-device fast-path round-trip | `scenarios/onboarding-preferred-device.md` |
+| Build-info endpoint | `scenarios/build-info.md` |
+| Firmware endpoints | `scenarios/firmware.md` |
+| ETag / If-None-Match on list endpoints | `scenarios/etag-conditional-gets.md` |
+| Discover / restore default profiles | `scenarios/profiles-defaults.md` |
+| Hot-water stop-at-weight | `scenarios/hot-water-stop-at-weight.md` |
+| Shot-state WebSocket + persisted stop reason | `scenarios/shot-state-ws.md` |
+| Display brightness 0-100 + low-battery toggle | `scenarios/display-brightness.md` |
+| Debug scale control (simulate) | `scenarios/debug-scale-control.md` |
+| Bengle LED strip v2 | `scenarios/bengle-led-strip.md` |
+| Bengle integrated scale end-to-end | `scenarios/bengle-integrated-scale.md` |
+| Bengle cup-warmer + capability discovery | `scenarios/bengle-cup-warmer.md` |
+| Account-proxy CORS pinned to skin origin | `scenarios/account-proxy-cors.md` |
+| Account-proxy write forwarding + write-scope gate | `scenarios/account-proxy-write.md` |
+| Plugin Decent-account proxy bridge (host.decentProxy) | `scenarios/plugin-decent-proxy.md` |
 
 ## Authoritative sources
 

@@ -60,14 +60,7 @@ Before opening a PR, merging locally, or calling work done:
 
 ## Regression scenarios
 
-Concrete end-to-end recipes that used to live as MCP yaml fixtures now live as markdown under `scenarios/`:
-
-- `scenarios/build-info.md` — `/api/v1/info` compile-time metadata.
-- `scenarios/display-brightness.md` — display REST + WebSocket + validation + low-battery toggle.
-- `scenarios/onboarding-connection-phases.md` — verify MockDe1 + MockScale auto-connect reaches a healthy machine state.
-- `scenarios/onboarding-preferred-device.md` — `/api/v1/settings` round-trip and null-clear of preferred IDs.
-
-Run any scenario before calling related work done. Each file lists preconditions, a sequence of `curl` / `websocat` commands, expected output hints, and postconditions — paste them verbatim.
+Concrete end-to-end recipes that used to live as MCP yaml fixtures now live as markdown under `scenarios/`. The full index is in `SKILL.md` - pick the scenario that matches your task there. Run it before calling related work done. Each file lists preconditions, a sequence of `curl` / `websocat` commands, expected output hints, and postconditions - paste them verbatim.
 
 ## Stale spec, stale skill
 
