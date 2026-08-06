@@ -4017,10 +4017,14 @@ paths:
         length. The sync request body is limited to 1 MiB, and target
         responses to 8 MiB. Transfers apply a connection timeout (10 s,
         connect establishment only), an idle timeout (30 s between stream
-        events), and one overall deadline (10 min) per phase covering every
-        network stage plus the pull-side import. The deadline cancels the
-        transfer explicitly: a timed-out pull never imports, and a timed-out
-        push aborts its upload so the remote cannot complete its import.
+        events), and one deadline (10 min) per phase covering the network
+        stages (upload/download and response). Local export and the
+        pull-side import run to completion and report their actual results;
+        a timed-out pull cancels the download and never starts its import;
+        a timed-out push aborts its upload (transport-level) so a push that
+        is still uploading cannot complete remotely — but if the archive
+        was already fully uploaded before the deadline, the remote outcome
+        is unknown and the phase reports reason `timeout_unknown`.
         A generated archive is also bounded by the 2 GiB import request
         limit, and per-record limits are measured in UTF-8 bytes.
       tags: [Data Management]

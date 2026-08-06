@@ -175,12 +175,16 @@ of records and one JSON record, never with backup size. Rationale and traps:
   1 GiB, total uncompressed 2 GiB, metadata 64 KiB, per-record 64 MiB, ZIP
   header fields 256 B/64 KiB/64 KiB, sync request 1 MiB, target response
   8 MiB; timeouts 10 s connection (TCP establishment only) / 30 s idle /
-  10 min overall — ONE deadline per phase covering every network stage plus
-  the pull-side import; the deadline cancels the transfer explicitly (a
-  timed-out pull never imports; a timed-out push aborts its upload so the
-  remote cannot complete its import). The completed export archive is also
-  bounded by the 2 GiB import request limit, and per-record caps are
-  measured in UTF-8 bytes. All are below
+  10 min deadline per phase covering the NETWORK stages only (upload/
+  download + response); local export and the pull-side import run to
+  completion and report their actual results. A timed-out pull cancels the
+  download and never starts its import. A timed-out push aborts its upload
+  via `http.AbortableStreamedRequest` (transport-level), so a push still
+  uploading cannot complete remotely — but once the archive is fully
+  uploaded the remote outcome is unknowable and the phase reports reason
+  `timeout_unknown` rather than claiming the push did not happen. The
+  completed export archive is also bounded by the 2 GiB import request
+  limit, and per-record caps are measured in UTF-8 bytes. All are below
   ZIP64 thresholds so Zip64 can be rejected outright.
 - **Temp files**: every operation owns one unique temp directory
   (`util/temp_archive_files.dart`), deleted in `finally` or on stream
