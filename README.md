@@ -72,7 +72,7 @@ The API provides:
 | **macOS** | ✅ Full support | Desktop development and testing |
 | **Linux** | ✅ Full support | ARM64 and x86_64 |
 | **Windows** | ✅ Full support | Desktop operation |
-| **iOS** | ⚠️ Experimental | Limited testing |
+| **iPad** | ✅ Full support | [Install to your iPad now with SideStep](https://decentespresso.com/downloads) |
 
 ### Background Operation
 
