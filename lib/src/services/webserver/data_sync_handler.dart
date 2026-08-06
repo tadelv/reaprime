@@ -184,11 +184,14 @@ class DataSyncHandler {
   /// the HTTP client's connection timeout, idle gaps by
   /// [DataTransferLimits.syncIdleTimeout], and the network stages (headers
   /// and download) by a deadline of [DataTransferLimits.syncOverallTimeout]
-  /// starting at the request. A deadline expiry cancels the download, so a
-  /// timed-out pull never starts its import. The local import itself is NOT
-  /// cut off: it runs to completion and its actual result is reported,
-  /// because abandoning an import mid-write would leave the database
-  /// mutating after the caller was told the phase failed.
+  /// starting at the request. The deadline aborts the request at the
+  /// transport level ([http.AbortableRequest]), so a timed-out pull cancels
+  /// the download — including while the target is still generating its
+  /// export, before any headers arrived — and never starts its import. The
+  /// local import itself is NOT cut off: it runs to completion and its
+  /// actual result is reported, because abandoning an import mid-write
+  /// would leave the database mutating after the caller was told the phase
+  /// failed.
   Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
@@ -197,11 +200,19 @@ class DataSyncHandler {
     final limits = _exportHandler.limits;
     _log.info('Pulling data from $target');
     final tempDir = await TempArchiveDir.create('reaprime-sync-pull-');
+    final deadline = DateTime.now().add(limits.syncOverallTimeout);
+    final abortCompleter = Completer<void>();
+    // Abort the transport when the deadline expires. Future.timeout only
+    // stops waiting; without this, a pre-header timeout would leave the
+    // connection and the target's export running to completion.
+    final abortTimer = Timer(limits.syncOverallTimeout, () {
+      if (!abortCompleter.isCompleted) abortCompleter.complete();
+    });
     try {
-      final deadline = DateTime.now().add(limits.syncOverallTimeout);
-      final request = http.Request(
+      final request = http.AbortableRequest(
         'GET',
         Uri.parse('$target/api/v1/data/export'),
+        abortTrigger: abortCompleter.future,
       );
       // No short header timeout: the target only responds after generating
       // its export archive. The deadline bounds the wait.
@@ -255,6 +266,7 @@ class DataSyncHandler {
             );
         await done.future.timeout(_remaining(deadline));
       } finally {
+        abortTimer.cancel();
         await sub?.cancel();
         await raf.close();
       }
@@ -275,12 +287,15 @@ class DataSyncHandler {
   ///
   /// The network stages (upload and response) share one deadline of
   /// [DataTransferLimits.syncOverallTimeout] starting at the request; the
-  /// local export runs before the deadline and is not cut off. A deadline
-  /// expiry aborts the transport ([http.AbortableStreamedRequest]), so a
-  /// push that is still uploading cannot complete remotely. If the archive
-  /// was already fully uploaded before the deadline, the remote outcome is
-  /// unknowable (the target may have begun importing); the phase then
-  /// reports `timeout_unknown` instead of claiming the push did not happen.
+  /// local export runs before the deadline and is not cut off. The body is
+  /// fed through `sink.addStream`, whose controller pauses the file read
+  /// while the transport is backpressured, keeping the upload bounded in
+  /// memory. A deadline expiry aborts the transport
+  /// ([http.AbortableStreamedRequest]), so a push that is still uploading
+  /// cannot complete remotely. If the archive was already fully uploaded
+  /// before the deadline, the remote outcome is unknowable (the target may
+  /// have begun importing); the phase then reports `timeout_unknown`
+  /// instead of claiming the push did not happen.
   Future<DataTransferPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
@@ -312,44 +327,46 @@ class DataSyncHandler {
       request.headers['content-type'] = 'application/octet-stream';
       request.contentLength = length;
 
-      // Feed the body from the file through the request sink, keeping the
-      // subscription so a timeout can abort the upload.
-      final bodyDone = Completer<void>();
-      late final StreamSubscription<List<int>> bodySub;
-      bodySub = zipFile.openRead().listen(
-        request.sink.add,
-        onError: (Object e, StackTrace st) {
-          request.sink.close();
-          bodyDone.completeError(e, st);
-        },
-        onDone: () {
-          request.sink.close();
-          bodyDone.complete();
-        },
-        cancelOnError: true,
-      );
-      // Observe body failures immediately: `send()` may fail before
-      // bodyDone is awaited, and an unobserved error would surface as an
-      // unhandled async error.
-      bodyDone.future.ignore();
-
-      // Aborts the transport: fires the abort trigger (closes the socket
-      // for clients that support it), stops the file read, and closes the
-      // request body so the remote sees a truncated archive.
-      Future<void> abortUpload() async {
-        if (!abortCompleter.isCompleted) abortCompleter.complete();
-        await bodySub.cancel();
-        try {
-          request.sink.close();
-        } catch (_) {
-          // The sink may already be closed.
+      // bodySent is set only when the file was fully read (never when the
+      // source is cancelled by an abort or errors), so a timeout after the
+      // upload completed can be told apart from one mid-upload.
+      var bodySent = false;
+      var aborted = false;
+      Stream<List<int>> bodyStream() async* {
+        await for (final chunk in zipFile.openRead()) {
+          yield chunk;
         }
+        bodySent = true;
+      }
+
+      // addStream couples the file read to the transport's consumption:
+      // while the sink's listener is paused (backpressure) the source
+      // subscription pauses too, so the unsent archive cannot accumulate
+      // in memory. The sink closes only after the file is fully read
+      // (addStream does not forward the source's done event), and never
+      // after an abort, when the controller is already cancelled. A
+      // transport abort cancels the generator and with it the file read.
+      unawaited(
+        request.sink
+            .addStream(bodyStream())
+            .then((_) {
+              if (!aborted) request.sink.close();
+            })
+            .catchError((Object _) {}),
+      );
+
+      // Aborts the upload: the transport closes the connection, the sink's
+      // listener errors, and addStream cancels the file read.
+      Future<void> abortUpload() async {
+        aborted = true;
+        if (!abortCompleter.isCompleted) abortCompleter.complete();
       }
 
       try {
         // The target only responds after it has received and imported the
         // whole archive, so there is no short header timeout here; the
-        // network deadline bounds the wait.
+        // network deadline bounds the wait. send() completes only after
+        // the body has been fully written, so bodySent is settled here.
         final streamed = await _httpClient
             .send(request)
             .timeout(_remaining(deadline));
@@ -358,19 +375,6 @@ class DataSyncHandler {
           throw SyncTargetException(
             'Target error',
             'Target returned status $statusCode',
-            statusCode: statusCode,
-          );
-        }
-        try {
-          await bodyDone.future.timeout(_remaining(deadline));
-        } on TimeoutException {
-          rethrow;
-        } catch (_) {
-          // The body stream ended with an error (early connection close or
-          // a local read failure).
-          throw SyncTargetException(
-            'Target error',
-            'The archive upload was interrupted.',
             statusCode: statusCode,
           );
         }
@@ -398,7 +402,7 @@ class DataSyncHandler {
           minimumStatus: statusCode == 207 ? DataTransferStatus.partial : null,
         );
       } on TimeoutException {
-        final uploadComplete = bodyDone.isCompleted;
+        final uploadComplete = bodySent;
         await abortUpload();
         if (uploadComplete) {
           // The whole archive reached the transport before the deadline;
@@ -416,8 +420,6 @@ class DataSyncHandler {
       } catch (_) {
         await abortUpload();
         rethrow;
-      } finally {
-        await bodySub.cancel();
       }
     } finally {
       await tempDir.dispose();
@@ -508,6 +510,15 @@ class DataSyncHandler {
         message: error.message,
         reason: 'target_error',
         statusCode: error.statusCode,
+      );
+    }
+    if (error is http.RequestAbortedException) {
+      // Only the phase deadline completes the abort trigger, so an aborted
+      // request means the deadline expired.
+      return DataTransferPhaseOutcome.failed(
+        error: 'Target unreachable',
+        message: 'Request timed out',
+        reason: 'timeout',
       );
     }
     if (error is http.ClientException) {

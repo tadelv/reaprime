@@ -4018,15 +4018,17 @@ paths:
         responses to 8 MiB. Transfers apply a connection timeout (10 s,
         connect establishment only), an idle timeout (30 s between stream
         events), and one deadline (10 min) per phase covering the network
-        stages (upload/download and response). Local export and the
-        pull-side import run to completion and report their actual results;
-        a timed-out pull cancels the download and never starts its import;
-        a timed-out push aborts its upload (transport-level) so a push that
-        is still uploading cannot complete remotely — but if the archive
-        was already fully uploaded before the deadline, the remote outcome
-        is unknown and the phase reports reason `timeout_unknown`.
-        A generated archive is also bounded by the 2 GiB import request
-        limit, and per-record limits are measured in UTF-8 bytes.
+        stages (upload/download and response). Timeouts abort the request
+        at the transport level: a timed-out pull is cut off even while the
+        target is still generating its export (before headers) and never
+        starts its import; a timed-out push aborts its upload (and the
+        upload is backpressured, so the file is never read ahead of the
+        network). Local export and the pull-side import run to completion
+        and report their actual results. If the archive was already fully
+        uploaded before the deadline, the remote outcome is unknown and the
+        phase reports reason `timeout_unknown`. A generated archive is also
+        bounded by the 2 GiB import request limit, and per-record limits
+        are measured in UTF-8 bytes.
       tags: [Data Management]
       requestBody:
         required: true
