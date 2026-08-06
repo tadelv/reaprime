@@ -116,7 +116,7 @@ void main() {
             );
           }).proxyForPlugin(
             pluginId: 'test.plugin',
-            manifest: manifestWith({PluginPermissions.proxyDecentApi}),
+            manifest: manifestWith({PluginPermissions.proxyDecentApiWrite}),
             path: 'support/api/shot_upload',
             method: 'POST',
             body: '{"id":"decaid-1","machine":{"serialNumber":"6262"}}',
@@ -142,7 +142,7 @@ void main() {
     },
   );
 
-  test('unsupported method is rejected', () async {
+  test('POST without the write permission is rejected', () async {
     await linkAccount();
     var upstreamCalled = false;
     await expectLater(
@@ -151,9 +151,49 @@ void main() {
         return http.Response('must not happen', 200);
       }).proxyForPlugin(
         pluginId: 'test.plugin',
+        // read-only permission: not enough for a write
         manifest: manifestWith({PluginPermissions.proxyDecentApi}),
-        path: 'support/api/sn',
-        method: 'DELETE',
+        path: 'support/api/shot_upload',
+        method: 'POST',
+        body: '{}',
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(upstreamCalled, isFalse);
+  });
+
+  test('POST to a path outside the write allowlist is rejected', () async {
+    await linkAccount();
+    var upstreamCalled = false;
+    await expectLater(
+      bridge((request) async {
+        upstreamCalled = true;
+        return http.Response('must not happen', 200);
+      }).proxyForPlugin(
+        pluginId: 'test.plugin',
+        manifest: manifestWith({PluginPermissions.proxyDecentApiWrite}),
+        path: 'support/api/some_other_write',
+        method: 'POST',
+        body: '{}',
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(upstreamCalled, isFalse);
+  });
+
+  test('PUT (and other non-GET/POST methods) are unsupported', () async {
+    await linkAccount();
+    var upstreamCalled = false;
+    await expectLater(
+      bridge((request) async {
+        upstreamCalled = true;
+        return http.Response('must not happen', 200);
+      }).proxyForPlugin(
+        pluginId: 'test.plugin',
+        manifest: manifestWith({PluginPermissions.proxyDecentApiWrite}),
+        path: 'support/api/shot_upload',
+        method: 'PUT',
+        body: '{}',
       ),
       throwsA(isA<UnsupportedError>()),
     );

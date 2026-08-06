@@ -58,7 +58,8 @@ enum PluginPermissions {
   emit('emit'),
   pluginStorage('pluginStorage'),
   pluginNotify('pluginNotify'),
-  proxyDecentApi('proxy.decent_api');
+  proxyDecentApi('proxy.decent_api'),
+  proxyDecentApiWrite('proxy.decent_api.write');
 
   final String wireName;
 
