@@ -38,7 +38,6 @@ class StreamingZipWriter {
   bool _aborted = false;
 
   final List<_CdEntry> _centralDirectory = [];
-  final StringBuffer _nameBuf = StringBuffer();
 
   StreamingZipWriter._(this._file, this._raf, this._limits);
 
@@ -61,7 +60,7 @@ class StreamingZipWriter {
     if (_closed || _aborted) {
       throw const ZipWriteException('The ZIP writer is already closed.');
     }
-    final nameBytes = _utf8Name(name);
+    final nameBytes = Uint8List.fromList(utf8.encode(name));
     if (nameBytes.length > _limits.maxFilenameBytes) {
       throw ZipWriteException('ZIP entry name is too long: $name');
     }
@@ -211,11 +210,6 @@ class StreamingZipWriter {
     _writeBytes(buf.takeBytes());
   }
 
-  Uint8List _utf8Name(String name) {
-    _nameBuf.clear();
-    _nameBuf.write(name);
-    return Uint8List.fromList(utf8.encode(name));
-  }
 
   static void _writeUint16(BytesBuilder b, int value) {
     b.addByte(value & 0xFF);
@@ -318,7 +312,7 @@ class ZipEntrySink {
     if (_closed) return;
     _closed = true;
     _inSink.close();
-    _deflateSink.finalize();
+
   }
 }
 
@@ -344,14 +338,10 @@ class _DeflateFileSink implements Sink<List<int>> {
 
   @override
   void close() {
-    // The encoder calls close() on its output sink after the final chunk;
-    // entry finalization (descriptor + CD record) is deferred to
-    // ZipEntrySink.close via finalize().
+    // The encoder calls close() on its output sink after the final chunk.
+    // Entry finalization (descriptor + CD record) is handled here.
     onFinish();
   }
 
-  void finalize() {
-    // No-op; close() already handled entry registration. Kept explicit so
-    // ZipEntrySink.close has a deterministic finalization step.
-  }
+
 }
