@@ -137,7 +137,10 @@ void main() {
     final r = manager.js.evaluate('''
       globalThis.setTimeout = (cb) => { cb(); return 1; };
       globalThis.clearTimeout = () => {};
-      globalThis.fetch = async (url) => {
+      globalThis.__puts = [];
+      globalThis.fetch = async (url, init) => {
+        init = init || {};
+        if (init.method === 'PUT') { globalThis.__puts.push({ url: String(url), body: init.body }); return { ok:true, status:200, json: async () => ({}) }; }
         if (url.endsWith('/shots/latest')) return { ok:true, json: async () => ({ id:'shot-1' }) };
         if (url.endsWith('/shots/shot-1')) return { ok:true, json: async () => (${jsonEncode(_shot('shot-1'))}) };
         if (url.endsWith('/machine/info')) return { ok:true, json: async () => ({ serialNumber:'6262', version:'1293', model:'DE1Pro' }) };
@@ -194,6 +197,24 @@ void main() {
       expect(body['machine'].containsKey('bleId'), isFalse);
       // app version from /api/v1/info, not the hard-coded plugin version
       expect(body['app']['version'], '9.9.9');
+
+      // the shot record is marked uploaded: PUT /shots/<id> with
+      // annotations.extras.uploaded_to_decent = <epoch seconds>
+      final puts =
+          jsonDecode(
+                manager.js
+                    .evaluate('JSON.stringify(globalThis.__puts)')
+                    .stringResult,
+              )
+              as List;
+      expect(puts, hasLength(1));
+      expect(puts.single['url'], endsWith('/api/v1/shots/shot-1'));
+      final putBody =
+          jsonDecode(puts.single['body'] as String) as Map<String, dynamic>;
+      expect(
+        putBody['annotations']['extras']['uploaded_to_decent'],
+        isA<int>(),
+      );
     },
   );
 
