@@ -323,6 +323,38 @@ void main() {
         },
       );
 
+      test(
+        'push overall timeout aborts the phase and reports a timeout',
+        () async {
+          final stopwatch = Stopwatch()..start();
+          final client = http_testing.MockClient((request) async {
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+            return http.Response(
+              '{"profiles":{"imported":1},"shots":{"imported":1}}',
+              200,
+            );
+          });
+          final handler = buildSyncHandler(
+            client,
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 50),
+            ),
+          );
+          final response = await sendSync(handler, requestBody(mode: 'push'));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 502);
+          expect(body['complete'], isFalse);
+          expect(body['push']['reason'], 'timeout');
+          // The phase must fail at the deadline, not after the target's own
+          // delay (300 ms); the loose bound guards against slow CI.
+          stopwatch.stop();
+          expect(
+            stopwatch.elapsed,
+            lessThan(const Duration(milliseconds: 250)),
+          );
+        },
+      );
+
       test('rejects empty and unknown section lists', () async {
         final handler = buildSyncHandler(
           http_testing.MockClient((_) async {

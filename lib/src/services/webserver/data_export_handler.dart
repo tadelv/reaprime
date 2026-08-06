@@ -503,13 +503,16 @@ class _EntryJsonSink implements JsonSink {
 
   @override
   void writeRaw(String fragment) {
-    if (fragment.length > _limits.maxRecordBytes) {
+    // Encode once and check the encoded byte length: the record limit is
+    // documented in bytes, and UTF-8 can be up to 3x the UTF-16 length.
+    final encoded = utf8.encode(fragment);
+    if (encoded.length > _limits.maxRecordBytes) {
       throw DataExportException(
         message: 'A data record exceeds the maximum size limit.',
         failedSections: const {},
       );
     }
-    _entry.write(Uint8List.fromList(utf8.encode(fragment)));
+    _entry.write(encoded);
   }
 }
 

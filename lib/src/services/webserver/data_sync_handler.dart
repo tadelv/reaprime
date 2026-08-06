@@ -182,10 +182,11 @@ class DataSyncHandler {
   /// The target only responds after it has generated its export archive, so
   /// there is no short header timeout; connection establishment is bounded by
   /// the HTTP client's connection timeout, idle gaps by
-  /// [DataTransferLimits.syncIdleTimeout], and the whole phase by
-  /// [DataTransferLimits.syncOverallTimeout]. Timeouts cancel the response
-  /// stream explicitly so the import can never run after the caller has been
-  /// told the phase timed out.
+  /// [DataTransferLimits.syncIdleTimeout], and the whole phase by a single
+  /// deadline of [DataTransferLimits.syncOverallTimeout] shared by every
+  /// stage (headers, stream, local import). Timeouts cancel the response
+  /// stream explicitly so the import can never run after the caller has
+  /// been told the phase timed out.
   Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
@@ -194,18 +195,17 @@ class DataSyncHandler {
     final limits = _exportHandler.limits;
     _log.info('Pulling data from $target');
     final tempDir = await TempArchiveDir.create('reaprime-sync-pull-');
+    final deadline = DateTime.now().add(limits.syncOverallTimeout);
     try {
       final request = http.Request(
         'GET',
         Uri.parse('$target/api/v1/data/export'),
       );
       // No short header timeout: the target only responds after generating
-      // its export archive. The phase is bounded by syncOverallTimeout
-      // (also applied to the response stream below, with explicit
-      // cancellation).
+      // its export archive. The shared phase deadline bounds the wait.
       final streamed = await _httpClient
           .send(request)
-          .timeout(limits.syncOverallTimeout);
+          .timeout(_remaining(deadline));
 
       if (streamed.statusCode != 200) {
         throw SyncTargetException(
@@ -251,17 +251,15 @@ class DataSyncHandler {
               },
               cancelOnError: true,
             );
-        await done.future.timeout(limits.syncOverallTimeout);
+        await done.future.timeout(_remaining(deadline));
       } finally {
         await sub?.cancel();
         await raf.close();
       }
 
-      final outcome = await _exportHandler.importFromZipFile(
-        zipFile,
-        strategy,
-        sections: expectedSections,
-      );
+      final outcome = await _exportHandler
+          .importFromZipFile(zipFile, strategy, sections: expectedSections)
+          .timeout(_remaining(deadline));
       return outcome.phase;
     } finally {
       await tempDir.dispose();
@@ -270,6 +268,14 @@ class DataSyncHandler {
 
   /// Exports locally into a temp ZIP and streams it to the target with a
   /// known content length.
+  ///
+  /// All network stages share one phase deadline (the same
+  /// [DataTransferLimits.syncOverallTimeout] as pull), so the phase cannot
+  /// run substantially longer than the limit even though the target only
+  /// responds after importing the whole archive. A timeout aborts the
+  /// upload: the file read is cancelled and the request body closed, so the
+  /// remote receives a truncated archive and cannot complete its import
+  /// after the caller has been told the phase timed out.
   Future<DataTransferPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
@@ -279,6 +285,7 @@ class DataSyncHandler {
     final limits = _exportHandler.limits;
     _log.info('Pushing data to $target');
     final tempDir = await TempArchiveDir.create('reaprime-sync-push-');
+    final deadline = DateTime.now().add(limits.syncOverallTimeout);
     try {
       final File zipFile;
       try {
@@ -297,66 +304,100 @@ class DataSyncHandler {
       );
       request.headers['content-type'] = 'application/octet-stream';
       request.contentLength = length;
-      final bodyFuture = request.sink
-          .addStream(zipFile.openRead())
-          .then((_) => request.sink.close());
-      // If the phase fails before the body is consumed (timeout, early
-      // target rejection), a body-stream error must not become an unhandled
-      // async error.
-      bodyFuture.ignore();
 
-      // The target only responds after it has received and imported the
-      // whole archive, so there is no short header timeout here; the phase
-      // is bounded by syncOverallTimeout.
-      final streamed = await _httpClient
-          .send(request)
-          .timeout(limits.syncOverallTimeout);
-
-      final statusCode = streamed.statusCode;
-      if (statusCode != 200 && statusCode != 207) {
-        throw SyncTargetException(
-          'Target error',
-          'Target returned status $statusCode',
-          statusCode: statusCode,
-        );
-      }
-      try {
-        await bodyFuture;
-      } catch (_) {
-        // The target closed the connection while the body was still being
-        // written (e.g. it rejected the archive early).
-        throw SyncTargetException(
-          'Target error',
-          'Target closed the connection while receiving the archive.',
-          statusCode: statusCode,
-        );
-      }
-
-      final body = await _readBoundedResponse(
-        streamed.stream,
-        limits.maxSyncResponseBytes,
-        limits.syncIdleTimeout,
-        limits.syncOverallTimeout,
+      // Feed the body from the file through the request sink, keeping the
+      // subscription so a timeout can abort the upload.
+      final bodyDone = Completer<void>();
+      late final StreamSubscription<List<int>> bodySub;
+      bodySub = zipFile.openRead().listen(
+        request.sink.add,
+        onError: (Object e, StackTrace st) {
+          request.sink.close();
+          bodyDone.completeError(e, st);
+        },
+        onDone: () {
+          request.sink.close();
+          bodyDone.complete();
+        },
+        cancelOnError: true,
       );
-
-      final dynamic decoded;
-      try {
-        decoded = jsonDecode(body);
-      } catch (_) {
-        return DataTransferPhaseOutcome.failed(
-          error: 'Invalid target response',
-          message: 'The target returned invalid JSON.',
-          reason: 'invalid_json',
-        );
+      // Aborts the upload: stops the file read and closes the request body
+      // so the remote sees a truncated archive.
+      Future<void> abortUpload() async {
+        await bodySub.cancel();
+        try {
+          request.sink.close();
+        } catch (_) {
+          // The sink may already be closed.
+        }
       }
-      return DataTransferPhaseOutcome.fromRemote(
-        decoded,
-        expectedSections,
-        minimumStatus: statusCode == 207 ? DataTransferStatus.partial : null,
-      );
+
+      try {
+        // The target only responds after it has received and imported the
+        // whole archive, so there is no short header timeout here; the
+        // shared phase deadline bounds the wait.
+        final streamed = await _httpClient
+            .send(request)
+            .timeout(_remaining(deadline));
+        final statusCode = streamed.statusCode;
+        if (statusCode != 200 && statusCode != 207) {
+          throw SyncTargetException(
+            'Target error',
+            'Target returned status $statusCode',
+            statusCode: statusCode,
+          );
+        }
+        try {
+          await bodyDone.future.timeout(_remaining(deadline));
+        } on TimeoutException {
+          rethrow;
+        } catch (_) {
+          // The target closed the connection while the body was still being
+          // written (e.g. it rejected the archive early).
+          throw SyncTargetException(
+            'Target error',
+            'Target closed the connection while receiving the archive.',
+            statusCode: statusCode,
+          );
+        }
+
+        final body = await _readBoundedResponse(
+          streamed.stream,
+          limits.maxSyncResponseBytes,
+          limits.syncIdleTimeout,
+          _remaining(deadline),
+        );
+
+        final dynamic decoded;
+        try {
+          decoded = jsonDecode(body);
+        } catch (_) {
+          return DataTransferPhaseOutcome.failed(
+            error: 'Invalid target response',
+            message: 'The target returned invalid JSON.',
+            reason: 'invalid_json',
+          );
+        }
+        return DataTransferPhaseOutcome.fromRemote(
+          decoded,
+          expectedSections,
+          minimumStatus: statusCode == 207 ? DataTransferStatus.partial : null,
+        );
+      } catch (_) {
+        await abortUpload();
+        rethrow;
+      } finally {
+        await bodySub.cancel();
+      }
     } finally {
       await tempDir.dispose();
     }
+  }
+
+  /// Time remaining on the phase deadline (zero when it has expired).
+  Duration _remaining(DateTime deadline) {
+    final left = deadline.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
   }
 
   Response _response({

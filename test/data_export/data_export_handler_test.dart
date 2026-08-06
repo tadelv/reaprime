@@ -81,6 +81,25 @@ class OversizeExportSection implements DataExportSection {
   ) async => const SectionImportResult();
 }
 
+/// A section whose fragment is under the record cap in UTF-16 code units
+/// but over it in UTF-8 bytes (non-ASCII content).
+class UnicodeExportSection implements DataExportSection {
+  @override
+  final String filename;
+  UnicodeExportSection(this.filename);
+
+  @override
+  Future<void> exportJson(JsonSink output) async {
+    output.writeRaw('["${'\u00E9' * 40}"]'); // 42 UTF-16, 82 bytes
+  }
+
+  @override
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
+    ConflictStrategy strategy,
+  ) async => const SectionImportResult();
+}
+
 void main() {
   late DataExportHandler handler;
   late MockExportSection profileSection;
@@ -317,6 +336,28 @@ void main() {
           await tempDir.delete(recursive: true);
         }
       });
+
+      test(
+        'record cap is measured in UTF-8 bytes, not UTF-16 code units',
+        () async {
+          // 40 '\u00E9' chars: 40 UTF-16 code units but 80 UTF-8 bytes. With
+          // a 64-byte cap the fragment must be rejected even though its
+          // UTF-16 length is under the limit.
+          final handlerWithUnicode = DataExportHandler(
+            sections: [UnicodeExportSection('big.json')],
+            limits: const DataTransferLimits(maxRecordBytes: 64),
+          );
+          final tempDir = await Directory.systemTemp.createTemp('unicode-');
+          try {
+            await expectLater(
+              handlerWithUnicode.exportToZipFile(tempDir),
+              throwsA(isA<DataExportException>()),
+            );
+          } finally {
+            await tempDir.delete(recursive: true);
+          }
+        },
+      );
     });
 
     group('POST /api/v1/data/import', () {
