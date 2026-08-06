@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -190,39 +189,18 @@ class DataExportHandler {
   }
 
   /// Streams [file] to the response, deleting the owning temp directory when
-  /// the stream completes, errors, or the consumer cancels.
+  /// the stream completes, errors, or the consumer cancels. An async*
+  /// generator propagates pause/resume/cancel to the source file stream, so
+  /// a slow HTTP consumer cannot make the ZIP accumulate in memory.
   Stream<List<int>> _fileStream(
     File file, {
     required Future<void> Function() onDone,
-  }) {
-    var done = false;
-    Future<void> cleanup() async {
-      if (done) return;
-      done = true;
+  }) async* {
+    try {
+      yield* file.openRead();
+    } finally {
       await onDone();
     }
-
-    late final StreamController<List<int>> controller;
-    controller = StreamController<List<int>>(
-      onListen: () {
-        file.openRead().listen(
-          controller.add,
-          onError: (Object e, StackTrace st) {
-            controller.addError(e, st);
-            cleanup();
-          },
-          onDone: () {
-            controller.close();
-            cleanup();
-          },
-          cancelOnError: true,
-        );
-      },
-      onCancel: () async {
-        await cleanup();
-      },
-    );
-    return controller.stream;
   }
 
   // ---------------------------------------------------------------------
@@ -291,6 +269,11 @@ class DataExportHandler {
             results[key] = result.toJson();
           }
         } catch (e, st) {
+          if (e is InvalidBackupException) {
+            // ZIP integrity failures abort the whole import as 400; only
+            // section-local (JSON-level) failures stay isolated here.
+            rethrow;
+          }
           _log.severe('Error importing ${section.filename}', e, st);
           results[key] = {
             'errors': ['Failed to process ${section.filename}: $e'],
@@ -331,11 +314,19 @@ class DataExportHandler {
     ZipEntryInfo entry,
     ConflictStrategy strategy,
   ) async {
-    // Validation pass.
+    // Validation pass. ZIP-level integrity failures (CRC mismatch,
+    // truncation) abort the whole import as 400; only JSON-level failures
+    // are isolated to the section as a 207 result.
     try {
       final validator = _EntryJsonInput(reader, entry, _limits);
       await validator.open();
       await for (final _ in validator.valuesAtDepth(section.jsonEventDepth)) {}
+    } on ZipReadException catch (e) {
+      throw InvalidBackupException(
+        message: 'Could not read the backup ZIP archive: ${e.message}',
+        reason: e.reason,
+        cause: e,
+      );
     } catch (e, st) {
       _log.warning('Section ${section.filename} failed validation', e, st);
       return SectionImportResult(

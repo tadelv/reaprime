@@ -179,9 +179,11 @@ void main() {
   Handler buildSyncHandler(
     http.Client client, {
     List<DataExportSection>? registeredSections,
+    DataTransferLimits? limits,
   }) {
     final exportHandler = DataExportHandler(
       sections: registeredSections ?? sections,
+      limits: limits ?? const DataTransferLimits(),
     );
     final syncHandler = DataSyncHandler(
       exportHandler: exportHandler,
@@ -245,6 +247,81 @@ void main() {
           }
         }
       });
+
+      test('pull succeeds when the target takes longer than a connect '
+          'timeout to generate its export', () async {
+        // The target only responds after generating its export archive;
+        // that processing time must not be counted against a short
+        // connection timeout (issue #555 review).
+        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+        final client = http_testing.MockClient((request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          return http.Response.bytes(targetZip, 200);
+        });
+        final handler = buildSyncHandler(
+          client,
+          limits: const DataTransferLimits(
+            syncHeaderTimeout: Duration(milliseconds: 1),
+          ),
+        );
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+        final body = jsonDecode(await response.readAsString());
+        expect(response.statusCode, 200);
+        expect(body['complete'], isTrue);
+      });
+
+      test('push succeeds when the target takes longer than a connect '
+          'timeout to import the archive', () async {
+        final client = http_testing.MockClient((request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
+        });
+        final handler = buildSyncHandler(
+          client,
+          limits: const DataTransferLimits(
+            syncHeaderTimeout: Duration(milliseconds: 1),
+          ),
+        );
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        final body = jsonDecode(await response.readAsString());
+        expect(response.statusCode, 200);
+        expect(body['complete'], isTrue);
+      });
+
+      test(
+        'pull overall timeout aborts the download and never imports',
+        () async {
+          final client = http_testing.MockClient((request) async {
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+            return http.Response.bytes(
+              buildZip({'profiles.json': {}, 'shots.json': {}}),
+              200,
+            );
+          });
+          final freshShots = MockExportSection(filename: 'shots.json');
+          final handler = buildSyncHandler(
+            client,
+            registeredSections: [
+              MockExportSection(filename: 'profiles.json'),
+              freshShots,
+            ],
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 50),
+            ),
+          );
+          final response = await sendSync(handler, requestBody(mode: 'pull'));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 502);
+          expect(body['complete'], isFalse);
+          expect(body['pull']['reason'], 'timeout');
+          // The phase must not import anything after the caller was told the
+          // phase timed out.
+          expect(freshShots.calls, 0);
+        },
+      );
 
       test('rejects empty and unknown section lists', () async {
         final handler = buildSyncHandler(

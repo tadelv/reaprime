@@ -174,7 +174,9 @@ of records and one JSON record, never with backup size. Rationale and traps:
   for tests: request body 2 GiB, entry count 4096, per-entry uncompressed
   1 GiB, total uncompressed 2 GiB, metadata 64 KiB, per-record 64 MiB, ZIP
   header fields 256 B/64 KiB/64 KiB, sync request 1 MiB, target response
-  8 MiB; timeouts 10 s header / 30 s idle / 10 min overall. All are below
+  8 MiB; timeouts 10 s connection (TCP establishment only) / 30 s idle /
+  10 min overall (the overall timeout cancels the transfer explicitly, so a
+  timed-out pull never imports). All are below
   ZIP64 thresholds so Zip64 can be rejected outright.
 - **Temp files**: every operation owns one unique temp directory
   (`util/temp_archive_files.dart`), deleted in `finally` or on stream

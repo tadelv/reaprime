@@ -4015,8 +4015,10 @@ paths:
         Pull responses are streamed to a temporary ZIP before import; push
         requests stream a locally built temporary ZIP with a known content
         length. The sync request body is limited to 1 MiB, and target
-        responses to 8 MiB. Transfers apply connection/header (10 s), idle
-        (30 s), and overall (10 min) timeouts.
+        responses to 8 MiB. Transfers apply a connection timeout (10 s,
+        connect establishment only), an idle timeout (30 s between stream
+        events), and an overall phase timeout (10 min). The overall timeout
+        cancels the transfer explicitly: a timed-out pull never imports.
       tags: [Data Management]
       requestBody:
         required: true

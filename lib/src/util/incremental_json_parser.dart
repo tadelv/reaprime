@@ -66,11 +66,15 @@ class IncrementalJsonParser {
   int _unicodeRemaining = 0;
   bool _tokenIsKey = false;
   bool _inScalar = false;
+  int _tokenBytes = 0;
 
   // Raw span of the value currently at [eventDepth] (may be a container,
   // string, or scalar). Cleared when each event-candidate value starts.
+  // [_spanBytes] tracks the UTF-8 byte length incrementally so container
+  // values are capped while they are constructed, not after the fact.
   final StringBuffer _span = StringBuffer();
   bool _spanOpen = false;
+  int _spanBytes = 0;
 
   final List<JsonValueEvent> _pendingEvents = [];
 
@@ -166,13 +170,13 @@ class IncrementalJsonParser {
     if (_ws.contains(c)) {
       // Whitespace between values is not part of any span; inside an open
       // event span it is harmless and tolerated by the decoder.
-      if (_spanOpen) _span.writeCharCode(c);
+      if (_spanOpen) _spanWriteCharCode(c);
       return;
     }
 
     // Structural characters ( `{ [ " , : } ]` and scalar starts) are part of
     // the enclosing event span when one is open.
-    if (_spanOpen) _span.writeCharCode(c);
+    if (_spanOpen) _spanWriteCharCode(c);
 
     if (_stack.isEmpty) {
       _startValue(c);
@@ -284,28 +288,49 @@ class IncrementalJsonParser {
 
   void _openSpanIfEvent(int c, int valueDepth) {
     if (!_spanOpen && valueDepth == _eventDepth) {
-      _span.clear();
-      _spanOpen = true;
-      _span.writeCharCode(c);
+      _openSpan();
+      _spanWriteCharCode(c);
     }
   }
 
+  /// Opens a fresh event span (raw text of the value at [_eventDepth]).
+  void _openSpan() {
+    _span.clear();
+    _spanBytes = 0;
+    _spanOpen = true;
+  }
+
+  /// Appends one character to the open event span, tracking its UTF-8 byte
+  /// length so an oversized container is rejected while it is constructed.
+  void _spanWriteCharCode(int c) {
+    _span.writeCharCode(c);
+    _spanBytes += _utf8Length(c);
+    if (_spanBytes > _maxValueBytes) {
+      throw const JsonStreamFormatException('JSON value is too large.');
+    }
+  }
+
+  /// UTF-8 byte length of one UTF-16 code unit (unpaired surrogates count 3
+  /// bytes each; a surrogate pair therefore counts 6 instead of 4, a safe
+  /// overcount).
+  static int _utf8Length(int c) => c < 0x80 ? 1 : (c < 0x800 ? 2 : 3);
+
   void _startScalar(int c) {
     _token.clear();
+    _tokenBytes = 0;
     _tokenIsKey = false;
     _inScalar = true;
     _appendToken(c);
     if (!_spanOpen && _stack.length == _eventDepth) {
-      _span.clear();
-      _spanOpen = true;
-      _span.writeCharCode(c);
+      _openSpan();
+      _spanWriteCharCode(c);
     }
   }
 
   void _scalarChar(int c) {
     if (_scalarChars.contains(c)) {
       _appendToken(c);
-      if (_spanOpen) _span.writeCharCode(c);
+      if (_spanOpen) _spanWriteCharCode(c);
       return;
     }
     if (_ws.contains(c) || c == 0x2C || c == 0x7D || c == 0x5D) {
@@ -325,15 +350,15 @@ class IncrementalJsonParser {
 
   void _startString({required bool isKey}) {
     _token.clear();
+    _tokenBytes = 0;
     _tokenIsKey = isKey;
     _inString = true;
     _inEscape = false;
     _inUnicode = false;
     _appendToken(0x22);
     if (!isKey && !_spanOpen && _stack.length == _eventDepth) {
-      _span.clear();
-      _spanOpen = true;
-      _span.writeCharCode(0x22);
+      _openSpan();
+      _spanWriteCharCode(0x22);
     }
   }
 
@@ -341,7 +366,7 @@ class IncrementalJsonParser {
     if (_inEscape) {
       _inEscape = false;
       _appendToken(c);
-      if (_spanOpen) _span.writeCharCode(c);
+      if (_spanOpen) _spanWriteCharCode(c);
       if (c == 0x75) {
         // \u
         _inUnicode = true;
@@ -362,7 +387,7 @@ class IncrementalJsonParser {
     }
     if (_inUnicode) {
       _appendToken(c);
-      if (_spanOpen) _span.writeCharCode(c);
+      if (_spanOpen) _spanWriteCharCode(c);
       if (!_isHex(c)) {
         throw const JsonStreamFormatException('Invalid \\u escape sequence.');
       }
@@ -373,32 +398,30 @@ class IncrementalJsonParser {
     if (c == 0x5C) {
       _inEscape = true;
       _appendToken(c);
-      if (_spanOpen) _span.writeCharCode(c);
+      if (_spanOpen) _spanWriteCharCode(c);
       return;
     }
     if (c == 0x22) {
       _appendToken(c);
-      if (_spanOpen) _span.writeCharCode(c);
+      if (_spanOpen) _spanWriteCharCode(c);
       _inString = false;
       _completeString();
       return;
     }
     _appendToken(c);
-    if (_spanOpen) _span.writeCharCode(c);
+    if (_spanOpen) _spanWriteCharCode(c);
   }
 
   void _completeString() {
     final token = _token.toString();
     _token.clear();
+    _tokenBytes = 0;
     if (_tokenIsKey) {
       final frame = _stack.isEmpty ? null : _stack.last;
       if (frame == null ||
           !frame.isObject ||
           frame.state != _FrameState.wantKey) {
         throw const JsonStreamFormatException('Unexpected string key.');
-      }
-      if (token.length > _maxKeyBytes) {
-        throw const JsonStreamFormatException('JSON key is too large.');
       }
       frame.pendingKey = _decodeFragment(token) as String;
       frame.state = _FrameState.expectColon;
@@ -408,11 +431,9 @@ class IncrementalJsonParser {
   }
 
   /// Completes a value whose raw text is [token]. For containers the caller
-  /// passes the accumulated span; for strings/scalars the token buffer.
+  /// passes the accumulated span; for strings/scalars the token buffer. Size
+  /// limits were already enforced while the text was constructed.
   void _completeValue(String token) {
-    if (token.length > _maxValueBytes) {
-      throw const JsonStreamFormatException('JSON value is too large.');
-    }
     final isEvent = _stack.length == _eventDepth;
     if (isEvent) {
       if (!_spanOpen) {
@@ -482,11 +503,12 @@ class IncrementalJsonParser {
   }
 
   void _appendToken(int c) {
+    _tokenBytes += _utf8Length(c);
     if (_tokenIsKey) {
-      if (_token.length >= _maxKeyBytes) {
+      if (_tokenBytes > _maxKeyBytes) {
         throw const JsonStreamFormatException('JSON key is too large.');
       }
-    } else if (_token.length >= _maxValueBytes) {
+    } else if (_tokenBytes > _maxValueBytes) {
       throw const JsonStreamFormatException('JSON value is too large.');
     }
     _token.writeCharCode(c);

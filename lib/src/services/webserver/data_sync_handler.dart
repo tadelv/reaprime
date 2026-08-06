@@ -142,15 +142,10 @@ class DataSyncHandler {
 
     DataTransferPhaseOutcome? pull;
     DataTransferPhaseOutcome? push;
-    final overallTimeout = _exportHandler.limits.syncOverallTimeout;
 
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
       try {
-        pull = await _pull(
-          target,
-          strategy,
-          expectedSections,
-        ).timeout(overallTimeout);
+        pull = await _pull(target, strategy, expectedSections);
       } catch (error) {
         pull = _failure(error);
       }
@@ -158,24 +153,14 @@ class DataSyncHandler {
 
     if (mode == SyncMode.push) {
       try {
-        push = await _push(
-          target,
-          strategy,
-          sections,
-          expectedSections,
-        ).timeout(overallTimeout);
+        push = await _push(target, strategy, sections, expectedSections);
       } catch (error) {
         push = _failure(error);
       }
     } else if (mode == SyncMode.twoWay) {
       if (pull!.complete || continueOnPullFailure) {
         try {
-          push = await _push(
-            target,
-            strategy,
-            sections,
-            expectedSections,
-          ).timeout(overallTimeout);
+          push = await _push(target, strategy, sections, expectedSections);
         } catch (error) {
           push = _failure(error);
         }
@@ -193,6 +178,14 @@ class DataSyncHandler {
   }
 
   /// Streams the local export into a temp ZIP, then imports from the file.
+  ///
+  /// The target only responds after it has generated its export archive, so
+  /// there is no short header timeout; connection establishment is bounded by
+  /// the HTTP client's connection timeout, idle gaps by
+  /// [DataTransferLimits.syncIdleTimeout], and the whole phase by
+  /// [DataTransferLimits.syncOverallTimeout]. Timeouts cancel the response
+  /// stream explicitly so the import can never run after the caller has been
+  /// told the phase timed out.
   Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
@@ -206,9 +199,13 @@ class DataSyncHandler {
         'GET',
         Uri.parse('$target/api/v1/data/export'),
       );
+      // No short header timeout: the target only responds after generating
+      // its export archive. The phase is bounded by syncOverallTimeout
+      // (also applied to the response stream below, with explicit
+      // cancellation).
       final streamed = await _httpClient
           .send(request)
-          .timeout(limits.syncHeaderTimeout);
+          .timeout(limits.syncOverallTimeout);
 
       if (streamed.statusCode != 200) {
         throw SyncTargetException(
@@ -221,20 +218,42 @@ class DataSyncHandler {
       final zipFile = File(tempDir.filePath('pull.zip'));
       final raf = await zipFile.open(mode: FileMode.write);
       var received = 0;
+      Object? abortError;
+      final done = Completer<void>();
+      StreamSubscription<List<int>>? sub;
       try {
-        await for (final chunk in streamed.stream.timeout(
-          limits.syncIdleTimeout,
-        )) {
-          received += chunk.length;
-          if (received > limits.maxImportRequestBytes) {
-            throw InvalidBackupException(
-              message: 'The pulled archive exceeds the size limit.',
-              reason: 'request_too_large',
+        sub = streamed.stream
+            .timeout(limits.syncIdleTimeout)
+            .listen(
+              (chunk) {
+                if (abortError != null) return;
+                received += chunk.length;
+                if (received > limits.maxImportRequestBytes) {
+                  abortError = InvalidBackupException(
+                    message: 'The pulled archive exceeds the size limit.',
+                    reason: 'request_too_large',
+                  );
+                  sub?.cancel();
+                  done.completeError(abortError!);
+                  return;
+                }
+                raf.writeFromSync(chunk);
+              },
+              onError: (Object e, StackTrace st) {
+                if (abortError == null) done.completeError(e, st);
+              },
+              onDone: () {
+                if (abortError != null) {
+                  done.completeError(abortError!);
+                } else {
+                  done.complete();
+                }
+              },
+              cancelOnError: true,
             );
-          }
-          raf.writeFromSync(chunk);
-        }
+        await done.future.timeout(limits.syncOverallTimeout);
       } finally {
+        await sub?.cancel();
         await raf.close();
       }
 
@@ -281,11 +300,17 @@ class DataSyncHandler {
       final bodyFuture = request.sink
           .addStream(zipFile.openRead())
           .then((_) => request.sink.close());
+      // If the phase fails before the body is consumed (timeout, early
+      // target rejection), a body-stream error must not become an unhandled
+      // async error.
+      bodyFuture.ignore();
 
+      // The target only responds after it has received and imported the
+      // whole archive, so there is no short header timeout here; the phase
+      // is bounded by syncOverallTimeout.
       final streamed = await _httpClient
           .send(request)
-          .timeout(limits.syncHeaderTimeout);
-      await bodyFuture;
+          .timeout(limits.syncOverallTimeout);
 
       final statusCode = streamed.statusCode;
       if (statusCode != 200 && statusCode != 207) {
@@ -295,11 +320,23 @@ class DataSyncHandler {
           statusCode: statusCode,
         );
       }
+      try {
+        await bodyFuture;
+      } catch (_) {
+        // The target closed the connection while the body was still being
+        // written (e.g. it rejected the archive early).
+        throw SyncTargetException(
+          'Target error',
+          'Target closed the connection while receiving the archive.',
+          statusCode: statusCode,
+        );
+      }
 
       final body = await _readBoundedResponse(
         streamed.stream,
         limits.maxSyncResponseBytes,
         limits.syncIdleTimeout,
+        limits.syncOverallTimeout,
       );
 
       final dynamic decoded;
@@ -435,22 +472,43 @@ class DataSyncHandler {
     return utf8.decode(builder.takeBytes());
   }
 
+  /// Reads a response body with an idle timeout between events and an overall
+  /// timeout for the whole body. Either timeout cancels the subscription so
+  /// the connection is released even if the caller has already given up on
+  /// the phase.
   Future<String> _readBoundedResponse(
     Stream<List<int>> stream,
     int maxBytes,
     Duration idleTimeout,
+    Duration overallTimeout,
   ) async {
     final builder = BytesBuilder(copy: false);
-    await for (final chunk in stream.timeout(idleTimeout)) {
-      builder.add(chunk);
-      if (builder.length > maxBytes) {
-        throw SyncTargetException(
-          'Target error',
-          'Target response is too large.',
+    final done = Completer<String>();
+    StreamSubscription<List<int>>? sub;
+    sub = stream
+        .timeout(idleTimeout)
+        .listen(
+          (chunk) {
+            builder.add(chunk);
+            if (builder.length > maxBytes) {
+              sub?.cancel();
+              done.completeError(
+                SyncTargetException(
+                  'Target error',
+                  'Target response is too large.',
+                ),
+              );
+            }
+          },
+          onError: (Object e, StackTrace st) => done.completeError(e, st),
+          onDone: () => done.complete(utf8.decode(builder.takeBytes())),
+          cancelOnError: true,
         );
-      }
+    try {
+      return await done.future.timeout(overallTimeout);
+    } finally {
+      await sub.cancel();
     }
-    return utf8.decode(builder.takeBytes());
   }
 
   _SectionsResult _parseSections(dynamic value) {
