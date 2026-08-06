@@ -42,7 +42,7 @@ class _FakeKeyValueStore implements KeyValueStoreService {
 
 void main() {
   test(
-    'Visualizer upload uses profile frame indices for state_change',
+    'Visualizer upload encodes state_change as non-zero stage markers',
     () async {
       final pluginSource = File(
         'assets/plugins/visualizer.reaplugin/plugin.js',
@@ -132,7 +132,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      expect(upload?['state_change'], [0, 0, 1, 2]);
+      expect(upload?['state_change'], [1, 1, 2, 3]);
     },
   );
 }
