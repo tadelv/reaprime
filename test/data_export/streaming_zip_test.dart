@@ -93,7 +93,7 @@ void main() {
         const DataTransferLimits(),
       );
       final e = w.addEntry('big.json');
-      final payload = utf8.encode('${'a' * 1024 * 1024}'); // 1 MiB
+      final payload = utf8.encode('a' * 1024 * 1024); // 1 MiB
       e.write(payload);
       e.close();
       await w.close();
@@ -233,7 +233,7 @@ void main() {
       _u16(local, 0);
       local.add(nameBytes);
       local.add(content);
-      final cdEntry = (int localOffset) {
+      Uint8List cdEntry(int localOffset) {
         final b = BytesBuilder(copy: false);
         b.addByte(0x50);
         b.addByte(0x4B);
@@ -257,7 +257,7 @@ void main() {
         _u32(b, localOffset);
         b.add(nameBytes);
         return b.takeBytes();
-      };
+      }
       final localBytes = local.takeBytes();
       final cd = BytesBuilder(copy: false)
         ..add(cdEntry(0))

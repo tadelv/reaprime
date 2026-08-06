@@ -264,7 +264,7 @@ class StreamingZipReader {
   }) async {
     if (entry.uncompressedSize > maxBytes) {
       throw ZipReadException(
-        'ZIP entry exceeds the ${maxBytes}-byte limit.',
+        'ZIP entry exceeds the $maxBytes-byte limit.',
         reason: 'entry_too_large',
       );
     }
@@ -273,7 +273,7 @@ class StreamingZipReader {
       builder.add(chunk);
       if (builder.length > maxBytes) {
         throw ZipReadException(
-          'ZIP entry exceeds the ${maxBytes}-byte limit.',
+          'ZIP entry exceeds the $maxBytes-byte limit.',
           reason: 'entry_too_large',
         );
       }
