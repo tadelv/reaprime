@@ -5,28 +5,52 @@
 #   fetch_dye2_plugin.sh
 #
 # Environment:
-#   DYE2_REPO     Release repo (default allofmeng/dye2).
-#   DYE2_VERSION  Release tag, e.g. v0.1.4 (default: latest release).
-#   GH_TOKEN      GitHub token for `gh` (set to secrets.GITHUB_TOKEN in CI).
+#   DYE2_REPO        Release repo (default allofmeng/dye2).
+#   DYE2_VERSION     Release tag to install (default: pinned version below).
+#   DYE2_SHA256      Expected sha256 of the release zip (default: pinned checksum below).
+#   DYE2_API_VERSION Expected manifest.json apiVersion (default: pinned value below).
+#   GH_TOKEN         GitHub token for `gh` (set to secrets.GITHUB_TOKEN in CI).
 #
 # The plugin used to be built from packages/dye2-plugin; it now ships as a
 # release asset (dye2.reaplugin-<tag>.zip) containing the dye2.reaplugin/
 # folder that pubspec.yaml declares as an asset directory.
+#
+# The version/checksum are pinned rather than defaulting to "latest" so a
+# given Decaid commit always bundles the same, reviewed DYE2 build. Bump
+# them together in a normal PR when DYE2 ships a new release.
 set -euo pipefail
 
+pinned_version="v0.1.4"
+pinned_sha256="fd8e43afa7d953c48ad23ca74aa76cb5314fde5602d07149f954e8e3497b81a6"
+pinned_api_version="1"
+
 repo="${DYE2_REPO:-allofmeng/dye2}"
-version="${DYE2_VERSION:-}"
+version="${DYE2_VERSION:-$pinned_version}"
+expected_sha256="${DYE2_SHA256:-$pinned_sha256}"
+expected_api_version="${DYE2_API_VERSION:-$pinned_api_version}"
 plugins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/assets/plugins"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-gh release download ${version:+"$version"} \
+gh release download "$version" \
   --repo "$repo" --pattern 'dye2.reaplugin-*.zip' --dir "$tmp"
 
 zip="$(ls "$tmp"/*.zip 2>/dev/null | head -n 1)"
 if [ -z "$zip" ]; then
-  echo "fetch_dye2_plugin: no dye2.reaplugin-*.zip asset in $repo ${version:-latest}" >&2
+  echo "fetch_dye2_plugin: no dye2.reaplugin-*.zip asset in $repo $version" >&2
+  exit 1
+fi
+
+if command -v shasum >/dev/null 2>&1; then
+  actual_sha256="$(shasum -a 256 "$zip" | cut -d ' ' -f 1)"
+else
+  actual_sha256="$(sha256sum "$zip" | cut -d ' ' -f 1)"
+fi
+if [ "$actual_sha256" != "$expected_sha256" ]; then
+  echo "fetch_dye2_plugin: checksum mismatch for $(basename "$zip")" >&2
+  echo "  expected: $expected_sha256" >&2
+  echo "  actual:   $actual_sha256" >&2
   exit 1
 fi
 
@@ -39,11 +63,38 @@ else
   tar -xf "$zip" -C "$plugins_dir"
 fi
 
-for f in manifest.json plugin.js; do
-  if [ ! -s "$plugins_dir/dye2.reaplugin/$f" ]; then
-    echo "fetch_dye2_plugin: $(basename "$zip") is missing dye2.reaplugin/$f" >&2
+manifest="$plugins_dir/dye2.reaplugin/manifest.json"
+plugin_js="$plugins_dir/dye2.reaplugin/plugin.js"
+
+for f in "$manifest" "$plugin_js"; do
+  if [ ! -s "$f" ]; then
+    echo "fetch_dye2_plugin: $(basename "$zip") is missing $(basename "$f")" >&2
     exit 1
   fi
 done
+
+manifest_id="$(jq -r '.id' "$manifest")"
+if [ "$manifest_id" != "dye2.reaplugin" ]; then
+  echo "fetch_dye2_plugin: manifest.json id is '$manifest_id', expected 'dye2.reaplugin'" >&2
+  exit 1
+fi
+
+manifest_version="$(jq -r '.version' "$manifest")"
+expected_manifest_version="${version#v}"
+if [ "$manifest_version" != "$expected_manifest_version" ]; then
+  echo "fetch_dye2_plugin: manifest.json version is '$manifest_version', expected '$expected_manifest_version'" >&2
+  exit 1
+fi
+
+manifest_api_version="$(jq -r '.apiVersion' "$manifest")"
+if [ "$manifest_api_version" != "$expected_api_version" ]; then
+  echo "fetch_dye2_plugin: manifest.json apiVersion is '$manifest_api_version', expected '$expected_api_version'" >&2
+  exit 1
+fi
+
+if ! grep -q 'createPlugin' "$plugin_js"; then
+  echo "fetch_dye2_plugin: plugin.js has no 'createPlugin' entry point" >&2
+  exit 1
+fi
 
 echo "fetch_dye2_plugin: installed $(basename "$zip") -> $plugins_dir/dye2.reaplugin"

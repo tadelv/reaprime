@@ -24,11 +24,11 @@ Thanks for contributing. This guide tells you what's required to land a PR — i
 
 ## Local Setup
 
-Requirements: Flutter (stable), the [GitHub CLI](https://cli.github.com) (`gh`, authenticated — used to fetch the DYE2 bundled plugin).
+Requirements: Flutter (stable), the [GitHub CLI](https://cli.github.com) (`gh`, authenticated — used to fetch the DYE2 bundled plugin), `jq` (validates the fetched plugin's manifest).
 
 ```bash
 flutter pub get
-./scripts/fetch_dye2_plugin.sh   # installs assets/plugins/dye2.reaplugin/ from the latest allofmeng/dye2 release
+./scripts/fetch_dye2_plugin.sh   # installs assets/plugins/dye2.reaplugin/ from the pinned allofmeng/dye2 release (scripts/fetch_dye2_plugin.sh)
 
 # Run with simulated hardware (no DE1 / scale required):
 flutter run --dart-define=simulate=1
