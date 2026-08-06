@@ -258,6 +258,7 @@ void main() {
         b.add(nameBytes);
         return b.takeBytes();
       }
+
       final localBytes = local.takeBytes();
       final cd = BytesBuilder(copy: false)
         ..add(cdEntry(0))
