@@ -469,6 +469,10 @@ void main(List<String> args) async {
   // Don't initialize plugins yet - wait for permissions to be granted
   // pluginService.initialize() will be called from PermissionsView after permissions are granted
   pluginService.pluginManager.de1Controller = de1Controller;
+  // Broadcast a `shotStored` plugin event once a shot is persisted, so plugins
+  // can react to the exact newly-stored shot (no timer/latest-lookup race).
+  persistenceController.onShotStored = (shotId) =>
+      pluginService.pluginManager.broadcastEvent('shotStored', {'id': shotId});
 
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {

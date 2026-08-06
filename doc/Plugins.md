@@ -131,7 +131,7 @@ host.storage({
 **Note:** namespace is not used by Decaid internally, the plugin storage is namespaced to the plugins' identifier.
 
 ### `host.decentProxy(path, options)`
-Call the Decent account proxy without exposing stored credentials to plugin code. The plugin must declare the `proxy.decent_api` permission in `manifest.json`; calls without that permission are rejected and logged.
+Call the Decent account proxy without exposing stored credentials to plugin code. `GET` requires the read-only `proxy.decent_api` permission. `POST` requires the distinct write permission `proxy.decent_api.write` **and** is restricted to an explicit path allowlist (currently only `support/api/shot_upload`); other methods/paths are rejected and logged.
 
 ```javascript
 const response = await host.decentProxy("support/api/sn", {
@@ -143,7 +143,7 @@ if (response.status === 200) {
   const serials = response.body.trim().split("\n");
 }
 
-// POST with a body (reuses the account credentials, never exposed to JS)
+// POST with a body (needs proxy.decent_api.write; only allowlisted write paths)
 const upload = await host.decentProxy("support/api/shot_upload", {
   method: "POST",
   body: JSON.stringify(shot),
@@ -151,7 +151,7 @@ const upload = await host.decentProxy("support/api/shot_upload", {
 });
 ```
 
-The returned object has `{ status, headers, body }`. `GET`, `POST`, and `PUT` are supported for plugins; pass `body` (string) and `contentType` for writes. The existing proxy allowlist still applies, so plugin requests are restricted to the supported Decent backend path prefix.
+The returned object has `{ status, headers, body }`. `GET` (read) needs `proxy.decent_api`; `POST` (write) needs `proxy.decent_api.write` and a path on the write allowlist. Credentials are attached in Dart and never exposed to plugin JS.
 
 ## Events System
 

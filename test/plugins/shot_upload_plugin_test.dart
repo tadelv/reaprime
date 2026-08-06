@@ -1,0 +1,238 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
+import 'package:reaprime/src/plugins/plugin_manager.dart';
+import 'package:reaprime/src/plugins/plugin_manifest.dart';
+import 'package:reaprime/src/services/account/decent_account_service.dart';
+import 'package:reaprime/src/services/account/decent_proxy_service.dart';
+import 'package:reaprime/src/services/storage/kv_store_service.dart';
+
+class _FakeCredentialStore implements CredentialStore {
+  final Map<String, String> _v = {};
+  @override
+  Future<String?> read({required String key}) async => _v[key];
+  @override
+  Future<void> write({required String key, required String value}) async =>
+      _v[key] = value;
+  @override
+  Future<void> delete({required String key}) async => _v.remove(key);
+}
+
+class _FakeKeyValueStore implements KeyValueStoreService {
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<void> set({
+    String namespace = 'default',
+    required String key,
+    required Object value,
+  }) async {}
+  @override
+  Future<bool> delete({
+    String namespace = 'default',
+    required String key,
+  }) async => false;
+  @override
+  Future<Object?> get({
+    String namespace = 'default',
+    required String key,
+  }) async => null;
+  @override
+  Future<List<String>> keys({String namespace = 'default'}) async => [];
+  @override
+  List<String> get namespaces => [];
+  @override
+  Future<Map<String, Object>> getAll({String namespace = 'default'}) async =>
+      {};
+}
+
+Map<String, dynamic> _shot(String id) => {
+  'id': id,
+  'timestamp': '2026-01-01T00:00:00Z',
+  'annotations': <String, dynamic>{},
+  'workflow': {
+    'profile': {'title': 'Damian LRv3', 'steps': <dynamic>[]},
+    'context': <String, dynamic>{},
+  },
+  'measurements': [
+    for (final t in const ['2026-01-01T00:00:00Z', '2026-01-01T00:00:30Z'])
+      {
+        'machine': {
+          'timestamp': t,
+          'state': {'state': 'espresso', 'substate': 'pouring'},
+          'pressure': 9,
+          'flow': 2,
+          'targetPressure': 9,
+          'targetFlow': 2,
+          'mixTemperature': 93,
+          'groupTemperature': 92,
+          'targetMixTemperature': 93,
+          'targetGroupTemperature': 93,
+          'profileFrame': 0,
+          'steamTemperature': 0,
+        },
+        'scale': {'weight': 18, 'weightFlow': 2},
+      },
+  ],
+};
+
+PluginManifest _manifest() => PluginManifest.fromJson(
+  jsonDecode(
+        File(
+          'assets/plugins/shot-upload.reaplugin/manifest.json',
+        ).readAsStringSync(),
+      )
+      as Map<String, dynamic>,
+);
+
+String _pluginSource() =>
+    File('assets/plugins/shot-upload.reaplugin/plugin.js').readAsStringSync();
+
+void main() {
+  /// Manager wired with a linked account + a MockClient that records the upload
+  /// request; the plugin's local REST calls (fetch) are stubbed in JS.
+  Future<PluginManager> load({
+    required Map<String, dynamic> settings,
+    required List<http.Request> captured,
+  }) async {
+    final store = _FakeCredentialStore();
+    await store.write(key: 'email', value: 'user@example.com');
+    await store.write(key: 'password', value: 'cryptpw_abc123');
+
+    final manager = PluginManager(
+      kvStore: _FakeKeyValueStore(),
+      decentProxyService: DecentProxyService(
+        credentialStore: store,
+        httpClient: http_testing.MockClient((request) async {
+          captured.add(request);
+          return http.Response(
+            jsonEncode({'ok': true, 'profile_ref': 'damian@1'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+    final r = manager.js.evaluate('''
+      globalThis.setTimeout = (cb) => { cb(); return 1; };
+      globalThis.clearTimeout = () => {};
+      globalThis.fetch = async (url) => {
+        if (url.endsWith('/shots/latest')) return { ok:true, json: async () => ({ id:'shot-1' }) };
+        if (url.endsWith('/shots/shot-1')) return { ok:true, json: async () => (${jsonEncode(_shot('shot-1'))}) };
+        if (url.endsWith('/machine/info')) return { ok:true, json: async () => ({ serialNumber:'6262', version:'1293', model:'DE1Pro' }) };
+        if (url.endsWith('/info')) return { ok:true, json: async () => ({ version:'9.9.9' }) };
+        throw new Error('Unexpected URL: ' + url);
+      };
+    ''');
+    expect(r.isError, isFalse, reason: r.stringResult);
+
+    await manager.loadPlugin(
+      id: _manifest().id,
+      manifest: _manifest(),
+      settings: settings,
+      jsCode: _pluginSource(),
+    );
+    return manager;
+  }
+
+  test(
+    'shotStored triggers an authenticated upload with correct provenance',
+    () async {
+      final captured = <http.Request>[];
+      final manager = await load(
+        settings: {'AutoUpload': true, 'LengthThreshold': 0},
+        captured: captured,
+      );
+
+      final uploaded = expectLater(
+        manager.emitStream,
+        emits(containsPair('event', 'shotUploaded')),
+      );
+      manager.dispatchEvent(_manifest().id, 'shotStored', {'id': 'shot-1'});
+      await uploaded.timeout(const Duration(seconds: 5));
+
+      expect(captured, hasLength(1));
+      final req = captured.single;
+      expect(req.method, 'POST');
+      expect(
+        req.url.toString(),
+        'https://decentespresso.com/support/api/shot_upload',
+      );
+      final body = jsonDecode(req.body) as Map<String, dynamic>;
+      expect(body['id'], 'shot-1');
+      expect(body['machine']['serialNumber'], '6262');
+      // firmware from /machine/info `version` (not a bogus firmwareVersion field)
+      expect(body['machine']['firmwareVersion'], '1293');
+      expect(body['machine'].containsKey('bleId'), isFalse);
+      // app version from /api/v1/info, not the hard-coded plugin version
+      expect(body['app']['version'], '9.9.9');
+    },
+  );
+
+  test('does not upload when AutoUpload is off (opt-in default)', () async {
+    final captured = <http.Request>[];
+    final manager = await load(
+      settings: <String, dynamic>{},
+      captured: captured,
+    );
+    manager.dispatchEvent(_manifest().id, 'shotStored', {'id': 'shot-1'});
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(captured, isEmpty);
+  });
+
+  test('storageRead-restored id is not re-uploaded (dedup)', () async {
+    final captured = <http.Request>[];
+    final manager = await load(
+      settings: {'AutoUpload': true, 'LengthThreshold': 0},
+      captured: captured,
+    );
+    manager.dispatchEvent(_manifest().id, 'storageRead', {
+      'key': 'lastUploadedShot',
+      'value': 'shot-1',
+    });
+    manager.dispatchEvent(_manifest().id, 'shotStored', {'id': 'shot-1'});
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(captured, isEmpty);
+  });
+
+  test('upload HTTP endpoint uploads the latest shot and reports ok', () async {
+    final captured = <http.Request>[];
+    final manager = await load(
+      settings: {'AutoUpload': false, 'LengthThreshold': 0},
+      captured: captured,
+    );
+
+    final uploaded = expectLater(
+      manager.emitStream,
+      emits(containsPair('event', 'shotUploaded')),
+    );
+    manager.dispatchEvent(_manifest().id, 'httpRequest', {
+      'requestId': 'req-1',
+      'endpoint': 'upload',
+      'method': 'POST',
+      'headers': <String, String>{},
+      'body': null,
+      'query': <String, String>{},
+    });
+    await uploaded.timeout(const Duration(seconds: 5));
+
+    expect(captured, hasLength(1));
+    expect(
+      captured.single.url.toString(),
+      'https://decentespresso.com/support/api/shot_upload',
+    );
+
+    Map<String, dynamic>? response;
+    for (var i = 0; i < 30 && response == null; i++) {
+      manager.js.executePendingJob();
+      response = manager.getPendingHttpResponse('req-1');
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(response, isNotNull);
+    expect(response!['status'], 200);
+    expect(jsonDecode(response['body'] as String)['ok'], true);
+  });
+}
