@@ -51,6 +51,22 @@ class MockExportSection implements DataExportSection {
   int get calls => _calls;
 }
 
+/// A [MockExportSection] whose import takes [delay], for deadline tests.
+class SlowImportSection extends MockExportSection {
+  final Duration delay;
+
+  SlowImportSection({required super.filename, required this.delay});
+
+  @override
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
+    ConflictStrategy strategy,
+  ) async {
+    await Future<void>.delayed(delay);
+    return super.importJson(input, strategy);
+  }
+}
+
 /// Builds a ZIP with [files] using the old in-memory encoder (backward
 /// compatibility surface for remote pulls).
 List<int> buildZip(Map<String, dynamic> files) {
@@ -324,7 +340,7 @@ void main() {
       );
 
       test(
-        'push overall timeout aborts the phase and reports a timeout',
+        'push timeout after the upload completed reports an unknown outcome',
         () async {
           final stopwatch = Stopwatch()..start();
           final client = http_testing.MockClient((request) async {
@@ -344,7 +360,11 @@ void main() {
           final body = jsonDecode(await response.readAsString());
           expect(response.statusCode, 502);
           expect(body['complete'], isFalse);
-          expect(body['push']['reason'], 'timeout');
+          // The mock consumed the (small) body well before the deadline, so
+          // the remote may have started importing; the outcome must be
+          // reported as unknown rather than claiming the push did not
+          // happen.
+          expect(body['push']['reason'], 'timeout_unknown');
           // The phase must fail at the deadline, not after the target's own
           // delay (300 ms); the loose bound guards against slow CI.
           stopwatch.stop();
@@ -352,6 +372,41 @@ void main() {
             stopwatch.elapsed,
             lessThan(const Duration(milliseconds: 250)),
           );
+        },
+      );
+
+      test(
+        'pull lets the local import finish past the phase deadline',
+        () async {
+          // The download completes within the deadline, but the local import
+          // takes longer than the deadline. It must run to completion and
+          // report its actual result (not a timeout): abandoning an import
+          // mid-write would leave the database mutating after the caller was
+          // told the phase failed.
+          final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+          final client = http_testing.MockClient((request) async {
+            await Future<void>.delayed(const Duration(milliseconds: 40));
+            return http.Response.bytes(targetZip, 200);
+          });
+          final slowShots = SlowImportSection(
+            filename: 'shots.json',
+            delay: const Duration(milliseconds: 200),
+          );
+          final handler = buildSyncHandler(
+            client,
+            registeredSections: [
+              MockExportSection(filename: 'profiles.json'),
+              slowShots,
+            ],
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 100),
+            ),
+          );
+          final response = await sendSync(handler, requestBody(mode: 'pull'));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 200);
+          expect(body['complete'], isTrue);
+          expect(slowShots.calls, 1);
         },
       );
 

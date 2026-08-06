@@ -182,11 +182,13 @@ class DataSyncHandler {
   /// The target only responds after it has generated its export archive, so
   /// there is no short header timeout; connection establishment is bounded by
   /// the HTTP client's connection timeout, idle gaps by
-  /// [DataTransferLimits.syncIdleTimeout], and the whole phase by a single
-  /// deadline of [DataTransferLimits.syncOverallTimeout] shared by every
-  /// stage (headers, stream, local import). Timeouts cancel the response
-  /// stream explicitly so the import can never run after the caller has
-  /// been told the phase timed out.
+  /// [DataTransferLimits.syncIdleTimeout], and the network stages (headers
+  /// and download) by a deadline of [DataTransferLimits.syncOverallTimeout]
+  /// starting at the request. A deadline expiry cancels the download, so a
+  /// timed-out pull never starts its import. The local import itself is NOT
+  /// cut off: it runs to completion and its actual result is reported,
+  /// because abandoning an import mid-write would leave the database
+  /// mutating after the caller was told the phase failed.
   Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
@@ -195,14 +197,14 @@ class DataSyncHandler {
     final limits = _exportHandler.limits;
     _log.info('Pulling data from $target');
     final tempDir = await TempArchiveDir.create('reaprime-sync-pull-');
-    final deadline = DateTime.now().add(limits.syncOverallTimeout);
     try {
+      final deadline = DateTime.now().add(limits.syncOverallTimeout);
       final request = http.Request(
         'GET',
         Uri.parse('$target/api/v1/data/export'),
       );
       // No short header timeout: the target only responds after generating
-      // its export archive. The shared phase deadline bounds the wait.
+      // its export archive. The deadline bounds the wait.
       final streamed = await _httpClient
           .send(request)
           .timeout(_remaining(deadline));
@@ -257,9 +259,11 @@ class DataSyncHandler {
         await raf.close();
       }
 
-      final outcome = await _exportHandler
-          .importFromZipFile(zipFile, strategy, sections: expectedSections)
-          .timeout(_remaining(deadline));
+      final outcome = await _exportHandler.importFromZipFile(
+        zipFile,
+        strategy,
+        sections: expectedSections,
+      );
       return outcome.phase;
     } finally {
       await tempDir.dispose();
@@ -269,13 +273,14 @@ class DataSyncHandler {
   /// Exports locally into a temp ZIP and streams it to the target with a
   /// known content length.
   ///
-  /// All network stages share one phase deadline (the same
-  /// [DataTransferLimits.syncOverallTimeout] as pull), so the phase cannot
-  /// run substantially longer than the limit even though the target only
-  /// responds after importing the whole archive. A timeout aborts the
-  /// upload: the file read is cancelled and the request body closed, so the
-  /// remote receives a truncated archive and cannot complete its import
-  /// after the caller has been told the phase timed out.
+  /// The network stages (upload and response) share one deadline of
+  /// [DataTransferLimits.syncOverallTimeout] starting at the request; the
+  /// local export runs before the deadline and is not cut off. A deadline
+  /// expiry aborts the transport ([http.AbortableStreamedRequest]), so a
+  /// push that is still uploading cannot complete remotely. If the archive
+  /// was already fully uploaded before the deadline, the remote outcome is
+  /// unknowable (the target may have begun importing); the phase then
+  /// reports `timeout_unknown` instead of claiming the push did not happen.
   Future<DataTransferPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
@@ -285,7 +290,6 @@ class DataSyncHandler {
     final limits = _exportHandler.limits;
     _log.info('Pushing data to $target');
     final tempDir = await TempArchiveDir.create('reaprime-sync-push-');
-    final deadline = DateTime.now().add(limits.syncOverallTimeout);
     try {
       final File zipFile;
       try {
@@ -298,9 +302,12 @@ class DataSyncHandler {
       }
 
       final length = await zipFile.length();
-      final request = http.StreamedRequest(
+      final deadline = DateTime.now().add(limits.syncOverallTimeout);
+      final abortCompleter = Completer<void>();
+      final request = http.AbortableStreamedRequest(
         'POST',
         Uri.parse('$target/api/v1/data/import?onConflict=${strategy.name}'),
+        abortTrigger: abortCompleter.future,
       );
       request.headers['content-type'] = 'application/octet-stream';
       request.contentLength = length;
@@ -321,9 +328,16 @@ class DataSyncHandler {
         },
         cancelOnError: true,
       );
-      // Aborts the upload: stops the file read and closes the request body
-      // so the remote sees a truncated archive.
+      // Observe body failures immediately: `send()` may fail before
+      // bodyDone is awaited, and an unobserved error would surface as an
+      // unhandled async error.
+      bodyDone.future.ignore();
+
+      // Aborts the transport: fires the abort trigger (closes the socket
+      // for clients that support it), stops the file read, and closes the
+      // request body so the remote sees a truncated archive.
       Future<void> abortUpload() async {
+        if (!abortCompleter.isCompleted) abortCompleter.complete();
         await bodySub.cancel();
         try {
           request.sink.close();
@@ -335,7 +349,7 @@ class DataSyncHandler {
       try {
         // The target only responds after it has received and imported the
         // whole archive, so there is no short header timeout here; the
-        // shared phase deadline bounds the wait.
+        // network deadline bounds the wait.
         final streamed = await _httpClient
             .send(request)
             .timeout(_remaining(deadline));
@@ -352,11 +366,11 @@ class DataSyncHandler {
         } on TimeoutException {
           rethrow;
         } catch (_) {
-          // The target closed the connection while the body was still being
-          // written (e.g. it rejected the archive early).
+          // The body stream ended with an error (early connection close or
+          // a local read failure).
           throw SyncTargetException(
             'Target error',
-            'Target closed the connection while receiving the archive.',
+            'The archive upload was interrupted.',
             statusCode: statusCode,
           );
         }
@@ -383,6 +397,22 @@ class DataSyncHandler {
           expectedSections,
           minimumStatus: statusCode == 207 ? DataTransferStatus.partial : null,
         );
+      } on TimeoutException {
+        final uploadComplete = bodyDone.isCompleted;
+        await abortUpload();
+        if (uploadComplete) {
+          // The whole archive reached the transport before the deadline;
+          // the target may have already imported it. Report the outcome as
+          // unknown rather than claiming the push did not happen.
+          return DataTransferPhaseOutcome.failed(
+            error: 'Sync timed out',
+            message:
+                'The sync timed out; the target may have already '
+                'imported the pushed archive.',
+            reason: 'timeout_unknown',
+          );
+        }
+        rethrow;
       } catch (_) {
         await abortUpload();
         rethrow;
