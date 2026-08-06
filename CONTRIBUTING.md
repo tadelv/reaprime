@@ -24,11 +24,11 @@ Thanks for contributing. This guide tells you what's required to land a PR — i
 
 ## Local Setup
 
-Requirements: Flutter (stable), Node.js 20+ (for the DYE2 bundled plugin).
+Requirements: Flutter (stable), the [GitHub CLI](https://cli.github.com) (`gh`, authenticated — used to fetch the DYE2 bundled plugin).
 
 ```bash
 flutter pub get
-(cd packages/dye2-plugin && npm ci && npm run build)
+./scripts/fetch_dye2_plugin.sh   # installs assets/plugins/dye2.reaplugin/ from the latest allofmeng/dye2 release
 
 # Run with simulated hardware (no DE1 / scale required):
 flutter run --dart-define=simulate=1
@@ -80,7 +80,7 @@ Run these before pushing. Same checks that CI runs:
 ```bash
 flutter analyze                          # must be clean — no new warnings
 flutter test                             # all must pass
-(cd packages/dye2-plugin && npm run build)  # plugin must build
+./scripts/fetch_dye2_plugin.sh           # assets/plugins/dye2.reaplugin/ must exist
 ```
 
 `dart format` is currently **advisory** in CI — the codebase predates the Dart 3.7 "tall style" formatter. Format your own changes (`dart format lib test`) but don't reformat untouched files in the same PR.

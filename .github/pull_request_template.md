@@ -95,7 +95,7 @@ List user-visible changes (including defaults, config, behavior). If none, write
 - [ ] `dart format lib test` — no remaining changes
 - [ ] `flutter analyze` — clean (no new warnings)
 - [ ] `flutter test` — all pass
-- [ ] `(cd packages/dye2-plugin && npm run build)` — plugin builds
+- [ ] `./scripts/fetch_dye2_plugin.sh` — DYE2 plugin installed into `assets/plugins/dye2.reaplugin/`
 
 ### Manual verification (if applicable)
 

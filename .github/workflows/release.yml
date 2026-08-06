@@ -57,16 +57,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Android APK
         run: ./flutter_with_commit.sh build apk --release
@@ -113,16 +108,11 @@ jobs:
           flutter pub get
           brew install automake libtool
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -260,16 +250,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (unsigned)
         run: ./flutter_with_commit.sh build linux --release
@@ -322,16 +307,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (ARM64)
         run: ./flutter_with_commit.sh build linux --release
@@ -382,16 +362,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Windows app (unsigned)
         shell: bash
@@ -448,16 +423,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build IPA
         run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --no-codesign
