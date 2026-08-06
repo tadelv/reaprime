@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -126,6 +127,25 @@ void main() {
         throwsA(isA<ZipWriteException>()),
       );
       await w.abort();
+    });
+
+    test('bounds the completed archive by the import request limit', () async {
+      // Incompressible content: deflate output is slightly larger than the
+      // input, so the finished ZIP exceeds the tiny request limit even
+      // though the entry itself is small.
+      final w = await StreamingZipWriter.create(
+        tempDir,
+        const DataTransferLimits(maxImportRequestBytes: 500),
+      );
+      final e = w.addEntry('big.json');
+      final random = Random(42);
+      e.write(
+        Uint8List.fromList(List.generate(600, (_) => random.nextInt(256))),
+      );
+      e.close();
+      await expectLater(w.close(), throwsA(isA<ZipWriteException>()));
+      await w.abort();
+      expect(await w.file.exists(), isFalse);
     });
   });
 

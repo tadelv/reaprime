@@ -122,6 +122,13 @@ class StreamingZipWriter {
         'Export exceeds the 4 GiB ZIP limit; use selected-section export.',
       );
     }
+    // The completed archive must fit the import request limit, or Decaid
+    // would create backups its own import/sync endpoints reject.
+    if (_offset + cdBytes.length + 22 > _limits.maxImportRequestBytes) {
+      throw const ZipWriteException(
+        'Export exceeds the import size limit; use selected-section export.',
+      );
+    }
     _raf.writeFromSync(cdBytes);
     _offset += cdBytes.length;
 
