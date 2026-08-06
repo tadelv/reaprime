@@ -47,6 +47,24 @@ function createPlugin(host) {
     return await res.json();
   }
 
+  // Mark the stored shot as uploaded, mirroring the de1app plugin: write
+  // `uploaded_to_decent <clock seconds>` into the shot's annotations.extras so
+  // the record itself records that it was uploaded (deep-merged by the app's
+  // PUT /shots/<id> handler). Best-effort -- never fails the upload.
+  async function markUploaded(shotId) {
+    try {
+      const seconds = Math.floor(Date.now() / 1000);
+      const res = await fetch(`${LOCAL_API_URL}/shots/${shotId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ annotations: { extras: { uploaded_to_decent: seconds } } }),
+      });
+      if (!res || !res.ok) log(`mark ${shotId} uploaded -> HTTP ${res && res.status}`);
+    } catch (e) {
+      log(`could not mark ${shotId} uploaded: ${e.message}`);
+    }
+  }
+
   // Decaid app version (for provenance), cached.
   async function getDecaidVersion() {
     if (decaidVersion) return decaidVersion;
@@ -128,6 +146,7 @@ function createPlugin(host) {
     state.lastUploadedShot = full.id;
     state.lastResult = result;
     host.storage({ type: "write", key: "lastUploadedShot", data: full.id });
+    await markUploaded(full.id);
     host.emit("shotUploaded", { shotId: full.id, result: result, timestamp: Date.now() });
     return result;
   }
