@@ -350,6 +350,36 @@ when it has meaningful progress but is incomplete; a two-way sync with no
 complete or partial phase returns `502`. Phase results remain under `pull` and
 `push`, including successful sections and fatal error details.
 
+### Bounded-memory transfer (issue #555)
+
+Backup export, import, and sync stream data instead of buffering whole
+archives in memory; peak memory scales with one page of records and one JSON
+record, never with backup size.
+
+- **Export** streams each section (records paged via stable keyset cursors)
+  through a file-backed ZIP writer (raw deflate via `dart:io`, data
+descriptors, central directory written last) and serves the completed
+temporary ZIP with `Content-Type: application/zip`, `Content-Disposition:
+attachment`, and `Content-Length`. The archive is atomic: a failing section
+returns an error and no partial ZIP.
+- **Import** streams the request body into a temporary ZIP (never
+`read().toList()`), validates archive metadata before processing, and
+imports each section in two bounded passes (structural validation, then
+record import). ZIP bombs, duplicate names, encrypted/unsupported entries,
+CRC failures, truncation, Zip64, and malformed JSON all fail safely.
+- **Sync** pulls stream the remote response into a temporary ZIP; pushes
+export locally and stream the file with a known content length.
+- **Native transfer** downloads the localhost export into a temporary file
+(validating HTTP status and `application/zip` before presenting a
+destination), shares it via the OS share sheet on iOS/Android, and streams
+picked files into the import request.
+
+Limits (documented in `assets/api/rest_v1.yml`): request body 2 GiB, entry
+count 4096, per-entry uncompressed 1 GiB, total uncompressed 2 GiB,
+metadata 64 KiB, per-record 64 MiB, ZIP header fields 256 B/64 KiB/64 KiB;
+sync request body 1 MiB, target response 8 MiB; connection/header 10 s,
+idle 30 s, overall 10 min timeouts.
+
 ### Account
 
 | Method | Path | Description | Handler |

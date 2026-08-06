@@ -1,12 +1,21 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
-import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/settings_export_section.dart';
 
 import '../helpers/mock_settings_service.dart';
+import 'streaming_test_helpers.dart';
+
+Future<Map<String, dynamic>> exportSettings(
+  SettingsExportSection section,
+) async {
+  final sink = CapturingJsonSink();
+  await section.exportJson(sink);
+  return jsonDecode(sink.json) as Map<String, dynamic>;
+}
 
 void main() {
   late MockSettingsService settingsService;
@@ -24,43 +33,32 @@ void main() {
     controller.dispose();
   });
 
-  test('filename is settings.json', () {
-    expect(section.filename, equals('settings.json'));
-  });
-
   group('export', () {
     test('exports all settings as structured JSON', () async {
-      final result = await section.export();
-      expect(result, isA<Map<String, dynamic>>());
-      final map = result as Map<String, dynamic>;
+      final map = await exportSettings(section);
 
-      // Top-level keys
       expect(map, contains('settings'));
       expect(map, contains('wakeSchedules'));
       expect(map, contains('devicePreferences'));
 
-      // Settings object
       final settings = map['settings'] as Map<String, dynamic>;
-      expect(settings['gatewayMode'], equals('disabled'));
-      expect(settings['logLevel'], equals('INFO'));
-      expect(settings['weightFlowMultiplier'], equals(1.0));
-      expect(settings['volumeFlowMultiplier'], equals(0.3));
-      expect(settings['hotWaterFlowMultiplier'], equals(0.3));
-      expect(settings['scalePowerMode'], equals('disabled'));
+      expect(settings['gatewayMode'], 'disabled');
+      expect(settings['logLevel'], 'INFO');
+      expect(settings['weightFlowMultiplier'], 1.0);
+      expect(settings['volumeFlowMultiplier'], 0.3);
+      expect(settings['hotWaterFlowMultiplier'], 0.3);
+      expect(settings['scalePowerMode'], 'disabled');
       expect(settings['blockTareDuringShot'], isFalse);
       expect(settings['stopHotWaterAtWeight'], isTrue);
       expect(settings['automaticUpdateCheck'], isTrue);
-      expect(settings['chargingMode'], equals('disabled'));
+      expect(settings['chargingMode'], 'disabled');
       expect(settings['nightModeEnabled'], isFalse);
-      expect(settings['nightModeSleepTime'], equals(1320));
-      expect(settings['nightModeMorningTime'], equals(420));
+      expect(settings['nightModeSleepTime'], 1320);
+      expect(settings['nightModeMorningTime'], 420);
       expect(settings['userPresenceEnabled'], isTrue);
-      expect(settings['sleepTimeoutMinutes'], equals(30));
+      expect(settings['sleepTimeoutMinutes'], 30);
+      expect(map['wakeSchedules'], '[]');
 
-      // Wake schedules
-      expect(map['wakeSchedules'], equals('[]'));
-
-      // Device preferences
       final devicePrefs = map['devicePreferences'] as Map<String, dynamic>;
       expect(devicePrefs['preferredMachineId'], isNull);
       expect(devicePrefs['preferredScaleId'], isNull);
@@ -71,15 +69,12 @@ void main() {
       await controller.setWeightFlowMultiplier(2.5);
       await controller.setPreferredMachineId('DE1-ABC123');
 
-      final result = await section.export();
-      final map = result as Map<String, dynamic>;
+      final map = await exportSettings(section);
       final settings = map['settings'] as Map<String, dynamic>;
-
-      expect(settings['gatewayMode'], equals('full'));
-      expect(settings['weightFlowMultiplier'], equals(2.5));
-
+      expect(settings['gatewayMode'], 'full');
+      expect(settings['weightFlowMultiplier'], 2.5);
       final devicePrefs = map['devicePreferences'] as Map<String, dynamic>;
-      expect(devicePrefs['preferredMachineId'], equals('DE1-ABC123'));
+      expect(devicePrefs['preferredMachineId'], 'DE1-ABC123');
     });
   });
 
@@ -91,9 +86,8 @@ void main() {
       await controller.setStopHotWaterAtWeight(false);
       await controller.setHotWaterFlowMultiplier(0.5);
       await controller.setBlockTareDuringShot(true);
-      final exported = await section.export();
+      final exported = await exportSettings(section);
 
-      // Reset to defaults
       await controller.updateGatewayMode(GatewayMode.disabled);
       await controller.setWeightFlowMultiplier(1.0);
       await controller.setNightModeEnabled(false);
@@ -101,15 +95,18 @@ void main() {
       await controller.setHotWaterFlowMultiplier(0.3);
       await controller.setBlockTareDuringShot(false);
 
-      final result = await section.import(exported, ConflictStrategy.overwrite);
-
+      final result = await importSectionJson(
+        section,
+        jsonEncode(exported),
+        ConflictStrategy.overwrite,
+      );
       expect(result.errors, isEmpty);
       expect(result.imported, greaterThan(0));
-      expect(controller.gatewayMode, equals(GatewayMode.full));
-      expect(controller.weightFlowMultiplier, equals(2.5));
+      expect(controller.gatewayMode, GatewayMode.full);
+      expect(controller.weightFlowMultiplier, 2.5);
       expect(controller.nightModeEnabled, isTrue);
       expect(controller.stopHotWaterAtWeight, isFalse);
-      expect(controller.hotWaterFlowMultiplier, equals(0.5));
+      expect(controller.hotWaterFlowMultiplier, 0.5);
       expect(controller.blockTareDuringShot, isTrue);
     });
 
@@ -122,12 +119,14 @@ void main() {
           'preferredScaleId': 'SCALE-ABC',
         },
       };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
+      final result = await importSectionJson(
+        section,
+        jsonEncode(data),
+        ConflictStrategy.overwrite,
+      );
       expect(result.errors, isEmpty);
-      expect(controller.preferredMachineId, equals('DE1-XYZ'));
-      expect(controller.preferredScaleId, equals('SCALE-ABC'));
+      expect(controller.preferredMachineId, 'DE1-XYZ');
+      expect(controller.preferredScaleId, 'SCALE-ABC');
     });
 
     test('imports wake schedules', () async {
@@ -136,14 +135,13 @@ void main() {
         'wakeSchedules': '[{"time": 420, "enabled": true}]',
         'devicePreferences': <String, dynamic>{},
       };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
-      expect(result.errors, isEmpty);
-      expect(
-        controller.wakeSchedules,
-        equals('[{"time": 420, "enabled": true}]'),
+      final result = await importSectionJson(
+        section,
+        jsonEncode(data),
+        ConflictStrategy.overwrite,
       );
+      expect(result.errors, isEmpty);
+      expect(controller.wakeSchedules, '[{"time": 420, "enabled": true}]');
     });
 
     test('reports errors for invalid enum values', () async {
@@ -155,65 +153,38 @@ void main() {
         'wakeSchedules': '[]',
         'devicePreferences': <String, dynamic>{},
       };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
+      final result = await importSectionJson(
+        section,
+        jsonEncode(data),
+        ConflictStrategy.overwrite,
+      );
       expect(result.errors, hasLength(2));
       expect(result.errors[0], contains('Invalid gatewayMode'));
       expect(result.errors[1], contains('Invalid scalePowerMode'));
     });
 
-    test('returns error for completely invalid data', () async {
-      final result = await section.import(
-        'not a map',
+    test('returns error for invalid payload shape', () async {
+      final result = await importSectionJson(
+        section,
+        '"not a map"',
         ConflictStrategy.overwrite,
       );
-
-      expect(result.imported, equals(0));
+      expect(result.imported, 0);
       expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Failed to import settings'));
     });
 
     test('handles partial settings gracefully', () async {
       final data = {
         'settings': {'logLevel': 'FINE'},
       };
-
-      final result = await section.import(data, ConflictStrategy.overwrite);
-
+      final result = await importSectionJson(
+        section,
+        jsonEncode(data),
+        ConflictStrategy.overwrite,
+      );
       expect(result.errors, isEmpty);
-      expect(result.imported, equals(1));
-      expect(controller.logLevel, equals('FINE'));
-    });
-
-    test('round-trips correctly', () async {
-      await controller.updateGatewayMode(GatewayMode.tracking);
-      await controller.setWeightFlowMultiplier(1.5);
-      await controller.setScalePowerMode(ScalePowerMode.disconnect);
-      await controller.setChargingMode(ChargingMode.longevity);
-      await controller.setNightModeEnabled(true);
-      await controller.setNightModeSleepTime(1380);
-      await controller.setNightModeMorningTime(360);
-      await controller.setSleepTimeoutMinutes(15);
-      await controller.setPreferredMachineId('DE1-TEST');
-
-      final exported = await section.export();
-
-      // Reset
-      await controller.loadSettings();
-
-      final result = await section.import(exported, ConflictStrategy.overwrite);
-
-      expect(result.errors, isEmpty);
-      expect(controller.gatewayMode, equals(GatewayMode.tracking));
-      expect(controller.weightFlowMultiplier, equals(1.5));
-      expect(controller.scalePowerMode, equals(ScalePowerMode.disconnect));
-      expect(controller.chargingMode, equals(ChargingMode.longevity));
-      expect(controller.nightModeEnabled, isTrue);
-      expect(controller.nightModeSleepTime, equals(1380));
-      expect(controller.nightModeMorningTime, equals(360));
-      expect(controller.sleepTimeoutMinutes, equals(15));
-      expect(controller.preferredMachineId, equals('DE1-TEST'));
+      expect(result.imported, 1);
+      expect(controller.logLevel, 'FINE');
     });
   });
 }

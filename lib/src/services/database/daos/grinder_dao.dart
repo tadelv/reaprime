@@ -17,6 +17,30 @@ class GrinderDao extends DatabaseAccessor<AppDatabase> with _$GrinderDaoMixin {
     return query.get();
   }
 
+  /// Keyset-paged grinders for streaming export: ordered by (createdAt, id)
+  /// ascending; returns up to [limit] rows strictly after the cursor.
+  Future<List<Grinder>> getGrindersForExport({
+    int limit = 200,
+    DateTime? cursorCreatedAt,
+    String? cursorId,
+  }) {
+    final query = select(grinders)
+      ..orderBy([
+        (g) => OrderingTerm.asc(g.createdAt),
+        (g) => OrderingTerm.asc(g.id),
+      ])
+      ..limit(limit);
+    if (cursorCreatedAt != null) {
+      query.where(
+        (g) =>
+            g.createdAt.isBiggerThanValue(cursorCreatedAt) |
+            (g.createdAt.equals(cursorCreatedAt) &
+                g.id.isBiggerThanValue(cursorId!)),
+      );
+    }
+    return query.get();
+  }
+
   Stream<List<Grinder>> watchAllGrinders({bool includeArchived = false}) {
     final query = select(grinders);
     if (!includeArchived) {

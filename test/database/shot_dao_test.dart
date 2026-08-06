@@ -306,5 +306,44 @@ void main() {
       expect(decoded, hasLength(1));
       expect((decoded.first as Map)['machine']['pressure'], 9.0);
     });
+
+    test('getShotsForExport pages with a stable keyset cursor', () async {
+      final base = DateTime.parse('2024-01-15T10:00:00Z');
+      // Same timestamp for several shots so the id tiebreak is exercised.
+      for (var i = 0; i < 25; i++) {
+        await db.shotDao.insertShot(
+          makeShot(
+            id: 'shot-$i',
+            timestamp: base.add(Duration(minutes: i ~/ 5)),
+          ),
+        );
+      }
+
+      final collected = <String>[];
+      DateTime? cursorTimestamp;
+      String? cursorId;
+      while (true) {
+        final page = await db.shotDao.getShotsForExport(
+          limit: 10,
+          cursorTimestamp: cursorTimestamp,
+          cursorId: cursorId,
+        );
+        if (page.isEmpty) break;
+        for (final shot in page) {
+          collected.add(shot.id);
+          cursorTimestamp = shot.timestamp;
+          cursorId = shot.id;
+        }
+        expect(page.length, lessThanOrEqualTo(10));
+      }
+
+      expect(collected, hasLength(25));
+      // No duplicates, no omissions.
+      expect(collected.toSet(), hasLength(25));
+      expect(
+        collected.map((id) => int.parse(id.split('-').last)).toList()..sort(),
+        List.generate(25, (i) => i),
+      );
+    });
   });
 }

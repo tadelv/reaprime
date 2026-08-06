@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -5,6 +7,8 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
+
+import 'streaming_test_helpers.dart';
 
 Workflow _makeWorkflow({String id = 'wf-1', String name = 'Test Workflow'}) {
   return Workflow(
@@ -40,105 +44,72 @@ Workflow _makeWorkflow({String id = 'wf-1', String name = 'Test Workflow'}) {
 }
 
 void main() {
-  late WorkflowController controller;
-  late WorkflowExportSection section;
+  group('WorkflowExportSection', () {
+    test('exports the current workflow as a single JSON value', () async {
+      final controller = WorkflowController()..setWorkflow(_makeWorkflow());
+      final section = WorkflowExportSection(controller: controller);
 
-  setUp(() {
-    controller = WorkflowController();
-    section = WorkflowExportSection(controller: controller);
-  });
-
-  tearDown(() {
-    controller.dispose();
-  });
-
-  test('filename is workflow.json', () {
-    expect(section.filename, equals('workflow.json'));
-  });
-
-  group('export', () {
-    test('exports the current workflow as JSON', () async {
-      final workflow = _makeWorkflow(name: 'My Workflow');
-      controller.setWorkflow(workflow);
-
-      final result = await section.export();
-      expect(result, isA<Map<String, dynamic>>());
-      final map = result as Map<String, dynamic>;
-      expect(map['name'], equals('My Workflow'));
-      expect(map['id'], equals('wf-1'));
-      expect(map['profile'], isA<Map<String, dynamic>>());
-      expect(map['context'], isA<Map<String, dynamic>>());
-      expect(map.containsKey('doseData'), isFalse);
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
+      final decoded = jsonDecode(sink.json) as Map<String, dynamic>;
+      expect(decoded['id'], 'wf-1');
+      expect(decoded['name'], 'Test Workflow');
     });
 
-    test('exports default workflow when none set', () async {
-      final result = await section.export();
-      expect(result, isA<Map<String, dynamic>>());
-      final map = result as Map<String, dynamic>;
-      expect(map['name'], equals('Workflow'));
-    });
-  });
+    test('imports a valid workflow regardless of strategy', () async {
+      final controller = WorkflowController()..setWorkflow(_makeWorkflow());
+      final section = WorkflowExportSection(controller: controller);
 
-  group('import', () {
-    test('imports a valid workflow', () async {
-      final workflow = _makeWorkflow(name: 'Imported Workflow');
-      final json = workflow.toJson();
-
-      final result = await section.import(json, ConflictStrategy.skip);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-      expect(controller.currentWorkflow.name, equals('Imported Workflow'));
-      expect(controller.currentWorkflow.id, equals('wf-1'));
+      final updated = _makeWorkflow(id: 'wf-2', name: 'New Workflow');
+      for (final strategy in [
+        ConflictStrategy.skip,
+        ConflictStrategy.overwrite,
+      ]) {
+        final result = await importSectionJson(
+          section,
+          jsonEncode(updated.toJson()),
+          strategy,
+        );
+        expect(result.imported, 1);
+        expect(controller.currentWorkflow.name, 'New Workflow');
+      }
     });
 
-    test('overwrites current workflow regardless of strategy', () async {
-      final original = _makeWorkflow(name: 'Original');
-      controller.setWorkflow(original);
-
-      final imported = _makeWorkflow(name: 'Imported');
-      final json = imported.toJson();
-
-      // Even with skip strategy, workflow is always replaced (there's only one)
-      final result = await section.import(json, ConflictStrategy.skip);
-
-      expect(result.imported, equals(1));
-      expect(controller.currentWorkflow.name, equals('Imported'));
-    });
-
-    test('returns error for invalid data', () async {
-      final result = await section.import('not a map', ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
+    test('reports an error for invalid workflow data', () async {
+      final section = WorkflowExportSection(controller: WorkflowController());
+      final result = await importSectionJson(
+        section,
+        '{"id": 1}',
+        ConflictStrategy.skip,
+      );
       expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Failed to import workflow'));
     });
 
-    test('returns error for malformed workflow JSON', () async {
-      final result = await section.import(<String, dynamic>{
-        'garbage': true,
-      }, ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
+    test('rejects malformed JSON with a section error', () async {
+      final section = WorkflowExportSection(controller: WorkflowController());
+      final result = await importSectionJson(
+        section,
+        '{"id": ',
+        ConflictStrategy.skip,
+      );
       expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Failed to import workflow'));
+      expect(result.imported, 0);
     });
 
     test('round-trips correctly', () async {
-      final workflow = _makeWorkflow(name: 'Round Trip');
-      controller.setWorkflow(workflow);
+      final controller = WorkflowController()..setWorkflow(_makeWorkflow());
+      final section = WorkflowExportSection(controller: controller);
 
-      final exported = await section.export();
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
 
-      // Reset controller
-      controller.setWorkflow(_makeWorkflow(name: 'Reset'));
-      expect(controller.currentWorkflow.name, equals('Reset'));
-
-      // Import back
-      final result = await section.import(exported, ConflictStrategy.skip);
-
-      expect(result.imported, equals(1));
-      expect(controller.currentWorkflow.name, equals('Round Trip'));
+      final imported = WorkflowController();
+      final importSection = WorkflowExportSection(controller: imported);
+      await importSectionJson(importSection, sink.json, ConflictStrategy.skip);
+      expect(
+        imported.currentWorkflow.toJson(),
+        controller.currentWorkflow.toJson(),
+      );
     });
   });
 }

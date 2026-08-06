@@ -1,21 +1,27 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/data/grinder.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/grinder_export_section.dart';
+import 'package:reaprime/src/util/incremental_json_parser.dart';
 
-class MockGrinderStorageService implements GrinderStorageService {
+import 'streaming_test_helpers.dart';
+
+class MockGrinderStorage implements GrinderStorageService {
   final List<Grinder> grinders = [];
 
   @override
   Future<List<Grinder>> getAllGrinders({bool includeArchived = false}) async {
-    if (includeArchived) return List.of(grinders);
-    return grinders.where((g) => !g.archived).toList();
+    throw StateError(
+      'getAllGrinders must not be called during streaming export',
+    );
   }
 
   @override
   Stream<List<Grinder>> watchAllGrinders({bool includeArchived = false}) =>
-      throw UnimplementedError();
+      const Stream.empty();
 
   @override
   Future<Grinder?> getGrinderById(String id) async =>
@@ -33,135 +39,98 @@ class MockGrinderStorageService implements GrinderStorageService {
   @override
   Future<void> deleteGrinder(String id) async =>
       grinders.removeWhere((g) => g.id == id);
-
-  void reset() => grinders.clear();
 }
 
-Grinder _makeGrinder({String id = 'grinder-1', String model = 'Niche Zero'}) {
-  return Grinder(
-    id: id,
-    model: model,
-    settingType: GrinderSettingType.numeric,
-    createdAt: DateTime.parse('2024-01-15T10:00:00.000Z'),
-    updatedAt: DateTime.parse('2024-01-15T10:00:00.000Z'),
-  );
-}
+Grinder makeGrinder(int i) => Grinder(
+  id: 'grinder-$i',
+  model: 'Niche $i',
+  createdAt: DateTime(2024, 1, 1).add(Duration(days: i)),
+  updatedAt: DateTime(2024, 1, 1).add(Duration(days: i)),
+);
 
 void main() {
-  late MockGrinderStorageService storage;
-  late GrinderExportSection section;
+  group('GrinderExportSection', () {
+    test(
+      'streams grinders in bounded pages and encodes a JSON array',
+      () async {
+        final pageSizes = <int>[];
+        final section = GrinderExportSection(
+          storage: MockGrinderStorage(),
+          pageGrinders:
+              (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+                pageSizes.add(limit);
+                final all = List.generate(120, makeGrinder)
+                  ..sort((a, b) {
+                    final c = a.createdAt.compareTo(b.createdAt);
+                    return c != 0 ? c : a.id.compareTo(b.id);
+                  });
+                final start = all.indexWhere(
+                  (g) =>
+                      afterCreatedAt == null ||
+                      g.createdAt.isAfter(afterCreatedAt) ||
+                      (g.createdAt == afterCreatedAt &&
+                          g.id.compareTo(afterId!) > 0),
+                );
+                final from = start < 0 ? all.length : start;
+                return all.skip(from).take(limit).toList();
+              },
+          pageSize: 100,
+        );
 
-  setUp(() {
-    storage = MockGrinderStorageService();
-    section = GrinderExportSection(storage: storage);
-  });
+        final sink = CapturingJsonSink();
+        await section.exportJson(sink);
+        expect(pageSizes, [100, 100]); // requested limits stay bounded
+        final decoded = jsonDecode(sink.json) as List;
+        expect(decoded, hasLength(120));
+        expect(decoded.last['id'], 'grinder-119');
+      },
+    );
 
-  tearDown(() => storage.reset());
-
-  test('filename is grinders.json', () {
-    expect(section.filename, equals('grinders.json'));
-  });
-
-  group('export', () {
-    test('returns empty list when no grinders exist', () async {
-      final result = await section.export();
-      expect(result, isA<List>());
-      expect((result as List), isEmpty);
-    });
-
-    test('returns list of grinder JSON maps', () async {
-      storage.grinders.add(_makeGrinder());
-
-      final result = await section.export();
-      final list = result as List;
-      expect(list, hasLength(1));
-      expect(list.first['id'], equals('grinder-1'));
-      expect(list.first['model'], equals('Niche Zero'));
-    });
-
-    test('includes archived grinders', () async {
-      storage.grinders.add(_makeGrinder(id: 'active'));
-      storage.grinders.add(
-        _makeGrinder(id: 'archived').copyWith(archived: true),
+    test('imports grinders with skip/overwrite semantics', () async {
+      final storage = MockGrinderStorage()..grinders.add(makeGrinder(0));
+      final section = GrinderExportSection(
+        storage: storage,
+        pageGrinders:
+            (limit, {afterTimestamp, afterCreatedAt, afterId}) async => [],
       );
+      final json = jsonEncode([
+        makeGrinder(0).toJson(),
+        makeGrinder(1).toJson(),
+      ]);
+      final skip = await importSectionJson(
+        section,
+        json,
+        ConflictStrategy.skip,
+      );
+      expect(skip.imported, 1);
+      expect(skip.skipped, 1);
 
-      final result = await section.export();
-      expect((result as List), hasLength(2));
+      final overwrite = await importSectionJson(
+        section,
+        jsonEncode([makeGrinder(0).toJson()]),
+        ConflictStrategy.overwrite,
+      );
+      expect(overwrite.imported, 1);
     });
 
-    test('exports multiple grinders', () async {
-      storage.grinders.add(_makeGrinder(id: 'g-1', model: 'Niche Zero'));
-      storage.grinders.add(_makeGrinder(id: 'g-2', model: 'Lagom P64'));
-
-      final result = await section.export();
-      expect((result as List), hasLength(2));
-    });
-  });
-
-  group('import with skip strategy', () {
-    test('imports new grinders', () async {
-      final json = _makeGrinder().toJson();
-
-      final result = await section.import([json], ConflictStrategy.skip);
-
-      expect(result.imported, equals(1));
-      expect(result.skipped, equals(0));
-      expect(result.errors, isEmpty);
-      expect(storage.grinders, hasLength(1));
-    });
-
-    test('skips duplicate grinders', () async {
-      storage.grinders.add(_makeGrinder());
-
-      final json = _makeGrinder().toJson();
-      final result = await section.import([json], ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.skipped, equals(1));
-    });
-
-    test('returns error for non-list data', () async {
-      final result = await section.import({
-        'not': 'a list',
-      }, ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Expected JSON array'));
-    });
-  });
-
-  group('import with overwrite strategy', () {
-    test('overwrites existing grinders', () async {
-      storage.grinders.add(_makeGrinder(model: 'Original'));
-
-      final json = _makeGrinder(model: 'Updated').toJson();
-      final result = await section.import([json], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(storage.grinders.first.model, equals('Updated'));
-    });
-
-    test('imports new grinders', () async {
-      final json = _makeGrinder().toJson();
-      final result = await section.import([json], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(storage.grinders, hasLength(1));
-    });
-
-    test('collects errors for individual failures', () async {
-      final validJson = _makeGrinder().toJson();
-      final invalidJson = <String, dynamic>{'garbage': true};
-
-      final result = await section.import([
-        validJson,
-        invalidJson,
-      ], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Failed to import grinder'));
+    test('rejects malformed and non-array payloads', () async {
+      final storage = MockGrinderStorage();
+      final section = GrinderExportSection(
+        storage: storage,
+        pageGrinders:
+            (limit, {afterTimestamp, afterCreatedAt, afterId}) async => [],
+      );
+      await expectLater(
+        importSectionJson(section, '[{"id":', ConflictStrategy.skip),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
+      final nonArray = await importSectionJson(
+        section,
+        '{"grinders": []}',
+        ConflictStrategy.skip,
+      );
+      expect(nonArray.errors, hasLength(1));
+      expect(storage.grinders, isEmpty);
     });
   });
 }

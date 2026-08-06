@@ -100,4 +100,36 @@ void main() {
     expect(grinder!.settingType, 'preset');
     expect(grinder.settingValues, ['Coarse', 'Medium', 'Fine']);
   });
+
+  test('getGrindersForExport pages with a stable keyset cursor', () async {
+    final base = DateTime.parse('2024-01-15T10:00:00Z');
+    for (var i = 0; i < 12; i++) {
+      await db.grinderDao.insertGrinder(
+        GrindersCompanion(
+          id: Value('grinder-$i'),
+          model: Value('M$i'),
+          createdAt: Value(base.add(Duration(minutes: i))),
+          updatedAt: Value(base.add(Duration(minutes: i))),
+        ),
+      );
+    }
+    final collected = <String>[];
+    DateTime? cursorCreatedAt;
+    String? cursorId;
+    while (true) {
+      final page = await db.grinderDao.getGrindersForExport(
+        limit: 5,
+        cursorCreatedAt: cursorCreatedAt,
+        cursorId: cursorId,
+      );
+      if (page.isEmpty) break;
+      for (final g in page) {
+        collected.add(g.id);
+        cursorCreatedAt = g.createdAt;
+        cursorId = g.id;
+      }
+    }
+    expect(collected, hasLength(12));
+    expect(collected.toSet(), hasLength(12));
+  });
 }

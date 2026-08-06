@@ -39,6 +39,10 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:reaprime/src/services/database/database.dart' hide Workflow;
+import 'package:reaprime/src/services/database/mappers/shot_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/steam_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/bean_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/grinder_mapper.dart';
 import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
 import 'package:reaprime/src/services/storage/drift_grinder_storage.dart';
 import 'package:reaprime/src/services/storage/drift_profile_storage.dart';
@@ -56,6 +60,7 @@ import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_data_sources.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:reaprime/src/services/macos_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
@@ -509,6 +514,40 @@ void main(List<String> args) async {
       beanStorage: beanStorage,
       grinderStorage: grinderStorage,
       connectionManager: connectionManager,
+      backupSources: BackupDataSources(
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.shotDao.getShotsForExport(
+            limit: limit,
+            cursorTimestamp: afterTimestamp,
+            cursorId: afterId,
+          );
+          return rows.map(ShotMapper.fromRow).toList();
+        },
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.steamDao.getSteamsForExport(
+            limit: limit,
+            cursorTimestamp: afterTimestamp,
+            cursorId: afterId,
+          );
+          return rows.map(SteamMapper.fromRow).toList();
+        },
+        pageBeans: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.beanDao.getBeansForExport(
+            limit: limit,
+            cursorCreatedAt: afterCreatedAt,
+            cursorId: afterId,
+          );
+          return rows.map(BeanMapper.fromRow).toList();
+        },
+        pageGrinders: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.grinderDao.getGrindersForExport(
+            limit: limit,
+            cursorCreatedAt: afterCreatedAt,
+            cursorId: afterId,
+          );
+          return rows.map(GrinderMapper.fromRow).toList();
+        },
+      ),
       wifiScaleDiscoveryService: wifiScaleDiscoveryService,
       rememberedDevicesController: rememberedDevicesController,
       decentAccountService: decentAccountService,

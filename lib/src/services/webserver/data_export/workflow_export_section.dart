@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 
+/// Workflow is a singleton section: a single recipe object, bounded by the
+/// handler's maximum record size.
 class WorkflowExportSection implements DataExportSection {
   final WorkflowController _controller;
 
@@ -12,16 +16,17 @@ class WorkflowExportSection implements DataExportSection {
   String get filename => 'workflow.json';
 
   @override
-  Future<dynamic> export() async {
-    return _controller.currentWorkflow.toJson();
+  Future<void> exportJson(JsonSink output) async {
+    output.writeRaw(jsonEncode(_controller.currentWorkflow.toJson()));
   }
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
     try {
+      final data = await input.readWhole();
       final workflow = Workflow.fromJson(data as Map<String, dynamic>);
       _controller.setWorkflow(workflow);
       return const SectionImportResult(imported: 1);

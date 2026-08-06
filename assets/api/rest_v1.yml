@@ -3859,6 +3859,14 @@ paths:
         - steams.json — all steam records
         - beans.json — all beans and batches
         - grinders.json — all grinders
+
+        Exports are streamed section-by-section through a bounded, file-backed
+        ZIP writer and served from a temporary file with a known
+        Content-Length; the full archive is never held in memory. A single
+        export may not exceed 2 GiB of uncompressed section data (400/500
+        error, use selected-section export). The archive is atomic: if any
+        requested section fails, an error is returned and no partial ZIP is
+        exposed.
       tags: [Data Management]
       responses:
         "200":
@@ -3897,6 +3905,28 @@ paths:
         recognized sections failed. Warnings and conflict skips do not cause
         207. Sections are not imported transactionally; a successful section
         is not rolled back when another section fails.
+
+        The request body is streamed into a temporary file; the whole archive
+        is never buffered in memory. Imports are bounded by the following
+        limits (exceeding any of them returns 400 with `Invalid backup
+        archive`):
+
+        - `maxImportRequestBytes` (default 2 GiB): compressed request size.
+        - `maxEntryCount` (default 4096): number of ZIP entries.
+        - `maxEntryUncompressedBytes` (default 1 GiB): per-entry uncompressed
+          size.
+        - `maxTotalUncompressedBytes` (default 2 GiB): sum of uncompressed
+          entry sizes (ZIP-bomb protection).
+        - `maxMetadataBytes` (default 64 KiB): metadata.json size.
+        - `maxRecordBytes` (default 64 MiB): individual JSON record size
+          (e.g. one shot, profile, or KV value).
+        - `maxFilenameBytes` / `maxExtraFieldBytes` / `maxCommentBytes`
+          (256 B / 64 KiB / 64 KiB): ZIP header field caps.
+
+        ZIP64 archives, encrypted entries, unsupported compression methods,
+        duplicate entry names, directory/symlink entries masquerading as
+        recognized files, truncated archives, CRC mismatches, and malformed
+        JSON all fail safely with 400.
       tags: [Data Management]
       parameters:
         - in: query
@@ -3981,6 +4011,12 @@ paths:
         results rather than HTTP 200 alone. Existing direct section maps stay
         under pull and push; phase metadata is additive under phases. Legacy
         remote import result maps are supported.
+
+        Pull responses are streamed to a temporary ZIP before import; push
+        requests stream a locally built temporary ZIP with a known content
+        length. The sync request body is limited to 1 MiB, and target
+        responses to 8 MiB. Transfers apply connection/header (10 s), idle
+        (30 s), and overall (10 min) timeouts.
       tags: [Data Management]
       requestBody:
         required: true
