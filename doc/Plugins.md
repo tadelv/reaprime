@@ -412,16 +412,9 @@ it in Decaid UI.
 
 ## Reference Implementation: DYE2 Plugin
 
-The DYE2 (Describe Your Espresso) plugin in `packages/dye2-plugin/` is a production bundled plugin that demonstrates advanced patterns:
+The DYE2 (Describe Your Espresso) plugin ships from its own repo, [allofmeng/dye2](https://github.com/allofmeng/dye2), as a release asset. CI and local setup install it by running `./scripts/fetch_dye2_plugin.sh`, which downloads a pinned release tag (`DYE2_VERSION` in the script), verifies its checksum (`DYE2_SHA256`) and manifest contract (`id`, `version`, `apiVersion`), and unpacks it into `assets/plugins/dye2.reaplugin/`. Bump the pinned version/checksum in a normal PR when DYE2 ships a new release.
 
-- **TypeScript + Vite build pipeline** — compiles to flutter_js-compatible IIFE bundle
-- **REST API client** — calls back into the Decaid REST API for bean/grinder CRUD
-- **HTML template rendering** — server-side HTML generation with form handling
-- **Dev server** — Vite dev server for fast iteration without rebuilding the Flutter app
-
-See `packages/dye2-plugin/README.md` for architecture details, build instructions, and extension guide.
-
-The bundled copy is no longer built from `packages/dye2-plugin/`: CI and local setup install it from the latest [allofmeng/dye2](https://github.com/allofmeng/dye2) release via `./scripts/fetch_dye2_plugin.sh`, which unpacks the release asset into `assets/plugins/dye2.reaplugin/`. Pin a specific release with `DYE2_VERSION=v0.1.4`.
+`packages/dye2-plugin/` still holds the plugin's original TypeScript + Vite source and is useful as a reference for advanced patterns (REST API client, HTML template rendering, Vite dev server — see `packages/dye2-plugin/README.md`), but it is **not** built or bundled by Decaid anymore and is not authoritative for what ships. Treat [allofmeng/dye2](https://github.com/allofmeng/dye2) as the source of truth for the DYE2 plugin; update `packages/dye2-plugin/` only if it's being kept in sync deliberately.
 
 ## Plugin Lifecycle Management (REST API)
 
@@ -441,7 +434,7 @@ The bundled **settings plugin** (`settings.reaplugin`) provides a web UI for plu
 
 ## Next Steps
 
-1. Review the example plugins in `assets/plugins/` and the DYE2 plugin in `packages/dye2-plugin/`
+1. Review the example plugins in `assets/plugins/` and the DYE2 plugin at [allofmeng/dye2](https://github.com/allofmeng/dye2)
 2. Start with a simple plugin that logs `stateUpdate` events
 3. Add settings and persistent storage
 4. Implement HTTP communication with external services
