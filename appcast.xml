@@ -1,0 +1,22 @@
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Decaid</title>
+        <item>
+            <title>0.7.17</title>
+            <pubDate>Thu, 06 Aug 2026 05:44:09 +0000</pubDate>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>2189</sparkle:version>
+            <sparkle:shortVersionString>0.7.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[**Full Changelog**: https://github.com/decentespresso/decaid/compare/v0.7.17-beta.1...v0.7.17-beta.2
+
+]]></description>
+            <enclosure url="https://github.com/decentespresso/decaid/releases/download/v0.7.17-beta.2/decaid-macos-0.7.17-beta.2.zip" length="70973495" type="application/octet-stream" sparkle:edSignature="BkQKjp71bdaW3Ryy9mAx0A9uQ+9+zFQNFla5y4mElv7xb6F2qrUhKcOYl2BrHEpIMgyJAtF0vagdQ20bQCPgCA=="></enclosure>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: phil7ySrxu0A8Byw7juNhwvPJgFIdQOOJe2APTgEJEwis9ekyuycB8+yVPa9mLPH+Agr322Rp9SQnDFm9mIiDA==
+length: 1301
+-->
