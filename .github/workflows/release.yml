@@ -771,6 +771,9 @@ jobs:
           echo "015336b601493e05c237964954bff6191370003d94edefe663724c88840d73cc  $RUNNER_TEMP/sparkle.tar.xz" \
             | shasum -a 256 -c -
           tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP" bin
+          # GITHUB_PATH only applies to subsequent steps; export now so this
+          # step's sanity check can run, and append for the generate step.
+          export PATH="$RUNNER_TEMP/bin:$PATH"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           generate_appcast --help >/dev/null
 
