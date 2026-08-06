@@ -210,7 +210,6 @@ class StreamingZipWriter {
     _writeBytes(buf.takeBytes());
   }
 
-
   static void _writeUint16(BytesBuilder b, int value) {
     b.addByte(value & 0xFF);
     b.addByte((value >> 8) & 0xFF);
@@ -312,7 +311,6 @@ class ZipEntrySink {
     if (_closed) return;
     _closed = true;
     _inSink.close();
-
   }
 }
 
@@ -342,6 +340,4 @@ class _DeflateFileSink implements Sink<List<int>> {
     // Entry finalization (descriptor + CD record) is handled here.
     onFinish();
   }
-
-
 }
