@@ -340,6 +340,13 @@ void main() {
       expect(collected, hasLength(25));
       // No duplicates, no omissions.
       expect(collected.toSet(), hasLength(25));
+      expect(collected.take(5), [
+        'shot-24',
+        'shot-23',
+        'shot-22',
+        'shot-21',
+        'shot-20',
+      ]);
       expect(
         collected.map((id) => int.parse(id.split('-').last)).toList()..sort(),
         List.generate(25, (i) => i),

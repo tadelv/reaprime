@@ -173,14 +173,14 @@ void main() {
           storage.pageSizes.add(limit);
           final all = storage.shots.values.map(ShotRecord.fromJson).toList()
             ..sort((a, b) {
-              final c = a.timestamp.compareTo(b.timestamp);
-              return c != 0 ? c : a.id.compareTo(b.id);
+              final c = b.timestamp.compareTo(a.timestamp);
+              return c != 0 ? c : b.id.compareTo(a.id);
             });
           final start = all.indexWhere(
             (s) =>
                 afterTimestamp == null ||
-                s.timestamp.isAfter(afterTimestamp) ||
-                (s.timestamp == afterTimestamp && s.id.compareTo(afterId!) > 0),
+                s.timestamp.isBefore(afterTimestamp) ||
+                (s.timestamp == afterTimestamp && s.id.compareTo(afterId!) < 0),
           );
           final from = start < 0 ? all.length : start;
           return all.skip(from).take(limit).toList();
@@ -197,8 +197,8 @@ void main() {
 
       final decoded = jsonDecode(sink.json) as List;
       expect(decoded, hasLength(250));
-      expect(decoded.first['id'], 'shot-0');
-      expect(decoded.last['id'], 'shot-249');
+      expect(decoded.first['id'], 'shot-249');
+      expect(decoded.last['id'], 'shot-0');
     });
 
     test('a lazy source is pulled only until exhausted', () async {

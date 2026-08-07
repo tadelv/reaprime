@@ -30,7 +30,7 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
   }
 
   /// Keyset-paged shots for streaming export: ordered by (timestamp, id)
-  /// ascending; returns up to [limit] rows strictly after the cursor. Stable
+  /// descending; returns up to [limit] rows strictly after the cursor. Stable
   /// under concurrent inserts/deletes (no duplicates or omissions).
   Future<List<ShotRecord>> getShotsForExport({
     int limit = 200,
@@ -39,16 +39,16 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
   }) {
     final query = select(shotRecords)
       ..orderBy([
-        (s) => OrderingTerm.asc(s.timestamp),
-        (s) => OrderingTerm.asc(s.id),
+        (s) => OrderingTerm.desc(s.timestamp),
+        (s) => OrderingTerm.desc(s.id),
       ])
       ..limit(limit);
     if (cursorTimestamp != null) {
       query.where(
         (s) =>
-            s.timestamp.isBiggerThanValue(cursorTimestamp) |
+            s.timestamp.isSmallerThanValue(cursorTimestamp) |
             (s.timestamp.equals(cursorTimestamp) &
-                s.id.isBiggerThanValue(cursorId!)),
+                s.id.isSmallerThanValue(cursorId!)),
       );
     }
     return query.get();

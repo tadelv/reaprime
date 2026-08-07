@@ -463,7 +463,7 @@ void main() {
       });
 
       test(
-        'push pauses the file read while the transport is backpressured',
+        'push timeout closes the body stream before temporary cleanup',
         () async {
           // A server socket that never reads the request body: the kernel
           // buffer fills, the transport backpressures, and the file read must
@@ -495,6 +495,18 @@ void main() {
               syncOverallTimeout: Duration(milliseconds: 300),
             ),
           );
+          final tempDirsBefore = await Directory.systemTemp
+              .list()
+              .where(
+                (entry) =>
+                    entry is Directory &&
+                    entry.path
+                        .split(Platform.pathSeparator)
+                        .last
+                        .startsWith('reaprime-sync-push-'),
+              )
+              .map((entry) => entry.path)
+              .toSet();
           try {
             final response = await sendSync(
               handler,
@@ -506,6 +518,19 @@ void main() {
             final body = jsonDecode(await response.readAsString());
             expect(response.statusCode, 502);
             expect(body['push']['reason'], 'timeout');
+            final tempDirsAfter = await Directory.systemTemp
+                .list()
+                .where(
+                  (entry) =>
+                      entry is Directory &&
+                      entry.path
+                          .split(Platform.pathSeparator)
+                          .last
+                          .startsWith('reaprime-sync-push-'),
+                )
+                .map((entry) => entry.path)
+                .toSet();
+            expect(tempDirsAfter.difference(tempDirsBefore), isEmpty);
           } finally {
             await server.close();
             client.close();

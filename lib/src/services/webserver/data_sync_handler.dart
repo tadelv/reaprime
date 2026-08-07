@@ -346,20 +346,20 @@ class DataSyncHandler {
       // (addStream does not forward the source's done event), and never
       // after an abort, when the controller is already cancelled. A
       // transport abort cancels the generator and with it the file read.
-      unawaited(
-        request.sink
-            .addStream(bodyStream())
-            .then((_) {
-              if (!aborted) request.sink.close();
-            })
-            .catchError((Object _) {}),
-      );
+      final bodyStreamDone = request.sink.addStream(bodyStream()).then((
+        _,
+      ) async {
+        if (!aborted) await request.sink.close();
+      });
 
       // Aborts the upload: the transport closes the connection, the sink's
       // listener errors, and addStream cancels the file read.
       Future<void> abortUpload() async {
         aborted = true;
         if (!abortCompleter.isCompleted) abortCompleter.complete();
+        try {
+          await bodyStreamDone;
+        } catch (_) {}
       }
 
       try {
@@ -367,9 +367,11 @@ class DataSyncHandler {
         // whole archive, so there is no short header timeout here; the
         // network deadline bounds the wait. send() completes only after
         // the body has been fully written, so bodySent is settled here.
-        final streamed = await _httpClient
-            .send(request)
-            .timeout(_remaining(deadline));
+        final completed = await Future.wait<Object?>([
+          _httpClient.send(request),
+          bodyStreamDone,
+        ], eagerError: true).timeout(_remaining(deadline));
+        final streamed = completed.first as http.StreamedResponse;
         final statusCode = streamed.statusCode;
         if (statusCode != 200 && statusCode != 207) {
           throw SyncTargetException(

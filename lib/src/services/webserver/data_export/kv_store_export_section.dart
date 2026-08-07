@@ -7,21 +7,13 @@ import 'package:reaprime/src/util/incremental_json_parser.dart';
 
 class KvStoreExportSection implements DataExportSection {
   final KeyValueStoreService _store;
-  final Future<List<String>> Function(String namespace, int offset, int limit)
-  _pageKvKeys;
-  final int pageSize;
+  final DataTransferLimits _limits;
 
   KvStoreExportSection({
     required KeyValueStoreService store,
-    required Future<List<String>> Function(
-      String namespace,
-      int offset,
-      int limit,
-    )
-    pageKvKeys,
-    this.pageSize = DataTransferLimits.defaultExportPageSize,
+    DataTransferLimits limits = const DataTransferLimits(),
   }) : _store = store,
-       _pageKvKeys = pageKvKeys;
+       _limits = limits;
 
   @override
   String get filename => 'store.json';
@@ -34,29 +26,36 @@ class KvStoreExportSection implements DataExportSection {
     var firstNamespace = true;
     for (final namespace in _store.namespaces) {
       output.writeRaw(firstNamespace ? '' : ',');
-      output.writeRaw(jsonEncode(namespace));
+      _writeKey(output, namespace);
       output.writeRaw(':{');
-      var offset = 0;
       var firstKey = true;
-      while (true) {
-        final keys = await _pageKvKeys(namespace, offset, pageSize);
-        if (keys.isEmpty) break;
-        for (final key in keys) {
-          final value = await _store.get(namespace: namespace, key: key);
-          if (value == null) continue;
-          output.writeRaw(firstKey ? '' : ',');
-          output.writeRaw(jsonEncode(key));
-          output.writeRaw(':');
-          output.writeRaw(jsonEncode(value));
-          firstKey = false;
-        }
-        if (keys.length < pageSize) break;
-        offset += pageSize;
+      // ponytail: key list is materialized once; add storage cursors if measured key counts make this too large
+      final keys = await _store.keys(namespace: namespace);
+      for (final key in keys) {
+        final value = await _store.get(namespace: namespace, key: key);
+        if (value == null) continue;
+        output.writeRaw(firstKey ? '' : ',');
+        _writeKey(output, key);
+        output.writeRaw(':');
+        output.writeRaw(jsonEncode(value));
+        firstKey = false;
       }
       output.writeRaw('}');
       firstNamespace = false;
     }
     output.writeRaw('}}');
+  }
+
+  void _writeKey(JsonSink output, String key) {
+    final encoded = jsonEncode(key);
+    final byteLength = encoded.runes.fold(
+      0,
+      (length, rune) => length + utf8CodePointByteLength(rune),
+    );
+    if (byteLength > _limits.maxKeyBytes) {
+      throw StateError('Encoded KV key exceeds ${_limits.maxKeyBytes} bytes.');
+    }
+    output.writeRaw(encoded);
   }
 
   @override

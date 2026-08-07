@@ -1,22 +1,13 @@
 import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
-import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
 import 'package:reaprime/src/util/incremental_json_parser.dart';
 
 class ProfileExportSection implements DataExportSection {
   final ProfileController _controller;
-  final Future<List<ProfileRecord>> Function(int limit, int offset)
-  _pageProfiles;
-  final int pageSize;
 
-  ProfileExportSection({
-    required ProfileController controller,
-    required Future<List<ProfileRecord>> Function(int limit, int offset)
-    pageProfiles,
-    this.pageSize = DataTransferLimits.defaultExportPageSize,
-  }) : _controller = controller,
-       _pageProfiles = pageProfiles;
+  ProfileExportSection({required ProfileController controller})
+    : _controller = controller;
 
   @override
   String get filename => 'profiles.json';
@@ -24,15 +15,10 @@ class ProfileExportSection implements DataExportSection {
   @override
   Future<void> exportJson(JsonSink output) async {
     final emitter = JsonArrayEmitter(output);
-    var offset = 0;
-    while (true) {
-      final page = await _pageProfiles(pageSize, offset);
-      if (page.isEmpty) break;
-      for (final record in page) {
-        emitter.add(record.toJson());
-      }
-      if (page.length < pageSize) break;
-      offset += pageSize;
+    final ids = await _controller.getAllIds();
+    for (final id in ids) {
+      final record = await _controller.get(id);
+      if (record != null) emitter.add(record.toJson());
     }
     emitter.end();
   }
