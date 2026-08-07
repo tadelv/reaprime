@@ -58,189 +58,187 @@ class SettingsExportSection implements DataExportSection {
     ConflictStrategy strategy,
   ) async {
     final errors = <String>[];
+    var imported = 0;
 
     try {
       final data = await input.readWhole();
       final map = data as Map<String, dynamic>;
-      final imported = await _importSettings(map, errors);
-      return SectionImportResult(imported: imported, errors: errors);
+      // Import settings
+      final settings = map['settings'] as Map<String, dynamic>?;
+      if (settings != null) {
+        if (settings.containsKey('gatewayMode')) {
+          final mode = GatewayModeFromString.fromString(
+            settings['gatewayMode'],
+          );
+          if (mode != null) {
+            await _controller.updateGatewayMode(mode);
+            imported++;
+          } else {
+            errors.add('Invalid gatewayMode: ${settings['gatewayMode']}');
+          }
+        }
+
+        if (settings.containsKey('logLevel')) {
+          await _controller.updateLogLevel(settings['logLevel'] as String);
+          imported++;
+        }
+
+        if (settings.containsKey('weightFlowMultiplier')) {
+          final value = settings['weightFlowMultiplier'];
+          if (value is num) {
+            await _controller.setWeightFlowMultiplier(value.toDouble());
+            imported++;
+          } else {
+            errors.add('Invalid weightFlowMultiplier: $value');
+          }
+        }
+
+        if (settings.containsKey('volumeFlowMultiplier')) {
+          final value = settings['volumeFlowMultiplier'];
+          if (value is num) {
+            await _controller.setVolumeFlowMultiplier(value.toDouble());
+            imported++;
+          } else {
+            errors.add('Invalid volumeFlowMultiplier: $value');
+          }
+        }
+
+        if (settings.containsKey('hotWaterFlowMultiplier')) {
+          final value = settings['hotWaterFlowMultiplier'];
+          if (value is num) {
+            await _controller.setHotWaterFlowMultiplier(value.toDouble());
+            imported++;
+          } else {
+            errors.add('Invalid hotWaterFlowMultiplier: $value');
+          }
+        }
+
+        if (settings.containsKey('scalePowerMode')) {
+          final mode = ScalePowerModeFromString.fromString(
+            settings['scalePowerMode'],
+          );
+          if (mode != null) {
+            await _controller.setScalePowerMode(mode);
+            imported++;
+          } else {
+            errors.add('Invalid scalePowerMode: ${settings['scalePowerMode']}');
+          }
+        }
+
+        if (settings.containsKey('blockOnNoScale')) {
+          await _controller.setBlockOnNoScale(
+            settings['blockOnNoScale'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('blockTareDuringShot')) {
+          await _controller.setBlockTareDuringShot(
+            settings['blockTareDuringShot'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('stopHotWaterAtWeight')) {
+          await _controller.setStopHotWaterAtWeight(
+            settings['stopHotWaterAtWeight'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('defaultSkinId')) {
+          await _controller.setDefaultSkinId(
+            settings['defaultSkinId'] as String,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('automaticUpdateCheck')) {
+          await _controller.setAutomaticUpdateCheck(
+            settings['automaticUpdateCheck'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('chargingMode')) {
+          final mode = ChargingModeFromString.fromString(
+            settings['chargingMode'],
+          );
+          if (mode != null) {
+            await _controller.setChargingMode(mode);
+            imported++;
+          } else {
+            errors.add('Invalid chargingMode: ${settings['chargingMode']}');
+          }
+        }
+
+        if (settings.containsKey('nightModeEnabled')) {
+          await _controller.setNightModeEnabled(
+            settings['nightModeEnabled'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('nightModeSleepTime')) {
+          await _controller.setNightModeSleepTime(
+            settings['nightModeSleepTime'] as int,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('nightModeMorningTime')) {
+          await _controller.setNightModeMorningTime(
+            settings['nightModeMorningTime'] as int,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('userPresenceEnabled')) {
+          await _controller.setUserPresenceEnabled(
+            settings['userPresenceEnabled'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('sleepTimeoutMinutes')) {
+          final v = settings['sleepTimeoutMinutes'];
+          if (v is int) {
+            await _controller.setSleepTimeoutMinutes(v);
+            imported++;
+          } else {
+            errors.add(
+              'sleepTimeoutMinutes must be an integer, got ${v.runtimeType}',
+            );
+          }
+        }
+      }
+
+      // Import wake schedules
+      if (map.containsKey('wakeSchedules')) {
+        await _controller.setWakeSchedules(map['wakeSchedules'] as String);
+        imported++;
+      }
+
+      // Import device preferences
+      final devicePrefs = map['devicePreferences'] as Map<String, dynamic>?;
+      if (devicePrefs != null) {
+        if (devicePrefs.containsKey('preferredMachineId')) {
+          await _controller.setPreferredMachineId(
+            devicePrefs['preferredMachineId'] as String?,
+          );
+          imported++;
+        }
+        if (devicePrefs.containsKey('preferredScaleId')) {
+          await _controller.setPreferredScaleId(
+            devicePrefs['preferredScaleId'] as String?,
+          );
+          imported++;
+        }
+      }
     } catch (e) {
       errors.add('Failed to import settings: $e');
-      return SectionImportResult(errors: errors);
-    }
-  }
-
-  Future<int> _importSettings(
-    Map<String, dynamic> map,
-    List<String> errors,
-  ) async {
-    var imported = 0;
-    // Import settings
-    final settings = map['settings'] as Map<String, dynamic>?;
-    if (settings != null) {
-      if (settings.containsKey('gatewayMode')) {
-        final mode = GatewayModeFromString.fromString(settings['gatewayMode']);
-        if (mode != null) {
-          await _controller.updateGatewayMode(mode);
-          imported++;
-        } else {
-          errors.add('Invalid gatewayMode: ${settings['gatewayMode']}');
-        }
-      }
-
-      if (settings.containsKey('logLevel')) {
-        await _controller.updateLogLevel(settings['logLevel'] as String);
-        imported++;
-      }
-
-      if (settings.containsKey('weightFlowMultiplier')) {
-        final value = settings['weightFlowMultiplier'];
-        if (value is num) {
-          await _controller.setWeightFlowMultiplier(value.toDouble());
-          imported++;
-        } else {
-          errors.add('Invalid weightFlowMultiplier: $value');
-        }
-      }
-
-      if (settings.containsKey('volumeFlowMultiplier')) {
-        final value = settings['volumeFlowMultiplier'];
-        if (value is num) {
-          await _controller.setVolumeFlowMultiplier(value.toDouble());
-          imported++;
-        } else {
-          errors.add('Invalid volumeFlowMultiplier: $value');
-        }
-      }
-
-      if (settings.containsKey('hotWaterFlowMultiplier')) {
-        final value = settings['hotWaterFlowMultiplier'];
-        if (value is num) {
-          await _controller.setHotWaterFlowMultiplier(value.toDouble());
-          imported++;
-        } else {
-          errors.add('Invalid hotWaterFlowMultiplier: $value');
-        }
-      }
-
-      if (settings.containsKey('scalePowerMode')) {
-        final mode = ScalePowerModeFromString.fromString(
-          settings['scalePowerMode'],
-        );
-        if (mode != null) {
-          await _controller.setScalePowerMode(mode);
-          imported++;
-        } else {
-          errors.add('Invalid scalePowerMode: ${settings['scalePowerMode']}');
-        }
-      }
-
-      if (settings.containsKey('blockOnNoScale')) {
-        await _controller.setBlockOnNoScale(settings['blockOnNoScale'] as bool);
-        imported++;
-      }
-
-      if (settings.containsKey('blockTareDuringShot')) {
-        await _controller.setBlockTareDuringShot(
-          settings['blockTareDuringShot'] as bool,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('stopHotWaterAtWeight')) {
-        await _controller.setStopHotWaterAtWeight(
-          settings['stopHotWaterAtWeight'] as bool,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('defaultSkinId')) {
-        await _controller.setDefaultSkinId(settings['defaultSkinId'] as String);
-        imported++;
-      }
-
-      if (settings.containsKey('automaticUpdateCheck')) {
-        await _controller.setAutomaticUpdateCheck(
-          settings['automaticUpdateCheck'] as bool,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('chargingMode')) {
-        final mode = ChargingModeFromString.fromString(
-          settings['chargingMode'],
-        );
-        if (mode != null) {
-          await _controller.setChargingMode(mode);
-          imported++;
-        } else {
-          errors.add('Invalid chargingMode: ${settings['chargingMode']}');
-        }
-      }
-
-      if (settings.containsKey('nightModeEnabled')) {
-        await _controller.setNightModeEnabled(
-          settings['nightModeEnabled'] as bool,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('nightModeSleepTime')) {
-        await _controller.setNightModeSleepTime(
-          settings['nightModeSleepTime'] as int,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('nightModeMorningTime')) {
-        await _controller.setNightModeMorningTime(
-          settings['nightModeMorningTime'] as int,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('userPresenceEnabled')) {
-        await _controller.setUserPresenceEnabled(
-          settings['userPresenceEnabled'] as bool,
-        );
-        imported++;
-      }
-
-      if (settings.containsKey('sleepTimeoutMinutes')) {
-        final v = settings['sleepTimeoutMinutes'];
-        if (v is int) {
-          await _controller.setSleepTimeoutMinutes(v);
-          imported++;
-        } else {
-          errors.add(
-            'sleepTimeoutMinutes must be an integer, got ${v.runtimeType}',
-          );
-        }
-      }
     }
 
-    // Import wake schedules
-    if (map.containsKey('wakeSchedules')) {
-      await _controller.setWakeSchedules(map['wakeSchedules'] as String);
-      imported++;
-    }
-
-    // Import device preferences
-    final devicePrefs = map['devicePreferences'] as Map<String, dynamic>?;
-    if (devicePrefs != null) {
-      if (devicePrefs.containsKey('preferredMachineId')) {
-        await _controller.setPreferredMachineId(
-          devicePrefs['preferredMachineId'] as String?,
-        );
-        imported++;
-      }
-      if (devicePrefs.containsKey('preferredScaleId')) {
-        await _controller.setPreferredScaleId(
-          devicePrefs['preferredScaleId'] as String?,
-        );
-        imported++;
-      }
-    }
-    return imported;
+    return SectionImportResult(imported: imported, errors: errors);
   }
 }

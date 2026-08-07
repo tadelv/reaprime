@@ -284,6 +284,24 @@ void main() {
       expect(result.errors, hasLength(1));
     });
 
+    test('bounds semantic record errors', () async {
+      final storage = _TestShotStorage();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
+
+      final result = await importSectionJson(
+        section,
+        jsonEncode(List.generate(101, (_) => <String, dynamic>{})),
+        ConflictStrategy.skip,
+      );
+
+      expect(result.errors, hasLength(101));
+      expect(result.errors.last, '1 additional error omitted');
+    });
+
     test('rejects a structurally malformed section payload', () async {
       final storage = _TestShotStorage();
       final section = ShotExportSection(

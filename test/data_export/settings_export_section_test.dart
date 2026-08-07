@@ -163,6 +163,18 @@ void main() {
       expect(result.errors[1], contains('Invalid scalePowerMode'));
     });
 
+    test('counts settings imported before a later field fails', () async {
+      final result = await importSectionJson(
+        section,
+        '{"settings":{"gatewayMode":"full","logLevel":123}}',
+        ConflictStrategy.overwrite,
+      );
+
+      expect(controller.gatewayMode, GatewayMode.full);
+      expect(result.imported, 1);
+      expect(result.errors, isNotEmpty);
+    });
+
     test('returns error for invalid payload shape', () async {
       final result = await importSectionJson(
         section,

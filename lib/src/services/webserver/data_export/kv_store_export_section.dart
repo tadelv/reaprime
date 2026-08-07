@@ -34,10 +34,19 @@ class KvStoreExportSection implements DataExportSection {
       for (final key in keys) {
         final value = await _store.get(namespace: namespace, key: key);
         if (value == null) continue;
+        final encodedValue = jsonEncode(value);
+        final parser = IncrementalJsonParser(
+          eventDepth: _limits.maxNestingDepth + 1,
+          maxValueBytes: _limits.maxRecordBytes,
+          maxKeyBytes: _limits.maxKeyBytes,
+          maxNestingDepth: _limits.maxNestingDepth,
+        );
+        parser.feed('{"":{"":{"":$encodedValue}}}');
+        parser.finish();
         output.writeRaw(firstKey ? '' : ',');
         _writeKey(output, key);
         output.writeRaw(':');
-        output.writeRaw(jsonEncode(value));
+        output.writeRaw(encodedValue);
         firstKey = false;
       }
       output.writeRaw('}');
@@ -67,7 +76,7 @@ class KvStoreExportSection implements DataExportSection {
 
     int imported = 0;
     int skipped = 0;
-    final errors = <String>[];
+    final errors = SectionImportErrors();
 
     // Depth-3 events: keys = [namespaces, <ns>, <key>], value = the KV value.
     await for (final event in input.valuesAtDepth(3)) {
@@ -93,7 +102,7 @@ class KvStoreExportSection implements DataExportSection {
     return SectionImportResult(
       imported: imported,
       skipped: skipped,
-      errors: errors,
+      errors: errors.toList(),
     );
   }
 
