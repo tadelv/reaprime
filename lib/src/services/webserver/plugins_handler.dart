@@ -201,15 +201,14 @@ final class PluginsHandler {
         'query': req.url.queryParameters,
       };
 
+      // Register the pending request before dispatching to the plugin.
+      final responseFuture = pluginManager.registerPendingHttp(id, requestId);
+
       // Dispatch the event to the plugin
       pluginManager.dispatchEvent(id, 'httpRequest', requestData);
 
       // Wait for the plugin's response (with timeout)
-      final response = await _waitForPluginResponse(requestId);
-
-      if (response == null) {
-        return jsonError({'error': 'Plugin did not respond in time'});
-      }
+      final response = await responseFuture;
 
       // Parse the plugin's response
       final status = response['status'] as int? ?? 200;
@@ -221,33 +220,13 @@ final class PluginsHandler {
 
       // Send the response back to the client
       return Response(status, body: responseBody, headers: responseHeaders);
+    } on PluginHttpError catch (e) {
+      _log.warning("Plugin $id HTTP request failed", e);
+      return jsonError({'error': e.message});
     } catch (e) {
       _log.warning("Error handling HTTP request for plugin $id", e);
       return jsonError({'error': 'Error processing request: ${e.toString()}'});
     }
-  }
-
-  Future<Map<String, dynamic>?> _waitForPluginResponse(String requestId) async {
-    final Completer<Map<String, dynamic>?> completer = Completer();
-    final stopwatch = Stopwatch()..start();
-
-    // Check every 100ms for up to 30 seconds
-    Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (stopwatch.elapsed > const Duration(seconds: 30)) {
-        timer.cancel();
-        completer.complete(null);
-        return;
-      }
-
-      // Check if the plugin has responded
-      final response = pluginManager.getPendingHttpResponse(requestId);
-      if (response != null) {
-        timer.cancel();
-        completer.complete(response);
-      }
-    });
-
-    return completer.future;
   }
 
   Future<Response> _extractPluginId(
