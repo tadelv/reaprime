@@ -304,10 +304,11 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       instructions = 'Use back navigation to return to Dashboard';
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final snackDuration = const Duration(seconds: 4);
+    final controller = ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(instructions),
-        duration: const Duration(seconds: 10),
+        duration: snackDuration,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
         showCloseIcon: true,
@@ -321,6 +322,15 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           },
         ),
       ),
+    );
+
+    unawaited(
+      Future.delayed(snackDuration, () {
+        if (!mounted) {
+          return;
+        }
+        controller.close();
+      }),
     );
   }
 
