@@ -260,21 +260,7 @@ Future<void> startWebServer(
 
   final dataExportHandler = DataExportHandler(
     sections: [
-      ProfileExportSection(
-        controller: profileController,
-        pageProfiles: (limit, offset) async {
-          // Profile ids are small content hashes; cached for the duration of
-          // the export. Profiles are count-bounded in practice.
-          final ids = await profileController.getAllIds();
-          final page = ids.skip(offset).take(limit).toList();
-          final records = <ProfileRecord>[];
-          for (final id in page) {
-            final record = await profileController.get(id);
-            if (record != null) records.add(record);
-          }
-          return records;
-        },
-      ),
+      ProfileExportSection(controller: profileController),
       ShotExportSection(
         controller: persistenceController,
         pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
@@ -295,13 +281,7 @@ Future<void> startWebServer(
       ),
       WorkflowExportSection(controller: workflowController),
       SettingsExportSection(controller: settingsController),
-      KvStoreExportSection(
-        store: kvStoreHandler.store,
-        pageKvKeys: (namespace, offset, limit) async {
-          final keys = await kvStoreHandler.store.keys(namespace: namespace);
-          return keys.skip(offset).take(limit).toList();
-        },
-      ),
+      KvStoreExportSection(store: kvStoreHandler.store),
       if (beanStorage != null)
         BeanExportSection(
           storage: beanStorage,

@@ -32,6 +32,14 @@ class JsonStreamFormatException implements Exception {
   String toString() => 'JsonStreamFormatException: $message';
 }
 
+int utf8CodePointByteLength(int codePoint) => codePoint < 0x80
+    ? 1
+    : codePoint < 0x800
+    ? 2
+    : codePoint < 0x10000
+    ? 3
+    : 4;
+
 /// The top-level container kind of a JSON payload.
 enum JsonContainerKind { array, object }
 
@@ -114,8 +122,8 @@ class IncrementalJsonParser {
   /// Feeds a decoded text chunk. Emitted events are collected and returned by
   /// [drain].
   void feed(String chunk) {
-    for (var i = 0; i < chunk.length; i++) {
-      _feedChar(chunk.codeUnitAt(i));
+    for (final rune in chunk.runes) {
+      _feedChar(rune);
     }
   }
 
@@ -330,16 +338,11 @@ class IncrementalJsonParser {
   /// length so an oversized container is rejected while it is constructed.
   void _spanWriteCharCode(int c) {
     _span.writeCharCode(c);
-    _spanBytes += _utf8Length(c);
+    _spanBytes += utf8CodePointByteLength(c);
     if (_spanBytes > _maxValueBytes) {
       throw const JsonStreamFormatException('JSON value is too large.');
     }
   }
-
-  /// UTF-8 byte length of one UTF-16 code unit (unpaired surrogates count 3
-  /// bytes each; a surrogate pair therefore counts 6 instead of 4, a safe
-  /// overcount).
-  static int _utf8Length(int c) => c < 0x80 ? 1 : (c < 0x800 ? 2 : 3);
 
   void _startScalar(int c) {
     _token.clear();
@@ -531,7 +534,7 @@ class IncrementalJsonParser {
   }
 
   void _appendToken(int c) {
-    _tokenBytes += _utf8Length(c);
+    _tokenBytes += utf8CodePointByteLength(c);
     if (_tokenIsKey) {
       if (_tokenBytes > _maxKeyBytes) {
         throw const JsonStreamFormatException('JSON key is too large.');

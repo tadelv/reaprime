@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/services/storage/kv_store_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
 import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
 import 'package:reaprime/src/util/incremental_json_parser.dart';
 
@@ -10,6 +11,7 @@ import 'streaming_test_helpers.dart';
 
 class MockKvStore implements KeyValueStoreService {
   final Map<String, Map<String, Object>> boxes = {};
+  final Map<String, int> keyRequests = {};
 
   @override
   Future<void> initialize() async {}
@@ -28,8 +30,10 @@ class MockKvStore implements KeyValueStoreService {
   }) async => boxes[namespace]?[key];
 
   @override
-  Future<List<String>> keys({String namespace = "default"}) async =>
-      (boxes[namespace] ?? {}).keys.toList();
+  Future<List<String>> keys({String namespace = "default"}) async {
+    keyRequests.update(namespace, (count) => count + 1, ifAbsent: () => 1);
+    return (boxes[namespace] ?? {}).keys.toList();
+  }
 
   @override
   Future<void> set({
@@ -60,15 +64,7 @@ void main() {
       await store.set(namespace: 'empty', key: 'k', value: 'v');
       await store.delete(namespace: 'empty', key: 'k'); // leave namespace empty
 
-      final pages = <String>[];
-      final section = KvStoreExportSection(
-        store: store,
-        pageKvKeys: (namespace, offset, limit) async {
-          pages.add('$namespace@$offset');
-          final keys = await store.keys(namespace: namespace);
-          return keys.skip(offset).take(limit).toList();
-        },
-      );
+      final section = KvStoreExportSection(store: store);
 
       final sink = CapturingJsonSink();
       await section.exportJson(sink);
@@ -81,15 +77,68 @@ void main() {
         'b': {'nested': true},
       });
       expect(namespaces['plugins'], {'p': 'x'});
+      expect(store.keyRequests, {'default': 1, 'plugins': 1, 'empty': 1});
     });
+
+    test('round trips a key at the encoded byte limit', () async {
+      const limits = DataTransferLimits(maxKeyBytes: 14);
+      final source = MockKvStore();
+      await source.set(key: '123456789012', value: 'ok');
+      final section = KvStoreExportSection(store: source, limits: limits);
+      final sink = CapturingJsonSink();
+
+      await section.exportJson(sink);
+
+      final destination = MockKvStore();
+      final result = await importSectionJson(
+        KvStoreExportSection(store: destination, limits: limits),
+        sink.json,
+        ConflictStrategy.skip,
+        limits: limits,
+      );
+      expect(result.imported, 1);
+      expect(destination.boxes['default']?['123456789012'], 'ok');
+    });
+
+    test('rejects a key beyond the encoded byte limit during export', () async {
+      const limits = DataTransferLimits(maxKeyBytes: 14);
+      final store = MockKvStore();
+      await store.set(key: '1234567890123', value: 'too long');
+      final section = KvStoreExportSection(store: store, limits: limits);
+
+      await expectLater(
+        section.exportJson(CapturingJsonSink()),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test(
+      'counts non-BMP key bytes consistently across export and import',
+      () async {
+        const limits = DataTransferLimits(maxKeyBytes: 14);
+        final source = MockKvStore();
+        await source.set(key: '😀😀😀', value: 'ok');
+        final section = KvStoreExportSection(store: source, limits: limits);
+        final sink = CapturingJsonSink();
+
+        await section.exportJson(sink);
+
+        final destination = MockKvStore();
+        final result = await importSectionJson(
+          KvStoreExportSection(store: destination, limits: limits),
+          sink.json,
+          ConflictStrategy.skip,
+          limits: limits,
+        );
+        expect(result.imported, 1);
+        expect(destination.boxes['default']?['😀😀😀'], 'ok');
+      },
+    );
 
     test('imports key/value pairs at depth 3 with skip semantics', () async {
       final store = MockKvStore();
       await store.set(namespace: 'default', key: 'existing', value: 1);
-      final section = KvStoreExportSection(
-        store: store,
-        pageKvKeys: (namespace, offset, limit) async => [],
-      );
+      final section = KvStoreExportSection(store: store);
       final result = await importSectionJson(
         section,
         jsonEncode({
@@ -108,10 +157,7 @@ void main() {
 
     test('rejects malformed payloads without importing', () async {
       final store = MockKvStore();
-      final section = KvStoreExportSection(
-        store: store,
-        pageKvKeys: (namespace, offset, limit) async => [],
-      );
+      final section = KvStoreExportSection(store: store);
       await expectLater(
         importSectionJson(
           section,
@@ -130,10 +176,7 @@ void main() {
     ]) {
       test('rejects $invalidJson without importing', () async {
         final store = MockKvStore();
-        final section = KvStoreExportSection(
-          store: store,
-          pageKvKeys: (namespace, offset, limit) async => [],
-        );
+        final section = KvStoreExportSection(store: store);
 
         await expectLater(
           importSectionJson(section, invalidJson, ConflictStrategy.skip),
@@ -145,10 +188,7 @@ void main() {
 
     test('accepts empty namespace objects', () async {
       final store = MockKvStore();
-      final section = KvStoreExportSection(
-        store: store,
-        pageKvKeys: (namespace, offset, limit) async => [],
-      );
+      final section = KvStoreExportSection(store: store);
 
       final result = await importSectionJson(
         section,

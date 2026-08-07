@@ -13,12 +13,16 @@ import 'streaming_test_helpers.dart';
 
 class MockProfileStorage implements ProfileStorageService {
   final Map<String, ProfileRecord> records = {};
+  int getAllIdsCalls = 0;
 
   @override
   Future<void> initialize() async {}
 
   @override
-  Future<List<String>> getAllIds() async => records.keys.toList();
+  Future<List<String>> getAllIds() async {
+    getAllIdsCalls++;
+    return records.keys.toList();
+  }
 
   @override
   Future<ProfileRecord?> get(String id) async => records[id];
@@ -89,31 +93,16 @@ ProfileRecord makeProfile(int i) {
 
 void main() {
   group('ProfileExportSection', () {
-    test('streams profiles in bounded pages', () async {
+    test('loads the profile ID list once per export', () async {
       final storage = MockProfileStorage();
       for (var i = 0; i < 120; i++) {
         await storage.store(makeProfile(i));
       }
-      final offsets = <int>[];
-      final section = ProfileExportSection(
-        controller: _controller(storage),
-        pageProfiles: (limit, offset) async {
-          offsets.add(offset);
-          final ids = await storage.getAllIds();
-          final page = ids.skip(offset).take(limit).toList();
-          final records = <ProfileRecord>[];
-          for (final id in page) {
-            final r = await storage.get(id);
-            if (r != null) records.add(r);
-          }
-          return records;
-        },
-        pageSize: 100,
-      );
+      final section = ProfileExportSection(controller: _controller(storage));
 
       final sink = CapturingJsonSink();
       await section.exportJson(sink);
-      expect(offsets, [0, 100]); // bounded offset paging over id batches
+      expect(storage.getAllIdsCalls, 1);
       final decoded = jsonDecode(sink.json) as List;
       expect(decoded, hasLength(120));
     });
@@ -121,10 +110,7 @@ void main() {
     test('imports new profiles and skips duplicates', () async {
       final storage = MockProfileStorage();
       await storage.store(makeProfile(0));
-      final section = ProfileExportSection(
-        controller: _controller(storage),
-        pageProfiles: (limit, offset) async => [],
-      );
+      final section = ProfileExportSection(controller: _controller(storage));
       final json = jsonEncode([
         makeProfile(0).toJson(),
         makeProfile(1).toJson(),
@@ -141,10 +127,7 @@ void main() {
 
     test('rejects malformed and non-array payloads', () async {
       final storage = MockProfileStorage();
-      final section = ProfileExportSection(
-        controller: _controller(storage),
-        pageProfiles: (limit, offset) async => [],
-      );
+      final section = ProfileExportSection(controller: _controller(storage));
       await expectLater(
         importSectionJson(section, '[{"id":', ConflictStrategy.skip),
         throwsA(isA<JsonStreamFormatException>()),
