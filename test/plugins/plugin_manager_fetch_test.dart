@@ -152,6 +152,39 @@ void main() {
     expect(manager.activePendingOpCount, 0);
   });
 
+  test('global fetch (no plugin context) rejects instead of leaking', () async {
+    final result = Completer<String>();
+    final sub = manager.emitStream.listen((e) {
+      if (!result.isCompleted) result.complete(e['payload'] as String);
+    });
+    await manager.loadPlugin(
+      id: 'fetch.plugin',
+      manifest: testManifest('fetch.plugin'),
+      settings: {},
+      jsCode: '''
+        function createPlugin(host) {
+          return {
+            id: "fetch.plugin",
+            onLoad() {
+              globalThis.fetch("http://127.0.0.1:1/x")
+                .then(() => host.emit("result", "resolved"))
+                .catch((e) => host.emit("result", "err:" + e.message));
+            }
+          };
+        }
+      ''',
+    );
+
+    final value = await result.future
+        .timeout(const Duration(seconds: 5))
+        .whenComplete(sub.cancel);
+    await sub.cancel();
+
+    expect(value, startsWith('err:'));
+    expect(value, contains('only available to plugins'));
+    expect(manager.activePendingOpCount, 0);
+  });
+
   test('plugin unload rejects pending fetch', () async {
     final server = await startServer((res) async {
       await Future<void>.delayed(const Duration(seconds: 10));
