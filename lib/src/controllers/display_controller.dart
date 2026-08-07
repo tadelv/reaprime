@@ -166,6 +166,7 @@ class DisplayController {
     _de1Subscription = _de1Controller.de1.listen(_onDe1Changed);
     _batterySubscription = _batteryStateStream?.listen(_onBatteryChanged);
     _settingsController.addListener(_onSettingsChanged);
+    unawaited(_evaluateWakeLock());
   }
 
   void dispose() {
