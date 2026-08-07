@@ -80,7 +80,8 @@ class PluginManager {
     this.maxFetchResponseBytes = 10 * 1024 * 1024,
     this.pluginHttpTimeout = const Duration(seconds: 30),
     this.decentProxyTimeout = const Duration(seconds: 30),
-  }) : js = getJavascriptRuntime(xhr: false) {
+    JavascriptRuntime? js,
+  }) : js = js ?? getJavascriptRuntime(xhr: false) {
     _decentProxyBridge = PluginDecentProxyBridge(
       decentProxyService: decentProxyService,
       log: _log,
@@ -461,6 +462,10 @@ class PluginManager {
     String pluginId,
     Map<String, dynamic> msg,
   ) async {
+    // Yield before processing: channel callbacks run inside the JS evaluate
+    // that sent the message, and a nested evaluate + job drain does not
+    // settle promises on QuickJS (unhandled-rejection hang).
+    await Future<void>.delayed(Duration.zero);
     try {
       await _handleMessage(pluginId, msg);
     } catch (e, st) {
@@ -469,6 +474,7 @@ class PluginManager {
   }
 
   Future<void> _handleFetchSafely(Map<String, dynamic> msg) async {
+    await Future<void>.delayed(Duration.zero);
     try {
       await _handleFetch(msg);
     } catch (e, st) {
@@ -573,6 +579,9 @@ class PluginManager {
       if (result.isError) {
         throw Exception("JS evaluation error: ${result.stringResult}");
       }
+      // Settle promise chains created synchronously during onLoad (e.g. a
+      // rejected fetch or an already-resolved promise) regardless of engine.
+      while (js.executePendingJob() > 0) {}
 
       runtime.markRunning();
       _log.info("loaded: $id");
@@ -582,6 +591,7 @@ class PluginManager {
       js.evaluate('''
       delete globalThis.__plugins__["$id"];
     ''');
+      _cleanupPluginResources(id);
       // WARNING, not SEVERE: a plugin failing to load is almost always a
       // user-installed third-party plugin with a bad manifest id or a JS
       // syntax error, not an app defect. The caller (e.g. PluginsSettingsView)
@@ -615,9 +625,13 @@ class PluginManager {
     }
 
     runtime.markDisposed();
-    _cancelTimersForPlugin(id);
-    _rejectOpsForPlugin(id);
+    _cleanupPluginResources(id);
     _log.info("unloaded: $id");
+  }
+
+  void _cleanupPluginResources(String pluginId) {
+    _cancelTimersForPlugin(pluginId);
+    _rejectOpsForPlugin(pluginId);
   }
 
   // ─────────────────────────────────────────────
@@ -688,6 +702,7 @@ class PluginManager {
       }
     }
   ''');
+    while (js.executePendingJob() > 0) {}
   }
 
   // ─────────────────────────────────────────────
@@ -844,6 +859,11 @@ class PluginManager {
     final payload = error != null ? {'error': error} : result;
     switch (op.kind) {
       case _PendingOpKind.fetch:
+        if (error != null) {
+          try {
+            op.request?.abort();
+          } catch (_) {}
+        }
         final fetchPayload = error != null
             ? {'id': int.parse(op.requestId), 'error': error}
             : result;
@@ -1067,9 +1087,6 @@ class PluginManager {
       requestId: id.toString(),
     );
     op.timeout = Timer(fetchTimeout, () {
-      try {
-        op.request?.abort();
-      } catch (_) {}
       _completeOp(op, error: 'fetch timeout');
     });
     _pendingOps[op.key] = op;

@@ -101,12 +101,45 @@ void main() {
     expect(jsTimerCount(), '0');
   });
 
+  test(
+    'failed plugin load cleans up async work created during onLoad',
+    () async {
+      await expectLater(
+        manager.loadPlugin(
+          id: 'timer.plugin',
+          manifest: testManifest('timer.plugin'),
+          settings: {},
+          jsCode: r'''
+          function createPlugin(host) {
+            return {
+              id: "timer.plugin",
+              onLoad() {
+                setTimeout(() => host.emit("ghost", "fired"), 1000);
+                throw new Error("onLoad boom");
+              }
+            };
+          }
+        ''',
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      // Let any in-flight timerSet messages process against the removed plugin.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(manager.activeTimerCount, 0);
+      expect(manager.activePendingOpCount, 0);
+      expect(jsTimerCount(), '0');
+    },
+  );
+
   test('cancelAllOperations cancels multiple plugin-owned timers', () async {
     await loadTimerPlugin('''
       setTimeout(() => host.emit("a", "fired"), 1000);
       setTimeout(() => host.emit("b", "fired"), 1000);
     ''');
 
+    // Let the deferred timerSet messages register before asserting.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(manager.activeTimerCount, 2);
     manager.cancelAllOperations();
     expect(manager.activeTimerCount, 0);
