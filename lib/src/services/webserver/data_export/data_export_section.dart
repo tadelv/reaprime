@@ -27,6 +27,33 @@ class SectionImportResult {
   };
 }
 
+class SectionImportErrors {
+  static const maxRetained = 100;
+
+  final List<String> _retained = [];
+  int _omitted = 0;
+
+  void add(String error) {
+    if (_retained.length < maxRetained) {
+      _retained.add(error);
+    } else {
+      _omitted++;
+    }
+  }
+
+  void addAll(Iterable<String> errors) {
+    for (final error in errors) {
+      add(error);
+    }
+  }
+
+  List<String> toList() => [
+    ..._retained,
+    if (_omitted == 1) '1 additional error omitted',
+    if (_omitted > 1) '$_omitted additional errors omitted',
+  ];
+}
+
 /// Receives pre-encoded JSON fragments for one section's payload.
 ///
 /// Sections write their payload incrementally (array/object markers, one

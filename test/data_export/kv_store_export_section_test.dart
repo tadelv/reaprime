@@ -112,6 +112,18 @@ void main() {
       );
     });
 
+    test('rejects an oversized nested map key during export', () async {
+      const limits = DataTransferLimits(maxKeyBytes: 14);
+      final store = MockKvStore();
+      await store.set(key: 'ok', value: {'1234567890123': 1});
+      final section = KvStoreExportSection(store: store, limits: limits);
+
+      await expectLater(
+        section.exportJson(CapturingJsonSink()),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
+    });
+
     test(
       'counts non-BMP key bytes consistently across export and import',
       () async {

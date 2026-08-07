@@ -55,7 +55,7 @@ class GrinderExportSection implements DataExportSection {
 
     int imported = 0;
     int skipped = 0;
-    final errors = <String>[];
+    final errors = SectionImportErrors();
 
     await for (final event in input.valuesAtDepth(1)) {
       try {
@@ -81,7 +81,7 @@ class GrinderExportSection implements DataExportSection {
     return SectionImportResult(
       imported: imported,
       skipped: skipped,
-      errors: errors,
+      errors: errors.toList(),
     );
   }
 }
