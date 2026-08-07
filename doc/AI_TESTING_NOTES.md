@@ -58,6 +58,12 @@ Available via `--dart-define=simulate=1` or settings UI toggle. For end-to-end A
 | `bengle` | `MockBengle` only |
 | `sensor` | `MockSensor` only |
 
+`MockDe1` replays a real recorded shot from `assets/simulations/` (see
+AI_BUILD_NOTES "Espresso replay"). Replay activates only when a
+`SimulatedShotLibrary` is injected, so a bare `MockDe1()` in unit tests keeps
+using the deterministic synthetic model — inject a library (or seed `Random`)
+only when a test specifically exercises replay.
+
 ## Pre-Commit Checklist
 
 1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
