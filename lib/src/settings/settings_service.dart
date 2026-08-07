@@ -74,6 +74,8 @@ abstract class SettingsService {
   Future<void> setRememberedDevices(String json);
   Future<bool> lowBatteryBrightnessLimit();
   Future<void> setLowBatteryBrightnessLimit(bool value);
+  Future<bool> keepAwake();
+  Future<void> setKeepAwake(bool value);
   Future<bool> onboardingCompleted();
   Future<void> setOnboardingCompleted(bool value);
   Future<bool> accountStepSeen();
@@ -456,6 +458,16 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
+  Future<bool> keepAwake() async {
+    return await prefs.getBool(SettingsKeys.keepAwake.name) ?? true;
+  }
+
+  @override
+  Future<void> setKeepAwake(bool value) async {
+    await prefs.setBool(SettingsKeys.keepAwake.name, value);
+  }
+
+  @override
   Future<bool> onboardingCompleted() async {
     return await prefs.getBool(SettingsKeys.onboardingCompleted.name) ?? false;
   }
@@ -553,6 +565,7 @@ enum SettingsKeys {
   wakeSchedules,
   rememberedDevices,
   lowBatteryBrightnessLimit,
+  keepAwake,
   onboardingCompleted,
   accountStepSeen,
   androidWarningDismissed,

@@ -583,6 +583,17 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="updateReaSetting('lowBatteryBrightnessLimit', document.getElementById('lowBatteryBrightnessLimit').value === 'true')" aria-label="Save low battery brightness limit setting">Save</button>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="keepAwake">Keep Screen Awake</label>
+                        <div class="setting-control">
+                            <select id="keepAwake">
+                                <option value="true" ${reaSettings.keepAwake ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${!reaSettings.keepAwake ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <span id="keepAwake-desc" class="visually-hidden">When enabled, prevents the tablet screen from turning off while the app is running</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('keepAwake', document.getElementById('keepAwake').value === 'true')" aria-label="Save keep screen awake setting">Save</button>
+                        </div>
+                    </div>
                     ${reaSettings.chargingState ? `
                     <div class="setting-item">
                         <span class="setting-label">Battery Level</span>

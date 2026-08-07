@@ -164,6 +164,23 @@ class SettingsView extends StatelessWidget {
                   );
                 },
               ),
+              const SettingsDivider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: ShadSwitch(
+                  value: controller.keepAwake,
+                  onChanged: (value) async {
+                    await controller.setKeepAwake(value);
+                  },
+                  label: const Text('Keep screen awake'),
+                  sublabel: const Text(
+                    'Prevent the tablet screen from turning off while the app is running',
+                  ),
+                ),
+              ),
 
               // MARK: About
               const SettingsSectionHeader('About'),
