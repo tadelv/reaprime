@@ -340,10 +340,18 @@ class DataExportHandler {
     try {
       await reader.writeEntryToFile(entry, jsonFile);
       final validator = _FileJsonInput(jsonFile, _limits);
-      await validator.open();
+      final kind = await validator.open();
       if (section is KvStoreExportSection) {
         await section.validateJson(validator);
       } else {
+        final expected = section.jsonEventDepth == 1
+            ? JsonContainerKind.array
+            : JsonContainerKind.object;
+        if (kind != expected) {
+          throw const JsonStreamFormatException(
+            'Unexpected section JSON root.',
+          );
+        }
         await for (final _ in validator.valuesAtDepth(
           section.jsonEventDepth,
         )) {}
