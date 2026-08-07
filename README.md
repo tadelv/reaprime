@@ -309,7 +309,7 @@ In 2026, ten years after the first commit to the original **de1app** repository 
 ### Acknowledgments
 
 - **[@randomcoffeesnob](https://github.com/randomcoffeesnob)**: Original name inspiration and ongoing support
-- **[@mimoja](https://github.com/mimoja)**: First Flutter app version
+- **[@mimoja](https://github.com/mimoja)**: [First Flutter app](https://github.com/Mimoja/flupresso) version
 - **Decent Espresso community**: Testing, feedback, and feature requests
 
 ### License
