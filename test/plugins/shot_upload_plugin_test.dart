@@ -135,10 +135,10 @@ void main() {
       ),
     );
     final r = manager.js.evaluate('''
-      globalThis.setTimeout = (cb) => { cb(); return 1; };
-      globalThis.clearTimeout = () => {};
+      globalThis.__timerSet = (pluginId, callback, delay) => { callback(); return 1; };
+      globalThis.__timerClear = () => {};
       globalThis.__puts = [];
-      globalThis.fetch = async (url, init) => {
+      globalThis.__fetchFor = async (pluginId, generation, url, init) => {
         init = init || {};
         if (init.method === 'PUT') { globalThis.__puts.push({ url: String(url), body: init.body }); return { ok:true, status:200, json: async () => ({}) }; }
         if (url.endsWith('/shots/latest')) return { ok:true, json: async () => ({ id:'shot-1' }) };
@@ -251,6 +251,7 @@ void main() {
       captured: captured,
     );
 
+    final responseFuture = manager.registerPendingHttp(_manifest().id, 'req-1');
     manager.dispatchEvent(_manifest().id, 'httpRequest', {
       'requestId': 'req-1',
       'endpoint': 'upload',
@@ -260,19 +261,14 @@ void main() {
       'query': <String, String>{},
     });
 
-    Map<String, dynamic>? response;
-    await _pumpUntil(manager, () {
-      response = manager.getPendingHttpResponse('req-1');
-      return response != null;
-    });
+    final response = await responseFuture.timeout(const Duration(seconds: 5));
 
     expect(captured, hasLength(1));
     expect(
       captured.single.url.toString(),
       'https://decentespresso.com/support/api/shot_upload',
     );
-    expect(response, isNotNull);
-    expect(response!['status'], 200);
-    expect(jsonDecode(response!['body'] as String)['ok'], true);
+    expect(response['status'], 200);
+    expect(jsonDecode(response['body'] as String)['ok'], true);
   });
 }

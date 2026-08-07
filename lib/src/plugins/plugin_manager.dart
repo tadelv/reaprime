@@ -16,6 +16,37 @@ import '../models/device/de1_interface.dart';
 import '../models/device/machine.dart';
 import '../services/account/decent_proxy_service.dart';
 
+enum _PendingOpKind { fetch, pluginHttp, decentProxy }
+
+class _PendingOp {
+  _PendingOp({
+    required this.kind,
+    required this.pluginId,
+    required this.generation,
+    required this.requestId,
+  });
+
+  final _PendingOpKind kind;
+  final String pluginId;
+  final int generation;
+  final String requestId;
+
+  Timer? timeout;
+  HttpClientRequest? request;
+  Completer<Map<String, dynamic>>? completer;
+
+  String get key => '${kind.name}:$requestId';
+}
+
+class PluginHttpError implements Exception {
+  final String message;
+
+  const PluginHttpError(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class PluginManager {
   final _log = Logger("PluginManager");
 
@@ -31,14 +62,25 @@ class PluginManager {
 
   Stream<Map<String, dynamic>> get emitStream => _emitController.stream;
 
+  final Duration fetchTimeout;
+  final int maxFetchResponseBytes;
+  final Duration pluginHttpTimeout;
+  final Duration decentProxyTimeout;
+
   De1Controller? _de1controller;
   StreamSubscription<De1Interface?>? _de1Subscription;
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
 
   De1Controller? get de1Controller => _de1controller;
 
-  PluginManager({required this.kvStore, this.decentProxyService})
-    : js = getJavascriptRuntime(xhr: false) {
+  PluginManager({
+    required this.kvStore,
+    this.decentProxyService,
+    this.fetchTimeout = const Duration(seconds: 30),
+    this.maxFetchResponseBytes = 10 * 1024 * 1024,
+    this.pluginHttpTimeout = const Duration(seconds: 30),
+    this.decentProxyTimeout = const Duration(seconds: 30),
+  }) : js = getJavascriptRuntime(xhr: false) {
     _decentProxyBridge = PluginDecentProxyBridge(
       decentProxyService: decentProxyService,
       log: _log,
@@ -61,7 +103,6 @@ class PluginManager {
         globalThis.__plugins__ = Object.create(null);
         
         // Add HTTP response handling
-        globalThis.__pendingHttpRequests = new Map();
         const __nativeSendMessage = sendMessage;
         const __nativeJsonStringify = JSON.stringify.bind(JSON);
         const __NativePromise = Promise;
@@ -132,14 +173,15 @@ class PluginManager {
           return __nativeFreeze(wrapped);
         }
 
-        function __decentProxy(pluginId, bridgeToken, path, method, query, body, contentType) {
+        function __decentProxy(pluginId, generation, bridgeToken, path, method, query, body, contentType) {
           const requestId = "__decent_proxy_" + __decentProxyNonce + "_" + (++__decentProxySeq);
           const promise = new __NativePromise((resolve, reject) => {
             const pendingByPlugin = __pendingDecentProxyByPlugin(pluginId);
-            __mapSet(pendingByPlugin, requestId, { resolve, reject });
+            __mapSet(pendingByPlugin, requestId, { generation: generation, resolve: resolve, reject: reject });
             try {
               __sendHostMessage({
                 pluginId: pluginId,
+                generation: generation,
                 bridgeToken: bridgeToken,
                 type: "decentProxy",
                 requestId: requestId,
@@ -163,6 +205,9 @@ class PluginManager {
           const pending = __mapGet(pendingByPlugin, requestId);
           if (!pending) return;
           __mapDelete(pendingByPlugin, requestId);
+          if (pendingByPlugin.size === 0) {
+            __mapDelete(__pendingDecentProxyRequests, pluginId);
+          }
           if (response && response.error) {
             pending.reject(new __NativeError(response.error));
             return;
@@ -180,24 +225,6 @@ class PluginManager {
           enumerable: false
         });
         
-        globalThis.__registerHttpRequest = function (pluginId, requestId) {
-          if (!globalThis.__pendingHttpRequests.has(pluginId)) {
-            globalThis.__pendingHttpRequests.set(pluginId, new Map());
-          }
-          return new Promise((resolve) => {
-            globalThis.__pendingHttpRequests.get(pluginId).set(requestId, resolve);
-          });
-        };
-        
-        globalThis.__sendHttpResponse = function (pluginId, requestId, response) {
-          sendMessage("host", JSON.stringify({
-            pluginId: pluginId,
-            type: "httpResponse",
-            requestId: requestId,
-            payload: response
-          }));
-        };
-
         globalThis.__sendApiResponse = function (pluginId, requestId, response) {
           console.log("sending plugin api response", pluginId);
           sendMessage("host", JSON.stringify({
@@ -262,6 +289,44 @@ class PluginManager {
           }
         };
 
+        // Timer bridge: JS holds callbacks, Dart owns real Timers.
+        const __timers = new Map();
+        let __timerSeq = 0;
+        globalThis.__debugTimers = __timers;
+        globalThis.__timerSet = function (pluginId, callback, delay) {
+          const id = ++__timerSeq;
+          __timers.set(id, { pluginId: pluginId, callback: callback });
+          __sendHostMessage({
+            pluginId: pluginId,
+            type: "timerSet",
+            timerId: id,
+            delay: Math.max(0, Math.trunc(Number(delay) || 0))
+          });
+          return id;
+        };
+        globalThis.__timerClear = function (pluginId, id) {
+          if (__timers.delete(id)) {
+            __sendHostMessage({ pluginId: pluginId, type: "timerClear", timerId: id });
+          }
+        };
+        globalThis.__fireTimer = function (id) {
+          const record = __timers.get(id);
+          if (!record) return;
+          try {
+            record.callback();
+          } finally {
+            __timers.delete(id);
+          }
+        };
+        globalThis.__cancelTimersForPlugin = function (pluginId) {
+          for (const [id, record] of __timers) {
+            if (record.pluginId === pluginId) __timers.delete(id);
+          }
+        };
+        globalThis.__cancelAllTimers = function () {
+          __timers.clear();
+        };
+
         globalThis.host = {
           log(pluginId, message) {
             sendMessage("host", JSON.stringify({
@@ -284,17 +349,6 @@ class PluginManager {
               type: "pluginStorage",
               payload: command
             }));
-          },
-          httpRequest(pluginId, requestId, endpoint, method, headers, body) {
-            sendMessage("host", JSON.stringify({
-              pluginId: pluginId,
-              type: "httpRequest",
-              requestId: requestId,
-              endpoint: endpoint,
-              method: method,
-              headers: headers,
-              body: body
-            }));
           }
         };
       })();
@@ -308,7 +362,6 @@ class PluginManager {
         const _pendingFetches = new Map();
 
         function makeHeaders(headersObj) {
-          // console.log("making headers", JSON.stringify(headersObj))
           const map = new Map();
           for (const k in headersObj || {}) {
             map.set(k.toLowerCase(), String(headersObj[k]));
@@ -320,14 +373,15 @@ class PluginManager {
           };
         }
 
-        globalThis.fetch = function fetch(input, init = {}) {
+        globalThis.__fetchFor = function (pluginId, generation, input, init = {}) {
           const id = ++_fetchSeq;
-
           return new Promise((resolve, reject) => {
-            _pendingFetches.set(id, { resolve, reject });
+            _pendingFetches.set(id, { pluginId: pluginId, generation: generation, resolve: resolve, reject: reject });
 
             sendMessage("fetch", JSON.stringify({
               id,
+              pluginId,
+              generation,
               url: String(input),
               method: init.method || "GET",
               headers: init.headers || {},
@@ -336,12 +390,13 @@ class PluginManager {
           });
         };
 
+        globalThis.fetch = function fetch(input, init = {}) {
+          return globalThis.__fetchFor(null, 0, input, init);
+        };
+
         globalThis.__handleFetchResponse = function (msg) {
-          // console.log("getting fetch back!", msg.headers['x-powered-by']);
           const pending = _pendingFetches.get(msg.id);
           if (!pending) return;
-          // console.log("found pending");
-
           _pendingFetches.delete(msg.id);
 
           if (msg.error) {
@@ -358,20 +413,12 @@ class PluginManager {
             text: async () => msg.body ?? "",
             json: async () => JSON.parse(msg.body ?? "null")
           };
-          // console.log('resolving!');
-
           pending.resolve(response);
-          // console.log('resolved');
         };
-
-        // globalThis.onMessage("__fetchResponse__", function (msg) {
-        //   console.log("got fetch response in js", msg);
-        //   __handleFetchResponse(msg);
-        // });
       })();
     ''');
 
-    js.onMessage("host", (raw) async {
+    js.onMessage("host", (raw) {
       try {
         _log.finest("receiving: $raw");
         final msg = raw as Map<String, dynamic>;
@@ -389,21 +436,40 @@ class PluginManager {
           // Handle HTTP responses from plugin
           _handlePluginApiResponse(pluginId, msg);
         } else {
-          await _handleMessage(pluginId, msg);
+          unawaited(_handleMessageSafely(pluginId, msg));
         }
       } catch (e, st) {
         _log.warning("Invalid JS message", e, st);
       }
     });
 
-    js.onMessage("fetch", (raw) async {
+    js.onMessage("fetch", (raw) {
       try {
         final msg = raw as Map<String, dynamic>;
-        await _handleFetch(msg);
+        unawaited(_handleFetchSafely(msg));
       } catch (e, st) {
         _log.warning("Invalid fetch message", e, st);
       }
     });
+  }
+
+  Future<void> _handleMessageSafely(
+    String pluginId,
+    Map<String, dynamic> msg,
+  ) async {
+    try {
+      await _handleMessage(pluginId, msg);
+    } catch (e, st) {
+      _log.warning("Error handling message from $pluginId", e, st);
+    }
+  }
+
+  Future<void> _handleFetchSafely(Map<String, dynamic> msg) async {
+    try {
+      await _handleFetch(msg);
+    } catch (e, st) {
+      _log.warning("Invalid fetch message", e, st);
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -416,6 +482,8 @@ class PluginManager {
     required String jsCode,
     required Map<String, dynamic> settings,
   }) async {
+    final generation = (_pluginGenerations[id] ?? 0) + 1;
+    _pluginGenerations[id] = generation;
     await unloadPlugin(id);
 
     final runtime = PluginRuntime(pluginId: id, manifest: manifest);
@@ -430,6 +498,12 @@ class PluginManager {
           '''
       (function () {
         const pluginId = "$id";
+        const pluginGeneration = $generation;
+        const setTimeout = (callback, delay) => globalThis.__timerSet(pluginId, callback, delay);
+        const clearTimeout = (id) => globalThis.__timerClear(pluginId, id);
+        const fetch = (input, init) => globalThis.__fetchFor
+          ? globalThis.__fetchFor(pluginId, pluginGeneration, input, init)
+          : globalThis.fetch(input, init);
         
         // Create the host object for this plugin
         const host = {
@@ -439,6 +513,7 @@ class PluginManager {
           decentProxy: (path, options = {}) => {
             return globalThis.__reaprimePluginBridge.decentProxy(
               pluginId,
+              pluginGeneration,
               ${jsonEncode(decentProxyBridgeToken)},
               path,
               options.method || "GET",
@@ -446,18 +521,6 @@ class PluginManager {
               options.body ?? null,
               options.contentType ?? null
             );
-          },
-          // Add HTTP request capability
-          httpRequest: (endpoint, method, headers, body) => {
-            const requestId = pluginId + "_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-            return new Promise((resolve) => {
-              // Register the request
-              if (globalThis.__registerHttpRequest) {
-                globalThis.__registerHttpRequest(pluginId, requestId).then(resolve);
-              }
-              // Send the request to Dart
-              globalThis.host.httpRequest(pluginId, requestId, endpoint, method, headers, body);
-            });
           }
         };
         
@@ -548,6 +611,8 @@ class PluginManager {
     }
 
     runtime.markDisposed();
+    _cancelTimersForPlugin(id);
+    _rejectOpsForPlugin(id);
     _log.info("unloaded: $id");
   }
 
@@ -646,9 +711,149 @@ class PluginManager {
         await _handlePluginStorage(pluginId, cmd);
         break;
 
+      case 'timerSet':
+        _setTimer(
+          pluginId,
+          (msg['timerId'] as num?)?.toInt() ?? 0,
+          (msg['delay'] as num?)?.toInt() ?? 0,
+        );
+        break;
+
+      case 'timerClear':
+        _clearTimer((msg['timerId'] as num?)?.toInt() ?? 0);
+        break;
+
       case 'decentProxy':
         await _handleDecentProxyMessage(pluginId, msg);
         break;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Timers (JS callbacks, Dart-owned Timers)
+  // ─────────────────────────────────────────────
+
+  final Map<int, ({String pluginId, Timer timer})> _timers = {};
+
+  int get activeTimerCount => _timers.length;
+
+  Map<String, int> get activeTimersByPlugin {
+    final counts = <String, int>{};
+    for (final record in _timers.values) {
+      counts[record.pluginId] = (counts[record.pluginId] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  void _setTimer(String pluginId, int id, int delayMs) {
+    if (!_plugins.containsKey(pluginId)) return;
+    _timers[id] = (
+      pluginId: pluginId,
+      timer: Timer(Duration(milliseconds: delayMs < 0 ? 0 : delayMs), () {
+        _fireTimer(id);
+      }),
+    );
+  }
+
+  void _clearTimer(int id) {
+    _timers.remove(id)?.timer.cancel();
+  }
+
+  void _fireTimer(int id) {
+    final record = _timers.remove(id);
+    if (record == null) return;
+    js.evaluate('globalThis.__fireTimer($id);');
+    while (js.executePendingJob() > 0) {}
+  }
+
+  void _cancelTimersForPlugin(String pluginId) {
+    _timers.removeWhere((id, record) {
+      if (record.pluginId == pluginId) {
+        record.timer.cancel();
+        return true;
+      }
+      return false;
+    });
+    js.evaluate('globalThis.__cancelTimersForPlugin(${jsonEncode(pluginId)});');
+    while (js.executePendingJob() > 0) {}
+  }
+
+  void cancelAllOperations() {
+    for (final op in _pendingOps.values.toList()) {
+      _completeOp(op, error: 'manager disposal');
+    }
+    for (final record in _timers.values) {
+      record.timer.cancel();
+    }
+    _timers.clear();
+    _httpClient?.close(force: true);
+    _httpClient = null;
+    js.evaluate('globalThis.__cancelAllTimers();');
+    while (js.executePendingJob() > 0) {}
+  }
+
+  // ─────────────────────────────────────────────
+  // Pending operations (fetch, plugin HTTP, Decent proxy)
+  // ─────────────────────────────────────────────
+
+  final Map<String, _PendingOp> _pendingOps = {};
+  final Map<String, int> _pluginGenerations = {};
+  HttpClient? _httpClient;
+
+  int get activePendingOpCount => _pendingOps.length;
+
+  Map<String, int> get activePendingOpsByType {
+    final counts = <String, int>{};
+    for (final op in _pendingOps.values) {
+      counts[op.kind.name] = (counts[op.kind.name] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  HttpClient _getHttpClient() {
+    return _httpClient ??= HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
+  }
+
+  void _rejectOpsForPlugin(String pluginId) {
+    for (final op
+        in _pendingOps.values.where((op) => op.pluginId == pluginId).toList()) {
+      _completeOp(op, error: 'plugin unloaded');
+    }
+  }
+
+  void _completeOp(
+    _PendingOp op, {
+    Map<String, dynamic>? result,
+    String? error,
+  }) {
+    op.timeout?.cancel();
+    if (_pendingOps.remove(op.key) == null) return;
+    final payload = error != null ? {'error': error} : result;
+    switch (op.kind) {
+      case _PendingOpKind.fetch:
+        final fetchPayload = error != null
+            ? {'id': int.parse(op.requestId), 'error': error}
+            : result;
+        js.evaluate(
+          'globalThis.__handleFetchResponse(${jsonEncode(fetchPayload)});',
+        );
+        while (js.executePendingJob() > 0) {}
+      case _PendingOpKind.pluginHttp:
+        final completer = op.completer;
+        if (completer == null || completer.isCompleted) return;
+        if (error != null) {
+          completer.completeError(PluginHttpError(error));
+        } else {
+          completer.complete(result);
+        }
+      case _PendingOpKind.decentProxy:
+        js.evaluate(
+          'globalThis.__reaprimePluginBridge.completeDecentProxyRequest('
+          '${jsonEncode(op.pluginId)}, ${jsonEncode(op.requestId)}, '
+          '${jsonEncode(payload)});',
+        );
+        while (js.executePendingJob() > 0) {}
     }
   }
 
@@ -661,13 +866,31 @@ class PluginManager {
       _log.warning('Decent proxy message from $pluginId missing requestId');
       return;
     }
+    final generation = (msg['generation'] as num?)?.toInt() ?? 0;
     if (msg['bridgeToken'] != _decentProxyBridgeTokens[pluginId]) {
       _log.warning('Decent proxy message from $pluginId has invalid token');
-      _completeDecentProxyRequest(pluginId, requestId, {
-        'error': 'Invalid plugin proxy caller',
-      });
+      _completeOp(
+        _PendingOp(
+          kind: _PendingOpKind.decentProxy,
+          pluginId: pluginId,
+          generation: generation,
+          requestId: requestId,
+        ),
+        error: 'Invalid plugin proxy caller',
+      );
       return;
     }
+
+    final op = _PendingOp(
+      kind: _PendingOpKind.decentProxy,
+      pluginId: pluginId,
+      generation: generation,
+      requestId: requestId,
+    );
+    op.timeout = Timer(decentProxyTimeout, () {
+      _completeOp(op, error: 'Decent proxy request timed out');
+    });
+    _pendingOps[op.key] = op;
 
     try {
       final response = await proxyDecentApiForManifest(
@@ -679,9 +902,9 @@ class PluginManager {
         body: msg['body'] as String?,
         contentType: msg['contentType'] as String?,
       );
-      _completeDecentProxyRequest(pluginId, requestId, response);
+      _completeOp(op, result: response);
     } catch (e) {
-      _completeDecentProxyRequest(pluginId, requestId, {'error': e.toString()});
+      _completeOp(op, error: e.toString());
     }
   }
 
@@ -722,21 +945,6 @@ class PluginManager {
     return out.isEmpty ? null : out;
   }
 
-  void _completeDecentProxyRequest(
-    String pluginId,
-    String requestId,
-    Map<String, dynamic> response,
-  ) {
-    js.evaluate('''
-      globalThis.__reaprimePluginBridge.completeDecentProxyRequest(
-        ${jsonEncode(pluginId)},
-        ${jsonEncode(requestId)},
-        ${jsonEncode(response)}
-      );
-    ''');
-    while (js.executePendingJob() > 0) {}
-  }
-
   Future<void> _handlePluginStorage(
     String pluginId,
     PluginStorageCommand cmd,
@@ -760,8 +968,6 @@ class PluginManager {
     }
   }
 
-  final Map<String, Map<String, dynamic>> _pendingHttpResponses = {};
-
   void _handlePluginApiResponse(String pluginId, Map<String, dynamic> msg) {
     final requestId = msg['requestId'] as String?;
     final response = msg['payload'] as Map<String, dynamic>?;
@@ -771,11 +977,33 @@ class PluginManager {
       return;
     }
 
-    // This will be used by the HTTP request handler
-    _pendingHttpResponses[requestId] = response;
-    _log.fine(
-      "HTTP response received for request $requestId from plugin $pluginId",
+    final op = _pendingOps['${_PendingOpKind.pluginHttp.name}:$requestId'];
+    if (op == null) {
+      _log.fine(
+        'Late or unknown HTTP response for request $requestId from $pluginId',
+      );
+      return;
+    }
+    _completeOp(op, result: response);
+  }
+
+  Future<Map<String, dynamic>> registerPendingHttp(
+    String pluginId,
+    String requestId,
+  ) {
+    final op = _PendingOp(
+      kind: _PendingOpKind.pluginHttp,
+      pluginId: pluginId,
+      generation: _pluginGenerations[pluginId] ?? 0,
+      requestId: requestId,
     );
+    final completer = Completer<Map<String, dynamic>>();
+    op.completer = completer;
+    op.timeout = Timer(pluginHttpTimeout, () {
+      _completeOp(op, error: 'Plugin did not respond in time');
+    });
+    _pendingOps[op.key] = op;
+    return completer.future;
   }
 
   // ─────────────────────────────────────────────
@@ -802,66 +1030,81 @@ class PluginManager {
   }
 
   Future<void> _handleFetch(Map<String, dynamic> msg) async {
-    final int id = msg['id'];
-    final String url = msg['url'];
-    final String method = (msg['method'] ?? 'GET').toUpperCase();
-    final Map headers = msg['headers'] ?? {};
-    final dynamic body = msg['body'];
-
-    try {
-      final client = HttpClient();
-      final uri = Uri.parse(url);
-
-      final request = await client.openUrl(method, uri);
-
-      headers.forEach((k, v) {
-        request.headers.set(k.toString(), v.toString());
-      });
-
-      if (body != null) {
-        if (body is String) {
-          request.add(utf8.encode(body));
-        } else {
-          request.add(utf8.encode(jsonEncode(body)));
-        }
-      }
-
-      final response = await request.close();
-      final bytes = await response.fold<List<int>>([], (a, b) => a..addAll(b));
-
-      final responseBody = utf8.decode(bytes);
-
-      final Map<String, dynamic> responseHeaders = {};
-      response.headers.forEach((name, values) {
-        responseHeaders[name] = values.join(", ");
-      });
-      js.evaluate('''
-  __handleFetchResponse(${jsonEncode({'id': id, 'status': response.statusCode, 'headers': responseHeaders, 'body': responseBody})});
-''');
-      // js.sendMessage(
-      //   channelName: "__fetchResponse__",
-      //   args: [
-      //     jsonEncode({
-      //       'id': id,
-      //       'status': response.statusCode,
-      //       'headers': responseHeaders,
-      //       'body': responseBody,
-      //     }),
-      //   ],
-      // );
-      while (js.executePendingJob() > 0) {}
-    } catch (e) {
-      js.sendMessage(
-        channelName: "__fetchResponse__",
-        args: [
-          jsonEncode({'id': id, 'error': e.toString()}),
-        ],
+    final id = msg['id'];
+    final pluginId = msg['pluginId'] as String?;
+    if (id is! int || pluginId == null) {
+      _log.warning('Invalid fetch message');
+      return;
+    }
+    if (!_plugins.containsKey(pluginId)) {
+      js.evaluate(
+        'globalThis.__handleFetchResponse('
+        '${jsonEncode({'id': id, 'error': 'plugin not loaded'})});',
       );
       while (js.executePendingJob() > 0) {}
+      return;
+    }
+
+    final op = _PendingOp(
+      kind: _PendingOpKind.fetch,
+      pluginId: pluginId,
+      generation: (msg['generation'] as num?)?.toInt() ?? 0,
+      requestId: id.toString(),
+    );
+    op.timeout = Timer(fetchTimeout, () {
+      try {
+        op.request?.abort();
+      } catch (_) {}
+      _completeOp(op, error: 'fetch timeout');
+    });
+    _pendingOps[op.key] = op;
+
+    try {
+      final response = await _performFetch(op, msg);
+      _completeOp(op, result: response);
+    } catch (e) {
+      _completeOp(op, error: e.toString());
     }
   }
 
-  Map<String, dynamic>? getPendingHttpResponse(String requestId) {
-    return _pendingHttpResponses.remove(requestId);
+  Future<Map<String, dynamic>> _performFetch(
+    _PendingOp op,
+    Map<String, dynamic> msg,
+  ) async {
+    final uri = Uri.parse(msg['url'] as String);
+    final method = ((msg['method'] as String?) ?? 'GET').toUpperCase();
+    final headers = msg['headers'] as Map? ?? {};
+    final body = msg['body'];
+
+    final request = await _getHttpClient().openUrl(method, uri);
+    op.request = request;
+    headers.forEach((k, v) {
+      request.headers.set(k.toString(), v.toString());
+    });
+    if (body != null) {
+      request.add(
+        body is String ? utf8.encode(body) : utf8.encode(jsonEncode(body)),
+      );
+    }
+    final response = await request.close();
+    final bytes = await response.fold<List<int>>([], (acc, chunk) {
+      if (acc.length + chunk.length > maxFetchResponseBytes) {
+        throw StateError(
+          'response exceeds maxFetchResponseBytes ($maxFetchResponseBytes)',
+        );
+      }
+      return acc..addAll(chunk);
+    });
+
+    final responseHeaders = <String, String>{};
+    response.headers.forEach((name, values) {
+      responseHeaders[name] = values.join(', ');
+    });
+    return {
+      'id': int.parse(op.requestId),
+      'status': response.statusCode,
+      'headers': responseHeaders,
+      'body': utf8.decode(bytes, allowMalformed: true),
+    };
   }
 }
