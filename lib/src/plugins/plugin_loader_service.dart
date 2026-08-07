@@ -50,27 +50,21 @@ class PluginLoaderService {
       return;
     }
 
-    // Get application documents directory
     final appDocDir = await getApplicationDocumentsDirectory();
     _pluginsDir = Directory('${appDocDir.path}/plugins');
 
-    // Initialize SharedPreferences
     _prefs = await SharedPreferences.getInstance();
     await _recoverInterruptedPluginLoad();
 
-    // Create plugins directory if it doesn't exist
     if (!_pluginsDir.existsSync()) {
       _pluginsDir.createSync(recursive: true);
       _log.info('Created plugins directory: ${_pluginsDir.path}');
     }
 
-    // Copy bundled plugins from assets
     await _copyBundledPlugins();
 
-    // Scan for available plugins
     await _scanAvailablePlugins();
 
-    // Load auto-load enabled plugins
     await _loadAutoLoadPlugins();
 
     _initialized = true;
@@ -87,7 +81,6 @@ class PluginLoaderService {
     Directory sourceDirectory;
     File manifestFile;
 
-    // Check if source is a file or directory
     if (source.existsSync()) {
       // It's a file - could be a zip or single plugin file
       // For now, we only support directory-based installation
@@ -95,7 +88,6 @@ class PluginLoaderService {
         'File-based plugin installation not yet implemented. Please provide a directory path.',
       );
     } else if (sourceDir.existsSync()) {
-      // It's a directory
       sourceDirectory = sourceDir;
       manifestFile = File('${sourceDirectory.path}/manifest.json');
       if (!manifestFile.existsSync()) {
@@ -116,7 +108,6 @@ class PluginLoaderService {
       );
     }
 
-    // Create plugin directory in plugins folder
     final pluginDir = Directory('${_pluginsDir.path}/${manifest.id}');
     if (pluginDir.existsSync()) {
       throw Exception('Plugin already installed: ${manifest.id}');
@@ -124,10 +115,8 @@ class PluginLoaderService {
 
     pluginDir.createSync(recursive: true);
 
-    // Copy all files from source to destination
     await _copyDirectory(sourceDirectory, pluginDir);
 
-    // Add to cache
     _availablePluginsCache[manifest.id] = manifest;
 
     _log.info('Plugin installed: ${manifest.id}');
@@ -144,25 +133,20 @@ class PluginLoaderService {
       );
     }
 
-    // Unload plugin if it's loaded
     if (isPluginLoaded(pluginId)) {
       await unloadPlugin(pluginId);
     }
 
-    // Remove from cache
     _availablePluginsCache.remove(pluginId);
 
-    // Delete plugin directory
     final pluginDir = Directory('${_pluginsDir.path}/$pluginId');
     if (pluginDir.existsSync()) {
       await pluginDir.delete(recursive: true);
       _log.info('Plugin removed: $pluginId');
     }
 
-    // Remove auto-load setting
     await _prefs.remove('plugin.autoload.$pluginId');
 
-    // Remove plugin settings
     await _prefs.remove('plugin.settings.$pluginId');
     await _prefs.remove(_loadFailureKey(pluginId));
     if (_prefs.getString(_loadingPluginKey) == pluginId) {
@@ -231,10 +215,8 @@ class PluginLoaderService {
 
     _log.info('Reloading plugin: $pluginId');
 
-    // Unload the plugin
     await unloadPlugin(pluginId);
 
-    // Load the plugin again
     await loadPlugin(pluginId);
 
     // Note: Plugin should load its own settings from the saved location
@@ -284,10 +266,8 @@ class PluginLoaderService {
 
     final manifest = _availablePluginsCache[pluginId]!;
 
-    // Validate settings against manifest
     _validateSettings(manifest, settings);
 
-    // Save to SharedPreferences
     await _prefs.setString('plugin.settings.$pluginId', jsonEncode(settings));
 
     _log.fine('Settings saved for plugin: $pluginId');
@@ -341,8 +321,6 @@ class PluginLoaderService {
     return pluginManager.loadedPlugins;
   }
 
-  // Private helper methods
-
   String _loadFailureKey(String pluginId) =>
       'plugin.watchdog.loadFailures.$pluginId';
 
@@ -371,7 +349,6 @@ class PluginLoaderService {
   }
 
   Future<void> _copyBundledPlugins() async {
-    // Get list of bundled plugins from assets
     final bundledPlugins = await _getBundledPluginPaths();
 
     for (final pluginPath in bundledPlugins) {
@@ -379,14 +356,11 @@ class PluginLoaderService {
         final pluginName = pluginPath.split('/').last;
         final destDir = Directory('${_pluginsDir.path}/$pluginName');
 
-        // Check if plugin already exists in destination
         final isNewPlugin = !destDir.existsSync() || destDir.listSync().isEmpty;
 
         if (isNewPlugin) {
-          // Create destination directory
           destDir.createSync(recursive: true);
 
-          // Copy manifest.json
           final manifestAsset = await rootBundle.loadString(
             '$pluginPath/manifest.json',
           );
@@ -394,7 +368,6 @@ class PluginLoaderService {
             '${destDir.path}/manifest.json',
           ).writeAsStringSync(manifestAsset);
 
-          // Copy plugin.js
           final pluginAsset = await rootBundle.loadString(
             '$pluginPath/plugin.js',
           );
@@ -419,7 +392,6 @@ class PluginLoaderService {
           );
           if (_compareVersions(newManifest.version, existingManifest.version) <=
               0) {
-            // existing plugin has same or newer version
             _log.fine(
               "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
             );
@@ -428,7 +400,6 @@ class PluginLoaderService {
         }
         File('${destDir.path}/manifest.json').writeAsStringSync(manifestAsset);
 
-        // Copy plugin.js
         final pluginAsset = await rootBundle.loadString(
           '$pluginPath/plugin.js',
         );
@@ -471,7 +442,6 @@ class PluginLoaderService {
       'assets/plugins/dye2.reaplugin',
       'assets/plugins/decent-profile.reaplugin',
       'assets/plugins/shot-upload.reaplugin',
-      // Add more bundled plugins here as they are added to the app
     ];
   }
 
@@ -515,7 +485,6 @@ class PluginLoaderService {
     // First, ensure bundled plugins have auto-load enabled by default
     await _ensureBundledPluginsAutoLoadEnabled();
 
-    // Then load all plugins with auto-load enabled
     for (final pluginId in _availablePluginsCache.keys) {
       final shouldLoad = await shouldAutoLoad(pluginId);
       if (shouldLoad) {
@@ -530,19 +499,16 @@ class PluginLoaderService {
 
   Future<void> _ensureBundledPluginsAutoLoadEnabled() async {
     try {
-      // Get list of bundled plugins from assets
       final bundledPlugins = await _getBundledPluginPaths();
 
       for (final pluginPath in bundledPlugins) {
         final pluginName = pluginPath.split('/').last;
         final pluginDir = Directory('${_pluginsDir.path}/$pluginName');
 
-        // Check if this is a bundled plugin directory
         if (!pluginDir.existsSync()) {
           continue;
         }
 
-        // Load manifest to get plugin ID
         final manifestFile = File('${pluginDir.path}/manifest.json');
         if (!manifestFile.existsSync()) {
           continue;

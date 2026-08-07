@@ -439,7 +439,6 @@ class PluginManager {
         if (type == 'log') {
           _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
         } else if (type == 'httpResponse') {
-          // Handle HTTP responses from plugin
           _handlePluginApiResponse(pluginId, msg);
         } else {
           unawaited(_handleMessageSafely(pluginId, msg));
@@ -504,7 +503,6 @@ class PluginManager {
     _decentProxyBridgeTokens[id] = decentProxyBridgeToken;
 
     try {
-      // Direct injection approach with standard factory name
       final wrapperCode =
           '''
       (function () {
@@ -990,7 +988,6 @@ class PluginManager {
     String pluginId,
     PluginStorageCommand cmd,
   ) async {
-    // Use pluginId as namespace for storage isolation
     final namespace = pluginId;
 
     switch (cmd.type) {

@@ -338,7 +338,6 @@ Future<void> startWebServer(
     );
   }
 
-  // Start server
   final server = await io.serve(
     _init(
       deviceHandler,
@@ -567,7 +566,6 @@ String _appendVary(String? value, String headerName) {
 }
 
 Future<void> startApiDocsServer() async {
-  // Step 1: Create a temporary directory for the unpacked API docs
   final tempDir = await getTemporaryDirectory();
   final apiDir = Directory('${tempDir.path}/api');
   if (!apiDir.existsSync()) {
@@ -582,7 +580,6 @@ Future<void> startApiDocsServer() async {
   //   - assets/api/index.html
   //   - assets/api/openapi.json
   //   - assets/api/style.css
-  //
   // Then, manually list them here:
   final assetFiles = [
     'assets/api/index.html',
@@ -590,7 +587,6 @@ Future<void> startApiDocsServer() async {
     'assets/api/websocket_v1.yml',
   ];
 
-  // Step 3: Copy each asset to the temp directory
   for (final assetPath in assetFiles) {
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List();
@@ -599,14 +595,12 @@ Future<void> startApiDocsServer() async {
     await file.writeAsBytes(bytes, flush: true);
   }
 
-  // Step 4: Create a static file handler for the unpacked API docs
   final apiHandler = createStaticHandler(
     apiDir.path,
     defaultDocument: 'index.html',
     listDirectories: true,
   );
 
-  // Step 5: Serve the handler on port 4001
   final apiServer = await io.serve(apiHandler, '0.0.0.0', 4001);
   log.info(
     '✅ API Docs server running at http://${apiServer.address.host}:${apiServer.port}',
