@@ -27,9 +27,6 @@ import '../helpers/mock_scale_controller.dart';
 import '../helpers/mock_settings_service.dart';
 import '../helpers/test_scale.dart';
 
-/// Minimal De1Interface stub for testing.
-/// Uses noSuchMethod so we don't need to implement every member.
-/// Provides real implementations for fields that DeviceController accesses.
 class _FakeDe1 implements De1Interface {
   final StreamController<MachineSnapshot> _snapshotController =
       StreamController<MachineSnapshot>.broadcast();
@@ -76,8 +73,6 @@ class _FakeDe1 implements De1Interface {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-/// A De1Interface stub whose onConnect() throws, used to test failed connection
-/// attempts in ScanReport tracking.
 class _FailingFakeDe1 implements De1Interface {
   @override
   final String deviceId;
@@ -726,14 +721,6 @@ void main() {
         });
       });
 
-      // Gap A — comms-harden #4: after a scale connect failure, a
-      // subsequent connect() must re-attempt the scale. Current code
-      // happens to pass this because _scaleConnected is guarded behind
-      // a successful `await scaleController.connectToScale(...)`, but
-      // the invariant must survive the Phase 2 state-derivation
-      // refactor. These tests pin the contract.
-      // See: doc/plans/comms-harden.md #4,
-      //      doc/plans/comms-phase-0-1.md Gap A.
       group('scale failure recovery (comms-harden #4)', () {
         test(
           'after scaleOnly connect fails, next connect retries scale',
@@ -993,10 +980,6 @@ void main() {
         test(
           'full scan completed (no early stop) → no deferred rescan armed',
           () async {
-            // No preferences → no early-stop. A single machine auto-connects
-            // via post-scan policy; the full scan already saw every scale, so
-            // a scale appearing afterwards must NOT be auto-connected by a
-            // rescan that should never have been armed.
             connectionManager.deferredScaleScanDelay = Duration.zero;
 
             mockScanner.scanCompleter = Completer<void>();
@@ -1065,7 +1048,6 @@ void main() {
         await connectionManager.connect(scaleOnly: true);
         await Future.delayed(Duration.zero);
 
-        // Machine should NOT be connected even though preferred is available
         expect(mockDe1Controller.connectCalls, isEmpty);
       });
 
@@ -1131,17 +1113,12 @@ void main() {
         mockScanner.scanCompleter = Completer<void>();
         final future1 = connectionManager.connect(scaleOnly: true);
 
-        // Second and third scaleOnly calls arrive while the first is
-        // mid-scan. They must return Futures that complete after the
-        // drain runs the scale-only scan.
         final future2 = connectionManager.connect(scaleOnly: true);
         final future3 = connectionManager.connect(scaleOnly: true);
 
         await Future.delayed(Duration.zero);
         expect(future2, isA<Future<void>>());
         expect(future3, isA<Future<void>>());
-        // future2 and future3 must share the same pending completer,
-        // so they resolve at the same moment.
         var future2Done = false;
         var future3Done = false;
         future2.then((_) => future2Done = true);
@@ -1531,9 +1508,7 @@ void main() {
 
           try {
             await connectionManager.connectMachine(fakeDe1);
-          } catch (_) {
-            // connectMachine rethrows — that's expected.
-          }
+          } catch (_) {}
           await Future<void>.delayed(Duration.zero);
 
           final err = connectionManager.currentStatus.error!;
@@ -1588,8 +1563,6 @@ void main() {
           );
           expect(connectionManager.currentStatus.error, isNotNull);
 
-          // connect() transitions into scanning via _publishStatus without
-          // explicitly nulling — the gatekeeper must strip the transient error.
           await connectionManager.connect(scaleOnly: true);
           expect(connectionManager.currentStatus.error, isNull);
         },
@@ -1605,9 +1578,6 @@ void main() {
           );
           expect(connectionManager.currentStatus.error, isNotNull);
 
-          // A real scan path goes through _publishStatus(scanning). Sticky
-          // adapterOff must survive even though the caller itself does not
-          // explicitly re-attach it.
           await connectionManager.connect(scaleOnly: true);
           expect(connectionManager.currentStatus.error, isNotNull);
           expect(
@@ -1789,9 +1759,6 @@ void main() {
       test(
         'emits scaleConnectFailed even when fallback phase is ready (machine connected)',
         () async {
-          // Seed connected-machine state so the scale-fail catch falls through
-          // to phase=ready (a clearing phase). The _emit must survive the
-          // gatekeeper's strip rule — if ordering regresses, this test fails.
           final fakeMachine = _FakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
           await connectionManager.connectMachine(fakeMachine);
           expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
@@ -2256,8 +2223,6 @@ void main() {
     });
 
     group('machine auto-reconnect', () {
-      /// Pump enough microtask/zero-timer turns for a drop → timer →
-      /// connect() → scan → connect-machine cycle to complete.
       Future<void> pumpCycles([int n = 8]) async {
         for (var i = 0; i < n; i++) {
           await Future<void>.delayed(Duration.zero);
@@ -2297,7 +2262,6 @@ void main() {
             if (s) scanStarts++;
           });
 
-          // Machine drops and is NOT in scan results yet.
           mockDe1Controller.de1Subject.add(null);
           await pumpCycles();
           expect(
@@ -2435,12 +2399,6 @@ void main() {
     });
 
     group('snapshot staleness watchdog', () {
-      // The watchdog Timer must be created inside the fakeAsync zone, so
-      // each test constructs a fresh ConnectionManager here (the setUp
-      // instance lives in the real zone — its Timer wouldn't be visible
-      // to async.elapse). Mirrors the 'recovery retries use exponential
-      // backoff' test.
-
       ConnectionManager newManager() => ConnectionManager(
         deviceScanner: mockScanner,
         de1Controller: mockDe1Controller,
@@ -2486,8 +2444,6 @@ void main() {
           async.flushMicrotasks();
 
           async.elapse(const Duration(seconds: 9));
-          // Same state — deduped by _latestMachineState — but still proves
-          // the push channel is alive; watchdog must re-arm.
           fakeDe1.emitState(MachineState.idle);
           async.flushMicrotasks();
 
@@ -2581,10 +2537,6 @@ void main() {
             expect(manager.snapshotStalenessReconnects, 1);
             async.flushMicrotasks();
 
-            // The forced reconnect cancelled the watchdog and bumped the
-            // generation. With no new machine connected and no new frames,
-            // no watchdog is re-armed — a long elapse must not trigger a
-            // second forced reconnect.
             async.elapse(const Duration(seconds: 30));
             expect(
               manager.snapshotStalenessReconnects,
@@ -2598,11 +2550,6 @@ void main() {
         },
       );
 
-      // Runs in the real async zone (not fakeAsync): the forced reconnect's
-      // `disconnectMachine → connect` chain awaits `de1Controller.de1.first`,
-      // which a BehaviorSubject does not settle under fakeAsync — so the
-      // strand safety-net in the `finally` only runs with real microtasks.
-      // A short overridden staleness timeout keeps the test fast.
       test('a forced reconnect that cannot recover the machine hands off to '
           'the recovery loop (no strand)', () async {
         await settingsController.setPreferredMachineId('stale-de1');
@@ -2618,12 +2565,6 @@ void main() {
         fakeDe1.emitState(MachineState.idle);
         await Future<void>.delayed(Duration.zero);
 
-        // Let the 20ms watchdog fire and force a reconnect. The scanner
-        // surfaces no machine, so the forced `connect()` completes without
-        // reconnecting → the machine is left disconnected.
-        // `disconnectMachine` marked the drop expected, so the
-        // unexpected-disconnect path never armed recovery; without the
-        // safety net nothing would retry.
         await Future<void>.delayed(const Duration(milliseconds: 60));
 
         expect(
@@ -2865,11 +2806,6 @@ void main() {
       test(
         'machine quick-connect arms the watch, not the legacy backoff loop',
         () {
-          // Quick-connect is the common startup path when a preferred
-          // machine is remembered; its success branch must route scale
-          // reacquisition through the watch selector like every other
-          // machine-connected site — not schedule backoff bursts alongside
-          // the watch.
           fakeAsync((async) {
             mockSettingsService.setRememberedDevices(
               RememberedDevice.encodeList([
@@ -3126,9 +3062,6 @@ void main() {
 
     group('stale caller-supplied object', () {
       test('stale machine object is not connected', () async {
-        // Session's candidate is from scanner. Caller supplies a different
-        // object with the same deviceId. resolveMachine must return the
-        // session's object, not the caller's.
         final staleMachine = _FakeDe1(deviceId: 'same-id', name: 'stale-copy');
         final sessionMachine = _FakeDe1(deviceId: 'same-id', name: 'session');
 
@@ -3145,8 +3078,6 @@ void main() {
           AmbiguityReason.machinePicker,
         );
 
-        // Caller supplies the stale object. Resolution must find the
-        // session's canonical candidate.
         await connectionManager.selectMachine(staleMachine);
 
         final connected = mockDe1Controller.connectCalls.lastOrNull;
@@ -3306,7 +3237,6 @@ void main() {
       scanCompleter.complete();
       await connectFuture;
 
-      // No ambiguity — policy never ran.
       expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
     });
 
@@ -3534,7 +3464,6 @@ void main() {
   });
 }
 
-/// A De1Controller mock that uses a Completer to control when connectToDe1 completes.
 class _SlowMockDe1Controller extends MockDe1Controller {
   Completer<void>? connectCompleter;
 
@@ -3550,7 +3479,6 @@ class _SlowMockDe1Controller extends MockDe1Controller {
   }
 }
 
-/// A ScaleController mock that uses a Completer to control when connectToScale completes.
 class _SlowMockScaleController extends MockScaleController {
   Completer<void>? connectCompleter;
 

@@ -180,7 +180,6 @@ function createPlugin() {
         );
         expect(escapeDir.existsSync(), isFalse);
 
-        // Nested ids must not create nested directories.
         final nested = Directory('${pluginsDir.path}/a/b');
         await expectLater(
           service.addPlugin(makePluginSource('a/b').path),
@@ -188,7 +187,6 @@ function createPlugin() {
         );
         expect(nested.existsSync(), isFalse);
 
-        // Absolute ids must not resolve under the plugins root.
         final absDir = Directory('${pluginsDir.path}/abs');
         if (absDir.existsSync()) absDir.deleteSync(recursive: true);
         await expectLater(

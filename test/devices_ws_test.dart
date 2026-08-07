@@ -65,7 +65,6 @@ void main() {
     deviceController.dispose();
   });
 
-  /// Connect and return the channel + a broadcast stream of decoded messages.
   (IOWebSocketChannel, Stream<Map<String, dynamic>>) connectWs() {
     final channel = IOWebSocketChannel.connect(wsUri);
     final messages = channel.stream
@@ -74,7 +73,6 @@ void main() {
     return (channel, messages);
   }
 
-  /// Wait for and return the first message that contains an 'error' key.
   Future<Map<String, dynamic>> waitForError(
     Stream<Map<String, dynamic>> messages,
   ) {
@@ -84,7 +82,6 @@ void main() {
         .timeout(Duration(seconds: 2));
   }
 
-  /// Wait for and return the first state message (has 'devices' key).
   Future<Map<String, dynamic>> waitForState(
     Stream<Map<String, dynamic>> messages,
   ) {
@@ -447,7 +444,6 @@ void main() {
       await waitForState(messages1);
       await waitForState(messages2);
 
-      // Set up futures BEFORE triggering the action to avoid missing events
       final deviceAdded1 = messages1
           .where(
             (msg) =>
@@ -475,7 +471,6 @@ void main() {
       expect((update1['devices'] as List)[0]['id'], 'scale-1');
       expect((update2['devices'] as List)[0]['id'], 'scale-1');
 
-      // Set up futures for the state change BEFORE triggering it
       final stateChanged1 = messages1
           .where(
             (msg) =>

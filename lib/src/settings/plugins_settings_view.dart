@@ -386,7 +386,6 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
     }
   }
 
-  // TODO: unify with PluginLoaderService _copyDirectoryRecursively - maybe as a Directory extension?
   Future<void> _copyDirectoryRecursively(
     Directory source,
     Directory destination,

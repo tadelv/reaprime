@@ -23,7 +23,6 @@ import 'package:rxdart/rxdart.dart';
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
 
-/// Minimal DeviceDiscoveryService that does nothing.
 class _FakeDiscoveryService extends DeviceDiscoveryService {
   @override
   Stream<List<Device>> get devices => const Stream.empty();
@@ -35,7 +34,6 @@ class _FakeDiscoveryService extends DeviceDiscoveryService {
   Future<void> scanForDevices({ScanFilter? filter}) async {}
 }
 
-/// De1Controller subclass whose `connectedDe1()` returns our TestDe1.
 class _TestDe1Controller extends De1Controller {
   final TestDe1 testDe1;
 
@@ -49,8 +47,6 @@ class _TestDe1Controller extends De1Controller {
   Stream<De1Interface?> get de1 => BehaviorSubject.seeded(testDe1).stream;
 }
 
-/// ScaleController subclass with controllable connection state and weight
-/// emission.
 class _TestScaleController extends ScaleController {
   final TestScale testScale;
   final BehaviorSubject<ConnectionState> _connectionState;
@@ -103,7 +99,6 @@ class _TestScaleController extends ScaleController {
   }
 }
 
-/// Minimal StorageService that stores nothing.
 class _NullStorageService implements StorageService {
   @override
   Future<void> storeShot(ShotRecord record) async {}
@@ -170,7 +165,6 @@ class _NullStorageService implements StorageService {
   Future<SteamRecord?> getLatestSteamMeta() async => null;
 }
 
-/// Creates a minimal Profile with one pressure step and targetWeight of 36g.
 Profile _simpleProfile() {
   return Profile(
     version: '2',
@@ -272,10 +266,6 @@ void main() {
       persistenceController.dispose();
     });
 
-    /// Drive the ShotSequencer state machine from idle → pouring.
-    ///
-    /// Emits: preparingForShot → preinfusion, which transitions through
-    /// idle → preheating → pouring.
     void driveToPouring(ShotSequencer shotSequencer) {
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
@@ -361,9 +351,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW should NOT have fired because scale is disconnected.
-        // The bug: requestedStates will contain MachineState.idle because
-        // withLatestFrom still combines with the stale weight.
         expect(
           testDe1.requestedStates,
           isEmpty,
@@ -1078,8 +1065,6 @@ void main() {
           de1controller: de1Controller,
           persistenceController: persistenceController,
           targetProfile: profile,
-          // High target so app-side SAW never fires — the machine itself
-          // reports the shot end via the pouringDone substate.
           targetYield: 100.0,
           bypassSAW: false,
           blockOnNoScale: false,
@@ -1109,8 +1094,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Machine reports the shot is done — this is the boundary. Recording
-        // must stop here; this sample and the drips after it are excluded.
         scaleController.emitWeight(36.0, weightFlow: 0.3);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1144,9 +1127,6 @@ void main() {
 
     test('suppresses weight and flow to 0 until the pour-time tare', () {
       fakeAsync((async) {
-        // A cup is already sitting on the scale when the shot begins — its
-        // weight (and the noise-flow off it) must not leak into the trace
-        // before the scale is tared for the pour.
         scaleController.emitWeight(80.0, weightFlow: 1.2);
 
         final shotSequencer = ShotSequencer(
@@ -1167,8 +1147,6 @@ void main() {
 
         async.elapse(Duration(milliseconds: 10));
 
-        // idle → preheating: the preparing-for-shot frame is recorded but
-        // pre-tare, so it must read 0 despite the 80g cup on the platter.
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
           MachineSubstate.preparingForShot,
@@ -1213,8 +1191,6 @@ void main() {
 
     test('non-scale shot finishes immediately, with no settling window', () {
       fakeAsync((async) {
-        // No scale: the settling window only exists to catch scale drips, so
-        // the shot must end the moment the machine reports it — no 4s wait.
         scaleController.simulateDisconnect();
 
         final shotSequencer = ShotSequencer(
@@ -1405,7 +1381,6 @@ void main() {
       persistenceController.dispose();
     });
 
-    /// Drive the ShotSequencer state machine from idle → pouring.
     void driveToPouring(ShotSequencer shotSequencer) {
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
@@ -1836,7 +1811,6 @@ void main() {
         expect(advances[0].data?['fromFrame'], 0);
         expect(advances[1].data?['fromFrame'], 1);
 
-        // A frame regression (out-of-order sample) must be ignored.
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
         expect(
@@ -1902,8 +1876,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // A noisy scale never settles (flow stays above the settle
-        // threshold and decays, so no spike or removal either).
         scaleController.emitWeight(40.0, weightFlow: 1.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,

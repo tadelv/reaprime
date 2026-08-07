@@ -11,7 +11,6 @@ import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Minimal [De1Interface] stub for testing.
 class FakeDe1 implements De1Interface {
   @override
   final String deviceId;
@@ -48,9 +47,6 @@ class FakeDe1 implements De1Interface {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-/// A [ConnectionManager] subclass that gives tests direct control over the
-/// status stream and records `connect()` calls, without requiring real
-/// device scanning infrastructure.
 class MockConnectionManager extends ConnectionManager {
   final _statusOverride = BehaviorSubject<ConnectionStatus>.seeded(
     const ConnectionStatus(phase: ConnectionPhase.scanning),
@@ -101,10 +97,7 @@ class MockConnectionManager extends ConnectionManager {
     selectMachineCallCount++;
     try {
       await connectMachine(machine);
-    } catch (_) {
-      // connectMachine already updates the status stream with the error.
-      // The widget must not see the exception.
-    }
+    } catch (_) {}
   }
 
   @override
