@@ -294,11 +294,12 @@ class PluginManager {
         const __timers = new Map();
         let __timerSeq = 0;
         globalThis.__debugTimers = __timers;
-        globalThis.__timerSet = function (pluginId, callback, delay) {
+        globalThis.__timerSet = function (pluginId, generation, callback, delay) {
           const id = ++__timerSeq;
-          __timers.set(id, { pluginId: pluginId, callback: callback });
+          __timers.set(id, { pluginId: pluginId, generation: generation, callback: callback });
           __sendHostMessage({
             pluginId: pluginId,
+            generation: generation,
             type: "timerSet",
             timerId: id,
             delay: Math.max(0, Math.trunc(Number(delay) || 0))
@@ -509,7 +510,7 @@ class PluginManager {
       (function () {
         const pluginId = "$id";
         const pluginGeneration = $generation;
-        const setTimeout = (callback, delay) => globalThis.__timerSet(pluginId, callback, delay);
+        const setTimeout = (callback, delay) => globalThis.__timerSet(pluginId, pluginGeneration, callback, delay);
         const clearTimeout = (id) => globalThis.__timerClear(pluginId, id);
         const fetch = (input, init) => globalThis.__fetchFor
           ? globalThis.__fetchFor(pluginId, pluginGeneration, input, init)
@@ -630,8 +631,11 @@ class PluginManager {
   }
 
   void _cleanupPluginResources(String pluginId) {
-    _cancelTimersForPlugin(pluginId);
+    // Reject operations first: settling promises drains pending jobs, which
+    // can run plugin rejection handlers that schedule new timers. The timer
+    // sweep after must be the last word.
     _rejectOpsForPlugin(pluginId);
+    _cancelTimersForPlugin(pluginId);
   }
 
   // ─────────────────────────────────────────────
@@ -733,6 +737,7 @@ class PluginManager {
       case 'timerSet':
         _setTimer(
           pluginId,
+          msg['generation'] is num ? (msg['generation'] as num).toInt() : 0,
           (msg['timerId'] as num?)?.toInt() ?? 0,
           (msg['delay'] as num?)?.toInt() ?? 0,
         );
@@ -764,8 +769,11 @@ class PluginManager {
     return counts;
   }
 
-  void _setTimer(String pluginId, int id, int delayMs) {
+  void _setTimer(String pluginId, int generation, int id, int delayMs) {
     if (!_plugins.containsKey(pluginId)) return;
+    // Deferred bridge messages can arrive after a reload; a timer from an
+    // older generation must not register against the current plugin.
+    if (generation != (_pluginGenerations[pluginId] ?? 0)) return;
     _timers[id] = (
       pluginId: pluginId,
       timer: Timer(Duration(milliseconds: delayMs < 0 ? 0 : delayMs), () {
@@ -1077,13 +1085,24 @@ class PluginManager {
       while (js.executePendingJob() > 0) {}
       return;
     }
+    final generation = msg['generation'] is num
+        ? (msg['generation'] as num).toInt()
+        : 0;
+    // Deferred bridge messages can arrive after a reload; a fetch from an
+    // older generation must not start network work against the new plugin.
+    if (generation != (_pluginGenerations[pluginId] ?? 0)) {
+      js.evaluate(
+        'globalThis.__handleFetchResponse('
+        '${jsonEncode({'id': id, 'error': 'plugin generation changed'})});',
+      );
+      while (js.executePendingJob() > 0) {}
+      return;
+    }
 
     final op = _PendingOp(
       kind: _PendingOpKind.fetch,
       pluginId: pluginId,
-      generation: msg['generation'] is num
-          ? (msg['generation'] as num).toInt()
-          : 0,
+      generation: generation,
       requestId: id.toString(),
     );
     op.timeout = Timer(fetchTimeout, () {

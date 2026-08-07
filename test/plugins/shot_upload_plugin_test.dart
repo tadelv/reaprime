@@ -135,7 +135,7 @@ void main() {
       ),
     );
     final r = manager.js.evaluate('''
-      globalThis.__timerSet = (pluginId, callback, delay) => { callback(); return 1; };
+      globalThis.__timerSet = (pluginId, generation, callback, delay) => { callback(); return 1; };
       globalThis.__timerClear = () => {};
       globalThis.__puts = [];
       globalThis.__fetchFor = async (pluginId, generation, url, init) => {

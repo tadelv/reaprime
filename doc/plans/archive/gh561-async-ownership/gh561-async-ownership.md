@@ -40,15 +40,21 @@ terminal path (success, error, timeout, unload, dispose) funnels through
 `_completeOp()`, which cancels the timeout and removes the entry BEFORE
 settling, so late or duplicate completions are no-ops.
 
-### Late-response protection is removal-based, not generation-checked
+### Late-response protection is removal-based, plus generation checks
 
 Unload and reload reject all of the old plugin's ops and delete their JS
 pending entries; fetch ids (`__fetchFor` counter) and Decent proxy request
 ids (per-runtime nonce) are globally unique, so a late response from an old
-generation can never match a new generation's request. Generation is
-recorded in the op for diagnostics. Timers need no generation: there is no
-async gap between the JS `setTimeout` call and the `timerSet` message, and
-ids are globally unique.
+generation can never match a new generation's request.
+
+Bridge messages are deferred one event-loop turn before Dart processes them
+(QuickJS does not settle promises created inside a nested evaluate). That
+creates a real async gap between the JS call and the Dart message, so
+`timerSet` and `fetch` messages now carry the wrapper's generation and
+`_setTimer` / `_handleFetch` reject messages whose generation does not match
+the current one. The Decent proxy is already generation-safe: its per-load
+bridge token is removed on unload and replaced on reload, so a stale
+message fails the token check.
 
 ### Timeout/size bounds
 
