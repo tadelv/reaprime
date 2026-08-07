@@ -244,7 +244,7 @@ void main() {
     group('validation', () {
       test('uses all registered sections when sections are omitted for pull '
           'and push', () async {
-        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+        final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
         final client = http_testing.MockClient((request) async {
           if (request.method == 'GET') {
             return http.Response.bytes(targetZip, 200);
@@ -274,7 +274,7 @@ void main() {
         // The target only responds after generating its export archive;
         // that processing time must not be counted against a short
         // connection timeout (issue #555 review).
-        final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+        final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
         final client = http_testing.MockClient((request) async {
           await Future<void>.delayed(const Duration(milliseconds: 100));
           return http.Response.bytes(targetZip, 200);
@@ -318,7 +318,7 @@ void main() {
           final client = http_testing.MockClient((request) async {
             await Future<void>.delayed(const Duration(milliseconds: 300));
             return http.Response.bytes(
-              buildZip({'profiles.json': {}, 'shots.json': {}}),
+              buildZip({'profiles.json': [], 'shots.json': []}),
               200,
             );
           });
@@ -388,7 +388,7 @@ void main() {
           // report its actual result (not a timeout): abandoning an import
           // mid-write would leave the database mutating after the caller was
           // told the phase failed.
-          final targetZip = buildZip({'profiles.json': {}, 'shots.json': {}});
+          final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
           final client = http_testing.MockClient((request) async {
             await Future<void>.delayed(const Duration(milliseconds: 40));
             return http.Response.bytes(targetZip, 200);

@@ -647,6 +647,24 @@ void main() {
       );
 
       test(
+        'rejects a later section with the wrong root before importing',
+        () async {
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: buildZipEntries({
+              'metadata.json': '{"formatVersion":1}',
+              'profiles.json': '[{"id":"p1"}]',
+              'shots.json': '{}',
+            }),
+          );
+
+          expect(response.statusCode, 400);
+          expect(profileSection.importCalls, 0);
+          expect(shotsSection.importCalls, 0);
+        },
+      );
+
+      test(
         'preserves partial results for individually invalid records',
         () async {
           final importPayload = '[{"id":"ok"},{"id":null}]';
