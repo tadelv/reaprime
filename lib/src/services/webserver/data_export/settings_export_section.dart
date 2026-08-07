@@ -42,6 +42,8 @@ class SettingsExportSection implements DataExportSection {
           'nightModeMorningTime': _controller.nightModeMorningTime,
           'userPresenceEnabled': _controller.userPresenceEnabled,
           'sleepTimeoutMinutes': _controller.sleepTimeoutMinutes,
+          'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
+          'keepAwake': _controller.keepAwake,
         },
         'wakeSchedules': _controller.wakeSchedules,
         'devicePreferences': {
@@ -210,6 +212,18 @@ class SettingsExportSection implements DataExportSection {
               'sleepTimeoutMinutes must be an integer, got ${v.runtimeType}',
             );
           }
+        }
+
+        if (settings.containsKey('lowBatteryBrightnessLimit')) {
+          await _controller.setLowBatteryBrightnessLimit(
+            settings['lowBatteryBrightnessLimit'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('keepAwake')) {
+          await _controller.setKeepAwake(settings['keepAwake'] as bool);
+          imported++;
         }
       }
 

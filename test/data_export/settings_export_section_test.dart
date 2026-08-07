@@ -57,6 +57,8 @@ void main() {
       expect(settings['nightModeMorningTime'], 420);
       expect(settings['userPresenceEnabled'], isTrue);
       expect(settings['sleepTimeoutMinutes'], 30);
+      expect(settings['lowBatteryBrightnessLimit'], isFalse);
+      expect(settings['keepAwake'], isTrue);
       expect(map['wakeSchedules'], '[]');
 
       final devicePrefs = map['devicePreferences'] as Map<String, dynamic>;
@@ -86,6 +88,8 @@ void main() {
       await controller.setStopHotWaterAtWeight(false);
       await controller.setHotWaterFlowMultiplier(0.5);
       await controller.setBlockTareDuringShot(true);
+      await controller.setLowBatteryBrightnessLimit(true);
+      await controller.setKeepAwake(false);
       final exported = await exportSettings(section);
 
       await controller.updateGatewayMode(GatewayMode.disabled);
@@ -94,6 +98,8 @@ void main() {
       await controller.setStopHotWaterAtWeight(true);
       await controller.setHotWaterFlowMultiplier(0.3);
       await controller.setBlockTareDuringShot(false);
+      await controller.setLowBatteryBrightnessLimit(false);
+      await controller.setKeepAwake(true);
 
       final result = await importSectionJson(
         section,
@@ -108,6 +114,8 @@ void main() {
       expect(controller.stopHotWaterAtWeight, isFalse);
       expect(controller.hotWaterFlowMultiplier, 0.5);
       expect(controller.blockTareDuringShot, isTrue);
+      expect(controller.lowBatteryBrightnessLimit, isTrue);
+      expect(controller.keepAwake, isFalse);
     });
 
     test('imports device preferences', () async {
