@@ -270,7 +270,6 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Disconnect — should not produce an error
       channel.sink.add(
         jsonEncode({'command': 'disconnect', 'deviceId': 'scale-1'}),
       );
@@ -312,7 +311,6 @@ void main() {
 
       await waitForState(messages);
 
-      // Send scan command (quick mode to avoid blocking)
       channel.sink.add(
         jsonEncode({'command': 'scan', 'connect': false, 'quick': true}),
       );
@@ -342,7 +340,6 @@ void main() {
         jsonEncode({'command': 'connect', 'deviceId': 'scale-1'}),
       );
 
-      // Should not receive an error — give time for processing
       await Future.delayed(Duration(milliseconds: 100));
 
       await channel.sink.close();

@@ -235,8 +235,6 @@ void main() {
       });
       addTearDown(server.close);
 
-      // Generation 1 schedules a fetch; reload happens before the deferred
-      // fetch message is processed.
       await manager.loadPlugin(
         id: 'fetch.plugin',
         manifest: testManifest('fetch.plugin'),
