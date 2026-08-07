@@ -330,9 +330,12 @@ registered section names; unknown files are ignored, but an archive must contain
 at least one recognized selected section. `metadata.json` is not payload:
 metadata-only, empty, and unknown-only archives return `400`. Metadata is
 optional for legacy archives without it. When present, its JSON and
-`formatVersion` are validated before any section is imported. Sections are
-processed independently and are not transactional, so successful sections are
-not rolled back when another section fails. Export is atomic: if any requested
+`formatVersion` are validated before any section is imported. ZIP integrity and
+structural JSON are validated for every selected section before storage is
+mutated; any failure returns `400` without importing a section. Semantic record
+errors are processed independently and are not transactional, so successful
+sections are not rolled back when another section reports semantic errors.
+Export is atomic: if any requested
 section fails to export, the request returns an error identifying the failed
 section(s) and no partial ZIP is returned.
 
@@ -363,10 +366,11 @@ temporary ZIP with `Content-Type: application/zip`, `Content-Disposition:
 attachment`, and `Content-Length`. The archive is atomic: a failing section
 returns an error and no partial ZIP.
 - **Import** streams the request body into a temporary ZIP (never
-`read().toList()`), validates archive metadata before processing, and
-imports each section in two bounded passes (structural validation, then
-record import). ZIP bombs, duplicate names, encrypted/unsupported entries,
-CRC failures, truncation, Zip64, and malformed JSON all fail safely.
+`read().toList()`), opens it with `InputFileStream` / `ZipDecoder`, and writes
+one selected entry at a time to a bounded temporary JSON file for incremental
+parsing. Every selected entry is structurally validated before the record-import
+pass begins. ZIP bombs, duplicate names, encrypted/unsupported entries, CRC
+failures, truncation, Zip64, and malformed JSON all fail safely.
 - **Sync** pulls stream the remote response into a temporary ZIP; pushes
 export locally and stream the file with a known content length.
 - **Native transfer** downloads the localhost export into a temporary file

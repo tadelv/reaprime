@@ -122,5 +122,42 @@ void main() {
       );
       expect(store.boxes, isEmpty);
     });
+
+    for (final invalidJson in [
+      '{}',
+      '{"namespaces": false}',
+      '{"namespaces": tru}',
+    ]) {
+      test('rejects $invalidJson without importing', () async {
+        final store = MockKvStore();
+        final section = KvStoreExportSection(
+          store: store,
+          pageKvKeys: (namespace, offset, limit) async => [],
+        );
+
+        await expectLater(
+          importSectionJson(section, invalidJson, ConflictStrategy.skip),
+          throwsA(isA<JsonStreamFormatException>()),
+        );
+        expect(store.boxes, isEmpty);
+      });
+    }
+
+    test('accepts empty namespace objects', () async {
+      final store = MockKvStore();
+      final section = KvStoreExportSection(
+        store: store,
+        pageKvKeys: (namespace, offset, limit) async => [],
+      );
+
+      final result = await importSectionJson(
+        section,
+        '{"namespaces":{"empty":{}}}',
+        ConflictStrategy.skip,
+      );
+
+      expect(result.errors, isEmpty);
+      expect(store.boxes, isEmpty);
+    });
   });
 }

@@ -38,12 +38,21 @@ class StringJsonInput implements SectionJsonInput {
   }
 
   @override
-  Stream<JsonValueEvent> valuesAtDepth(int depth) async* {
+  Stream<JsonValueEvent> valuesAtDepth(
+    int depth, {
+    void Function(
+      int depth,
+      List<String> keys,
+      JsonContainerKind? containerKind,
+    )?
+    onValueStart,
+  }) async* {
     final parser = IncrementalJsonParser(
       eventDepth: depth,
       maxValueBytes: limits.maxRecordBytes,
       maxKeyBytes: limits.maxKeyBytes,
       maxNestingDepth: limits.maxNestingDepth,
+      onValueStart: onValueStart,
     );
     parser.feed(json);
     parser.finish();
