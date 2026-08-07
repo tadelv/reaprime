@@ -108,3 +108,16 @@ test and the acceptance criterion.
 `cancelAllOperations()` rejects every pending op, cancels all timers, and
 closes the shared `HttpClient`. #562's `dispose()` should call it (and
 close the JS runtime).
+
+## Review pass 2 fixes
+
+- Invalid Decent-proxy bridge token: op is registered before completing so
+  the JS promise actually settles (was: `_completeOp` on an unregistered op
+  returned early, leaking the promise).
+- `globalThis.fetch` outside a plugin now rejects immediately
+  ("fetch is only available to plugins") instead of sending a messageless
+  request that leaked the JS pending entry.
+- `generation` message fields are read with an `is num` guard: plugin code
+  can call the bridge with garbage args, and a cast TypeError would have
+  skipped op registration (permanently pending promise).
+- Diagnostics now report pending ops by plugin as well as by type.

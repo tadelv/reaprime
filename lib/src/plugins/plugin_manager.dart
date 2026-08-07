@@ -376,6 +376,10 @@ class PluginManager {
         globalThis.__fetchFor = function (pluginId, generation, input, init = {}) {
           const id = ++_fetchSeq;
           return new Promise((resolve, reject) => {
+            if (!pluginId) {
+              reject(new Error("fetch is only available to plugins"));
+              return;
+            }
             _pendingFetches.set(id, { pluginId: pluginId, generation: generation, resolve: resolve, reject: reject });
 
             sendMessage("fetch", JSON.stringify({
@@ -810,6 +814,14 @@ class PluginManager {
     return counts;
   }
 
+  Map<String, int> get activePendingOpsByPlugin {
+    final counts = <String, int>{};
+    for (final op in _pendingOps.values) {
+      counts[op.pluginId] = (counts[op.pluginId] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   HttpClient _getHttpClient() {
     return _httpClient ??= HttpClient()
       ..connectionTimeout = const Duration(seconds: 10);
@@ -866,18 +878,19 @@ class PluginManager {
       _log.warning('Decent proxy message from $pluginId missing requestId');
       return;
     }
-    final generation = (msg['generation'] as num?)?.toInt() ?? 0;
+    final generation = msg['generation'] is num
+        ? (msg['generation'] as num).toInt()
+        : 0;
     if (msg['bridgeToken'] != _decentProxyBridgeTokens[pluginId]) {
       _log.warning('Decent proxy message from $pluginId has invalid token');
-      _completeOp(
-        _PendingOp(
-          kind: _PendingOpKind.decentProxy,
-          pluginId: pluginId,
-          generation: generation,
-          requestId: requestId,
-        ),
-        error: 'Invalid plugin proxy caller',
+      final op = _PendingOp(
+        kind: _PendingOpKind.decentProxy,
+        pluginId: pluginId,
+        generation: generation,
+        requestId: requestId,
       );
+      _pendingOps[op.key] = op;
+      _completeOp(op, error: 'Invalid plugin proxy caller');
       return;
     }
 
@@ -1048,7 +1061,9 @@ class PluginManager {
     final op = _PendingOp(
       kind: _PendingOpKind.fetch,
       pluginId: pluginId,
-      generation: (msg['generation'] as num?)?.toInt() ?? 0,
+      generation: msg['generation'] is num
+          ? (msg['generation'] as num).toInt()
+          : 0,
       requestId: id.toString(),
     );
     op.timeout = Timer(fetchTimeout, () {
