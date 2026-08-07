@@ -24,7 +24,6 @@ import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
 
 // ---------------------------------------------------------------------------
-// Test-local helpers
 // ---------------------------------------------------------------------------
 
 /// Minimal DeviceDiscoveryService that does nothing.
@@ -357,9 +356,6 @@ void main() {
         scaleController.simulateDisconnect();
         async.elapse(Duration(milliseconds: 10));
 
-        // Emit weight that exceeds target (40g > 36g target).
-        // With the bug, SAW fires on this stale data.
-        // With the fix, SAW should be disabled because scale is disconnected.
         scaleController.emitWeight(40.0);
 
         // Emit a machine snapshot to trigger processing of the combined stream
@@ -450,9 +446,6 @@ void main() {
           );
           async.elapse(Duration(milliseconds: 10));
 
-          // Now emit another snapshot. The ShotSequencer is in the stopping
-          // state, which calls scaleController.connectedScale().stopTimer().
-          // With the bug, connectedScale() throws because scale is disconnected.
           expect(
             () {
               testDe1.emitStateAndSubstate(
@@ -515,8 +508,6 @@ void main() {
 
     test('mixed step fires skipStep when firmware exit is far', () {
       fakeAsync((async) {
-        // Pressure exit at 9 bar, default snapshot pressure is 0 →
-        // distance 9.0 >> 1.5 bar proximity → arbiter says fire.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'mixed-far',
@@ -565,8 +556,6 @@ void main() {
 
     test('mixed step defers skipStep when firmware exit is near', () {
       fakeAsync((async) {
-        // Pressure exit at 5 bar. We'll emit snapshots with pressure 4.0
-        // (distance 1.0 < 1.5 proximity) → arbiter defers.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'mixed-near',
@@ -961,8 +950,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW stops the shot, then one real settling drip establishes the
-        // decaying-flow baseline.
         scaleController.emitWeight(36.0, weightFlow: 0.4);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1018,8 +1005,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // In-flight water keeps landing at high (but decaying) flow — an 8 g
-        // rise the old >5 g / flow>3 caps would have rejected.
         for (final s in [
           [34.0, 6.0],
           [37.0, 4.0],
@@ -1159,8 +1144,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // The two driveToPouring frames carry the seeded 0.0 weight, then the
-        // two pour samples. Nothing from the stopping window is recorded.
         expect(recorded.map((s) => s.scale?.weight).toList(), [
           0.0,
           0.0,
@@ -1351,8 +1334,6 @@ void main() {
 
           async.elapse(Duration(milliseconds: 10));
 
-          // Machine entered espresso (e.g. via GHC) — drive snapshots that would
-          // normally be tracked.
           testDe1.emitStateAndSubstate(
             MachineState.espresso,
             MachineSubstate.pouring,
@@ -1474,10 +1455,6 @@ void main() {
 
     test('fires skipStep immediately even when firmware exit is near', () {
       fakeAsync((async) {
-        // Same scenario as the arbiter-enabled 'defer' test:
-        // pressure exit at 5 bar, emitting pressure 4.0 (near threshold).
-        // With the arbiter disabled, the weight exit should fire immediately
-        // without deferral — pre-fix behavior.
         scaleController.emitWeight(0.0);
 
         final shotSequencer = ShotSequencer(
@@ -1652,8 +1629,6 @@ void main() {
         driveToPouring();
         async.elapse(Duration(milliseconds: 10));
 
-        // Projected volume = accumulated (0) + flow (60) * multiplier (1.0)
-        // = 60ml > 50ml target.
         emitPouringFrame(0, flow: 60);
         async.elapse(Duration(milliseconds: 10));
 
