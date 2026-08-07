@@ -99,6 +99,18 @@ void main() {
     });
   });
 
+  group('keepAwake', () {
+    test('defaults to true', () {
+      expect(controller.keepAwake, isTrue);
+    });
+
+    test('can be toggled off and persists', () async {
+      await controller.setKeepAwake(false);
+      expect(controller.keepAwake, isFalse);
+      expect(await mockService.keepAwake(), isFalse);
+    });
+  });
+
   group('hotWaterFlowMultiplier', () {
     test('defaults to 0.3, separate from weightFlowMultiplier (1.0)', () {
       expect(controller.hotWaterFlowMultiplier, 0.3);

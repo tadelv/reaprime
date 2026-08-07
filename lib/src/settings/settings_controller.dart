@@ -71,6 +71,7 @@ class SettingsController with ChangeNotifier {
   int _sleepTimeoutMinutes = 30;
   String _wakeSchedules = '[]';
   bool _lowBatteryBrightnessLimit = true;
+  bool _keepAwake = true;
   bool _onboardingCompleted = false;
   bool _accountStepSeen = false;
   bool _androidWarningDismissed = false;
@@ -110,6 +111,7 @@ class SettingsController with ChangeNotifier {
   int get sleepTimeoutMinutes => _sleepTimeoutMinutes;
   String get wakeSchedules => _wakeSchedules;
   bool get lowBatteryBrightnessLimit => _lowBatteryBrightnessLimit;
+  bool get keepAwake => _keepAwake;
   bool get onboardingCompleted => _onboardingCompleted;
   bool get accountStepSeen => _accountStepSeen;
   bool get androidWarningDismissed => _androidWarningDismissed;
@@ -160,6 +162,7 @@ class SettingsController with ChangeNotifier {
     _wakeSchedules = await _settingsService.wakeSchedules();
     _lowBatteryBrightnessLimit = await _settingsService
         .lowBatteryBrightnessLimit();
+    _keepAwake = await _settingsService.keepAwake();
     _onboardingCompleted = await _settingsService.onboardingCompleted();
     _accountStepSeen = await _settingsService.accountStepSeen();
     _androidWarningDismissed = await _settingsService.androidWarningDismissed();
@@ -457,6 +460,13 @@ class SettingsController with ChangeNotifier {
     if (value == _lowBatteryBrightnessLimit) return;
     _lowBatteryBrightnessLimit = value;
     await _settingsService.setLowBatteryBrightnessLimit(value);
+    notifyListeners();
+  }
+
+  Future<void> setKeepAwake(bool value) async {
+    if (value == _keepAwake) return;
+    _keepAwake = value;
+    await _settingsService.setKeepAwake(value);
     notifyListeners();
   }
 
