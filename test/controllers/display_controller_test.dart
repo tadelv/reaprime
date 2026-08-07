@@ -593,6 +593,27 @@ void main() {
       });
     });
 
+    test(
+      'initializing while disconnected with keepAwake already set keeps wake-lock on',
+      () {
+        fakeAsync((async) {
+          settingsCtrl.setKeepAwake(true);
+          async.flushMicrotasks();
+
+          final controller = _createController(
+            de1Controller,
+            settingsController: settingsCtrl,
+          );
+          controller.initialize();
+          async.flushMicrotasks();
+
+          expect(controller.currentState.wakeLockEnabled, isTrue);
+
+          controller.dispose();
+        });
+      },
+    );
+
     test('disabling keepAwake while sleeping releases wake-lock', () {
       fakeAsync((async) {
         final controller = _createController(

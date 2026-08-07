@@ -5383,7 +5383,6 @@ components:
           description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring. Default value is true.
         keepAwake:
           type: boolean
-          nullable: true
           description: When enabled, the wake lock stays on while the app is running, preventing the tablet screen from turning off. Default value is true.
         simulatedDevices:
           description: List of simulated device types to enable in scan results
