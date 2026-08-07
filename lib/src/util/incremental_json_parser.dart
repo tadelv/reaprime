@@ -52,6 +52,12 @@ class IncrementalJsonParser {
   final int _maxKeyBytes;
   final int _maxNestingDepth;
   final int _eventDepth;
+  final void Function(
+    int depth,
+    List<String> keys,
+    JsonContainerKind? containerKind,
+  )?
+  _onValueStart;
 
   final List<_Frame> _stack = [];
   bool _rootStarted = false;
@@ -83,10 +89,17 @@ class IncrementalJsonParser {
     int maxValueBytes = 64 * 1024 * 1024,
     int maxKeyBytes = 64 * 1024,
     int maxNestingDepth = 256,
+    void Function(
+      int depth,
+      List<String> keys,
+      JsonContainerKind? containerKind,
+    )?
+    onValueStart,
   }) : _eventDepth = eventDepth,
        _maxValueBytes = maxValueBytes,
        _maxKeyBytes = maxKeyBytes,
-       _maxNestingDepth = maxNestingDepth;
+       _maxNestingDepth = maxNestingDepth,
+       _onValueStart = onValueStart;
 
   static const _ws = {0x20, 0x09, 0x0A, 0x0D};
   static const _scalarChars = {
@@ -250,6 +263,19 @@ class IncrementalJsonParser {
         );
       }
     }
+
+    _onValueStart?.call(
+      _stack.length,
+      [
+        for (final frame in _stack)
+          if (frame.isObject && frame.pendingKey != null) frame.pendingKey!,
+      ],
+      c == 0x7B
+          ? JsonContainerKind.object
+          : c == 0x5B
+          ? JsonContainerKind.array
+          : null,
+    );
 
     switch (c) {
       case 0x7B: // {
@@ -441,6 +467,8 @@ class IncrementalJsonParser {
       }
       _spanOpen = false;
       _emitEvent(token);
+    } else {
+      _decodeFragment(token);
     }
 
     if (_stack.isNotEmpty) {

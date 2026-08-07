@@ -163,13 +163,9 @@ void main() {
         const DataTransferLimits(),
       );
       expect(reader.entries, hasLength(2));
-      final buffer = BytesBuilder();
-      await for (final chunk in reader.readEntryChunks(
-        reader.findEntry('shots.json')!,
-      )) {
-        buffer.add(chunk);
-      }
-      expect(decode(buffer.takeBytes()), '[{"id":"s1"},{"id":"s2"}]');
+      final jsonFile = File('${tempDir.path}/shots.json');
+      await reader.writeEntryToFile(reader.findEntry('shots.json')!, jsonFile);
+      expect(await jsonFile.readAsString(), '[{"id":"s1"},{"id":"s2"}]');
       await reader.close();
     });
 
@@ -187,13 +183,9 @@ void main() {
         w.file,
         const DataTransferLimits(),
       );
-      final buffer = BytesBuilder();
-      await for (final chunk in reader.readEntryChunks(
-        reader.findEntry('data.json')!,
-      )) {
-        buffer.add(chunk);
-      }
-      expect(decode(buffer.takeBytes()), '[1,2,3]');
+      final jsonFile = File('${tempDir.path}/data.json');
+      await reader.writeEntryToFile(reader.findEntry('data.json')!, jsonFile);
+      expect(await jsonFile.readAsString(), '[1,2,3]');
       await reader.close();
     });
 
@@ -386,11 +378,10 @@ void main() {
         const DataTransferLimits(),
       );
       await expectLater(
-        () async {
-          await for (final _ in reader.readEntryChunks(
-            reader.findEntry('a.json')!,
-          )) {}
-        },
+        reader.writeEntryToFile(
+          reader.findEntry('a.json')!,
+          File('${tempDir.path}/a.json'),
+        ),
         throwsA(
           isA<ZipReadException>().having(
             (e) => e.reason,

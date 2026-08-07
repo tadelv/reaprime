@@ -127,6 +127,10 @@ void main() {
         () => parse('[1 2]', 1),
         throwsA(isA<JsonStreamFormatException>()),
       );
+      expect(
+        () => parse('{"namespaces": tru}', 3),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
     });
 
     test('rejects invalid escapes and unicode', () {

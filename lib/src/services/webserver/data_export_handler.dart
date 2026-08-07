@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart' show ArchiveFile;
 import 'package:logging/logging.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_transfer_result.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
+import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/streaming_zip_writer.dart';
 import 'package:reaprime/src/services/webserver/data_export/streaming_zip_reader.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
@@ -224,24 +226,55 @@ class DataExportHandler {
       );
     }
 
+    TempArchiveDir? jsonTempDir;
     try {
-      final sourcePlatform = await _readMetadata(reader);
+      jsonTempDir = await TempArchiveDir.create('reaprime-import-json-');
+      final jsonFile = File(jsonTempDir.filePath('section.json'));
       final selectedSectionKeys = _resolveImportSectionKeys(sections);
       final sectionsByKey = {
         for (final section in _sections) _sectionKey(section): section,
       };
-
-      final results = <String, dynamic>{};
-      var recognizedSections = 0;
-
+      final entriesByKey = <String, ArchiveFile>{};
       for (final key in selectedSectionKeys) {
         final section = sectionsByKey[key]!;
         final entry = reader.findEntry(section.filename);
-        if (entry == null) continue;
-        recognizedSections++;
+        if (entry != null) entriesByKey[key] = entry;
+      }
+
+      final metadataEntry = reader.findEntry('metadata.json');
+      reader.preflightSelectedEntries([
+        ...entriesByKey.values.map((entry) => entry.name),
+        if (metadataEntry != null) metadataEntry.name,
+      ]);
+
+      final sourcePlatform = await _readMetadata(reader, jsonFile);
+      if (entriesByKey.isEmpty) {
+        throw const InvalidBackupException(
+          message: 'The archive does not contain any recognized data sections.',
+          reason: 'no_recognized_sections',
+        );
+      }
+      for (final entry in entriesByKey.entries) {
+        await _validateSection(
+          reader,
+          sectionsByKey[entry.key]!,
+          entry.value,
+          jsonFile,
+        );
+      }
+
+      final results = <String, dynamic>{};
+      for (final key in entriesByKey.keys) {
+        final section = sectionsByKey[key]!;
 
         try {
-          var result = await _importSection(reader, section, entry, strategy);
+          var result = await _importSection(
+            reader,
+            section,
+            entriesByKey[key]!,
+            strategy,
+            jsonFile,
+          );
 
           if (section.filename == 'settings.json' &&
               sourcePlatform != null &&
@@ -281,13 +314,6 @@ class DataExportHandler {
         }
       }
 
-      if (recognizedSections == 0) {
-        throw const InvalidBackupException(
-          message: 'The archive does not contain any recognized data sections.',
-          reason: 'no_recognized_sections',
-        );
-      }
-
       final expectedSections = sections == null
           ? results.keys.toList(growable: false)
           : selectedSectionKeys;
@@ -296,49 +322,72 @@ class DataExportHandler {
         expectedSections: expectedSections,
       );
       return DataImportOutcome(
-        recognizedSections: recognizedSections,
+        recognizedSections: entriesByKey.length,
         phase: phase,
       );
     } finally {
       await reader.close();
+      await jsonTempDir?.dispose();
     }
   }
 
-  /// Two-pass section import: a bounded structural validation pass (nothing
-  /// imported), then a bounded import pass. Malformed JSON fails the section
-  /// without importing any prefix; individually invalid records keep
-  /// per-record error accounting.
-  Future<SectionImportResult> _importSection(
+  Future<void> _validateSection(
     StreamingZipReader reader,
     DataExportSection section,
-    ZipEntryInfo entry,
-    ConflictStrategy strategy,
+    ArchiveFile entry,
+    File jsonFile,
   ) async {
-    // Validation pass. ZIP-level integrity failures (CRC mismatch,
-    // truncation) abort the whole import as 400; only JSON-level failures
-    // are isolated to the section as a 207 result.
     try {
-      final validator = _EntryJsonInput(reader, entry, _limits);
+      await reader.writeEntryToFile(entry, jsonFile);
+      final validator = _FileJsonInput(jsonFile, _limits);
       await validator.open();
-      await for (final _ in validator.valuesAtDepth(section.jsonEventDepth)) {}
+      if (section is KvStoreExportSection) {
+        await section.validateJson(validator);
+      } else {
+        await for (final _ in validator.valuesAtDepth(
+          section.jsonEventDepth,
+        )) {}
+      }
     } on ZipReadException catch (e) {
       throw InvalidBackupException(
         message: 'Could not read the backup ZIP archive: ${e.message}',
         reason: e.reason,
         cause: e,
       );
-    } catch (e, st) {
+    } on JsonStreamFormatException catch (e, st) {
       _log.warning('Section ${section.filename} failed validation', e, st);
-      return SectionImportResult(
-        errors: [
-          'Failed to process ${section.filename}: ${e is JsonStreamFormatException ? e.message : '$e'}',
-        ],
+      throw InvalidBackupException(
+        message: 'The ${section.filename} entry is invalid: ${e.message}',
+        reason: 'invalid_section_json',
+        cause: e,
       );
+    } finally {
+      if (await jsonFile.exists()) await jsonFile.delete();
     }
+  }
 
-    // Import pass.
-    final input = _EntryJsonInput(reader, entry, _limits);
-    return section.importJson(input, strategy);
+  Future<SectionImportResult> _importSection(
+    StreamingZipReader reader,
+    DataExportSection section,
+    ArchiveFile entry,
+    ConflictStrategy strategy,
+    File jsonFile,
+  ) async {
+    try {
+      await reader.writeEntryToFile(entry, jsonFile);
+      return await section.importJson(
+        _FileJsonInput(jsonFile, _limits),
+        strategy,
+      );
+    } on ZipReadException catch (e) {
+      throw InvalidBackupException(
+        message: 'Could not read the backup ZIP archive: ${e.message}',
+        reason: e.reason,
+        cause: e,
+      );
+    } finally {
+      if (await jsonFile.exists()) await jsonFile.delete();
+    }
   }
 
   Future<Response> _handleImport(Request request) async {
@@ -400,7 +449,10 @@ class DataExportHandler {
   // Metadata and section resolution
   // ---------------------------------------------------------------------
 
-  Future<String?> _readMetadata(StreamingZipReader reader) async {
+  Future<String?> _readMetadata(
+    StreamingZipReader reader,
+    File jsonFile,
+  ) async {
     final metadataFile = reader.findEntry('metadata.json');
     if (metadataFile == null) {
       _log.warning('Import archive missing metadata.json');
@@ -409,16 +461,20 @@ class DataExportHandler {
 
     final Uint8List bytes;
     try {
-      bytes = await reader.readEntryBytes(
+      await reader.writeEntryToFile(
         metadataFile,
+        jsonFile,
         maxBytes: _limits.maxMetadataBytes,
       );
+      bytes = await jsonFile.readAsBytes();
     } on ZipReadException catch (e) {
       throw InvalidBackupException(
         message: 'Could not read the backup metadata: ${e.message}',
         reason: e.reason,
         cause: e,
       );
+    } finally {
+      if (await jsonFile.exists()) await jsonFile.delete();
     }
 
     final dynamic decoded;
@@ -516,17 +572,15 @@ class _EntryJsonSink implements JsonSink {
   }
 }
 
-/// Streaming JSON input over one ZIP entry, re-readable per pass.
-class _EntryJsonInput implements SectionJsonInput {
-  final StreamingZipReader _reader;
-  final ZipEntryInfo _entry;
+class _FileJsonInput implements SectionJsonInput {
+  final File _file;
   final DataTransferLimits _limits;
 
-  _EntryJsonInput(this._reader, this._entry, this._limits);
+  _FileJsonInput(this._file, this._limits);
 
   @override
   Future<JsonContainerKind> open() async {
-    await for (final chunk in _reader.readEntryChunks(_entry)) {
+    await for (final chunk in _file.openRead()) {
       for (final byte in chunk) {
         if (byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D) {
           continue;
@@ -542,17 +596,24 @@ class _EntryJsonInput implements SectionJsonInput {
   }
 
   @override
-  Stream<JsonValueEvent> valuesAtDepth(int depth) async* {
+  Stream<JsonValueEvent> valuesAtDepth(
+    int depth, {
+    void Function(
+      int depth,
+      List<String> keys,
+      JsonContainerKind? containerKind,
+    )?
+    onValueStart,
+  }) async* {
     final parser = IncrementalJsonParser(
       eventDepth: depth,
       maxValueBytes: _limits.maxRecordBytes,
       maxKeyBytes: _limits.maxKeyBytes,
       maxNestingDepth: _limits.maxNestingDepth,
+      onValueStart: onValueStart,
     );
     try {
-      final textStream = utf8.decoder.bind(
-        _reader.readEntryChunks(_entry).cast<List<int>>(),
-      );
+      final textStream = utf8.decoder.bind(_file.openRead());
       await for (final text in textStream) {
         parser.feed(text);
         for (final event in parser.drain()) {
@@ -564,8 +625,6 @@ class _EntryJsonInput implements SectionJsonInput {
         yield event;
       }
     } on JsonStreamFormatException {
-      rethrow;
-    } on ZipReadException {
       rethrow;
     } catch (e) {
       throw JsonStreamFormatException('Failed to parse section JSON: $e');

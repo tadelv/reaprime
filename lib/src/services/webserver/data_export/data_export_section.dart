@@ -58,7 +58,15 @@ abstract class SectionJsonInput {
   /// The stream throws [JsonStreamFormatException] if the payload is
   /// structurally malformed; in that case no partial import happens because
   /// the caller validates first.
-  Stream<JsonValueEvent> valuesAtDepth(int depth);
+  Stream<JsonValueEvent> valuesAtDepth(
+    int depth, {
+    void Function(
+      int depth,
+      List<String> keys,
+      JsonContainerKind? containerKind,
+    )?
+    onValueStart,
+  });
 
   /// Reads the entire payload as one decoded value (depth 0).
   Future<Object?> readWhole();

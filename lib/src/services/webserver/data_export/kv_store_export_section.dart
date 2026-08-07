@@ -64,11 +64,7 @@ class KvStoreExportSection implements DataExportSection {
     SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
-    if (await input.open() != JsonContainerKind.object) {
-      return const SectionImportResult(
-        errors: ['Expected "namespaces" key in store.json'],
-      );
-    }
+    await validateJson(input);
 
     int imported = 0;
     int skipped = 0;
@@ -100,5 +96,40 @@ class KvStoreExportSection implements DataExportSection {
       skipped: skipped,
       errors: errors,
     );
+  }
+
+  Future<void> validateJson(SectionJsonInput input) async {
+    if (await input.open() != JsonContainerKind.object) {
+      throw const JsonStreamFormatException(
+        'store.json must contain a root object.',
+      );
+    }
+
+    var sawNamespaces = false;
+    String? shapeError;
+    await for (final _ in input.valuesAtDepth(
+      3,
+      onValueStart: (depth, keys, containerKind) {
+        if (depth == 1 && keys.length == 1 && keys.first == 'namespaces') {
+          sawNamespaces = true;
+          if (containerKind != JsonContainerKind.object) {
+            shapeError = '"namespaces" must be an object.';
+          }
+        }
+        if (depth == 2 &&
+            keys.length == 2 &&
+            keys.first == 'namespaces' &&
+            containerKind != JsonContainerKind.object) {
+          shapeError = 'Every namespace value must be an object.';
+        }
+      },
+    )) {}
+
+    if (!sawNamespaces) {
+      throw const JsonStreamFormatException(
+        'store.json must contain "namespaces".',
+      );
+    }
+    if (shapeError != null) throw JsonStreamFormatException(shapeError!);
   }
 }

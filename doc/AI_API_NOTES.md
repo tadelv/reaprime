@@ -28,7 +28,8 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 
 - A successful backup import requires at least one recognized selected payload; metadata alone is not payload.
 - `200` means all processed import sections completed without errors. Any section error, including a returned `SectionImportResult.errors` list, means `207`.
-- Section errors remain isolated so other recognized sections may import. Imports are not transactional and successful sections are not rolled back.
+- ZIP integrity and structural JSON for every selected section are validated before any section mutates storage. Any failure in that phase returns `400` and imports nothing.
+- Semantic record and section errors remain isolated after validation, so other recognized sections may import. Those imports are not transactional and successful sections are not rolled back.
 - `DataImportOutcome` (or its equivalent) is the source of import completeness classification; clients must not infer it by reparsing the section response map.
 - Data sync preserves complete, partial, and fatal phase states. A remote import `207` is a partial push, not a target failure.
 - UI clients must not collapse `207` into complete success.
@@ -145,26 +146,22 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 The backup pipeline streams data end to end; peak memory scales with one page
 of records and one JSON record, never with backup size. Rationale and traps:
 
-- **`archive` 4.0.9's ZIP APIs are not memory-bounded.** `ZipEncoder.add()`
-  deflates each entry into an in-memory `OutputMemoryStream` (a
-  section-sized compressed buffer), and `ZipDecoder.decodeStream()`
-  materializes every entry's compressed bytes with `readBytes()`. Neither
-  `ZipFileEncoder` nor `InputFileStream` fixes this. The fix is a small
-  dependency-free writer (`streaming_zip_writer.dart`, raw deflate via
-  `dart:io` `ZLibCodec(raw: true)` chunked conversion, data descriptors, CD
-  written last) and a file-backed reader (`streaming_zip_reader.dart`, EOCD
-  scan + per-entry bounded inflate with CRC/size verification). Both are
-  byte-compatible with the `archive` decoder — new exports decode with
-  `ZipDecoder`, and old `ZipEncoder` backups import.
+- **ZIP export keeps the custom streaming writer because `archive`'s encoder
+  buffers compressed entries.** Import uses `archive`'s file-backed
+  `InputFileStream` / `ZipDecoder` path. Each selected `ArchiveFile` writes to
+  one bounded temporary JSON file through `OutputFileStream`; size and CRC are
+  verified before incremental parsing, and the file is deleted before the next
+  entry. New exports remain byte-compatible with `ZipDecoder`, and old
+  `ZipEncoder` backups still import.
 - **JSON is parsed with a real incremental parser**
   (`util/incremental_json_parser.dart`): a token-level state machine that
   yields complete values at a configured depth (1 for array sections, 3 for
   the KV `namespaces` map, 0 for singletons), handles strings/escapes/UTF-8
   boundaries, and throws on truncation, trailing garbage, and bad tokens.
-  Import is two-pass per section: structural validation (nothing imported),
-  then record import. Malformed JSON fails the section without importing a
-  prefix; valid JSON with individually invalid records keeps per-record
-  error accounting.
+  Import first validates every selected section without mutation, then runs
+  the record imports. Malformed JSON returns `400` without importing any
+  section; valid JSON with individually invalid records keeps per-record error
+  accounting.
 - **Sections stream records** via injected page functions (keyset cursors for
   shots/steams on `(timestamp, id)`, beans/grinders on `(createdAt, id)`;
   profile ids and KV keys are small, documented exceptions). Storage
