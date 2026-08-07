@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 
@@ -131,6 +133,71 @@ void main() {
       expect(jsTimerCount(), '0');
     },
   );
+
+  test('unload sweeps timers scheduled by rejection handlers', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((req) async {
+      await Future<void>.delayed(const Duration(seconds: 10));
+      try {
+        await req.response.close();
+      } catch (_) {}
+    });
+    addTearDown(server.close);
+
+    await manager.loadPlugin(
+      id: 'timer.plugin',
+      manifest: testManifest('timer.plugin'),
+      settings: {},
+      jsCode:
+          '''
+        function createPlugin(host) {
+          return {
+            id: "timer.plugin",
+            onLoad() {
+              fetch("http://127.0.0.1:${server.port}/slow")
+                .then(() => host.emit("r", "unexpected"))
+                .catch(() => {
+                  setTimeout(() => host.emit("ghost", "fired"), 1000);
+                });
+            }
+          };
+        }
+      ''',
+    );
+    // Let the fetch op register before unloading.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await manager.unloadPlugin('timer.plugin');
+
+    // The rejection handler's setTimeout must be swept, not resurrected.
+    expect(manager.activeTimerCount, 0);
+    expect(jsTimerCount(), '0');
+
+    final events = await collectEvents(const Duration(milliseconds: 1100));
+    expect(events, isEmpty);
+    expect(manager.activeTimerCount, 0);
+    expect(jsTimerCount(), '0');
+  });
+
+  test('timer from a previous plugin generation is not registered', () async {
+    await loadTimerPlugin(
+      'setTimeout(() => host.emit("ghost", "fired"), 1000);',
+    );
+    // Reload the same id before the deferred timerSet message is processed.
+    await manager.unloadPlugin('timer.plugin');
+    await manager.loadPlugin(
+      id: 'timer.plugin',
+      manifest: testManifest('timer.plugin'),
+      settings: {},
+      jsCode: 'function createPlugin(host) { return { id: "timer.plugin" }; }',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(manager.activeTimerCount, 0);
+    expect(jsTimerCount(), '0');
+
+    final events = await collectEvents(const Duration(milliseconds: 1100));
+    expect(events, isEmpty);
+  });
 
   test('cancelAllOperations cancels multiple plugin-owned timers', () async {
     await loadTimerPlugin('''

@@ -224,6 +224,52 @@ void main() {
     expect(manager.activePendingOpCount, 0);
   });
 
+  test(
+    'fetch from a previous plugin generation does not hit the network',
+    () async {
+      var requests = 0;
+      final server = await startServer((res) async {
+        requests += 1;
+        await Future<void>.delayed(const Duration(seconds: 10));
+        res.write('late');
+      });
+      addTearDown(server.close);
+
+      // Generation 1 schedules a fetch; reload happens before the deferred
+      // fetch message is processed.
+      await manager.loadPlugin(
+        id: 'fetch.plugin',
+        manifest: testManifest('fetch.plugin'),
+        settings: {},
+        jsCode:
+            '''
+        function createPlugin(host) {
+          return {
+            id: "fetch.plugin",
+            onLoad() {
+              fetch(${jsonEncode('http://127.0.0.1:${server.port}/slow')})
+                .then(() => host.emit("result", "unexpected"))
+                .catch((e) => host.emit("result", "err:" + e.message));
+            }
+          };
+        }
+      ''',
+      );
+      await manager.unloadPlugin('fetch.plugin');
+      await manager.loadPlugin(
+        id: 'fetch.plugin',
+        manifest: testManifest('fetch.plugin'),
+        settings: {},
+        jsCode:
+            'function createPlugin(host) { return { id: "fetch.plugin" }; }',
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(requests, 0);
+      expect(manager.activePendingOpCount, 0);
+    },
+  );
+
   test('cancelAllOperations rejects pending fetch', () async {
     final server = await startServer((res) async {
       await Future<void>.delayed(const Duration(seconds: 10));

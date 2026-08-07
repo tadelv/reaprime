@@ -84,7 +84,7 @@ void main() {
       };
       final manager = PluginManager(kvStore: _FakeKeyValueStore());
       final setupResult = manager.js.evaluate('''
-      globalThis.__timerSet = (pluginId, callback, delay) => { callback(); return 1; };
+      globalThis.__timerSet = (pluginId, generation, callback, delay) => { callback(); return 1; };
       globalThis.__timerClear = () => {};
       globalThis.__fetchFor = async (pluginId, generation, url, init = {}) => {
         if (url.endsWith('/shots/latest')) {
