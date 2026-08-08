@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/services/storage/kv_store_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -569,13 +570,11 @@ class PluginLoaderService {
   Future<void> _copyDirectory(Directory source, Directory destination) async {
     await for (final entity in source.list(recursive: false)) {
       if (entity is File) {
-        final newFile = File(
-          '${destination.path}/${entity.path.split('/').last}',
-        );
+        final newFile = File('${destination.path}/${p.basename(entity.path)}');
         await entity.copy(newFile.path);
       } else if (entity is Directory) {
         final newDir = Directory(
-          '${destination.path}/${entity.path.split('/').last}',
+          '${destination.path}/${p.basename(entity.path)}',
         );
         newDir.createSync(recursive: true);
         await _copyDirectory(entity, newDir);
