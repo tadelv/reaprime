@@ -135,9 +135,7 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     // by the preceding permissions step or a previous launch).
     if (Platform.isAndroid) {
       await ForegroundTaskService.start();
-      ForegroundTaskService.watchMachineConnection(
-        widget.de1Controller.de1,
-      );
+      ForegroundTaskService.watchMachineConnection(widget.de1Controller.de1);
     }
 
     BootTiming.mark('scan_start');
@@ -155,7 +153,8 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     }
     unawaited(
       widget.webUIStorage.downloadRemoteSkinsAndRescan().catchError(
-        (Object e) => _log.warning('Background remote-skin download failed: $e'),
+        (Object e) =>
+            _log.warning('Background remote-skin download failed: $e'),
       ),
     );
   }
@@ -172,7 +171,7 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      semanticsLabel: 'Starting Decent',
+      semanticsLabel: 'Starting Decaid',
       body: [
         FutureBuilder<void>(
           future: _initFuture,
@@ -189,14 +188,14 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
                 SizedBox(
                   width: 200,
                   child: Semantics(
-                    label: 'Starting Decent',
+                    label: 'Starting Decaid',
                     child: ShadProgress(),
                   ),
                 ),
                 Semantics(
                   liveRegion: true,
                   child: Text(
-                    'Decent is starting...',
+                    'Decaid is starting...',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),

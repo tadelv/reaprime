@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_js/quickjs/ffi.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -41,6 +42,8 @@ abstract class SettingsService {
   Future<void> setDefaultSkinId(String skinId);
   Future<bool> automaticUpdateCheck();
   Future<void> setAutomaticUpdateCheck(bool value);
+  Future<UpdateChannel> updateChannel();
+  Future<void> setUpdateChannel(UpdateChannel channel);
   Future<DateTime?> lastUpdateCheckTime();
   Future<void> setLastUpdateCheckTime(DateTime time);
   Future<bool> telemetryConsent();
@@ -71,6 +74,8 @@ abstract class SettingsService {
   Future<void> setRememberedDevices(String json);
   Future<bool> lowBatteryBrightnessLimit();
   Future<void> setLowBatteryBrightnessLimit(bool value);
+  Future<bool> keepAwake();
+  Future<void> setKeepAwake(bool value);
   Future<bool> onboardingCompleted();
   Future<void> setOnboardingCompleted(bool value);
   Future<bool> accountStepSeen();
@@ -261,10 +266,7 @@ class SharedPreferencesSettingsService extends SettingsService {
     // → new release id (declared in skin-manifest.json inside the release zip).
     // Runs on every call, but rewrites pref only once per user.
     if (stored == 'streamline_project-main') {
-      await prefs.setString(
-        SettingsKeys.defaultSkinId.name,
-        'streamline.js',
-      );
+      await prefs.setString(SettingsKeys.defaultSkinId.name, 'streamline.js');
       return 'streamline.js';
     }
     return stored ?? 'streamline.js';
@@ -283,6 +285,20 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<void> setAutomaticUpdateCheck(bool value) async {
     await prefs.setBool(SettingsKeys.automaticUpdateCheck.name, value);
+  }
+
+  @override
+  Future<UpdateChannel> updateChannel() async {
+    final stored = await prefs.getString(SettingsKeys.updateChannel.name);
+    return UpdateChannel.values.firstWhere(
+      (channel) => channel.name == stored,
+      orElse: () => UpdateChannel.stable,
+    );
+  }
+
+  @override
+  Future<void> setUpdateChannel(UpdateChannel channel) async {
+    await prefs.setString(SettingsKeys.updateChannel.name, channel.name);
   }
 
   @override
@@ -442,6 +458,16 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
+  Future<bool> keepAwake() async {
+    return await prefs.getBool(SettingsKeys.keepAwake.name) ?? true;
+  }
+
+  @override
+  Future<void> setKeepAwake(bool value) async {
+    await prefs.setBool(SettingsKeys.keepAwake.name, value);
+  }
+
+  @override
   Future<bool> onboardingCompleted() async {
     return await prefs.getBool(SettingsKeys.onboardingCompleted.name) ?? false;
   }
@@ -524,6 +550,7 @@ enum SettingsKeys {
   preferredScaleId,
   defaultSkinId,
   automaticUpdateCheck,
+  updateChannel,
   lastUpdateCheckTime,
   telemetryConsent,
   telemetryPromptShown,
@@ -538,6 +565,7 @@ enum SettingsKeys {
   wakeSchedules,
   rememberedDevices,
   lowBatteryBrightnessLimit,
+  keepAwake,
   onboardingCompleted,
   accountStepSeen,
   androidWarningDismissed,

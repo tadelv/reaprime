@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -60,7 +59,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
   }
 
   Future<void> _checkStoragePermission() async {
-    if (!Platform.isAndroid || BuildInfo.appStore) return;
+    if (!Platform.isAndroid) return;
     final status = await Permission.manageExternalStorage.status;
     if (mounted && status.isGranted != _storagePermissionGranted) {
       setState(() => _storagePermissionGranted = status.isGranted);
@@ -70,7 +69,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
   @override
   Widget build(BuildContext context) {
     // The storage-permission affordance only exists for Android sideload builds.
-    final showStorageRow = Platform.isAndroid && !BuildInfo.appStore;
+    final showStorageRow = Platform.isAndroid;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Web Interface')),
@@ -145,15 +144,13 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
             ],
           ),
         ),
-        if (!BuildInfo.appStore) ...[
-          const SizedBox(width: 8),
-          _ActionButton.outline(
-            label: 'Check for updates',
-            icon: Icons.refresh,
-            size: ShadButtonSize.sm,
-            onPressed: () => _checkForSkinUpdates(context),
-          ),
-        ],
+        const SizedBox(width: 8),
+        _ActionButton.outline(
+          label: 'Check for updates',
+          icon: Icons.refresh,
+          size: ShadButtonSize.sm,
+          onPressed: () => _checkForSkinUpdates(context),
+        ),
       ],
     );
   }
@@ -236,11 +233,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       children: [
         Expanded(child: status),
         const SizedBox(width: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: actions,
-        ),
+        Wrap(spacing: 8, runSpacing: 8, children: actions),
       ],
     );
   }
@@ -300,7 +293,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                           ),
                         ),
                       ],
-                      if (!skin.isBundled && !BuildInfo.appStore) ...[
+                      if (!skin.isBundled) ...[
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 24,
@@ -369,24 +362,22 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                   ),
                 );
               }),
-              if (!BuildInfo.appStore)
-                const DropdownMenuItem(
-                  value: _customSkinId,
-                  child: Row(
-                    children: [
-                      Icon(Icons.archive_outlined, size: 16),
-                      SizedBox(width: 8),
-                      Text('Install from .zip...'),
-                    ],
-                  ),
+              const DropdownMenuItem(
+                value: _customSkinId,
+                child: Row(
+                  children: [
+                    Icon(Icons.archive_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text('Install from .zip...'),
+                  ],
                 ),
-              if (!BuildInfo.appStore &&
-                  (Platform.isMacOS ||
-                      Platform.isLinux ||
-                      Platform.isWindows ||
-                      (Platform.isAndroid &&
-                          (_storagePermissionGranted ||
-                              _selectedSkinId == _liveEditSkinId))))
+              ),
+              if (Platform.isMacOS ||
+                  Platform.isLinux ||
+                  Platform.isWindows ||
+                  (Platform.isAndroid &&
+                      (_storagePermissionGranted ||
+                          _selectedSkinId == _liveEditSkinId)))
                 const DropdownMenuItem(
                   value: _liveEditSkinId,
                   child: Row(
@@ -405,7 +396,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
   }
 
   Widget _buildStoragePermissionRow() {
-    if (!Platform.isAndroid || BuildInfo.appStore) {
+    if (!Platform.isAndroid) {
       return const SizedBox.shrink();
     }
 
@@ -577,9 +568,9 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to install skin: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to install skin: $e')));
       }
       setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
     }
@@ -601,9 +592,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
             SnackBar(
               content: Row(
                 children: [
-                  Expanded(
-                    child: Text('Live-editing from $selectedDirectory'),
-                  ),
+                  Expanded(child: Text('Live-editing from $selectedDirectory')),
                   ShadButton.outline(
                     onPressed: () async {
                       await _openWebUIInBrowser();
@@ -663,11 +652,10 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
         const SnackBar(content: Text('Checking for skin updates...')),
       );
 
-      await widget.webUIStorage.downloadRemoteSkins();
+      await widget.webUIStorage.updateAllSkins();
 
-      // downloadRemoteSkins() re-scans the registry, so installedSkins now
-      // reflects any newly downloaded versions. Rebuild so the dropdown shows
-      // them without the user having to leave and re-enter the page (#370).
+      // Rebuild so the dropdown shows newly downloaded versions without the
+      // user having to leave and re-enter the page (#370).
       if (mounted) setState(() {});
 
       if (!context.mounted) return;

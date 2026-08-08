@@ -11,7 +11,9 @@ void main() {
         drinkEy: 21.3,
         enjoyment: 8.0,
         espressoNotes: 'Fruity, clean finish',
-        extras: {'visualizer': {'score': 92}},
+        extras: {
+          'visualizer': {'score': 92},
+        },
       );
 
       final json = ann.toJson();
@@ -23,7 +25,9 @@ void main() {
       expect(restored.drinkEy, 21.3);
       expect(restored.enjoyment, 8.0);
       expect(restored.espressoNotes, 'Fruity, clean finish');
-      expect(restored.extras, {'visualizer': {'score': 92}});
+      expect(restored.extras, {
+        'visualizer': {'score': 92},
+      });
     });
 
     test('round-trip with minimal fields (nulls omitted from JSON)', () {
@@ -61,11 +65,7 @@ void main() {
     });
 
     test('fromJson handles int values for doubles', () {
-      final json = {
-        'actualDoseWeight': 18,
-        'actualYield': 36,
-        'enjoyment': 8,
-      };
+      final json = {'actualDoseWeight': 18, 'actualYield': 36, 'enjoyment': 8};
 
       final ann = ShotAnnotations.fromJson(json);
       expect(ann.actualDoseWeight, 18.0);
@@ -74,10 +74,7 @@ void main() {
     });
 
     test('copyWith preserves unchanged fields', () {
-      final ann = ShotAnnotations(
-        enjoyment: 7.5,
-        espressoNotes: 'Good',
-      );
+      final ann = ShotAnnotations(enjoyment: 7.5, espressoNotes: 'Good');
 
       final updated = ann.copyWith(enjoyment: 9.0);
 

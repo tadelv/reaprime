@@ -32,7 +32,8 @@ extension UnifiedDe1Profile on UnifiedDe1 {
     index++;
     data[index] = 0; // min pressure
     index++;
-    data[index] = (0.5 + 12.0 * scale).toInt(); // max flow - most likely ignored by FW
+    data[index] = (0.5 + 12.0 * scale)
+        .toInt(); // max flow - most likely ignored by FW
 
     await _transport.writeWithResponse(Endpoint.headerWrite, data);
   }

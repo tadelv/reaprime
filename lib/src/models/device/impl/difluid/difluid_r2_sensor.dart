@@ -36,7 +36,8 @@ class DifluidR2Sensor implements Sensor {
   String get deviceId => _transport.id;
 
   @override
-  DeviceImplementation get implementation => DeviceImplementation.difluidR2Sensor;
+  DeviceImplementation get implementation =>
+      DeviceImplementation.difluidR2Sensor;
 
   @override
   TransportType get transportType => _transport.transportType;

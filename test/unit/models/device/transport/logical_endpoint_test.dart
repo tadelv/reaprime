@@ -28,8 +28,9 @@ class _StubEndpoint implements LogicalEndpoint {
 /// design (the consolidated helper is used across the BLE-facing
 /// tests), so the small serial stub stays here for the wire-gap tests.
 class _StubSerialTransport extends SerialTransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
+  final _connState = BehaviorSubject<ConnectionState>.seeded(
+    ConnectionState.connected,
+  );
 
   @override
   String get id => 'stub-serial';
@@ -65,17 +66,24 @@ class _StubSerialTransport extends SerialTransport {
 void main() {
   group('LogicalEndpoint', () {
     test(
-        'every Endpoint value implements LogicalEndpoint with non-null wire ids',
-        () {
-      for (final ep in Endpoint.values) {
-        expect(ep, isA<LogicalEndpoint>(),
-            reason: '${ep.name} must implement LogicalEndpoint');
-        expect(ep.uuid, isNotNull, reason: '${ep.name} uuid');
-        expect(ep.representation, isNotNull,
-            reason: '${ep.name} representation');
-        expect(ep.name, isNotEmpty);
-      }
-    });
+      'every Endpoint value implements LogicalEndpoint with non-null wire ids',
+      () {
+        for (final ep in Endpoint.values) {
+          expect(
+            ep,
+            isA<LogicalEndpoint>(),
+            reason: '${ep.name} must implement LogicalEndpoint',
+          );
+          expect(ep.uuid, isNotNull, reason: '${ep.name} uuid');
+          expect(
+            ep.representation,
+            isNotNull,
+            reason: '${ep.name} representation',
+          );
+          expect(ep.name, isNotEmpty);
+        }
+      },
+    );
   });
 
   group('UnifiedDe1Transport wire-support guards', () {
@@ -85,15 +93,20 @@ void main() {
       addTearDown(transport.dispose);
       final unified = UnifiedDe1Transport(transport: transport);
       const stub = _StubEndpoint(
-          uuid: null, representation: 'Z', name: 'stubNoUuid');
+        uuid: null,
+        representation: 'Z',
+        name: 'stubNoUuid',
+      );
 
       await expectLater(
         unified.read(stub),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          contains('no BLE wire support'),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('no BLE wire support'),
+          ),
+        ),
       );
     });
 
@@ -105,15 +118,20 @@ void main() {
       // Has both uuid and representation set so the only failing guard is
       // the `is! Endpoint` one.
       const stub = _StubEndpoint(
-          uuid: 'A0FF', representation: 'Z', name: 'stubNotEndpoint');
+        uuid: 'A0FF',
+        representation: 'Z',
+        name: 'stubNotEndpoint',
+      );
 
       await expectLater(
         unified.read(stub),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          contains('is not a DE1 Endpoint'),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('is not a DE1 Endpoint'),
+          ),
+        ),
       );
     });
 
@@ -123,15 +141,20 @@ void main() {
       addTearDown(transport.dispose);
       final unified = UnifiedDe1Transport(transport: transport);
       const stub = _StubEndpoint(
-          uuid: 'A0FF', representation: null, name: 'stubNoRepr');
+        uuid: 'A0FF',
+        representation: null,
+        name: 'stubNoRepr',
+      );
 
       await expectLater(
         unified.write(stub, Uint8List(0)),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          contains('no serial wire support'),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('no serial wire support'),
+          ),
+        ),
       );
     });
   });

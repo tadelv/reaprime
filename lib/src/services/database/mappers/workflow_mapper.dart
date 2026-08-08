@@ -8,8 +8,10 @@ class WorkflowMapper {
     return domain.Workflow.fromJson(row.workflowJson);
   }
 
-  static db.WorkflowsCompanion toCompanion(domain.Workflow workflow,
-      {String id = 'current'}) {
+  static db.WorkflowsCompanion toCompanion(
+    domain.Workflow workflow, {
+    String id = 'current',
+  }) {
     return db.WorkflowsCompanion(
       id: Value(id),
       workflowJson: Value(workflow.toJson()),

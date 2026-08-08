@@ -16,6 +16,7 @@ abstract class DataTransport {
   TransportType get transportType;
 
   Stream<ConnectionState> get connectionState;
+
   /// Connect to the transport
   Future<void> connect();
 
@@ -27,4 +28,3 @@ abstract class DataTransport {
   /// transport after dispose is not supported.
   Future<void> dispose();
 }
-

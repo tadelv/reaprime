@@ -83,24 +83,27 @@ class ScanFlowViewState extends State<ScanFlowView> {
   void _retry() => widget.connectionManager.scanAndConnect();
 
   void _tryDemoMode() {
-    widget.settingsController.enableSimulatedDevicesForSession(
-      {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-    );
+    widget.settingsController.enableSimulatedDevicesForSession({
+      SimulatedDevicesTypes.machine,
+      SimulatedDevicesTypes.scale,
+    });
     widget.connectionManager.scanAndConnect();
   }
 
   void _tryDemoModeFromNoDevices() {
-    widget.settingsController.enableSimulatedDevicesForSession(
-      {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-    );
+    widget.settingsController.enableSimulatedDevicesForSession({
+      SimulatedDevicesTypes.machine,
+      SimulatedDevicesTypes.scale,
+    });
     widget.connectionManager.scanAndConnect();
   }
 
   late StreamSubscription<ConnectionStatus> _statusSubscription;
   late StreamSubscription<ScanStateEvent> _guardianSubscription;
   late StreamSubscription<List<dev.Device>> _deviceSubscription;
-  ConnectionStatus _status =
-      const ConnectionStatus(phase: ConnectionPhase.scanning);
+  ConnectionStatus _status = const ConnectionStatus(
+    phase: ConnectionPhase.scanning,
+  );
   bool _hasNavigated = false;
   bool _showTakingTooLong = false;
   Timer? _tooLongTimer;
@@ -144,17 +147,23 @@ class ScanFlowViewState extends State<ScanFlowView> {
         if (status.pendingAmbiguity == AmbiguityReason.machinePicker &&
             _discoveredMachines.isNotEmpty) {
           _directAutoConnected = true;
-          _log.info('--direct: auto-connecting to ${_discoveredMachines.first.name}');
-          unawaited(widget.connectionManager
-              .selectMachine(_discoveredMachines.first));
+          _log.info(
+            '--direct: auto-connecting to ${_discoveredMachines.first.name}',
+          );
+          unawaited(
+            widget.connectionManager.selectMachine(_discoveredMachines.first),
+          );
           return;
         }
         if (status.pendingAmbiguity == AmbiguityReason.scalePicker &&
             _discoveredScales.isNotEmpty) {
           _directAutoConnected = true;
-          _log.info('--direct: auto-connecting to scale ${_discoveredScales.first.name}');
-          unawaited(widget.connectionManager
-              .selectScale(_discoveredScales.first));
+          _log.info(
+            '--direct: auto-connecting to scale ${_discoveredScales.first.name}',
+          );
+          unawaited(
+            widget.connectionManager.selectScale(_discoveredScales.first),
+          );
           return;
         }
       }
@@ -181,18 +190,19 @@ class ScanFlowViewState extends State<ScanFlowView> {
     });
 
     // Monitor device stream during scanning for live device count
-    _deviceSubscription =
-        widget.deviceController.deviceStream.listen((devices) {
+    _deviceSubscription = widget.deviceController.deviceStream.listen((
+      devices,
+    ) {
       if (!mounted || _status.phase != ConnectionPhase.scanning) return;
       setState(() {
         _discoveredMachines = devices.whereType<De1Interface>().toList();
-        _discoveredScales =
-            devices.whereType<device_scale.Scale>().toList();
+        _discoveredScales = devices.whereType<device_scale.Scale>().toList();
       });
     });
 
-    _guardianSubscription =
-        widget.scanStateGuardian.events.listen(_onGuardianEvent);
+    _guardianSubscription = widget.scanStateGuardian.events.listen(
+      _onGuardianEvent,
+    );
 
     // Kick off the connection flow
     final intent = widget.initialConnectionIntent;
@@ -326,7 +336,8 @@ class ScanFlowViewState extends State<ScanFlowView> {
     return !_discoveredMachines.any((m) => m.deviceId == preferredMachineId);
   }
 
-  int get _totalDiscovered => _discoveredMachines.length + _discoveredScales.length;
+  int get _totalDiscovered =>
+      _discoveredMachines.length + _discoveredScales.length;
 
   Widget _scanningView(BuildContext context) {
     final hasDevicesNotPreferred = _hasDevicesButNotPreferred;
@@ -382,23 +393,25 @@ class ScanFlowViewState extends State<ScanFlowView> {
             duration: const Duration(milliseconds: 400),
             child: IgnorePointer(
               ignoring: !_showTakingTooLong,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 32),
-              child: AccessibleButton(
-                label: hasDevicesNotPreferred
-                    ? 'View found devices'
-                    : 'This is taking a while...',
-                onTap: _showTakingTooLongSheet,
-                child: ShadButton.outline(
-                  size: ShadButtonSize.sm,
-                  onPressed: _showTakingTooLongSheet,
-                  child: Text(hasDevicesNotPreferred
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 32),
+                child: AccessibleButton(
+                  label: hasDevicesNotPreferred
                       ? 'View found devices'
-                      : 'This is taking a while...'),
+                      : 'This is taking a while...',
+                  onTap: _showTakingTooLongSheet,
+                  child: ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: _showTakingTooLongSheet,
+                    child: Text(
+                      hasDevicesNotPreferred
+                          ? 'View found devices'
+                          : 'This is taking a while...',
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
           ),
         ),
       ],
@@ -428,18 +441,18 @@ class ScanFlowViewState extends State<ScanFlowView> {
   }
 
   Widget _devicePickerView(BuildContext context) {
-    final isConnecting = _status.phase == ConnectionPhase.connectingMachine ||
+    final isConnecting =
+        _status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale;
 
-    final preferredMachineId =
-        widget.settingsController.preferredMachineId;
+    final preferredMachineId = widget.settingsController.preferredMachineId;
     final preferredScaleId = widget.settingsController.preferredScaleId;
 
     if (_status.pendingAmbiguity == AmbiguityReason.machinePicker) {
-      final preferredMachineNotFound = preferredMachineId != null &&
+      final preferredMachineNotFound =
+          preferredMachineId != null &&
           _status.foundMachines.isNotEmpty &&
-          !_status.foundMachines
-              .any((m) => m.deviceId == preferredMachineId);
+          !_status.foundMachines.any((m) => m.deviceId == preferredMachineId);
       return _singlePickerView(
         context: context,
         label: preferredMachineNotFound
@@ -463,10 +476,10 @@ class ScanFlowViewState extends State<ScanFlowView> {
     }
 
     if (_status.pendingAmbiguity == AmbiguityReason.scalePicker) {
-      final preferredScaleNotFound = preferredScaleId != null &&
+      final preferredScaleNotFound =
+          preferredScaleId != null &&
           _status.foundScales.isNotEmpty &&
-          !_status.foundScales
-              .any((s) => s.deviceId == preferredScaleId);
+          !_status.foundScales.any((s) => s.deviceId == preferredScaleId);
       return _singlePickerView(
         context: context,
         label: preferredScaleNotFound
@@ -478,9 +491,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
         onConnect: () {
           final id = _selectedScaleId;
           if (id == null) return;
-          final scale = _status.foundScales.firstWhere(
-            (s) => s.deviceId == id,
-          );
+          final scale = _status.foundScales.firstWhere((s) => s.deviceId == id);
           widget.connectionManager.selectScale(scale);
         },
         isConnecting: isConnecting,
@@ -490,15 +501,15 @@ class ScanFlowViewState extends State<ScanFlowView> {
     }
 
     // Fallback: idle with devices but no ambiguity — show combined view.
-    final preferredMachineNotFound = preferredMachineId != null &&
+    final preferredMachineNotFound =
+        preferredMachineId != null &&
         _status.foundMachines.isNotEmpty &&
-        !_status.foundMachines
-            .any((m) => m.deviceId == preferredMachineId);
+        !_status.foundMachines.any((m) => m.deviceId == preferredMachineId);
 
-    final preferredScaleNotFound = preferredScaleId != null &&
+    final preferredScaleNotFound =
+        preferredScaleId != null &&
         _status.foundScales.isNotEmpty &&
-        !_status.foundScales
-            .any((s) => s.deviceId == preferredScaleId);
+        !_status.foundScales.any((s) => s.deviceId == preferredScaleId);
 
     final machineHeader = preferredMachineNotFound
         ? "Your preferred machine wasn't found, but we discovered these:"
@@ -520,80 +531,85 @@ class ScanFlowViewState extends State<ScanFlowView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                  child: DeviceSelectionWidget(
-                    deviceController: widget.deviceController,
-                    deviceType: dev.DeviceType.machine,
-                    showHeader: true,
-                    headerText: machineHeader,
-                    connectingDeviceId: isConnecting
-                        ? (_status.foundMachines.isNotEmpty
-                            ? _status.foundMachines.first.deviceId
-                            : null)
-                        : null,
-                    errorMessage: _operationErrorMessage,
-                    selectedDeviceId: null,
-                    preferredDeviceId:
-                        widget.settingsController.preferredMachineId,
-                    onPreferredChanged: (id) =>
-                        widget.settingsController.setPreferredMachineId(id),
-                    onDeviceTapped: (device) {
-                      setState(() {});
-                      widget.settingsController.setPreferredMachineId(device.deviceId);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DeviceSelectionWidget(
-                    deviceController: widget.deviceController,
-                    deviceType: dev.DeviceType.scale,
-                    showHeader: true,
-                    headerText: scaleHeader,
-                    selectedDeviceId: null,
-                    preferredDeviceId:
-                        widget.settingsController.preferredScaleId,
-                    onPreferredChanged: (id) =>
-                        widget.settingsController.setPreferredScaleId(id),
-                    onDeviceTapped: (device) {
-                      setState(() {});
-                      widget.settingsController.setPreferredScaleId(device.deviceId);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 8,
-            children: [
-              if (!isConnecting)
-                AccessibleButton(
-                  label: 'ReScan',
-                  onTap: () => widget.connectionManager.scanAndConnect(),
-                  child: ShadButton.outline(
-                    size: ShadButtonSize.sm,
-                    onPressed: () => widget.connectionManager.scanAndConnect(),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 4,
-                      children: [
-                        const Icon(LucideIcons.refreshCw, size: 14),
-                        const Text('ReScan'),
-                      ],
+                    child: DeviceSelectionWidget(
+                      deviceController: widget.deviceController,
+                      deviceType: dev.DeviceType.machine,
+                      showHeader: true,
+                      headerText: machineHeader,
+                      connectingDeviceId: isConnecting
+                          ? (_status.foundMachines.isNotEmpty
+                                ? _status.foundMachines.first.deviceId
+                                : null)
+                          : null,
+                      errorMessage: _operationErrorMessage,
+                      selectedDeviceId: null,
+                      preferredDeviceId:
+                          widget.settingsController.preferredMachineId,
+                      onPreferredChanged: (id) =>
+                          widget.settingsController.setPreferredMachineId(id),
+                      onDeviceTapped: (device) {
+                        setState(() {});
+                        widget.settingsController.setPreferredMachineId(
+                          device.deviceId,
+                        );
+                      },
                     ),
                   ),
-                ),
-              if (!isConnecting)
-                AccessibleButton(
-                  label: widget.exitLabel,
-                  onTap: _skipToDashboard,
-                  child: ShadButton.secondary(
-                    size: ShadButtonSize.sm,
-                    onPressed: _skipToDashboard,
-                    child: Text(widget.exitLabel),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DeviceSelectionWidget(
+                      deviceController: widget.deviceController,
+                      deviceType: dev.DeviceType.scale,
+                      showHeader: true,
+                      headerText: scaleHeader,
+                      selectedDeviceId: null,
+                      preferredDeviceId:
+                          widget.settingsController.preferredScaleId,
+                      onPreferredChanged: (id) =>
+                          widget.settingsController.setPreferredScaleId(id),
+                      onDeviceTapped: (device) {
+                        setState(() {});
+                        widget.settingsController.setPreferredScaleId(
+                          device.deviceId,
+                        );
+                      },
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                if (!isConnecting)
+                  AccessibleButton(
+                    label: 'ReScan',
+                    onTap: () => widget.connectionManager.scanAndConnect(),
+                    child: ShadButton.outline(
+                      size: ShadButtonSize.sm,
+                      onPressed: () =>
+                          widget.connectionManager.scanAndConnect(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 4,
+                        children: [
+                          const Icon(LucideIcons.refreshCw, size: 14),
+                          const Text('ReScan'),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (!isConnecting)
+                  AccessibleButton(
+                    label: widget.exitLabel,
+                    onTap: _skipToDashboard,
+                    child: ShadButton.secondary(
+                      size: ShadButtonSize.sm,
+                      onPressed: _skipToDashboard,
+                      child: Text(widget.exitLabel),
+                    ),
+                  ),
               ],
             ),
           ],
@@ -636,13 +652,17 @@ class ScanFlowViewState extends State<ScanFlowView> {
                 child: Row(
                   spacing: 8,
                   children: [
-                    Icon(LucideIcons.triangleAlert,
-                        size: 16, color: theme.colorScheme.destructive),
+                    Icon(
+                      LucideIcons.triangleAlert,
+                      size: 16,
+                      color: theme.colorScheme.destructive,
+                    ),
                     Expanded(
                       child: Text(
                         errorMessage,
-                        style: theme.textTheme.small
-                            .copyWith(color: theme.colorScheme.destructive),
+                        style: theme.textTheme.small.copyWith(
+                          color: theme.colorScheme.destructive,
+                        ),
                       ),
                     ),
                   ],
@@ -667,14 +687,15 @@ class ScanFlowViewState extends State<ScanFlowView> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(name),
-                                Text(id,
-                                    style: theme.textTheme.muted),
+                                Text(id, style: theme.textTheme.muted),
                               ],
                             ),
                           ),
                           if (isSelected)
-                            Icon(LucideIcons.checkCircle,
-                                color: theme.colorScheme.primary),
+                            Icon(
+                              LucideIcons.checkCircle,
+                              color: theme.colorScheme.primary,
+                            ),
                         ],
                       ),
                     ),
@@ -710,8 +731,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
                             SizedBox(
                               width: 14,
                               height: 14,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                             Text('Connecting...'),
                           ],
@@ -740,8 +760,11 @@ class ScanFlowViewState extends State<ScanFlowView> {
         spacing: 16,
         children: [
           ExcludeSemantics(
-            child: Icon(LucideIcons.triangleAlert,
-                size: 48, color: theme.colorScheme.destructive),
+            child: Icon(
+              LucideIcons.triangleAlert,
+              size: 48,
+              color: theme.colorScheme.destructive,
+            ),
           ),
           Text('Connection Error', style: theme.textTheme.h4),
           Text(
@@ -790,10 +813,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
     );
   }
 
-  Widget _adapterErrorView(
-    BuildContext context,
-    ConnectionError error,
-  ) {
+  Widget _adapterErrorView(BuildContext context, ConnectionError error) {
     final theme = ShadTheme.of(context);
     return Center(
       child: Column(
@@ -801,8 +821,11 @@ class ScanFlowViewState extends State<ScanFlowView> {
         spacing: 16,
         children: [
           ExcludeSemantics(
-            child: Icon(LucideIcons.bluetoothOff,
-                size: 48, color: theme.colorScheme.destructive),
+            child: Icon(
+              LucideIcons.bluetoothOff,
+              size: 48,
+              color: theme.colorScheme.destructive,
+            ),
           ),
           Text('Bluetooth Unavailable', style: theme.textTheme.h4),
           Text(
@@ -894,7 +917,8 @@ class ScanFlowViewState extends State<ScanFlowView> {
               ListTile(
                 leading: const Icon(LucideIcons.list),
                 title: Text(
-                    'View $_totalDiscovered found device${_totalDiscovered == 1 ? '' : 's'}'),
+                  'View $_totalDiscovered found device${_totalDiscovered == 1 ? '' : 's'}',
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _stopScanAndShowDevices();
@@ -915,8 +939,7 @@ class ScanFlowViewState extends State<ScanFlowView> {
                 Navigator.pop(context);
                 showTroubleshootingWizard(
                   context: context,
-                  adapterState:
-                      widget.scanStateGuardian.currentAdapterState,
+                  adapterState: widget.scanStateGuardian.currentAdapterState,
                 );
               },
             ),
@@ -930,9 +953,11 @@ class ScanFlowViewState extends State<ScanFlowView> {
             ),
             ListTile(
               leading: const Icon(LucideIcons.layoutDashboard),
-              title: Text(widget.exitLabel == 'Dashboard'
-                  ? 'Continue to Dashboard'
-                  : widget.exitLabel),
+              title: Text(
+                widget.exitLabel == 'Dashboard'
+                    ? 'Continue to Dashboard'
+                    : widget.exitLabel,
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _skipToDashboard();

@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/services/android_updater.dart';
+import 'package:reaprime/src/services/macos_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
 import 'package:reaprime/src/settings/common.dart';
@@ -24,6 +25,7 @@ class SettingsView extends StatelessWidget {
     super.key,
     required this.controller,
     this.updateCheckService,
+    this.macosUpdater,
     required this.presenceController,
     this.webUIStorage,
   });
@@ -33,6 +35,7 @@ class SettingsView extends StatelessWidget {
   final SettingsController controller;
   final PresenceController presenceController;
   final UpdateCheckService? updateCheckService;
+  final MacOSUpdater? macosUpdater;
   final WebUIStorage? webUIStorage;
 
   @override
@@ -73,8 +76,20 @@ class SettingsView extends StatelessWidget {
 
               // MARK: Updates
               const SettingsSectionHeader('Updates'),
+              if (!Platform.isIOS) ...[
+                SettingsTile(
+                  icon: Icons.science_outlined,
+                  label: 'Update channel',
+                  trailing: Text(_updateChannelLabel(controller.updateChannel)),
+                  onTap: () => _showUpdateChannelPicker(context),
+                ),
+                const SettingsDivider(),
+              ],
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: ShadSwitch(
                   value: controller.automaticUpdateCheck,
                   onChanged: (v) async {
@@ -83,6 +98,17 @@ class SettingsView extends StatelessWidget {
                       await updateCheckService?.enableAutomaticChecks();
                     } else {
                       await updateCheckService?.disableAutomaticChecks();
+                    }
+                    if (macosUpdater?.isAvailable == true) {
+                      try {
+                        await macosUpdater?.setAutomaticChecks(v);
+                      } catch (e, st) {
+                        Logger('Settings View').warning(
+                          'Sparkle automatic-check toggle failed',
+                          e,
+                          st,
+                        );
+                      }
                     }
                   },
                   label: const Text('Automatic update checks'),
@@ -115,9 +141,8 @@ class SettingsView extends StatelessWidget {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => BatteryChargingSettingsPage(
-                          controller: controller,
-                        ),
+                        builder: (_) =>
+                            BatteryChargingSettingsPage(controller: controller),
                       ),
                     );
                   },
@@ -138,6 +163,23 @@ class SettingsView extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+              const SettingsDivider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: ShadSwitch(
+                  value: controller.keepAwake,
+                  onChanged: (value) async {
+                    await controller.setKeepAwake(value);
+                  },
+                  label: const Text('Keep screen awake'),
+                  sublabel: const Text(
+                    'Prevent the tablet screen from turning off while the app is running',
+                  ),
+                ),
               ),
 
               // MARK: About
@@ -168,6 +210,14 @@ class SettingsView extends StatelessWidget {
     }
   }
 
+  static String _updateChannelLabel(UpdateChannel channel) {
+    switch (channel) {
+      case UpdateChannel.stable:
+        return 'Stable';
+      case UpdateChannel.beta:
+        return 'Beta';
+    }
+  }
 
   String _chargingModeLabel(ChargingMode mode) {
     switch (mode) {
@@ -201,44 +251,98 @@ class SettingsView extends StatelessWidget {
           child: Material(
             type: MaterialType.transparency,
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('System Theme'),
-                trailing: controller.themeMode == ThemeMode.system
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  controller.updateThemeMode(ThemeMode.system);
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-              ListTile(
-                title: const Text('Light Theme'),
-                trailing: controller.themeMode == ThemeMode.light
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  controller.updateThemeMode(ThemeMode.light);
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-              ListTile(
-                title: const Text('Dark Theme'),
-                trailing: controller.themeMode == ThemeMode.dark
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  controller.updateThemeMode(ThemeMode.dark);
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-            ],
-          ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: const Text('System Theme'),
+                  trailing: controller.themeMode == ThemeMode.system
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    controller.updateThemeMode(ThemeMode.system);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                ListTile(
+                  title: const Text('Light Theme'),
+                  trailing: controller.themeMode == ThemeMode.light
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    controller.updateThemeMode(ThemeMode.light);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                ListTile(
+                  title: const Text('Dark Theme'),
+                  trailing: controller.themeMode == ThemeMode.dark
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    controller.updateThemeMode(ThemeMode.dark);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
     );
+  }
+
+  void _showUpdateChannelPicker(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('Update channel'),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: const Text('Stable'),
+                  subtitle: const Text('Final releases only'),
+                  trailing: controller.updateChannel == UpdateChannel.stable
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () =>
+                      _selectUpdateChannel(dialogContext, UpdateChannel.stable),
+                ),
+                ListTile(
+                  title: const Text('Beta'),
+                  subtitle: const Text('Final and prerelease builds'),
+                  trailing: controller.updateChannel == UpdateChannel.beta
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () =>
+                      _selectUpdateChannel(dialogContext, UpdateChannel.beta),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectUpdateChannel(
+    BuildContext dialogContext,
+    UpdateChannel channel,
+  ) async {
+    await controller.setUpdateChannel(channel);
+    if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+    if (macosUpdater?.isAvailable == true) {
+      try {
+        await macosUpdater?.setChannel(channel);
+      } catch (e, st) {
+        Logger('Settings View').warning('Sparkle channel change failed', e, st);
+      }
+    } else {
+      await updateCheckService?.requestCheck();
+    }
   }
 
   void _showAboutSection(BuildContext context) {
@@ -269,9 +373,9 @@ class SettingsView extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'License',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
@@ -300,12 +404,59 @@ class SettingsView extends StatelessWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
+    final updater = macosUpdater;
+    if (updater != null && updater.isSupported) {
+      // macOS: Sparkle owns app updates.
+      if (updater.isAvailable) {
+        try {
+          await updater.checkForUpdates();
+        } catch (e, st) {
+          Logger('Settings View').warning('Sparkle manual check failed', e, st);
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Update check failed: $e')));
+        }
+        return;
+      }
+      // Sparkle could not be configured: no functional app-update path exists
+      // on macOS, so never claim a Dart "latest version" result.
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Auto-update unavailable'),
+          content: const Text(
+            'The built-in updater could not be configured on this Mac. '
+            'Download the latest Decaid build from GitHub Releases.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Later'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await launchUrl(
+                  Uri.parse(
+                    'https://github.com/decentespresso/decaid/releases',
+                  ),
+                );
+              },
+              child: const Text('Open Releases'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     final log = Logger('Settings View');
     try {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checking for updates...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
 
       final updateInfo = await updateCheckService?.checkForUpdate();
 
@@ -314,17 +465,22 @@ class SettingsView extends StatelessWidget {
       if (updateInfo != null) {
         if (Platform.isAndroid) {
           final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
+          final releaseUrl = updateCheckService?.getReleaseUrl(updateInfo);
           showDialog(
             context: context,
             builder: (context) => UpdateDialog(
               updateInfo: updateInfo,
               currentVersion: BuildInfo.version,
-              onDownload: (info) => updater.downloadUpdate(info),
+              onViewReleaseNotes: () {
+                if (releaseUrl != null) launchUrl(Uri.parse(releaseUrl));
+              },
+              onDownload: (info, onProgress) =>
+                  updater.downloadUpdate(info, onProgress: onProgress),
               onInstall: (path) => updater.installUpdate(path),
             ),
           );
         } else {
-          final releaseUrl = updateCheckService?.getReleaseUrl();
+          final releaseUrl = updateCheckService?.getReleaseUrl(updateInfo);
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -336,20 +492,6 @@ class SettingsView extends StatelessWidget {
                   Text('Version ${updateInfo.version} is available'),
                   const SizedBox(height: 8),
                   Text('Current version: ${BuildInfo.version}'),
-                  if (updateInfo.releaseNotes.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Release Notes:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: SingleChildScrollView(
-                        child: Text(updateInfo.releaseNotes),
-                      ),
-                    ),
-                  ],
                 ],
               ),
               actions: [
@@ -364,7 +506,7 @@ class SettingsView extends StatelessWidget {
                       await launchUrl(Uri.parse(releaseUrl));
                     }
                   },
-                  child: const Text('Download'),
+                  child: const Text("What's new"),
                 ),
               ],
             ),

@@ -5,8 +5,7 @@ import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 
 void main() {
-  test(
-      'every device SimulatedDeviceService produces implements the '
+  test('every device SimulatedDeviceService produces implements the '
       'SimulatedDevice marker', () async {
     // Forcing function: a mock added to the simulate service WITHOUT the marker
     // would be wrongly eligible for the remembered registry — fromDevice only
@@ -23,11 +22,17 @@ void main() {
 
     expect(devices, isNotEmpty);
     // machine + bengle + scale + sensor-basket + debug-port.
-    expect(devices.length, greaterThanOrEqualTo(5),
-        reason: 'expected all simulated device types to be produced');
+    expect(
+      devices.length,
+      greaterThanOrEqualTo(5),
+      reason: 'expected all simulated device types to be produced',
+    );
     for (final d in devices) {
-      expect(d, isA<SimulatedDevice>(),
-          reason: '${d.deviceId} must implement SimulatedDevice');
+      expect(
+        d,
+        isA<SimulatedDevice>(),
+        reason: '${d.deviceId} must implement SimulatedDevice',
+      );
     }
 
     // Only MockScale starts a Timer in its constructor; stop it so the test

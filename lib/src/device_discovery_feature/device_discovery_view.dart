@@ -67,8 +67,9 @@ class DeviceDiscoveryView extends StatefulWidget {
 
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   late StreamSubscription<ConnectionStatus> _statusSubscription;
-  ConnectionStatus _status =
-      const ConnectionStatus(phase: ConnectionPhase.scanning);
+  ConnectionStatus _status = const ConnectionStatus(
+    phase: ConnectionPhase.scanning,
+  );
   bool _navigated = false;
 
   @override
@@ -242,19 +243,19 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       spacing: 16,
       children: [
         SizedBox(width: 200, child: ShadProgress()),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text(label, style: Theme.of(context).textTheme.titleMedium),
       ],
     );
   }
 
   Widget _resultsView(BuildContext context) {
-    final isConnecting = _status.phase == ConnectionPhase.connectingMachine ||
+    final isConnecting =
+        _status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale;
     final connectingDeviceId = isConnecting
-        ? (_status.foundMachines.isNotEmpty ? _status.foundMachines.first.deviceId : null)
+        ? (_status.foundMachines.isNotEmpty
+              ? _status.foundMachines.first.deviceId
+              : null)
         : null;
 
     return Column(
@@ -277,12 +278,15 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   connectingDeviceId: connectingDeviceId,
                   errorMessage: _status.error?.message,
                   selectedDeviceId: null,
-                  preferredDeviceId: widget.settingsController.preferredMachineId,
+                  preferredDeviceId:
+                      widget.settingsController.preferredMachineId,
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredMachineId(id),
                   onDeviceTapped: (device) {
                     setState(() {});
-                    widget.settingsController.setPreferredMachineId(device.deviceId);
+                    widget.settingsController.setPreferredMachineId(
+                      device.deviceId,
+                    );
                   },
                 ),
               ),
@@ -300,7 +304,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                       widget.settingsController.setPreferredScaleId(id),
                   onDeviceTapped: (device) {
                     setState(() {});
-                    widget.settingsController.setPreferredScaleId(device.deviceId);
+                    widget.settingsController.setPreferredScaleId(
+                      device.deviceId,
+                    );
                   },
                 ),
               ),
@@ -330,20 +336,26 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
               onPressed: isConnecting
                   ? null
                   : widget.settingsController.preferredMachineId != null
-                      ? () => widget.connectionManager.scanAndConnect()
-                      : null,
+                  ? () => widget.connectionManager.scanAndConnect()
+                  : null,
               child: isConnecting
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
                       spacing: 4,
                       children: [
-                        SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                         Text('Connecting...'),
                       ],
                     )
-                  : Text(widget.settingsController.preferredMachineId != null
-                      ? 'Connect'
-                      : 'Select a machine'),
+                  : Text(
+                      widget.settingsController.preferredMachineId != null
+                          ? 'Connect'
+                          : 'Select a machine',
+                    ),
             ),
             if (!isConnecting)
               ShadButton.secondary(
@@ -415,7 +427,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                     )
                   else
                     ShadButton(
-                      onPressed: () => widget.connectionManager.scanAndConnect(),
+                      onPressed: () =>
+                          widget.connectionManager.scanAndConnect(),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         spacing: 8,
@@ -427,9 +440,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                     ),
                   ShadButton.outline(
                     onPressed: () {
-                      widget.settingsController.enableSimulatedDevicesForSession(
-                        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-                      );
+                      widget.settingsController
+                          .enableSimulatedDevicesForSession({
+                            SimulatedDevicesTypes.machine,
+                            SimulatedDevicesTypes.scale,
+                          });
                       widget.connectionManager.scanAndConnect();
                     },
                     child: Row(
@@ -520,17 +535,16 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         if (mounted) {
           showShadDialog(
             context: context,
-            builder:
-                (context) => ShadDialog(
-                  title: Text('No Logs Found'),
-                  description: Text('Log file does not exist yet.'),
-                  actions: [
-                    ShadButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text('OK'),
-                    ),
-                  ],
+            builder: (context) => ShadDialog(
+              title: Text('No Logs Found'),
+              description: Text('Log file does not exist yet.'),
+              actions: [
+                ShadButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('OK'),
                 ),
+              ],
+            ),
           );
         }
         return;
@@ -547,19 +561,18 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         if (mounted) {
           showShadDialog(
             context: context,
-            builder:
-                (context) => ShadDialog(
-                  title: Text('Logs Exported'),
-                  description: Text(
-                    'Logs have been successfully exported to:\n$outputFile',
-                  ),
-                  actions: [
-                    ShadButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text('OK'),
-                    ),
-                  ],
+            builder: (context) => ShadDialog(
+              title: Text('Logs Exported'),
+              description: Text(
+                'Logs have been successfully exported to:\n$outputFile',
+              ),
+              actions: [
+                ShadButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('OK'),
                 ),
+              ],
+            ),
           );
         }
       }
@@ -567,17 +580,16 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       if (mounted) {
         showShadDialog(
           context: context,
-          builder:
-              (context) => ShadDialog(
-                title: Text('Export Failed'),
-                description: Text('Failed to export logs: $e'),
-                actions: [
-                  ShadButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text('OK'),
-                  ),
-                ],
+          builder: (context) => ShadDialog(
+            title: Text('Export Failed'),
+            description: Text('Failed to export logs: $e'),
+            actions: [
+              ShadButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('OK'),
               ),
+            ],
+          ),
         );
       }
     }

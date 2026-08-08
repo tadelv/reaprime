@@ -49,9 +49,7 @@ Middleware proxyAuthMiddleware(
         return _json(403, 'Token is not scoped for $requiredScope');
       }
 
-      return inner(
-        request.change(context: {_proxyCallerContextKey: caller}),
-      );
+      return inner(request.change(context: {_proxyCallerContextKey: caller}));
     };
   };
 }

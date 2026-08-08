@@ -220,6 +220,7 @@ class TestDe1 implements De1Interface {
   void sendRawMessage(De1RawMessage message) {
     sentRawMessages.add(message);
   }
+
   @override
   Future<double> getHeaterPhase1Flow() async => 0;
   @override

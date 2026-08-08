@@ -470,11 +470,7 @@ class ShotSequencer {
           double projectedWeight =
               currentWeight + (weightFlow * _weightFlowMultiplier);
 
-          _handleStepWeightExit(
-            machine.profileFrame,
-            projectedWeight,
-            machine,
-          );
+          _handleStepWeightExit(machine.profileFrame, projectedWeight, machine);
           if (!_machineHasAutonomousSAW &&
               targetYield > 0 &&
               projectedWeight >= targetYield) {

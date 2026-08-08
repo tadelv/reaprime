@@ -103,8 +103,7 @@ enum De1SteamSettingsValues {
   fastStart(0x80),
   slowStart(0x00),
   highPower(0x40),
-  lowPower(0x00)
-  ;
+  lowPower(0x00);
 
   final int hex;
   const De1SteamSettingsValues(this.hex);
@@ -113,8 +112,7 @@ enum De1SteamSettingsValues {
 enum De1RefillKitSettings {
   auto(2),
   forceOn(1),
-  forceOff(0)
-  ;
+  forceOff(0);
 
   final int hex;
   const De1RefillKitSettings(this.hex);
@@ -126,8 +124,7 @@ enum De1RefillKitSettings {
 enum De1HeaterVoltage {
   v110(120),
   v220(230),
-  unset(-1)
-  ;
+  unset(-1);
 
   final int voltage;
   const De1HeaterVoltage(this.voltage);
@@ -240,15 +237,9 @@ final class De1WaterLevels {
   final double currentLevel;
   final double refillLevel;
 
-  De1WaterLevels({
-    required this.currentLevel,
-    required this.refillLevel,
-  });
+  De1WaterLevels({required this.currentLevel, required this.refillLevel});
 
   Map<String, dynamic> toJson() {
-    return {
-      'currentLevel': currentLevel,
-      'refillLevel': refillLevel,
-    };
+    return {'currentLevel': currentLevel, 'refillLevel': refillLevel};
   }
 }

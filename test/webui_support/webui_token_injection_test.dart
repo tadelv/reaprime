@@ -90,9 +90,7 @@ const bodyExample = "</body>";
 
     expect(
       out,
-      contains(
-        '<meta name="reaprime-proxy-token" content="a&quot;&lt;&amp;">',
-      ),
+      contains('<meta name="reaprime-proxy-token" content="a&quot;&lt;&amp;">'),
     );
   });
 
@@ -103,8 +101,9 @@ const bodyExample = "</body>";
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('webui_offline_test');
       // Minimal content — shelf_io.serve needs something to serve.
-      await File('${tempDir.path}/index.html')
-          .writeAsString('<html><body>test</body></html>');
+      await File(
+        '${tempDir.path}/index.html',
+      ).writeAsString('<html><body>test</body></html>');
       service = WebUIService();
     });
 
@@ -140,9 +139,7 @@ const bodyExample = "</body>";
 
       final client = HttpClient();
       addTearDown(client.close);
-      final request = await client.getUrl(
-        Uri.parse('http://localhost:3000/'),
-      );
+      final request = await client.getUrl(Uri.parse('http://localhost:3000/'));
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
 
@@ -198,37 +195,30 @@ const bodyExample = "</body>";
       expect(script, isNot(contains(token)));
     });
 
-    test(
-      'accepts another local interface address',
-      () async {
-        const wifiIp = '192.168.50.20';
-        const ethernetIp = '10.0.0.7';
-        WebUIService.resolveWifiIP = () async => wifiIp;
-        service = WebUIService(
-          listLocalAddresses: () async => [ethernetIp],
-        );
-        service.skinProxyToken = token;
-        await service.serveFolderAtPath(tempDir.path, port: 3001);
+    test('accepts another local interface address', () async {
+      const wifiIp = '192.168.50.20';
+      const ethernetIp = '10.0.0.7';
+      WebUIService.resolveWifiIP = () async => wifiIp;
+      service = WebUIService(listLocalAddresses: () async => [ethernetIp]);
+      service.skinProxyToken = token;
+      await service.serveFolderAtPath(tempDir.path, port: 3001);
 
-        final body = await getBodyForHost(ethernetIp);
+      final body = await getBodyForHost(ethernetIp);
 
-        expect(body, contains('content="$token"'));
-        expect(
-          body,
-          contains(
-            '<script src="http://$ethernetIp:3001$skinApiScriptPath">'
-            '</script>',
-          ),
-        );
-      },
-    );
+      expect(body, contains('content="$token"'));
+      expect(
+        body,
+        contains(
+          '<script src="http://$ethernetIp:3001$skinApiScriptPath">'
+          '</script>',
+        ),
+      );
+    });
 
     test('rejects a stale cached WiFi address', () async {
       const staleWifiIp = '192.168.50.20';
       WebUIService.resolveWifiIP = () async => staleWifiIp;
-      service = WebUIService(
-        listLocalAddresses: () async => ['10.0.0.7'],
-      );
+      service = WebUIService(listLocalAddresses: () async => ['10.0.0.7']);
       service.skinProxyToken = token;
       await service.serveFolderAtPath(tempDir.path, port: 3001);
 
@@ -253,26 +243,20 @@ const bodyExample = "</body>";
       expect(body, contains(skinApiScriptPath));
     });
 
-    test(
-      'rejects an arbitrary host',
-      () async {
-        WebUIService.resolveWifiIP = () async => '192.168.50.20';
-        service = WebUIService(
-          listLocalAddresses: () async => ['10.0.0.7'],
-        );
-        service.skinProxyToken = token;
-        await service.serveFolderAtPath(tempDir.path, port: 3001);
+    test('rejects an arbitrary host', () async {
+      WebUIService.resolveWifiIP = () async => '192.168.50.20';
+      service = WebUIService(listLocalAddresses: () async => ['10.0.0.7']);
+      service.skinProxyToken = token;
+      await service.serveFolderAtPath(tempDir.path, port: 3001);
 
-        final body = await getBodyForHost('example.invalid');
+      final body = await getBodyForHost('example.invalid');
 
-        expect(body, isNot(contains('reaprime-proxy-token')));
-        expect(body, isNot(contains(skinApiScriptPath)));
-      },
-    );
+      expect(body, isNot(contains('reaprime-proxy-token')));
+      expect(body, isNot(contains(skinApiScriptPath)));
+    });
 
     test('falls back to localhost when getWifiIP throws (gh#337)', () async {
-      WebUIService.resolveWifiIP = () async =>
-          throw Exception('no wifi');
+      WebUIService.resolveWifiIP = () async => throw Exception('no wifi');
 
       await service.serveFolderAtPath(tempDir.path);
 
@@ -289,14 +273,16 @@ const bodyExample = "</body>";
       expect(service.deviceIp(), 'localhost');
     });
 
-    test('falls back to localhost when getWifiIP returns empty string',
-        () async {
-      WebUIService.resolveWifiIP = () async => '';
+    test(
+      'falls back to localhost when getWifiIP returns empty string',
+      () async {
+        WebUIService.resolveWifiIP = () async => '';
 
-      await service.serveFolderAtPath(tempDir.path);
+        await service.serveFolderAtPath(tempDir.path);
 
-      expect(service.isServing, isTrue);
-      expect(service.deviceIp(), 'localhost');
-    });
+        expect(service.isServing, isTrue);
+        expect(service.deviceIp(), 'localhost');
+      },
+    );
   });
 }

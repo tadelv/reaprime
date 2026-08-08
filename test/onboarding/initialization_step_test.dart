@@ -45,7 +45,7 @@ class _FakePluginLoaderService extends PluginLoaderService {
   bool initCalled = false;
 
   _FakePluginLoaderService()
-      : super(kvStore: HiveStoreService(defaultNamespace: 'test-plugins'));
+    : super(kvStore: HiveStoreService(defaultNamespace: 'test-plugins'));
 
   @override
   Future<void> initialize() {
@@ -58,7 +58,8 @@ class _TrackingOnboardingController extends OnboardingController {
   int advanceCallCount = 0;
 
   _TrackingOnboardingController()
-      : super(steps: [
+    : super(
+        steps: [
           OnboardingStep(
             id: 'initialization',
             shouldShow: () async => true,
@@ -69,7 +70,8 @@ class _TrackingOnboardingController extends OnboardingController {
             shouldShow: () async => true,
             builder: (_) => const SizedBox(),
           ),
-        ]);
+        ],
+      );
 
   @override
   void advance() {
@@ -79,41 +81,40 @@ class _TrackingOnboardingController extends OnboardingController {
 }
 
 void main() {
-  testWidgets(
-    'advances without awaiting plugin init or remote skin download',
-    (tester) async {
-      final settings = SettingsController(MockSettingsService());
-      await settings.loadSettings();
+  testWidgets('advances without awaiting plugin init or remote skin download', (
+    tester,
+  ) async {
+    final settings = SettingsController(MockSettingsService());
+    await settings.loadSettings();
 
-      final storage = _FakeWebUIStorage(settings);
-      final plugins = _FakePluginLoaderService();
-      final onboarding = _TrackingOnboardingController();
-      await onboarding.initialize();
+    final storage = _FakeWebUIStorage(settings);
+    final plugins = _FakePluginLoaderService();
+    final onboarding = _TrackingOnboardingController();
+    await onboarding.initialize();
 
-      final step = createInitializationStep(
-        deviceController: DeviceController([]),
-        de1Controller: MockDe1Controller(controller: DeviceController([])),
-        pluginLoaderService: plugins,
-        webUIStorage: storage,
-        webUIService: WebUIService(),
-      );
+    final step = createInitializationStep(
+      deviceController: DeviceController([]),
+      de1Controller: MockDe1Controller(controller: DeviceController([])),
+      pluginLoaderService: plugins,
+      webUIStorage: storage,
+      webUIService: WebUIService(),
+    );
 
-      await tester.pumpWidget(
-        ShadApp(home: Scaffold(body: step.builder(onboarding))),
-      );
-      // Flush the init future's microtasks.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpWidget(
+      ShadApp(home: Scaffold(body: step.builder(onboarding))),
+    );
+    // Flush the init future's microtasks.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
-      // Critical path completed and advanced even though the deferred work
-      // (plugin init + remote download) never completes.
-      expect(onboarding.advanceCallCount, 1);
-      // Remote download was NOT awaited on the critical path...
-      expect(storage.initDownloadRemote, isFalse);
-      // ...but was kicked off in the background.
-      expect(storage.downloadRescanCalled, isTrue);
-      // Plugin init kicked off in the background.
-      expect(plugins.initCalled, isTrue);
-    },
-  );
+    // Critical path completed and advanced even though the deferred work
+    // (plugin init + remote download) never completes.
+    expect(onboarding.advanceCallCount, 1);
+    // Remote download was NOT awaited on the critical path...
+    expect(storage.initDownloadRemote, isFalse);
+    // ...but was kicked off in the background.
+    expect(storage.downloadRescanCalled, isTrue);
+    // Plugin init kicked off in the background.
+    expect(plugins.initCalled, isTrue);
+  });
 }

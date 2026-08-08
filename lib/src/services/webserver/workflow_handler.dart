@@ -1,31 +1,42 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
-import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
-import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/data/json_utils.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
+
+const _workflowBodyReadTimeout = Duration(seconds: 30);
+const _workflowQueueWaitTimeout = Duration(seconds: 30);
+const _workflowMaxBodyBytes = 1024 * 1024;
+const _workflowMaxPendingRequests = 8;
+
+class _WorkflowPayloadTooLarge implements Exception {}
 
 class WorkflowHandler {
   final WorkflowController _controller;
   final De1Controller _de1controller;
+  final Duration bodyReadTimeout;
+  final Duration queueWaitTimeout;
+  final int maxBodyBytes;
+  final int maxPendingRequests;
 
   static final _log = Logger('WorkflowHandler');
-
-  Timer? _debounceTimer;
-  Map<String, dynamic> _pendingMerge = {};
-  final List<Completer<Response>> _pendingResponses = [];
-
-  static const _debounceDuration = Duration(milliseconds: 400);
+  Future<void> _workflowQueue = Future<void>.value();
+  int _pendingRequests = 0;
 
   WorkflowHandler({
     required WorkflowController controller,
     required De1Controller de1controller,
+    this.bodyReadTimeout = _workflowBodyReadTimeout,
+    this.queueWaitTimeout = _workflowQueueWaitTimeout,
+    this.maxBodyBytes = _workflowMaxBodyBytes,
+    this.maxPendingRequests = _workflowMaxPendingRequests,
   }) : _controller = controller,
        _de1controller = de1controller;
 
@@ -39,93 +50,143 @@ class WorkflowHandler {
     return jsonOk(workflow.toJson());
   }
 
-  Future<Response> _updateWorkflow(Request req) async {
-    final payload = await req.readAsString();
-    final Map<String, dynamic> json = jsonDecode(payload);
+  Future<Response> _updateWorkflow(Request req) {
+    if (_pendingRequests >= maxPendingRequests) {
+      return Future.value(
+        jsonTooManyRequests({'error': 'Workflow request queue is full'}),
+      );
+    }
+    _pendingRequests++;
+    final payload = _readPayload(req);
+    unawaited(
+      payload.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {},
+      ),
+    );
+    var expired = false;
+    var slotReleased = false;
+    // Release the admission slot exactly once, no matter which path
+    // (timer expiry, normal completion, or skipped queue entry) wins.
+    void releaseSlot() {
+      if (slotReleased) return;
+      slotReleased = true;
+      _pendingRequests--;
+    }
 
-    _pendingMerge = deepMergeJson(_pendingMerge, json);
-
-    final completer = Completer<Response>();
-    _pendingResponses.add(completer);
-
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(_debounceDuration, _applyPendingUpdate);
-
-    return completer.future;
+    final response = Completer<Response>();
+    late final Timer waitTimer;
+    final operation = _workflowQueue.then((_) async {
+      if (expired) return;
+      waitTimer.cancel();
+      try {
+        final result = await _applyPayload(payload);
+        if (!response.isCompleted) response.complete(result);
+      } finally {
+        releaseSlot();
+      }
+    });
+    _workflowQueue = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        _log.severe('Error completing workflow queue entry', error, stackTrace);
+        releaseSlot();
+      },
+    );
+    waitTimer = Timer(queueWaitTimeout, () {
+      expired = true;
+      // Release the slot immediately even though the skipped queue
+      // entry may not have reached the front yet.
+      releaseSlot();
+      if (!response.isCompleted) {
+        response.complete(
+          jsonServiceUnavailable({'error': 'Workflow request queue timed out'}),
+        );
+      }
+    });
+    return response.future;
   }
 
-  Future<void> _applyPendingUpdate() async {
-    final merge = _pendingMerge;
-    final responses = List<Completer<Response>>.from(_pendingResponses);
-    _pendingMerge = {};
-    _pendingResponses.clear();
-
+  Future<String> _readPayload(Request req) async {
+    final declaredLength = int.tryParse(req.headers['content-length'] ?? '');
+    if (declaredLength != null && declaredLength > maxBodyBytes) {
+      throw _WorkflowPayloadTooLarge();
+    }
+    final deadline = Stopwatch()..start();
+    final bytes = BytesBuilder(copy: false);
+    final iterator = StreamIterator<List<int>>(req.read());
     try {
-      final oldWorkflow = _controller.currentWorkflow;
-      final currentJson = oldWorkflow.toJson();
-      final resultJson = deepMergeJson(currentJson, merge);
-      final updatedWorkflow = Workflow.fromJson(resultJson);
+      while (true) {
+        final remaining = bodyReadTimeout - deadline.elapsed;
+        if (remaining <= Duration.zero) {
+          throw TimeoutException('Workflow request body timed out');
+        }
+        if (!await iterator.moveNext().timeout(remaining)) break;
+        final chunk = iterator.current;
+        if (bytes.length + chunk.length > maxBodyBytes) {
+          throw _WorkflowPayloadTooLarge();
+        }
+        bytes.add(chunk);
+      }
+      return utf8.decode(bytes.takeBytes());
+    } finally {
+      await iterator.cancel();
+    }
+  }
 
-      _controller.setWorkflow(updatedWorkflow);
-      // Profile push is owned by WorkflowDeviceSync — it observes
-      // `setWorkflow` and uploads the profile if it changed. Keeping a
-      // second setProfile call here would race against that listener and
-      // write every BLE frame twice (see the profile-double-upload P0).
-      if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-        await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+  Future<Response> _applyPayload(Future<String> payloadFuture) async {
+    try {
+      final decoded = jsonDecode(await payloadFuture);
+      if (decoded is! Map<String, dynamic>) {
+        return jsonBadRequest({'error': 'Request body must be a JSON object'});
       }
-      if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-        await _de1controller.updateSteamSettings(
-          SteamFormSettings(
-            steamEnabled: updatedWorkflow.steamSettings.duration > 0,
-            targetTemp: updatedWorkflow.steamSettings.targetTemperature,
-            targetDuration: updatedWorkflow.steamSettings.duration,
-            targetFlow: updatedWorkflow.steamSettings.flow,
-          ),
-        );
-      }
-      if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-        await _de1controller.updateHotWaterSettings(
-          HotWaterFormSettings(
-            targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
-            flow: updatedWorkflow.hotWaterData.flow,
-            volume: updatedWorkflow.hotWaterData.volume,
-            duration: updatedWorkflow.hotWaterData.duration,
-          ),
-        );
-      }
-
-      for (final completer in responses) {
-        completer.complete(jsonOk(updatedWorkflow.toJson()));
-      }
-    } on ArgumentError catch (e) {
-      // Client sent a payload that fails validation (e.g. an invalid
-      // enum value like ExitType 'weight', or a missing required
-      // profile field). Return a clean 400 — matching the pattern in
-      // profile_handler.dart — so the HTTP request does not hang.
-      // _pendingMerge was already cleared above, so subsequent PUTs
-      // start from a clean slate.
-      for (final completer in responses) {
-        completer.complete(
-          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
-        );
-      }
+      return await _applyUpdate(Map<String, dynamic>.from(decoded));
+    } on _WorkflowPayloadTooLarge {
+      return jsonPayloadTooLarge({
+        'error': 'Workflow request body is too large',
+      });
+    } on TimeoutException {
+      return jsonRequestTimeout({
+        'error': 'Request timeout',
+        'message': 'Client did not finish sending the request body',
+      });
     } on FormatException catch (e) {
-      for (final completer in responses) {
-        completer.complete(
-          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
-        );
-      }
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
-      // Unexpected error — likely a server-side failure during DE1
-      // side-effects (BLE writes, controller updates). Log it and
-      // return 500 so the request still doesn't hang.
-      _log.severe('Error in _applyPendingUpdate', e, st);
-      for (final completer in responses) {
-        completer.complete(
-          jsonError({'error': 'Internal server error', 'message': '$e'}),
+      _log.severe('Error reading workflow request', e, st);
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
+    }
+  }
+
+  Future<Response> _applyUpdate(Map<String, dynamic> merge) async {
+    try {
+      while (true) {
+        final oldWorkflow = _controller.currentWorkflow;
+        final revision = _controller.revision;
+        final currentJson = oldWorkflow.toJson();
+        final resultJson = deepMergeJson(currentJson, merge);
+        final updatedWorkflow = Workflow.fromJson(resultJson);
+
+        await _de1controller.updateWorkflowSettings(
+          oldWorkflow,
+          updatedWorkflow,
         );
+        if (_controller.setWorkflowIfRevision(updatedWorkflow, revision)) {
+          return jsonOk(updatedWorkflow.toJson());
+        }
       }
+    } on MachineReplacementTimeoutException catch (e) {
+      return jsonServiceUnavailable({
+        'error': 'Machine unavailable',
+        'message': '$e',
+      });
+    } on ArgumentError catch (e) {
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
+    } on FormatException catch (e) {
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
+    } catch (e, st) {
+      _log.severe('Error in workflow queue entry', e, st);
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 }

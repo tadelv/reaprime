@@ -269,10 +269,7 @@ class DecentProxyService {
     final baseSegments = base.pathSegments.where((s) => s.isNotEmpty);
     final query = rawQuery == null || rawQuery.isEmpty ? null : rawQuery;
     return base.replace(
-      pathSegments: [
-        ...baseSegments,
-        ...normalizedPath.split('/'),
-      ],
+      pathSegments: [...baseSegments, ...normalizedPath.split('/')],
       query: query,
       queryParameters: query == null ? queryParameters : null,
     );

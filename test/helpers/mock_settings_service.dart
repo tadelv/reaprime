@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -23,6 +24,7 @@ class MockSettingsService extends SettingsService {
   String? _preferredScaleId;
   String _defaultSkinId = 'streamline.js';
   bool _automaticUpdateCheck = true;
+  UpdateChannel _updateChannel = UpdateChannel.stable;
   DateTime? _lastUpdateCheckTime;
   bool _telemetryConsent = false;
   bool _telemetryPromptShown = true; // skip prompt in tests
@@ -37,6 +39,7 @@ class MockSettingsService extends SettingsService {
   String _wakeSchedules = '[]';
   String _rememberedDevices = '[]';
   bool _lowBatteryBrightnessLimit = false;
+  bool _keepAwake = true;
   bool _onboardingCompleted = true; // skip onboarding in tests
   bool _accountStepSeen = true; // skip account step in tests
   bool _androidWarningDismissed = true; // skip android warning in tests
@@ -117,6 +120,11 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setAutomaticUpdateCheck(bool value) async =>
       _automaticUpdateCheck = value;
+  @override
+  Future<UpdateChannel> updateChannel() async => _updateChannel;
+  @override
+  Future<void> setUpdateChannel(UpdateChannel channel) async =>
+      _updateChannel = channel;
   @override
   Future<DateTime?> lastUpdateCheckTime() async => _lastUpdateCheckTime;
   @override
@@ -207,6 +215,10 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setLowBatteryBrightnessLimit(bool value) async =>
       _lowBatteryBrightnessLimit = value;
+  @override
+  Future<bool> keepAwake() async => _keepAwake;
+  @override
+  Future<void> setKeepAwake(bool value) async => _keepAwake = value;
   @override
   Future<bool> onboardingCompleted() async => _onboardingCompleted;
   @override

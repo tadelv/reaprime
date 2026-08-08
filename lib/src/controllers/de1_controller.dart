@@ -31,33 +31,20 @@ class De1Controller {
 
   final BehaviorSubject<SteamSettings> _steamDataController =
       BehaviorSubject.seeded(
-        SteamSettings(
-          targetTemperature: 0,
-          flow: 0,
-          duration: 0,
-        ),
+        SteamSettings(targetTemperature: 0, flow: 0, duration: 0),
       );
 
   Stream<SteamSettings> get steamData => _steamDataController.stream;
 
   final BehaviorSubject<HotWaterData> _hotWaterDataController =
       BehaviorSubject.seeded(
-        HotWaterData(
-          targetTemperature: 0,
-          flow: 0,
-          duration: 0,
-          volume: 0,
-        ),
+        HotWaterData(targetTemperature: 0, flow: 0, duration: 0, volume: 0),
       );
 
   Stream<HotWaterData> get hotWaterData => _hotWaterDataController.stream;
 
   final BehaviorSubject<RinseData> _rinseStream = BehaviorSubject.seeded(
-    RinseData(
-      duration: 5,
-      targetTemperature: 90,
-      flow: 2.5,
-    ),
+    RinseData(duration: 5, targetTemperature: 90, flow: 2.5),
   );
 
   Stream<RinseData> get rinseData => _rinseStream.stream;
@@ -113,9 +100,7 @@ class De1Controller {
 
   /// Returns the pending intent if one was recorded within [window], and
   /// clears it either way — an intent is attributed at most once.
-  ShotDecisionReason? consumeStopIntent({
-    Duration window = _stopIntentWindow,
-  }) {
+  ShotDecisionReason? consumeStopIntent({Duration window = _stopIntentWindow}) {
     final intent = _pendingStopIntent;
     final at = _pendingStopIntentAt;
     _pendingStopIntent = null;
@@ -128,6 +113,7 @@ class De1Controller {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   bool _dataInitialized = false;
   Timer? _shotSettingsDebounce;
+  Future<void> _deviceWriteQueue = Future<void>.value();
 
   /// Bumped every time `_onDisconnect()` runs. Captured by the
   /// `_shotSettingsUpdate` debounce-timer closure at scheduling
@@ -149,8 +135,16 @@ class De1Controller {
 
   int get connectionGeneration => _connectionGeneration;
 
-  De1Controller({required DeviceController controller})
-    : _deviceController = controller {
+  /// Bounded wait for a replacement machine after a mid-write
+  /// disconnect (see [ConnectionTimings.machineReplacementTimeout]).
+  /// Overridable in tests to keep the timeout short.
+  final Duration machineReplacementTimeout;
+
+  De1Controller({
+    required DeviceController controller,
+    this.machineReplacementTimeout =
+        ConnectionTimings.machineReplacementTimeout,
+  }) : _deviceController = controller {
     _log.info("checking ${_deviceController.devices}");
   }
 
@@ -177,33 +171,29 @@ class De1Controller {
     _de1Controller.add(_de1);
 
     _subscriptions.add(
-      _de1!.ready.listen(
-        (ready) {
-          if (ready) {
-            _initializeData();
-          }
-        },
-      ),
+      _de1!.ready.listen((ready) {
+        if (ready) {
+          _initializeData();
+        }
+      }),
     );
 
     _subscriptions.add(
-      _de1!.connectionState.listen(
-        (connectionData) {
-          switch (connectionData) {
-            case ConnectionState.discovered:
-              _log.info("device $_de1 discovered");
-            case ConnectionState.connecting:
-              _log.info("device $_de1 connecting");
-            case ConnectionState.connected:
-              _log.info("device $_de1 connected");
-            case ConnectionState.disconnecting:
-              _log.info("device $_de1 disconnecting");
-            case ConnectionState.disconnected:
-              _log.info("device $_de1 disconnected, resetting");
-              _onDisconnect();
-          }
-        },
-      ),
+      _de1!.connectionState.listen((connectionData) {
+        switch (connectionData) {
+          case ConnectionState.discovered:
+            _log.info("device $_de1 discovered");
+          case ConnectionState.connecting:
+            _log.info("device $_de1 connecting");
+          case ConnectionState.connected:
+            _log.info("device $_de1 connected");
+          case ConnectionState.disconnecting:
+            _log.info("device $_de1 disconnecting");
+          case ConnectionState.disconnected:
+            _log.info("device $_de1 disconnected, resetting");
+            _onDisconnect();
+        }
+      }),
     );
   }
 
@@ -221,27 +211,23 @@ class De1Controller {
     _de1Controller.add(_de1);
 
     _subscriptions.add(
-      _de1!.ready.listen(
-        (ready) {
-          if (ready) {
-            _initializeData();
-          }
-        },
-      ),
+      _de1!.ready.listen((ready) {
+        if (ready) {
+          _initializeData();
+        }
+      }),
     );
 
     _subscriptions.add(
-      _de1!.connectionState.listen(
-        (connectionData) {
-          switch (connectionData) {
-            case ConnectionState.disconnected:
-              _log.info('device $_de1 disconnected (adopted), resetting');
-              _onDisconnect();
-            default:
-              break;
-          }
-        },
-      ),
+      _de1!.connectionState.listen((connectionData) {
+        switch (connectionData) {
+          case ConnectionState.disconnected:
+            _log.info('device $_de1 disconnected (adopted), resetting');
+            _onDisconnect();
+          default:
+            break;
+        }
+      }),
     );
   }
 
@@ -276,9 +262,7 @@ class De1Controller {
     _dataInitialized = true;
 
     try {
-      _subscriptions.add(
-        device.shotSettings.listen(_shotSettingsUpdate),
-      );
+      _subscriptions.add(device.shotSettings.listen(_shotSettingsUpdate));
       try {
         final settings = await device.shotSettings.first.timeout(
           ConnectionTimings.initialShotSettingsTimeout,
@@ -402,6 +386,94 @@ class De1Controller {
   /// catching `DeviceNotConnectedException`.
   De1Interface? get connectedDe1OrNull => _de1;
 
+  Future<T> runDeviceWrite<T>(
+    Future<T> Function(De1Interface device) write, {
+    bool retryOnReplacement = false,
+  }) {
+    final operation = _deviceWriteQueue.then(
+      (_) => _runDeviceWrite(write, retryOnReplacement),
+    );
+    _deviceWriteQueue = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    return operation;
+  }
+
+  Future<T> _runDeviceWrite<T>(
+    Future<T> Function(De1Interface device) write,
+    bool retryOnReplacement,
+  ) async {
+    final attempts = retryOnReplacement ? 2 : 1;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      // Machine acquisition is inside the retry logic: a disconnected
+      // interval (no machine at this moment) only blocks the first
+      // attempt when there was never a machine to begin with. After a
+      // generation change the retry waits for a replacement.
+      De1Interface device;
+      try {
+        device = connectedDe1();
+      } on DeviceNotConnectedException {
+        if (!retryOnReplacement || attempt == 0) rethrow;
+        final replacement = await _waitForMachineReplacement(
+          machineReplacementTimeout,
+        );
+        if (replacement == null) {
+          throw MachineReplacementTimeoutException(machineReplacementTimeout);
+        }
+        device = replacement;
+      }
+      final generation = _connectionGeneration;
+      try {
+        await _waitForInitialization(device, generation);
+        if (generation != _connectionGeneration ||
+            !identical(device, connectedDe1OrNull)) {
+          if (attempt + 1 < attempts) continue;
+          break;
+        }
+        final result = await write(device);
+        if (generation == _connectionGeneration &&
+            identical(device, connectedDe1OrNull)) {
+          return result;
+        }
+      } catch (_) {
+        if (attempt + 1 == attempts ||
+            (generation == _connectionGeneration &&
+                identical(device, connectedDe1OrNull))) {
+          rethrow;
+        }
+      }
+    }
+    throw StateError('Machine changed during device write');
+  }
+
+  /// Wait up to [timeout] for a non-null machine to appear on the
+  /// controller stream. Returns null if no machine appears in time.
+  Future<De1Interface?> _waitForMachineReplacement(Duration timeout) async {
+    try {
+      return await _de1Controller.stream
+          .firstWhere((de1) => de1 != null)
+          .timeout(timeout);
+    } on TimeoutException {
+      return null;
+    }
+  }
+
+  Future<void> _waitForInitialization(
+    De1Interface device,
+    int generation,
+  ) async {
+    if (_initSettledSubject.valueOrNull == generation) return;
+    await _initSettledSubject.stream
+        .firstWhere(
+          (settled) =>
+              settled == generation ||
+              generation != _connectionGeneration ||
+              !identical(device, connectedDe1OrNull),
+        )
+        .timeout(ConnectionTimings.initialShotSettingsTimeout);
+  }
+
   Future<SteamFormSettings> steamSettings() async {
     if (_de1 == null) {
       throw const DeviceNotConnectedException.machine();
@@ -418,14 +490,28 @@ class De1Controller {
   }
 
   Future<void> updateSteamSettings(SteamFormSettings settings) async {
-    De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
-    await connectedDe1().setSteamFlow(settings.targetFlow);
-    await connectedDe1().updateShotSettings(
+    await runDeviceWrite(
+      (device) => _writeSteamSettings(device, settings),
+      retryOnReplacement: true,
+    );
+    _publishSteamSettings(settings);
+  }
+
+  Future<void> _writeSteamSettings(
+    De1Interface device,
+    SteamFormSettings settings,
+  ) async {
+    final shotSettings = await device.shotSettings.first;
+    await device.setSteamFlow(settings.targetFlow);
+    await device.updateShotSettings(
       shotSettings.copyWith(
         targetSteamTemp: settings.steamEnabled ? settings.targetTemp : 0,
         targetSteamDuration: settings.targetDuration,
       ),
     );
+  }
+
+  void _publishSteamSettings(SteamFormSettings settings) {
     _steamDataController.add(
       SteamSettings(
         targetTemperature: settings.steamEnabled ? settings.targetTemp : 0,
@@ -450,16 +536,29 @@ class De1Controller {
   }
 
   Future<void> updateHotWaterSettings(HotWaterFormSettings settings) async {
-    await connectedDe1().setHotWaterFlow(settings.flow);
-    await connectedDe1().shotSettings.first.then((s) async {
-      await connectedDe1().updateShotSettings(
-        s.copyWith(
-          targetHotWaterTemp: settings.targetTemperature,
-          targetHotWaterVolume: settings.volume,
-          targetHotWaterDuration: settings.duration,
-        ),
-      );
-    });
+    await runDeviceWrite(
+      (device) => _writeHotWaterSettings(device, settings),
+      retryOnReplacement: true,
+    );
+    _publishHotWaterSettings(settings);
+  }
+
+  Future<void> _writeHotWaterSettings(
+    De1Interface device,
+    HotWaterFormSettings settings,
+  ) async {
+    await device.setHotWaterFlow(settings.flow);
+    final shotSettings = await device.shotSettings.first;
+    await device.updateShotSettings(
+      shotSettings.copyWith(
+        targetHotWaterTemp: settings.targetTemperature,
+        targetHotWaterVolume: settings.volume,
+        targetHotWaterDuration: settings.duration,
+      ),
+    );
+  }
+
+  void _publishHotWaterSettings(HotWaterFormSettings settings) {
     _hotWaterDataController.add(
       HotWaterData(
         targetTemperature: settings.targetTemperature,
@@ -471,13 +570,61 @@ class De1Controller {
   }
 
   Future<void> updateFlushSettings(RinseData settings) async {
-    await connectedDe1().setFlushTimeout(settings.duration.toDouble());
-    await connectedDe1().setFlushFlow(settings.flow);
-    await connectedDe1().setFlushTemperature(
-      settings.targetTemperature.toDouble(),
+    await runDeviceWrite(
+      (device) => _writeFlushSettings(device, settings),
+      retryOnReplacement: true,
     );
-
     _rinseStream.add(settings);
+  }
+
+  Future<void> _writeFlushSettings(
+    De1Interface device,
+    RinseData settings,
+  ) async {
+    await device.setFlushTimeout(settings.duration.toDouble());
+    await device.setFlushFlow(settings.flow);
+    await device.setFlushTemperature(settings.targetTemperature.toDouble());
+  }
+
+  Future<void> updateWorkflowSettings(
+    Workflow previous,
+    Workflow updated,
+  ) async {
+    final rinseChanged = previous.rinseData != updated.rinseData;
+    final steamChanged =
+        previous.steamSettings.targetTemperature !=
+            updated.steamSettings.targetTemperature ||
+        previous.steamSettings.duration != updated.steamSettings.duration ||
+        previous.steamSettings.flow != updated.steamSettings.flow;
+    final hotWaterChanged = previous.hotWaterData != updated.hotWaterData;
+    if (!rinseChanged && !steamChanged && !hotWaterChanged) return;
+
+    final steam = SteamFormSettings(
+      steamEnabled: updated.steamSettings.duration > 0,
+      targetTemp: updated.steamSettings.targetTemperature,
+      targetDuration: updated.steamSettings.duration,
+      targetFlow: updated.steamSettings.flow,
+    );
+    final hotWater = HotWaterFormSettings(
+      targetTemperature: updated.hotWaterData.targetTemperature,
+      flow: updated.hotWaterData.flow,
+      volume: updated.hotWaterData.volume,
+      duration: updated.hotWaterData.duration,
+    );
+    await runDeviceWrite((device) async {
+      if (rinseChanged) {
+        await _writeFlushSettings(device, updated.rinseData);
+      }
+      if (steamChanged) {
+        await _writeSteamSettings(device, steam);
+      }
+      if (hotWaterChanged) {
+        await _writeHotWaterSettings(device, hotWater);
+      }
+    }, retryOnReplacement: true);
+    if (rinseChanged) _rinseStream.add(updated.rinseData);
+    if (steamChanged) _publishSteamSettings(steam);
+    if (hotWaterChanged) _publishHotWaterSettings(hotWater);
   }
 
   /// Flow setters live outside the DE1 shot-settings characteristic, so
@@ -487,7 +634,67 @@ class De1Controller {
   /// helpers replace it by writing the MMR value and updating the
   /// relevant data-controller directly.
   Future<void> setSteamFlow(double newFlow) async {
-    await connectedDe1().setSteamFlow(newFlow);
+    await runDeviceWrite(
+      (device) => device.setSteamFlow(newFlow),
+      retryOnReplacement: true,
+    );
+    _publishSteamFlow(newFlow);
+  }
+
+  Future<void> setHotWaterFlow(double newFlow) async {
+    await runDeviceWrite(
+      (device) => device.setHotWaterFlow(newFlow),
+      retryOnReplacement: true,
+    );
+    _publishHotWaterFlow(newFlow);
+  }
+
+  Future<void> setFlushFlow(double newFlow) async {
+    await runDeviceWrite(
+      (device) => device.setFlushFlow(newFlow),
+      retryOnReplacement: true,
+    );
+    _publishFlushFlow(newFlow);
+  }
+
+  /// One queued grouped write for `POST /api/v1/machine/settings`.
+  /// All physical writes share one queue entry; the controller flow
+  /// streams are published only after the grouped write completed and
+  /// its final machine-generation check passed, so the streams never
+  /// reflect values a machine did not receive.
+  Future<void> updateMachineSettings({
+    bool? usb,
+    int? fan,
+    double? flushTemp,
+    double? flushFlow,
+    double? flushTimeout,
+    double? hotWaterFlow,
+    double? steamFlow,
+    int? tankTemp,
+    int? steamPurgeMode,
+  }) async {
+    await runDeviceWrite((device) async {
+      if (usb != null) await device.setUsbChargerMode(usb);
+      if (fan != null) await device.setFanThreshhold(fan);
+      if (flushTemp != null) await device.setFlushTemperature(flushTemp);
+      if (flushFlow != null) await device.setFlushFlow(flushFlow);
+      if (flushTimeout != null) await device.setFlushTimeout(flushTimeout);
+      if (hotWaterFlow != null) await device.setHotWaterFlow(hotWaterFlow);
+      if (steamFlow != null) await device.setSteamFlow(steamFlow);
+      if (tankTemp != null) await device.setTankTempThreshold(tankTemp);
+      if (steamPurgeMode != null) {
+        await device.setSteamPurgeMode(steamPurgeMode);
+      }
+    }, retryOnReplacement: true);
+    if (flushFlow != null) _publishFlushFlow(flushFlow);
+    if (hotWaterFlow != null) _publishHotWaterFlow(hotWaterFlow);
+    if (steamFlow != null) _publishSteamFlow(steamFlow);
+  }
+
+  /// Publish-only steam-flow update. Call only after the physical write
+  /// has been applied, so the stream cannot reflect a value the machine
+  /// never received.
+  void _publishSteamFlow(double newFlow) {
     final current = _steamDataController.valueOrNull;
     if (current != null) {
       _steamDataController.add(
@@ -500,8 +707,8 @@ class De1Controller {
     }
   }
 
-  Future<void> setHotWaterFlow(double newFlow) async {
-    await connectedDe1().setHotWaterFlow(newFlow);
+  /// Publish-only hot-water-flow update, see [_publishSteamFlow].
+  void _publishHotWaterFlow(double newFlow) {
     final current = _hotWaterDataController.valueOrNull;
     if (current != null) {
       _hotWaterDataController.add(
@@ -515,8 +722,8 @@ class De1Controller {
     }
   }
 
-  Future<void> setFlushFlow(double newFlow) async {
-    await connectedDe1().setFlushFlow(newFlow);
+  /// Publish-only flush-flow update, see [_publishSteamFlow].
+  void _publishFlushFlow(double newFlow) {
     final current = _rinseStream.valueOrNull;
     if (current != null) {
       _rinseStream.add(

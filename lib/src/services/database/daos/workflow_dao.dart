@@ -13,9 +13,9 @@ class WorkflowDao extends DatabaseAccessor<AppDatabase>
 
   /// Load the current workflow row.
   Future<Workflow?> loadCurrentWorkflow() {
-    return (select(workflows)
-          ..where((w) => w.id.equals(_currentWorkflowId)))
-        .getSingleOrNull();
+    return (select(
+      workflows,
+    )..where((w) => w.id.equals(_currentWorkflowId))).getSingleOrNull();
   }
 
   /// Save the current workflow (upsert).

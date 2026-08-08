@@ -66,11 +66,13 @@ void main() {
 
   testWidgets('cancel calls cancelActiveScan', (tester) async {
     // Navigate to the picker state so the Cancel button is visible.
-    mockCm.emitStatus(ConnectionStatus(
-      phase: ConnectionPhase.idle,
-      pendingAmbiguity: AmbiguityReason.machinePicker,
-      foundMachines: [],
-    ));
+    mockCm.emitStatus(
+      ConnectionStatus(
+        phase: ConnectionPhase.idle,
+        pendingAmbiguity: AmbiguityReason.machinePicker,
+        foundMachines: [],
+      ),
+    );
 
     await tester.pumpWidget(buildPage());
     await tester.pump();

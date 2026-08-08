@@ -170,7 +170,19 @@ A queue can produce only one wrapper timeout per faulted generation; followers a
 - `ScanStateGuardian` guards against overlapping scans and tracks adapter state.
 - `ScanOrchestrator` manages single-scan lifecycle.
 
+## Sleep From NeedsWater (Refill State)
+
+DE1 firmware build 1357+ honors a BLE sleep request while the machine is in refill/needsWater state when no refill kit is present. The app sends sleep from `needsWater` only for DE1 (not Bengle) on FW >= 1357 (`PresenceController._kSleepOnRefillMinFwBuild` / `_canSleepFromState`); idle/schedIdle are always eligible.
+
+**Why the build gate exists:** older firmware ignores the sleep request *while in refill* but keeps it latched, honoring it once the machine exits refill (e.g. right after the user refills the tank), so sending sleep from needsWater on old FW would put the machine straight back to sleep after a refill. With a refill kit present, the FW ignores the request (kit refill in progress) — the FW owns that guard, the app just sends the request.
+
 ## Comms-Layer Patterns
+
+An awake Decent Scale connection requires a recognised FFF4 status or weight frame after subscription and a status request. Two seconds of silence triggers one immediate re-subscribe and status request; a second silent window tears down the transport without sending the physical power-off command so ConnectionManager owns the next reconnect. A deliberately sleeping reconnect only restores the subscription while remaining dark and defers the same readiness probe until wake.
+
+Acaia parsing is frame-bounded. Payload lengths above 64 bytes and impossible lengths for known settings or weight events trigger header resynchronization; complete unsupported frames are consumed whole so embedded `EF DD` bytes cannot become top-level frames. Only accepted settings, weight, or timer frames refresh liveness. Event 11 selector 5 carries weight, while selector 7 is timer data. Connection readiness requires a decoded valid weight rather than an arbitrary notification.
+
+Scale maintenance uses self-scheduling one-shot timers and owns each asynchronous operation before scheduling another cycle. Do not perform asynchronous BLE writes directly from `Timer.periodic`; that permits overlap and leaves failures unowned. Decent notification recovery remains single-flight across connection generations, so reconnect waits for an unresolved prior subscription operation.
 
 Three reusable idioms from the comms-harden effort:
 
@@ -198,13 +210,37 @@ capability. Attach events are non-replaying hints and may carry incomplete
 metadata; serial scanning and detection remain the support filter. Android can
 broadcast attach before the CDC interface is usable, so
 `AttachReconnectCoordinator` coalesces bursts and waits a configurable 500 ms
-before invoking the normal connection policy.
+before acting.
 
-Only a missing preferred machine enables this path. The attempt therefore uses
-remembered-device quick-connect first, retains scan fallback, and cannot open a
-picker when no preference exists. If the immediate attempt finds nothing or
-fails, the coordinator explicitly re-arms normal machine recovery. BLE, Wi-Fi,
-simulated-device, and scale-only behavior do not expose attach events.
+A second optional capability, `UsbAttachProbe`, lets the originating serial
+service positively identify and connect the specifically attached USB device.
+`SerialServiceAndroid.connectAttachedMachine` correlates the event with a
+newly listed USB device (stable-ID match when Android supplied one, otherwise
+only devices not already connected), runs the existing serial admission and
+`_detectDevice` logic, and connects only supported `De1Interface` machines.
+Scales, sensors, debug ports, and arbitrary USB devices are rejected with
+full transport cleanup. The typed result distinguishes connected / nothing
+supported / detected-but-failed, plus "probe unavailable" when the
+originating service lacks the capability — which falls back to the legacy
+preferred-machine connect policy.
+
+The central distinction: preferred-machine policy controls passive automatic
+discovery; physically attaching a supported USB machine is explicit connection
+intent. On a probe-capable scanner, `ConnectionManager` runs the probe ahead of
+any preferred-machine scan — no preference, a stale BLE preference, another
+USB preference, or a simulated preference are all overridden by the attached
+machine, and the machine's USB ID becomes the preferred machine only after a
+successful connection and adoption. Unsupported attachments change nothing;
+failed attachments preserve the previous preference and return control to the
+existing preferred-machine recovery policy (or surface the normal connection
+failure). A connected machine is never replaced.
+
+Attach attempts never run in parallel with another connect. An attach arriving
+while an automatic/recovery connect is in flight supersedes that scan via the
+existing generation mechanism and runs one coalesced probe as soon as the
+ownership releases; explicit user scans and scale-only connects are waited
+out. No BLE, Wi-Fi, simulated-device, or scale-only behavior exposes attach
+events.
 
 ## Quick Connect
 
@@ -225,7 +261,11 @@ runs. The `EarlyConnectWatcher` does its own retry during the scan.
 
 On Apple (iOS/macOS), `getSystemDevices` is used to find the peripheral in
 the system cache. If not cached, returns null immediately (no timeout waste).
-On Android/Linux/Windows, direct `UniversalBle.connect(deviceId)` works.
+A system-connected Apple peripheral must still go through `connect()` so
+`universal_ble` attaches its native callbacks and CoreBluetooth delegate.
+This call is idempotent for an existing link and does not start a second
+physical connection. On Android/Linux/Windows, direct
+`UniversalBle.connect(deviceId)` works.
 
 The identity check happens during `onConnect()` — for machines, `v13Model`
 is read and compared against the expected `DeviceImplementation`.

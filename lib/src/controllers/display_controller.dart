@@ -21,9 +21,9 @@ class DisplayPlatformSupport {
   });
 
   Map<String, dynamic> toJson() => {
-        'brightness': brightness,
-        'wakeLock': wakeLock,
-      };
+    'brightness': brightness,
+    'wakeLock': wakeLock,
+  };
 }
 
 class DisplayState {
@@ -50,33 +50,33 @@ class DisplayState {
     int? requestedBrightness,
     bool? lowBatteryBrightnessActive,
     DisplayPlatformSupport? platformSupported,
-  }) =>
-      DisplayState(
-        wakeLockEnabled: wakeLockEnabled ?? this.wakeLockEnabled,
-        wakeLockOverride: wakeLockOverride ?? this.wakeLockOverride,
-        brightness: brightness ?? this.brightness,
-        requestedBrightness: requestedBrightness ?? this.requestedBrightness,
-        lowBatteryBrightnessActive:
-            lowBatteryBrightnessActive ?? this.lowBatteryBrightnessActive,
-        platformSupported: platformSupported ?? this.platformSupported,
-      );
+  }) => DisplayState(
+    wakeLockEnabled: wakeLockEnabled ?? this.wakeLockEnabled,
+    wakeLockOverride: wakeLockOverride ?? this.wakeLockOverride,
+    brightness: brightness ?? this.brightness,
+    requestedBrightness: requestedBrightness ?? this.requestedBrightness,
+    lowBatteryBrightnessActive:
+        lowBatteryBrightnessActive ?? this.lowBatteryBrightnessActive,
+    platformSupported: platformSupported ?? this.platformSupported,
+  );
 
   Map<String, dynamic> toJson() => {
-        'wakeLockEnabled': wakeLockEnabled,
-        'wakeLockOverride': wakeLockOverride,
-        'brightness': brightness,
-        'requestedBrightness': requestedBrightness,
-        'lowBatteryBrightnessActive': lowBatteryBrightnessActive,
-        'platformSupported': platformSupported.toJson(),
-      };
+    'wakeLockEnabled': wakeLockEnabled,
+    'wakeLockOverride': wakeLockOverride,
+    'brightness': brightness,
+    'requestedBrightness': requestedBrightness,
+    'lowBatteryBrightnessActive': lowBatteryBrightnessActive,
+    'platformSupported': platformSupported.toJson(),
+  };
 }
 
 /// Manages screen wake-lock and brightness.
 ///
 /// Two concerns:
 /// 1. **Wake-lock** — auto-managed based on machine state (enabled when
-///    connected and not sleeping, released on sleep/disconnect). Skins can
-///    override via [requestWakeLock] / [releaseWakeLock].
+///    connected and not sleeping, released on sleep/disconnect). The
+///    `keepAwake` setting forces the wake-lock on while the app runs. Skins
+///    can override via [requestWakeLock] / [releaseWakeLock].
 /// 2. **Brightness** — 0-100 integer range via [setBrightness]. Value 100
 ///    resets to OS-managed brightness. Battery-aware cap reduces brightness
 ///    when battery is low and the setting is enabled.
@@ -128,38 +128,45 @@ class DisplayController {
     Future<void> Function()? enableWakeLock,
     Future<void> Function()? disableWakeLock,
     DisplayPlatformSupport? platformSupport,
-  })  : _de1Controller = de1Controller,
-        _settingsController = settingsController,
-        _batteryStateStream = batteryStateStream,
-        _setBrightness = setBrightness ??
-            _defaultScreenBrightness.setApplicationScreenBrightness,
-        _resetBrightness = resetBrightness ??
-            _defaultScreenBrightness.resetApplicationScreenBrightness,
-        _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
-        _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
-    _platformSupport = platformSupport ??
+  }) : _de1Controller = de1Controller,
+       _settingsController = settingsController,
+       _batteryStateStream = batteryStateStream,
+       _setBrightness =
+           setBrightness ??
+           _defaultScreenBrightness.setApplicationScreenBrightness,
+       _resetBrightness =
+           resetBrightness ??
+           _defaultScreenBrightness.resetApplicationScreenBrightness,
+       _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
+       _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
+    _platformSupport =
+        platformSupport ??
         DisplayPlatformSupport(
-          brightness: Platform.isAndroid ||
+          brightness:
+              Platform.isAndroid ||
               Platform.isIOS ||
               Platform.isMacOS ||
               Platform.isWindows,
           wakeLock: true, // wakelock_plus supports all platforms
         );
 
-    _stateSubject = BehaviorSubject.seeded(DisplayState(
-      wakeLockEnabled: false,
-      wakeLockOverride: false,
-      brightness: 100,
-      requestedBrightness: 100,
-      lowBatteryBrightnessActive: false,
-      platformSupported: _platformSupport,
-    ));
+    _stateSubject = BehaviorSubject.seeded(
+      DisplayState(
+        wakeLockEnabled: false,
+        wakeLockOverride: false,
+        brightness: 100,
+        requestedBrightness: 100,
+        lowBatteryBrightnessActive: false,
+        platformSupported: _platformSupport,
+      ),
+    );
   }
 
   void initialize() {
     _de1Subscription = _de1Controller.de1.listen(_onDe1Changed);
     _batterySubscription = _batteryStateStream?.listen(_onBatteryChanged);
     _settingsController.addListener(_onSettingsChanged);
+    unawaited(_evaluateWakeLock());
   }
 
   void dispose() {
@@ -242,7 +249,8 @@ class DisplayController {
         lowBatteryBrightnessActive: capping,
       );
       _log.fine(
-          'Brightness set to $effective (requested: $_requestedBrightness, capping: $capping)');
+        'Brightness set to $effective (requested: $_requestedBrightness, capping: $capping)',
+      );
     } catch (e) {
       _log.warning('Failed to set brightness: $e');
     }
@@ -273,6 +281,9 @@ class DisplayController {
 
   void _onSettingsChanged() {
     unawaited(_applyBrightness());
+    // keepAwake toggle must take effect immediately, not on the next machine
+    // state transition.
+    unawaited(_evaluateWakeLock());
   }
 
   // ---------------------------------------------------------------------------
@@ -355,6 +366,12 @@ class DisplayController {
   // ---------------------------------------------------------------------------
 
   Future<void> _evaluateWakeLock() async {
+    // keepAwake setting: screen always on while the app runs (full override).
+    if (_settingsController.keepAwake) {
+      await _applyWakeLock(true);
+      return;
+    }
+
     // Override always wins
     if (_wakeLockOverride) {
       await _applyWakeLock(true);
@@ -391,12 +408,14 @@ class DisplayController {
     int? requestedBrightness,
     bool? lowBatteryBrightnessActive,
   }) {
-    _stateSubject.add(currentState.copyWith(
-      wakeLockEnabled: wakeLockEnabled,
-      wakeLockOverride: wakeLockOverride,
-      brightness: brightness,
-      requestedBrightness: requestedBrightness,
-      lowBatteryBrightnessActive: lowBatteryBrightnessActive,
-    ));
+    _stateSubject.add(
+      currentState.copyWith(
+        wakeLockEnabled: wakeLockEnabled,
+        wakeLockOverride: wakeLockOverride,
+        brightness: brightness,
+        requestedBrightness: requestedBrightness,
+        lowBatteryBrightnessActive: lowBatteryBrightnessActive,
+      ),
+    );
   }
 }

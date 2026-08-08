@@ -130,22 +130,19 @@ void main() {
     await expectLater(update, throwsA(isA<FirmwareUpdateCancelledException>()));
   });
 
-  test(
-    'late erase response does not complete verification',
-    () async {
-      transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
-      final update = de1.updateFirmware(Uint8List(16), onProgress: (_) {});
+  test('late erase response does not complete verification', () async {
+    transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
+    final update = de1.updateFirmware(Uint8List(16), onProgress: (_) {});
 
-      await _waitForState(de1, FirmwareUpdateState.verifying);
-      transport.emitFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
+    await _waitForState(de1, FirmwareUpdateState.verifying);
+    transport.emitFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
 
-      await Future<void>.delayed(Duration.zero);
-      expect(de1.firmwareUpdateState, FirmwareUpdateState.verifying);
-      transport.emitFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xfd]);
-      await update;
-      expect(de1.firmwareUpdateState, FirmwareUpdateState.idle);
-    },
-  );
+    await Future<void>.delayed(Duration.zero);
+    expect(de1.firmwareUpdateState, FirmwareUpdateState.verifying);
+    transport.emitFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xfd]);
+    await update;
+    expect(de1.firmwareUpdateState, FirmwareUpdateState.idle);
+  });
 
   test('verification response must follow the verification request', () async {
     final barrierTransport = BarrierBleTransport();

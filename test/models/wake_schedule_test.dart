@@ -333,11 +333,7 @@ void main() {
           enabled: true,
         );
 
-        final modified = original.copyWith(
-          hour: 7,
-          minute: 0,
-          enabled: false,
-        );
+        final modified = original.copyWith(hour: 7, minute: 0, enabled: false);
 
         expect(modified.id, 'original-id');
         expect(modified.hour, 7);

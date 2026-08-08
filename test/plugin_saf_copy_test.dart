@@ -25,18 +25,10 @@ void main() {
                 'name': 'manifest.json',
                 'isDir': false,
               },
-              {
-                'uri': 'content://assets',
-                'name': 'assets',
-                'isDir': true,
-              },
+              {'uri': 'content://assets', 'name': 'assets', 'isDir': true},
             ],
             'content://assets' => [
-              {
-                'uri': 'content://asset',
-                'name': 'page.html',
-                'isDir': false,
-              },
+              {'uri': 'content://asset', 'name': 'page.html', 'isDir': false},
             ],
             _ => [],
           };
@@ -82,11 +74,7 @@ void main() {
         .setMockMethodCallHandler(safUtil, (call) async {
           if (call.method != 'list') return null;
           return [
-            {
-              'uri': 'content://cycle',
-              'name': 'cycle',
-              'isDir': true,
-            },
+            {'uri': 'content://cycle', 'name': 'cycle', 'isDir': true},
           ];
         });
 

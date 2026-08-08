@@ -15,14 +15,39 @@ class SteamDao extends DatabaseAccessor<AppDatabase> with _$SteamDaoMixin {
   }
 
   Future<SteamRecord?> getSteamById(String id) {
-    return (select(steamRecords)..where((s) => s.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      steamRecords,
+    )..where((s) => s.id.equals(id))).getSingleOrNull();
   }
 
   Future<List<SteamRecord>> getAllSteams() {
-    return (select(steamRecords)
-          ..orderBy([(s) => OrderingTerm.desc(s.timestamp)]))
-        .get();
+    return (select(
+      steamRecords,
+    )..orderBy([(s) => OrderingTerm.desc(s.timestamp)])).get();
+  }
+
+  /// Keyset-paged steam records for streaming export: ordered by (timestamp,
+  /// id) ascending; returns up to [limit] rows strictly after the cursor.
+  Future<List<SteamRecord>> getSteamsForExport({
+    int limit = 200,
+    DateTime? cursorTimestamp,
+    String? cursorId,
+  }) {
+    final query = select(steamRecords)
+      ..orderBy([
+        (s) => OrderingTerm.asc(s.timestamp),
+        (s) => OrderingTerm.asc(s.id),
+      ])
+      ..limit(limit);
+    if (cursorTimestamp != null) {
+      query.where(
+        (s) =>
+            s.timestamp.isBiggerThanValue(cursorTimestamp) |
+            (s.timestamp.equals(cursorTimestamp) &
+                s.id.isBiggerThanValue(cursorId!)),
+      );
+    }
+    return query.get();
   }
 
   Future<SteamRecord?> getLatestSteam() {
@@ -57,8 +82,9 @@ class SteamDao extends DatabaseAccessor<AppDatabase> with _$SteamDaoMixin {
   }
 
   Future<void> updateSteam(SteamRecordsCompanion record) {
-    return (update(steamRecords)..where((s) => s.id.equals(record.id.value)))
-        .write(record);
+    return (update(
+      steamRecords,
+    )..where((s) => s.id.equals(record.id.value))).write(record);
   }
 
   Future<void> deleteSteam(String id) {

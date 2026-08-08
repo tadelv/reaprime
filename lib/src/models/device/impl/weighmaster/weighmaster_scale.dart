@@ -39,8 +39,8 @@ class WeighMasterScale implements Scale {
       BehaviorSubject.seeded(ConnectionState.discovered);
 
   WeighMasterScale({required BLETransport transport})
-      : _transport = transport,
-        _deviceId = transport.id;
+    : _transport = transport,
+      _deviceId = transport.id;
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -49,7 +49,8 @@ class WeighMasterScale implements Scale {
   String get deviceId => _deviceId;
 
   @override
-  DeviceImplementation get implementation => DeviceImplementation.weighMasterScale;
+  DeviceImplementation get implementation =>
+      DeviceImplementation.weighMasterScale;
 
   @override
   TransportType get transportType => _transport.transportType;
@@ -79,9 +80,9 @@ class WeighMasterScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -110,9 +111,9 @@ class WeighMasterScale implements Scale {
   Future<void> tare() async {
     await _write(const [_cmdTare]);
     unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 300))
-          .then((_) => _write(const [_cmdBuzzer, 0x00]))
-          .catchError((_) {}),
+      Future<void>.delayed(
+        const Duration(milliseconds: 300),
+      ).then((_) => _write(const [_cmdBuzzer, 0x00])).catchError((_) {}),
     );
   }
 

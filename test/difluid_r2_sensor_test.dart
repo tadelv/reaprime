@@ -17,7 +17,7 @@ typedef _WriteRecord = ({
   bool withResponse,
 });
 
-class _FakeR2Transport implements BLETransport {
+class _FakeR2Transport extends BLETransport {
   final BehaviorSubject<ConnectionState> _states = BehaviorSubject.seeded(
     ConnectionState.discovered,
   );

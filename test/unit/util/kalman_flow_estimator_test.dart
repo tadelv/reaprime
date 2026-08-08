@@ -117,10 +117,7 @@ void main() {
       final beforeFlow = estimator.flow;
 
       // Inject a 10g spike (tap on scale)
-      estimator.addSample(
-        t0.add(dt * 31),
-        100.0 + 5.0 * 31 * 0.1 + 10.0,
-      );
+      estimator.addSample(t0.add(dt * 31), 100.0 + 5.0 * 31 * 0.1 + 10.0);
 
       // Next sample is back on the ramp — flow should not jump dramatically
       final (_, afterFlow) = estimator.addSample(
@@ -306,10 +303,7 @@ void main() {
         return [
           for (final e in raw)
             (
-              timestamp: DateTime.fromMillisecondsSinceEpoch(
-                e.$1,
-                isUtc: true,
-              ),
+              timestamp: DateTime.fromMillisecondsSinceEpoch(e.$1, isUtc: true),
               weight: e.$2,
             ),
         ];

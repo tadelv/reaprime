@@ -8,9 +8,7 @@ void main() {
   late Map<String, dynamic> londiniumJson;
 
   setUpAll(() {
-    final file = File(
-      'test/fixtures/de1app/profiles_v2/best_practice.json',
-    );
+    final file = File('test/fixtures/de1app/profiles_v2/best_practice.json');
     londiniumJson = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
   });
 

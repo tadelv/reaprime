@@ -119,9 +119,7 @@ class DecentColorScheme extends ShadColorScheme {
   });
 }
 
-ShadThemeData buildDecentTheme({
-  Brightness brightness = Brightness.light,
-}) {
+ShadThemeData buildDecentTheme({Brightness brightness = Brightness.light}) {
   return ShadThemeData(
     colorScheme: brightness == Brightness.light
         ? const DecentColorScheme.light()

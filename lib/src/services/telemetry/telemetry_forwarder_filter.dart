@@ -20,10 +20,7 @@ const _benignNetworkErrorPrefixes = [
 /// Intentionally narrow — adding a logger here also opts it in to
 /// `_isTransientNetworkError` matching, so do not add loggers that should
 /// surface their own SocketExceptions (e.g. BLE transports).
-const _httpFetcherLoggers = <String>{
-  _webUiStorageLoggerName,
-  'AndroidUpdater',
-};
+const _httpFetcherLoggers = <String>{_webUiStorageLoggerName, 'AndroidUpdater'};
 
 /// Returns `false` for log records that should not be forwarded to Crashlytics
 /// — either below the SEVERE forwarding threshold or matching a known

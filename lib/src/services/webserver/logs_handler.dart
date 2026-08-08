@@ -35,9 +35,9 @@ class LogsHandler {
     required String logFilePath,
     int defaultTailKb = LogsHandler.defaultTailKb,
     int maxTailKb = LogsHandler.maxTailKb,
-  })  : _logFilePath = logFilePath,
-        _defaultTailBytes = defaultTailKb * 1024,
-        _maxTailBytes = maxTailKb * 1024;
+  }) : _logFilePath = logFilePath,
+       _defaultTailBytes = defaultTailKb * 1024,
+       _maxTailBytes = maxTailKb * 1024;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/logs', _handleGetLogs);
@@ -96,10 +96,7 @@ class LogsHandler {
     final live = File(_logFilePath);
     // Higher index = older, so oldest-first is the rotated files reversed,
     // with the live (newest) file last.
-    return [
-      ...rotated.reversed,
-      if (await live.exists()) live,
-    ];
+    return [...rotated.reversed, if (await live.exists()) live];
   }
 
   /// The byte ranges, oldest-first, that make up the most recent [maxBytes]
@@ -138,8 +135,10 @@ class LogsHandler {
   Future<String> _readSegments(List<_FileSegment> segments) async {
     final buffer = BytesBuilder(copy: false);
     for (final segment in segments) {
-      await for (final chunk
-          in segment.file.openRead(segment.start, segment.end)) {
+      await for (final chunk in segment.file.openRead(
+        segment.start,
+        segment.end,
+      )) {
         buffer.add(chunk);
       }
     }

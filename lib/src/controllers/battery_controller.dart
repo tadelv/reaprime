@@ -40,13 +40,10 @@ class BatteryController {
     required De1Controller de1Controller,
     required DeviceController deviceController,
     required SettingsController settingsController,
-  })  : _de1Controller = de1Controller,
-        _deviceController = deviceController,
-        _settingsController = settingsController {
-    _checkTimer = Timer.periodic(
-      const Duration(seconds: 60),
-      (_) => _tick(),
-    );
+  }) : _de1Controller = de1Controller,
+       _deviceController = deviceController,
+       _settingsController = settingsController {
+    _checkTimer = Timer.periodic(const Duration(seconds: 60), (_) => _tick());
     // Run immediately on construction
     _tick();
   }
@@ -119,14 +116,16 @@ class BatteryController {
       }
 
       // Emit state
-      _stateSubject.add(ChargingState(
-        mode: chargingMode,
-        nightModeEnabled: nightModeEnabled,
-        currentPhase: decision.nightPhase,
-        batteryPercent: batteryPercent,
-        usbChargerOn: decision.shouldCharge,
-        isEmergency: decision.reason == 'emergency',
-      ));
+      _stateSubject.add(
+        ChargingState(
+          mode: chargingMode,
+          nightModeEnabled: nightModeEnabled,
+          currentPhase: decision.nightPhase,
+          batteryPercent: batteryPercent,
+          usbChargerOn: decision.shouldCharge,
+          isEmergency: decision.reason == 'emergency',
+        ),
+      );
     } catch (e, st) {
       _log.warning('Battery check failed', e, st);
     }

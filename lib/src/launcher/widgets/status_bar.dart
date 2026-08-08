@@ -36,9 +36,7 @@ class StatusBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: colorScheme.card,
-        border: Border(
-          bottom: BorderSide(color: colorScheme.border, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: colorScheme.border, width: 1)),
       ),
       child: SafeArea(
         bottom: false,
@@ -53,18 +51,13 @@ class StatusBar extends StatelessWidget {
                     _MachineStatus(de1Controller: de1Controller),
                     _ScaleStatus(scaleController: scaleController),
                     if (batteryController != null)
-                      _BatteryStatus(
-                        batteryController: batteryController!,
-                      ),
+                      _BatteryStatus(batteryController: batteryController!),
                     _WaterLevel(de1Controller: de1Controller),
                   ],
                 ),
               ),
             ),
-            _QrButton(
-              webUIService: webUIService,
-              onTap: onQrTap,
-            ),
+            _QrButton(webUIService: webUIService, onTap: onQrTap),
           ],
         ),
       ),
@@ -73,11 +66,7 @@ class StatusBar extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.icon,
-    required this.label,
-    this.color,
-  });
+  const _StatusChip({required this.icon, required this.label, this.color});
 
   final IconData icon;
   final String label;
@@ -94,7 +83,11 @@ class _StatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: 6,
         children: [
-          Icon(icon, size: 14, color: color ?? theme.colorScheme.mutedForeground),
+          Icon(
+            icon,
+            size: 14,
+            color: color ?? theme.colorScheme.mutedForeground,
+          ),
           Text(
             label,
             style: theme.textTheme.small.copyWith(
@@ -168,9 +161,13 @@ class _MachineStatus extends StatelessWidget {
     }
     return switch (state) {
       MachineState.idle || MachineState.schedIdle => Colors.green,
-      MachineState.heating || MachineState.preheating ||
-      MachineState.booting || MachineState.busy => Colors.orange,
-      MachineState.sleeping => ShadTheme.of(context).colorScheme.mutedForeground,
+      MachineState.heating ||
+      MachineState.preheating ||
+      MachineState.booting ||
+      MachineState.busy => Colors.orange,
+      MachineState.sleeping => ShadTheme.of(
+        context,
+      ).colorScheme.mutedForeground,
       MachineState.needsWater => Colors.orange,
       MachineState.error => Colors.red,
       _ => Colors.blue,
@@ -209,11 +206,7 @@ class _ScaleStatus extends StatelessWidget {
           color = ShadTheme.of(context).colorScheme.mutedForeground;
         }
 
-        return _StatusChip(
-          icon: LucideIcons.scale,
-          label: label,
-          color: color,
-        );
+        return _StatusChip(icon: LucideIcons.scale, label: label, color: color);
       },
     );
   }
@@ -237,21 +230,17 @@ class _BatteryStatus extends StatelessWidget {
         final icon = charging
             ? LucideIcons.batteryCharging
             : percent > 75
-                ? LucideIcons.batteryFull
-                : percent > 25
-                    ? LucideIcons.batteryMedium
-                    : LucideIcons.batteryLow;
+            ? LucideIcons.batteryFull
+            : percent > 25
+            ? LucideIcons.batteryMedium
+            : LucideIcons.batteryLow;
         final color = percent <= 15
             ? Colors.red
             : percent <= 25
-                ? Colors.orange
-                : null;
+            ? Colors.orange
+            : null;
 
-        return _StatusChip(
-          icon: icon,
-          label: '$percent%',
-          color: color,
-        );
+        return _StatusChip(icon: icon, label: '$percent%', color: color);
       },
     );
   }
@@ -291,10 +280,7 @@ class _WaterLevel extends StatelessWidget {
 }
 
 class _QrButton extends StatelessWidget {
-  const _QrButton({
-    required this.webUIService,
-    this.onTap,
-  });
+  const _QrButton({required this.webUIService, this.onTap});
 
   final WebUIService webUIService;
   final VoidCallback? onTap;
@@ -354,11 +340,7 @@ class _QrButton extends StatelessWidget {
 @Preview(name: 'Status Bar', group: 'Launcher')
 Widget statusBarPreview() {
   // Preview uses placeholder widgets since controllers need dart:io
-  return MaterialApp(
-    home: Scaffold(
-      body: _StatusBarPreviewStatic(),
-    ),
-  );
+  return MaterialApp(home: Scaffold(body: _StatusBarPreviewStatic()));
 }
 
 /// Static preview that doesn't depend on controllers (which use dart:io).
@@ -371,9 +353,7 @@ class _StatusBarPreviewStatic extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: theme.dividerColor, width: 1)),
       ),
       child: Row(
         children: [
@@ -386,10 +366,12 @@ class _StatusBarPreviewStatic extends StatelessWidget {
                   spacing: 6,
                   children: [
                     Icon(LucideIcons.coffee, size: 14, color: Colors.green),
-                    Text('DE1 · idle',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.green,
-                        )),
+                    Text(
+                      'DE1 · idle',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.green,
+                      ),
+                    ),
                   ],
                 ),
                 Row(
@@ -397,10 +379,12 @@ class _StatusBarPreviewStatic extends StatelessWidget {
                   spacing: 6,
                   children: [
                     Icon(LucideIcons.scale, size: 14, color: Colors.green),
-                    Text('Lunar',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.green,
-                        )),
+                    Text(
+                      'Lunar',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.green,
+                      ),
+                    ),
                   ],
                 ),
                 Row(

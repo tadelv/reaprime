@@ -6,11 +6,7 @@ class WaterLevelsForm extends StatefulWidget {
   final Function(De1WaterLevels) apply;
   final De1WaterLevels levels;
 
-  const WaterLevelsForm({
-    super.key,
-    required this.apply,
-    required this.levels,
-  });
+  const WaterLevelsForm({super.key, required this.apply, required this.levels});
 
   @override
   State<StatefulWidget> createState() {
@@ -41,7 +37,9 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm"),
+                Text(
+                  "Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm",
+                ),
                 ShadSlider(
                   initialValue: settings.refillLevel.toDouble(),
                   min: 0,
@@ -66,7 +64,7 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
             onPressed: () {
               widget.apply(settings);
             },
-          )
+          ),
         ],
       ),
     );

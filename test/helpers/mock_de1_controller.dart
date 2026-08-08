@@ -20,8 +20,9 @@ class MockDe1Controller extends De1Controller {
 
   /// The subject backing the overridden [de1] stream.
   /// Tests can call `de1Subject.add(someDe1)` to simulate connection changes.
-  final BehaviorSubject<De1Interface?> de1Subject =
-      BehaviorSubject.seeded(null);
+  final BehaviorSubject<De1Interface?> de1Subject = BehaviorSubject.seeded(
+    null,
+  );
 
   MockDe1Controller({required super.controller});
 

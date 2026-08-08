@@ -20,6 +20,7 @@ class _FakeUpdater extends AndroidUpdater {
   List<double> progressToEmit = const [];
 
   int checkCalls = 0;
+  UpdateChannel? lastChannel;
   int downloadCalls = 0;
   int installCalls = 0;
 
@@ -32,6 +33,7 @@ class _FakeUpdater extends AndroidUpdater {
     UpdateChannel channel = UpdateChannel.stable,
   }) async {
     checkCalls++;
+    lastChannel = channel;
     if (throwOnCheck) throw Exception('check boom');
     return nextCheck;
   }
@@ -62,30 +64,43 @@ class _FakeUpdater extends AndroidUpdater {
 }
 
 UpdateInfo _update({String version = '9.9.9'}) => UpdateInfo(
-      version: version,
-      downloadUrl: 'https://example.com/app.apk',
-      releaseNotes: 'shiny',
-      isPrerelease: false,
-      tagName: 'v$version',
-    );
+  version: version,
+  downloadUrl: 'https://example.com/app.apk',
+  releaseNotes: 'shiny',
+  isPrerelease: false,
+  tagName: 'v$version',
+);
 
 void main() {
   late _FakeUpdater updater;
+  late MockSettingsService settingsService;
   late WebUIStorage webUIStorage;
 
-  UpdateCheckService build({bool isAndroid = true}) {
+  UpdateCheckService build({bool isAndroid = true, bool isMacOS = false}) {
     updater = _FakeUpdater();
-    final settingsController = SettingsController(MockSettingsService());
+    settingsService = MockSettingsService();
+    final settingsController = SettingsController(settingsService);
     webUIStorage = WebUIStorage(settingsController);
     return UpdateCheckService(
-      settingsService: MockSettingsService(),
+      settingsService: settingsService,
       webUIStorage: webUIStorage,
       updater: updater,
       platformIsAndroid: isAndroid,
+      platformIsMacOS: isMacOS,
     );
   }
 
   group('checkForUpdate', () {
+    test('uses the selected update channel', () async {
+      final svc = build();
+      await settingsService.setUpdateChannel(UpdateChannel.beta);
+
+      await svc.checkForUpdate();
+
+      expect(updater.lastChannel, UpdateChannel.beta);
+      svc.dispose();
+    });
+
     test('emits available with details when an update is found', () async {
       final svc = build();
       updater.nextCheck = _update(version: '9.9.9');
@@ -109,6 +124,16 @@ void main() {
 
       expect(svc.currentState.phase, AppUpdatePhase.idle);
       expect(svc.currentState.installable, isFalse);
+      svc.dispose();
+    });
+
+    test('builds a release URL for a manually returned update', () {
+      final svc = build();
+
+      expect(
+        svc.getReleaseUrl(_update(version: '1.2.3')),
+        'https://github.com/decentespresso/decaid/releases/tag/v1.2.3',
+      );
       svc.dispose();
     });
 
@@ -152,12 +177,15 @@ void main() {
       expect(updater.downloadCalls, 1);
       expect(updater.installCalls, 1);
       expect(svc.currentState.phase, AppUpdatePhase.installing);
-      expect(phases, containsAllInOrder(<AppUpdatePhase>[
-        AppUpdatePhase.checking,
-        AppUpdatePhase.available,
-        AppUpdatePhase.downloading,
-        AppUpdatePhase.installing,
-      ]));
+      expect(
+        phases,
+        containsAllInOrder(<AppUpdatePhase>[
+          AppUpdatePhase.checking,
+          AppUpdatePhase.available,
+          AppUpdatePhase.downloading,
+          AppUpdatePhase.installing,
+        ]),
+      );
 
       await sub.cancel();
       svc.dispose();
@@ -178,8 +206,7 @@ void main() {
       final svc = build();
       updater.nextCheck = _update();
       // 1000 tiny increments, as a per-chunk callback would produce.
-      updater.progressToEmit =
-          List.generate(1000, (i) => (i + 1) / 1000);
+      updater.progressToEmit = List.generate(1000, (i) => (i + 1) / 1000);
 
       final downloadingProgress = <double>[];
       final sub = svc.updateState.listen((s) {
@@ -267,6 +294,43 @@ void main() {
 
       // Only the auto-check from downloadAndInstall ran.
       expect(checksDuring, 1);
+      svc.dispose();
+    });
+  });
+
+  group('macOS (Sparkle owns app updates)', () {
+    test('checkForUpdate is a no-op and leaves the state idle', () async {
+      final svc = build(isMacOS: true);
+      updater.nextCheck = _update();
+
+      final result = await svc.checkForUpdate();
+
+      expect(result, isNull);
+      expect(updater.checkCalls, 0);
+      expect(svc.currentState.phase, AppUpdatePhase.idle);
+      expect(svc.currentState.installable, isFalse);
+      svc.dispose();
+    });
+
+    test('requestCheck does not run the APK-based check', () async {
+      final svc = build(isMacOS: true);
+
+      await svc.requestCheck();
+
+      expect(updater.checkCalls, 0);
+      expect(svc.currentState.phase, AppUpdatePhase.idle);
+      svc.dispose();
+    });
+
+    test('initialize schedules skin refresh without an APK check', () async {
+      final svc = build(isMacOS: true);
+
+      // Automatic checks default on; the periodic path must skip the APK
+      // check while still refreshing skins. The network attempt is swallowed
+      // by _updateSkins, so this only asserts the scheduling choice.
+      await svc.initialize();
+
+      expect(updater.checkCalls, 0);
       svc.dispose();
     });
   });

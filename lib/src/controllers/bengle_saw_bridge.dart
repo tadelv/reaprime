@@ -23,17 +23,16 @@ import 'package:reaprime/src/models/errors.dart';
 ///    Bengle reboot or a late connect after the app has been editing
 ///    the workflow).
 ///
-/// Generation-token + cancellable Timer pattern mirrors
-/// `De1Controller._shotSettingsDebounce` (comms-harden #5) so a
-/// disconnect during the debounce window cleanly drops the pending
-/// write instead of throwing on a stale `connectedDe1()`.
+/// A cancellable debounce timer feeds a serialized latest-value drain so a
+/// disconnect during the debounce window cleanly drops the pending write
+/// instead of throwing on a stale `connectedDe1()`.
 class BengleSawBridge {
   BengleSawBridge({
     required WorkflowController workflowController,
     required De1Controller de1Controller,
     this.debounce = const Duration(milliseconds: 250),
-  })  : _workflow = workflowController,
-        _de1 = de1Controller {
+  }) : _workflow = workflowController,
+       _de1 = de1Controller {
     _lastPushed = _currentTargetYield();
     _workflow.addListener(_onWorkflowChange);
     _de1Sub = _de1.de1.listen(_onDe1Change);
@@ -46,70 +45,132 @@ class BengleSawBridge {
 
   StreamSubscription<De1Interface?>? _de1Sub;
   Timer? _debounceTimer;
-  int _generation = 0;
   double? _lastPushed;
+  int? _lastPushedGeneration;
+  double? _desired;
+  int? _desiredGeneration;
+  double? _inFlight;
+  bool _pushing = false;
+  bool _restartAfterDrain = false;
+  bool _disposed = false;
 
   double _currentTargetYield() =>
       _workflow.currentWorkflow.context?.targetYield ?? 0.0;
 
   void _onWorkflowChange() {
     final next = _currentTargetYield();
-    if (next == _lastPushed) return;
+    final generation = _de1.connectionGeneration;
+    if (next == _lastPushed &&
+        _lastPushedGeneration == generation &&
+        (_inFlight == null || _inFlight == next)) {
+      _desired = null;
+      _desiredGeneration = null;
+      _debounceTimer?.cancel();
+      _debounceTimer = null;
+      return;
+    }
+    _desired = next;
+    _desiredGeneration = generation;
     _debounceTimer?.cancel();
-    final generation = ++_generation;
-    _debounceTimer = Timer(debounce, () => _push(next, generation));
+    _debounceTimer = Timer(debounce, () {
+      _debounceTimer = null;
+      unawaited(_drain());
+    });
   }
 
   void _onDe1Change(De1Interface? device) {
-    if (device is! BengleInterface) return;
-    // New Bengle connected — re-assert the current target so a Bengle
-    // reboot or late connect doesn't leave FW at its default.
-    final next = _currentTargetYield();
-    final generation = ++_generation;
-    _push(next, generation);
+    if (device is! BengleInterface) {
+      if (_pushing) _restartAfterDrain = true;
+      return;
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _desired = _currentTargetYield();
+    _desiredGeneration = _de1.connectionGeneration;
+    if (_pushing) _restartAfterDrain = true;
+    unawaited(_drain());
   }
 
-  Future<void> _push(double grams, int generation) async {
-    if (generation != _generation) {
-      _log.fine('SAW write superseded (gen=$generation, current=$_generation)');
-      return;
-    }
-    final machine = _de1.connectedDe1OrNull;
-    if (machine is! BengleInterface) {
-      _log.fine('SAW write skipped — connected machine is not Bengle');
-      return;
-    }
+  bool _isCurrent(De1Interface machine, int generation) =>
+      identical(machine, _de1.connectedDe1OrNull) &&
+      generation == _de1.connectionGeneration;
+
+  Future<void> _drain() async {
+    if (_pushing || _disposed) return;
+    _pushing = true;
     try {
-      await machine.setStopAtWeightTarget(grams);
-      // Re-check the generation after the await: a workflow edit
-      // landing while the write was in flight bumped it and scheduled
-      // a newer debounce. Updating `_lastPushed` here would stamp the
-      // stale value and could short-circuit the next change-equality
-      // check in `_onWorkflowChange`.
-      if (generation == _generation) {
-        _lastPushed = grams;
+      while (!_disposed) {
+        final grams = _desired;
+        if (grams == null ||
+            (grams == _lastPushed &&
+                _desiredGeneration == _lastPushedGeneration)) {
+          _desired = null;
+          _desiredGeneration = null;
+          return;
+        }
+        final machine = _de1.connectedDe1OrNull;
+        if (machine is! BengleInterface) {
+          _log.fine('SAW write skipped — connected machine is not Bengle');
+          return;
+        }
+        final generation = _de1.connectionGeneration;
+        _inFlight = grams;
+        try {
+          await _de1.runDeviceWrite((device) async {
+            if (identical(device, machine)) {
+              await machine.setStopAtWeightTarget(grams);
+            }
+          });
+          if (_disposed) return;
+          if (!_isCurrent(machine, generation)) continue;
+          _lastPushed = grams;
+          _lastPushedGeneration = generation;
+          if (_desired == grams && _desiredGeneration == generation) {
+            _desired = null;
+            _desiredGeneration = null;
+          }
+          _log.info('SAW target written: ${grams}g');
+        } on DeviceNotConnectedException {
+          _log.fine('SAW write aborted — machine disconnected mid-call');
+          if (!_isCurrent(machine, generation) ||
+              _desired != grams ||
+              _desiredGeneration != generation) {
+            continue;
+          }
+          return;
+        } catch (e, st) {
+          _log.warning('SAW write failed', e, st);
+          if (!_isCurrent(machine, generation) ||
+              _desired != grams ||
+              _desiredGeneration != generation) {
+            continue;
+          }
+          return;
+        } finally {
+          _inFlight = null;
+        }
       }
-      _log.info('SAW target written: ${grams}g');
-    } on DeviceNotConnectedException {
-      // `_lastPushed` deliberately not updated — on Bengle reconnect
-      // `_onDe1Change` re-applies the current target, so the failed
-      // write self-recovers without needing an explicit retry.
-      _log.fine('SAW write aborted — machine disconnected mid-call');
-    } catch (e, st) {
-      // Same recovery story as DeviceNotConnectedException: leave
-      // `_lastPushed` alone so the next workflow edit (different
-      // value) or reconnect re-attempts. Identical-value retries
-      // after a transient failure are not handled — the bar for SAW
-      // is "FW eventually learns the target before the next shot",
-      // not "every write succeeds".
-      _log.warning('SAW write failed', e, st);
+    } finally {
+      final restart = _restartAfterDrain;
+      _restartAfterDrain = false;
+      _pushing = false;
+      if (!_disposed &&
+          restart &&
+          _desired != null &&
+          _de1.connectedDe1OrNull is BengleInterface) {
+        unawaited(_drain());
+      }
     }
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     _workflow.removeListener(_onWorkflowChange);
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    _desired = null;
+    _desiredGeneration = null;
+    _restartAfterDrain = false;
     await _de1Sub?.cancel();
     _de1Sub = null;
   }

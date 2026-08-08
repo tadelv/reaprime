@@ -119,7 +119,7 @@ Future<_Harness> _loadPlugin(
   final setupResult = manager.js.evaluate('''
     globalThis.__testTimers = [];
     globalThis.__nextTimerId = 1;
-    globalThis.setTimeout = (callback, delay = 0) => {
+    globalThis.__timerSet = (pluginId, generation, callback, delay = 0) => {
       if (delay === 5000) {
         callback();
         return 0;
@@ -128,7 +128,7 @@ Future<_Harness> _loadPlugin(
       globalThis.__testTimers = [...globalThis.__testTimers, timer];
       return timer.id;
     };
-    globalThis.clearTimeout = (id) => {
+    globalThis.__timerClear = (pluginId, id) => {
       globalThis.__testTimers = globalThis.__testTimers.filter((timer) => timer.id !== id);
     };
     globalThis.__runTimers = (delay) => {
@@ -137,6 +137,7 @@ Future<_Harness> _loadPlugin(
       for (const timer of ready) timer.callback();
     };
     $fetchSource
+    globalThis.__fetchFor = (pluginId, generation, url, init = {}) => globalThis.fetch(url, init);
   ''');
   expect(setupResult.isError, isFalse, reason: setupResult.stringResult);
   await manager.loadPlugin(
@@ -156,9 +157,7 @@ Future<_Harness> _loadPlugin(
 Future<Object?> _waitForJs(PluginManager manager, String expression) async {
   for (var i = 0; i < 500; i++) {
     manager.js.executePendingJob();
-    final result = manager.js.evaluate(
-      'JSON.stringify(($expression) ?? null)',
-    );
+    final result = manager.js.evaluate('JSON.stringify(($expression) ?? null)');
     expect(result.isError, isFalse, reason: result.stringResult);
     final value = jsonDecode(result.stringResult);
     if (value != null) return value;
@@ -173,6 +172,7 @@ Future<Map<String, dynamic>> _callApi(
   Map<String, dynamic> body,
 ) async {
   const requestId = 'request-1';
+  final response = manager.registerPendingHttp(_manifest.id, requestId);
   manager.dispatchEvent(_manifest.id, 'httpRequest', {
     'requestId': requestId,
     'endpoint': endpoint,
@@ -180,13 +180,7 @@ Future<Map<String, dynamic>> _callApi(
     'headers': <String, String>{},
     'body': body,
   });
-  for (var i = 0; i < 500; i++) {
-    manager.js.executePendingJob();
-    final response = manager.getPendingHttpResponse(requestId);
-    if (response != null) return response;
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-  }
-  fail('Timed out waiting for plugin API response');
+  return response.timeout(const Duration(seconds: 5));
 }
 
 Future<Object?> _waitForStored(
@@ -226,7 +220,7 @@ void _dispatchShotUpdate(
 
 void main() {
   test(
-    'Visualizer upload uses profile frame indices for state_change',
+    'Visualizer upload encodes state_change as non-zero stage markers',
     () async {
       final shot = _shot();
       final harness = await _loadPlugin('''
@@ -252,13 +246,10 @@ void main() {
 
       _startAutoUpload(harness.manager);
       final upload =
-          await _waitForJs(
-                harness.manager,
-                'globalThis.__visualizerUpload',
-              )
+          await _waitForJs(harness.manager, 'globalThis.__visualizerUpload')
               as Map<String, dynamic>;
 
-      expect(upload['state_change'], [0, 0, 1, 2]);
+      expect(upload['state_change'], [1, 1, 2, 3]);
     },
   );
 
@@ -299,10 +290,7 @@ void main() {
 
     _startAutoUpload(harness.manager);
     final patch =
-        await _waitForJs(
-              harness.manager,
-              'globalThis.__tagPatch',
-            )
+        await _waitForJs(harness.manager, 'globalThis.__tagPatch')
             as Map<String, dynamic>;
 
     expect((patch['shot'] as Map<String, dynamic>)['tags'], [
@@ -348,10 +336,7 @@ void main() {
       },
     });
     final patch =
-        await _waitForJs(
-              harness.manager,
-              'globalThis.__tagPatch',
-            )
+        await _waitForJs(harness.manager, 'globalThis.__tagPatch')
             as Map<String, dynamic>;
 
     expect((patch['shot'] as Map<String, dynamic>)['tags'], [
@@ -525,10 +510,7 @@ void main() {
     final body = jsonDecode(response['body'] as String) as Map<String, dynamic>;
 
     expect(response['status'], 202);
-    expect(body, {
-      'visualizer_id': 'visualizer-1',
-      'tag_sync_pending': true,
-    });
+    expect(body, {'visualizer_id': 'visualizer-1', 'tag_sync_pending': true});
     expect(
       await _waitForStored(
         harness,

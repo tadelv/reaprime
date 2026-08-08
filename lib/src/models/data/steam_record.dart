@@ -49,7 +49,9 @@ class SteamRecord {
           .toList(),
       workflow: Workflow.fromJson(json['workflow'] as Map<String, dynamic>),
       annotations: json['annotations'] != null
-          ? ShotAnnotations.fromJson(json['annotations'] as Map<String, dynamic>)
+          ? ShotAnnotations.fromJson(
+              json['annotations'] as Map<String, dynamic>,
+            )
           : null,
     );
   }

@@ -1,12 +1,12 @@
 # Skins.md
 
-## WebUI Development Guide for Decent.app
+## WebUI Development Guide for Decaid
 
-This guide covers how to develop custom web-based user interfaces (skins) for the Decent.app gateway. Skins connect to the Decent.app API to control espresso machines, read sensor data, and create custom user experiences.
+This guide covers how to develop custom web-based user interfaces (skins) for the Decaid gateway. Skins connect to the Decaid API to control espresso machines, read sensor data, and create custom user experiences.
 
 ### What is a Skin?
 
-A **skin** is a web application that communicates with Decent.app via REST and WebSocket APIs. Skins can:
+A **skin** is a web application that communicates with Decaid via REST and WebSocket APIs. Skins can:
 - Display real-time machine state (temperatures, pressures, flow rates)
 - Control espresso shot execution and machine state
 - Manage profiles and workflows
@@ -40,8 +40,7 @@ The **Streamline Project** is a reference implementation:
          │ (REST & WebSocket)
          ▼
 ┌─────────────────┐
-│ Streamline-     │
-│ Bridge Gateway  │
+│ Decaid          │
 │   :8080         │
 └────────┬────────┘
          │ BLE/Serial
@@ -60,10 +59,10 @@ The **Streamline Project** is a reference implementation:
 
 ### Embedded Skin Lifecycle
 
-On Android and iOS, Decent.app pauses the embedded WebView while the app is
+On Android and iOS, Decaid pauses the embedded WebView while the app is
 backgrounded. After ten minutes in the background, it unloads the page and
 reloads the selected skin when the app returns. Skin state that must survive
-this reload should be persisted through the Decent.app API or browser storage.
+this reload should be persisted through the Decaid API or browser storage.
 
 ---
 
@@ -71,7 +70,7 @@ this reload should be persisted through the Decent.app API or browser storage.
 
 ### 1. Basic Connection
 
-Connect to the gateway at `http://<gateway-ip>:8080`
+Connect to the Decaid gateway at `http://<gateway-ip>:8080`
 
 ```javascript
 const GATEWAY_URL = 'http://192.168.1.100:8080';
@@ -170,7 +169,7 @@ Returns all discovered devices with their connection states.
 GET /api/v1/devices/scan
 ```
 
-Triggers a scan-first connection cycle. With the default `connect=true`, Decent.app preserves connected devices and automatically fills only missing machine and scale slots. Preferred devices connect without prompting when found; missing preferred devices or multiple candidates produce machine-first, then scale ambiguity on `ws/v1/devices`. Set `connect=false` for discovery only. Use `quick=true` to return immediately without waiting for scan results.
+Triggers a scan-first connection cycle. With the default `connect=true`, Decaid preserves connected devices and automatically fills only missing machine and scale slots. Preferred devices connect without prompting when found; missing preferred devices or multiple candidates produce machine-first, then scale ambiguity on `ws/v1/devices`. Set `connect=false` for discovery only. Use `quick=true` to return immediately without waiting for scan results.
 
 #### Connect to Device
 ```http
@@ -761,7 +760,7 @@ Permanently deletes a shot record.
 
 ### Coffee Beans, Grinders & Workflows
 
-Decent.app manages coffee beans, bean batches, and grinders as first-class entities that can be linked to workflows and shot records.
+Decaid manages coffee beans, bean batches, and grinders as first-class entities that can be linked to workflows and shot records.
 
 #### How It Fits Together
 
@@ -978,7 +977,7 @@ DELETE /api/v1/grinders/{id}
 
 ### Profiles API
 
-Decent.app uses content-based hashing for profile IDs. Profile IDs are calculated from execution-relevant fields, meaning identical profiles have the same ID across all devices.
+Decaid uses content-based hashing for profile IDs. Profile IDs are calculated from execution-relevant fields, meaning identical profiles have the same ID across all devices.
 
 #### List All Profiles
 ```http
@@ -1144,7 +1143,7 @@ Restores a bundled default profile from assets by filename.
 
 ### Sensors API
 
-Decent.app supports extensible sensor devices that can provide custom data streams.
+Decaid supports extensible sensor devices that can provide custom data streams.
 
 #### List Connected Sensors
 ```http
@@ -1208,7 +1207,7 @@ Content-Type: application/json
 
 ### REA Settings
 
-Configure Decent.app gateway behavior.
+Configure Decaid gateway behavior.
 
 #### Get REA Settings
 ```http
@@ -1256,7 +1255,7 @@ GET /api/v1/settings
 - `displayOff`: Turn off scale display when machine sleeps
 - `disconnect`: Disconnect scale when machine sleeps
 
-#### Update Decent.app Settings
+#### Update Decaid Settings
 ```http
 POST /api/v1/settings
 Content-Type: application/json
@@ -1274,7 +1273,7 @@ Only include fields you want to update. Changes take effect immediately.
 
 ### Key-Value Store
 
-Decent.app provides a simple key-value store for client applications to persist data.
+Decaid provides a simple key-value store for client applications to persist data.
 
 #### List Keys in Namespace
 ```http
@@ -1590,7 +1589,7 @@ Returns 404 if the schedule ID doesn't exist.
 
 ### Build Info
 
-Retrieve build-time metadata about the running Decent.app instance. Useful for skins that want to display version information or check compatibility.
+Retrieve build-time metadata about the running Decaid instance. Useful for skins that want to display version information or check compatibility.
 
 #### Get Build Info
 ```http
@@ -2606,7 +2605,7 @@ Here's a complete minimal skin implementation:
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Minimal Decent.app Skin</title>
+  <title>Minimal Decaid Skin</title>
   <style>
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
@@ -2866,12 +2865,12 @@ Here's a complete minimal skin implementation:
 - Check browser console for WebSocket errors
 - Verify connection state: `ws.readyState` (1 = OPEN)
 - Implement reconnection logic (see Best Practices)
-- Check if machine is actually connected to Decent.app
+- Check if machine is actually connected to Decaid
 
 ### Commands Don't Execute
 - Check HTTP response status codes
 - Verify machine is in correct state for the operation
-- Review Decent.app logs: Connect to `ws://<ip>:8080/ws/v1/logs`
+- Review Decaid logs: Connect to `ws://<ip>:8080/ws/v1/logs`
 - Ensure machine is connected: `GET /api/v1/devices`
 
 ### Profile Upload Fails
@@ -2905,11 +2904,11 @@ This serves OpenAPI/Swagger documentation with:
 
 ## Skin Development & Deployment
 
-This section covers how to develop, build, and deploy custom WebUI skins for Decent.app, including support for modern web frameworks like Next.js, React, Vue, Svelte, and others.
+This section covers how to develop, build, and deploy custom WebUI skins for Decaid, including support for modern web frameworks like Next.js, React, Vue, Svelte, and others.
 
 ### Understanding Skin Distribution
 
-Decent.app supports multiple skin installation methods:
+Decaid supports multiple skin installation methods:
 
 1. **Bundled Asset Skins**: Skins packaged with the Flutter app (in `assets/web/`)
 2. **Remote Bundled Skins**: Skins auto-downloaded from hardcoded GitHub URLs on app startup
@@ -2929,6 +2928,8 @@ ApplicationDocuments/
     ├── another-skin/
     └── .rea_metadata.json    # Version tracking (managed by REA)
 ```
+
+> **Skin id restrictions:** A skin's id (from `skin-manifest.json`, `manifest.json`, or the install folder name) becomes a directory name under `web-ui/`, so it must be a single safe filesystem path component: no `/` or `\` separators, no `.` or `..`, no leading drive letter or NUL byte, and no Windows-reserved characters. Unsafe ids are rejected with a clear error and the skin is not installed.
 
 ### Cross-Skin Asset Sharing
 
@@ -2956,7 +2957,7 @@ The endpoint only serves files from already-installed skins — install the asse
 
 ### Skin Metadata: manifest.json
 
-While optional, including a `manifest.json` helps Decent.app display better skin information:
+While optional, including a `manifest.json` helps Decaid display better skin information:
 
 ```json
 {
@@ -3008,12 +3009,12 @@ npm run build
 
 This creates an `out/` directory with static HTML/CSS/JS files.
 
-### 2. Test Locally with Decent.app
+### 2. Test Locally with Decaid
 
 **Option A: Live-Edit Mode** (recommended for development on desktop):
 
 1. Build your skin (`npm run build`)
-2. In Decent.app **Settings**, select **"Live-edit from folder..."**
+2. In Decaid **Settings**, select **"Live-edit from folder..."**
 3. Point it at your build output directory (e.g., `out/` or `dist/`)
 4. Edit, rebuild, and refresh — no reinstallation needed
 
@@ -3039,12 +3040,12 @@ curl -X POST http://localhost:8080/api/v1/webui/skins/install/url \
 npm run dev
 
 # Access directly at http://localhost:3000
-# Connect to Decent.app API at http://<gateway-ip>:8080
+# Connect to Decaid API at http://<gateway-ip>:8080
 ```
 
 ### 3. Connect to Gateway During Development
 
-When developing locally, your skin needs to connect to the Decent.app gateway:
+When developing locally, your skin needs to connect to the Decaid gateway:
 
 ```javascript
 // Use environment variable or config
@@ -3219,7 +3220,7 @@ Then install from the `dist` branch:
 
 ---
 
-## Configuring Decent.app for Auto-Download
+## Configuring Decaid for Auto-Download
 
 ### For Remote Bundled Skins (Auto-Download on Startup)
 
@@ -3249,7 +3250,7 @@ static const List<Map<String, dynamic>> _remoteWebUISources = [
 ];
 ```
 
-**Decent.app will:**
+**Decaid will:**
 - Download skins on first app startup
 - Check for updates on subsequent startups
 - For GitHub releases: checks for new release tags
@@ -3270,7 +3271,7 @@ The Settings screen provides a skin selector dropdown with built-in management:
 **Live-Edit Mode (Development):**
 1. Select **"Live-edit from folder..."** in the skin dropdown
 2. Pick a folder containing your skin's build output
-3. Decent.app serves files directly from that folder — no copying
+3. Decaid serves files directly from that folder — no copying
 4. Edit your skin files and refresh the browser to see changes instantly
 
 Live-edit validates that the selected folder contains an `index.html`.
@@ -3278,19 +3279,17 @@ Live-edit validates that the selected folder contains an `index.html`.
 **Deleting a Skin:**
 - Non-bundled skins show a delete button (trash icon) in the dropdown
 - Confirmation dialog prevents accidental deletion
-- If the deleted skin is currently active, Decent.app switches to the default skin
+- If the deleted skin is currently active, Decaid switches to the default skin
 
 **Platform Support:**
 
 | Feature | Android | iOS | macOS | Linux | Windows | App Store |
 |---------|---------|-----|-------|-------|---------|-----------|
-| Install from ZIP | yes | yes | yes | yes | yes | no |
+| Install from ZIP | yes | yes | yes | yes | yes | yes |
 | Live-edit folder | yes* | no | yes | yes | yes | no |
-| Delete skins | yes | yes | yes | yes | yes | no |
+| Delete skins | yes | yes | yes | yes | yes | yes |
 
 \* Android requires the **Manage External Storage** permission for live-edit. A permission button appears in Settings when needed.
-
-**App Store Restrictions:** When running as an App Store build, custom skin installation, deletion, and update checks are disabled. Only bundled skins are available.
 
 ### Settings Plugin (Web-Based Management)
 
@@ -3392,7 +3391,7 @@ The default skin preference:
 
 ## Version Management & Updates
 
-Decent.app tracks skin metadata in `.rea_metadata.json`:
+Decaid tracks skin metadata in `.rea_metadata.json`:
 
 ```json
 {
@@ -3408,11 +3407,27 @@ Decent.app tracks skin metadata in `.rea_metadata.json`:
 }
 ```
 
+`sourceUrl` records where a skin came from so it can be refreshed later:
+
+- `github_branch:owner/repo@branch` — GitHub branch installs
+- `github_release:owner/repo@tag` — GitHub release installs. `releaseAssetName`
+  (the specifically selected asset) and `includePrerelease` (prerelease
+  tracking) are stored alongside and re-applied on every update.
+- A plain `http(s)://` URL — raw URL installs, tracked via `etag` /
+  `lastModified` headers
+
 **Update Detection:**
-- Remote skins are checked for updates when `downloadRemoteSkins()` is called
-- Uses HTTP `ETag` and `Last-Modified` headers for efficient version checking
+- User-installed skins are checked for updates via `updateAllSkins()`, which
+  runs on the app's periodic update check, from `POST /api/v1/webui/skins/update`,
+  from the web settings plugin's "Check for Skin Updates", and from the native
+  skin selector's "Check for updates" button.
+- Raw-URL and GitHub-release skins are compared against their recorded source
+  on every check: URL skins via HTTP `ETag` / `Last-Modified` headers,
+  release skins by re-resolving the latest release (honoring the recorded
+  `releaseAssetName` and `includePrerelease`).
 - Only downloads if remote version differs from installed version
-- Updates are automatic for remote bundled skins and user-installed GitHub branch skins
+- Updates are automatic for remote bundled skins and all user-installed skins
+  (GitHub branch, GitHub release, or raw URL)
 
 ---
 
@@ -3432,7 +3447,7 @@ NEXT_PUBLIC_GATEWAY_URL=http://localhost:8080
 NEXT_PUBLIC_WS_URL=ws://localhost:8080
 ```
 
-**Why localhost in production?** When served by Decent.app, the skin runs on the same device as the gateway.
+**Why localhost in production?** When served by Decaid, the skin runs on the same device as the gateway.
 
 ### 2. Static Export Configuration
 
@@ -3594,12 +3609,12 @@ During development with skin on `localhost:3000` and gateway on `192.168.1.100:8
 - Use explicit gateway IP in `NEXT_PUBLIC_WS_URL`
 - Check browser console for connection errors
 
-### Skin Not Appearing in Decent.app
+### Skin Not Appearing in Decaid
 
 - Verify directory name or `manifest.json` `id` field
 - Check `ApplicationDocuments/web-ui/` directory exists
 - Ensure `index.html` is at root of skin directory
-- Review Decent.app logs for installation errors
+- Review Decaid logs for installation errors
 
 ### Updates Not Detected
 
@@ -3743,7 +3758,7 @@ Once your skin is ready for public use:
    - Provide setup instructions
 
 2. **Add to community list:**
-   - Submit PR to Decent.app documentation
+   - Submit PR to Decaid documentation
    - Share on Decent Diaspora forums
 
 3. **Consider open-sourcing:**
@@ -3778,7 +3793,7 @@ Once your skin is ready for public use:
 
 **For Auto-Updates:**
 - Add your skin to `_remoteWebUISources` in `webui_storage.dart`
-- Decent.app will auto-download and check for updates
+- Decaid will auto-download and check for updates
 - Uses HTTP headers for efficient version detection
 
-For questions or issues, open an issue on the [Decent.app GitHub repository](https://github.com/tadelv/reaprime).
+For questions or issues, open an issue on the [Decaid GitHub repository](https://github.com/decentespresso/decaid).

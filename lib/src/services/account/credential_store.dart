@@ -8,13 +8,14 @@ class SecureCredentialStore implements CredentialStore {
   final FlutterSecureStorage _storage;
 
   SecureCredentialStore({FlutterSecureStorage? storage})
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              // v10 changed the default Android ciphers (encryptedSharedPreferences
-              // deprecated). Auto-migrate any creds written by v9 so existing
-              // logins survive the upgrade instead of silently failing to read.
-              aOptions: AndroidOptions(migrateOnAlgorithmChange: true),
-            );
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            // v10 changed the default Android ciphers (encryptedSharedPreferences
+            // deprecated). Auto-migrate any creds written by v9 so existing
+            // logins survive the upgrade instead of silently failing to read.
+            aOptions: AndroidOptions(migrateOnAlgorithmChange: true),
+          );
 
   @override
   Future<String?> read({required String key}) => _storage.read(key: key);

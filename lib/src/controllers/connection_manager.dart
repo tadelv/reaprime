@@ -30,6 +30,7 @@ import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/usb_attach_probe.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -50,7 +51,12 @@ enum ConnectionPhase {
 
 enum AmbiguityReason { machinePicker, scalePicker }
 
-enum ConnectionIntent { automatic, explicitDiscovery, scaleRecovery }
+enum ConnectionIntent {
+  automatic,
+  explicitDiscovery,
+  adapterRecovery,
+  scaleRecovery,
+}
 
 class TransportCondition {
   final TransportType transportType;
@@ -159,7 +165,9 @@ class ConnectionManager {
   /// wedging `_isConnecting` (comms-harden #31). Real-hardware
   /// connect currently observes 3–10s on tablet; 30s leaves ~3x
   /// headroom for slow adapters without feeling sluggish.
-  static const _connectTimeout = Duration(seconds: 30);
+  Duration get _connectTimeout => Platform.isLinux
+      ? const Duration(seconds: 60)
+      : const Duration(seconds: 30);
 
   // Device-connection state + unexpected-disconnect emission live on
   // DisconnectSupervisor — it owns the two stream subscribers and
@@ -191,6 +199,14 @@ class ConnectionManager {
   /// [_queuedScaleOnly] so explicit user-requested discovery is not
   /// delayed behind background scale reacquisition.
   Completer<void>? _queuedExplicitScan;
+  bool _adapterRecoveryQueued = false;
+  bool _adapterRecoveryNeeded = false;
+  int _adapterRecoveryEpoch = 0;
+  AdapterState? _lastAdapterState;
+  Timer? _adapterRecoveryTimer;
+
+  @visibleForTesting
+  Duration adapterRecoveryDebounce = const Duration(seconds: 1);
 
   /// Deferred scale-only rescan armed when the preferred machine
   /// connects but no preferred scale is configured. The initial scan
@@ -342,13 +358,44 @@ class ConnectionManager {
   }
 
   bool _shouldAttemptAttachReconnect() {
+    if (_machineConnected) return false;
+    if (_attachProbe != null) return true;
     final preferredMachineId = settingsController.preferredMachineId;
-    return !_machineConnected &&
-        preferredMachineId != null &&
-        preferredMachineId.isNotEmpty;
+    return preferredMachineId != null && preferredMachineId.isNotEmpty;
   }
 
-  Future<bool> _attemptAttachReconnect() async {
+  UsbAttachProbe? get _attachProbe =>
+      deviceScanner is UsbAttachProbe ? deviceScanner as UsbAttachProbe : null;
+
+  bool _pendingAttachAttempt = false;
+  DeviceAttachedEvent? _pendingAttachEvent;
+
+  Future<bool> _attemptAttachReconnect(DeviceAttachedEvent event) async {
+    if (_machineConnected) return true;
+    if (_attachProbe == null) return _attemptAutomaticConnect();
+    if (_isConnecting) {
+      _pendingAttachEvent = event;
+      _pendingAttachAttempt = true;
+      final intent = currentStatus.intent;
+      if (intent == ConnectionIntent.automatic ||
+          intent == ConnectionIntent.adapterRecovery) {
+        _explicitScanGeneration++;
+        deviceScanner.stopScan();
+      }
+      return true;
+    }
+    final handled = await _runConnect(
+      scaleOnly: false,
+      policy: ConnectionAttemptPolicy.automatic,
+      attachEvent: event,
+    );
+    if (!handled && settingsController.preferredMachineId != null) {
+      return _attemptAutomaticConnect();
+    }
+    return true;
+  }
+
+  Future<bool> _attemptAutomaticConnect() async {
     _machineReconnect?.cancel();
     _machineReconnect = null;
     _machineReconnectFailures = 0;
@@ -358,6 +405,84 @@ class ConnectionManager {
       _log.fine('Attach-triggered connect failed', e, st);
     }
     return _machineConnected;
+  }
+
+  Future<bool> _executeAttachProbe(DeviceAttachedEvent event) async {
+    if (_machineConnected) return true;
+    _isConnecting = true;
+    try {
+      final probe = _attachProbe;
+      if (probe == null) return false;
+      final result = await probe.connectAttachedMachine(event);
+      switch (result) {
+        case AttachProbeConnected(machine: final machine):
+          _log.info(
+            'Attach probe: machine ${machine.name} (${machine.deviceId}) '
+            'connected, adopting',
+          );
+          await _adoptAttachedMachine(machine);
+          return true;
+        case AttachProbeUnsupported():
+          _log.fine(
+            'Attach probe: no supported machine on the attached device',
+          );
+          return true;
+        case AttachProbeUnavailable():
+          return false;
+        case AttachProbeFailed(deviceId: final id, deviceName: final name):
+          if (settingsController.preferredMachineId != null) {
+            _log.info(
+              'Attach probe: attached machine ${name ?? id} failed to '
+              'connect; returning to preferred-machine recovery',
+            );
+            _ensureMachineRecoveryArmed();
+            return true;
+          }
+          _log.info(
+            'Attach probe: attached machine ${name ?? id} failed to connect',
+          );
+          _emit(
+            ConnectionError(
+              kind: ConnectionErrorKind.machineConnectFailed,
+              severity: ConnectionErrorSeverity.error,
+              timestamp: DateTime.now().toUtc(),
+              deviceId: id,
+              deviceName: name,
+              message:
+                  'Attached machine ${name ?? id ?? 'device'} failed to '
+                  'connect.',
+              suggestion:
+                  'Make sure the machine is powered on and the USB '
+                  'cable is seated, then try again.',
+            ),
+          );
+          return true;
+      }
+    } finally {
+      _isConnecting = false;
+    }
+  }
+
+  Future<void> _adoptAttachedMachine(De1Interface machine) async {
+    _publishStatus(
+      currentStatus.copyWith(
+        phase: ConnectionPhase.connectingMachine,
+        activeTargetTransport: () => machine.transportType,
+      ),
+    );
+    de1Controller.adoptDevice(machine);
+    await settingsController.setPreferredMachineId(machine.deviceId);
+    _log.info('Attach probe: machine adopted (${machine.deviceId})');
+    if (machine is BengleInterface) {
+      await _attachBengleVirtualScale(machine);
+    } else if (!_scaleConnected) {
+      if (settingsController.preferredScaleId != null) {
+        _ensureScaleReacquisition();
+      } else {
+        _armPostQuickConnectScaleScan();
+      }
+    }
+    _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
   }
 
   void _ensureMachineRecoveryArmed() {
@@ -370,6 +495,32 @@ class ConnectionManager {
 
   void _listenForAdapter() {
     _adapterSub = deviceScanner.adapterStateStream.listen((state) {
+      if (state == _lastAdapterState) return;
+      final previous = _lastAdapterState;
+      _lastAdapterState = state;
+      if (state == AdapterState.poweredOn) {
+        if (_adapterRecoveryNeeded) {
+          final epoch = _adapterRecoveryEpoch;
+          _adapterRecoveryTimer?.cancel();
+          _adapterRecoveryTimer = Timer(adapterRecoveryDebounce, () {
+            if (epoch != _adapterRecoveryEpoch ||
+                !_adapterRecoveryNeeded ||
+                _lastAdapterState != AdapterState.poweredOn) {
+              return;
+            }
+            _adapterRecoveryNeeded = false;
+            _queueAdapterRecovery();
+          });
+        }
+      } else {
+        _adapterRecoveryEpoch++;
+        _adapterRecoveryNeeded = true;
+        _adapterRecoveryTimer?.cancel();
+        _adapterRecoveryTimer = null;
+        if (previous == AdapterState.poweredOn) {
+          deviceScanner.stopScan();
+        }
+      }
       if (state == AdapterState.poweredOff) {
         final error = ConnectionError(
           kind: ConnectionErrorKind.adapterOff,
@@ -388,7 +539,7 @@ class ConnectionManager {
           message: 'Bluetooth permission was denied.',
           suggestion:
               'Go to Settings > Privacy & Security > Bluetooth and enable '
-              'permission for Decent.app.',
+              'permission for Decaid.',
         );
         _setTransportCondition(error);
         _emit(error);
@@ -597,31 +748,58 @@ class ConnectionManager {
       return _queuedExplicitScan!.future;
     }
     _explicitScanGeneration++;
-    return _runConnect(
+    await _runConnect(
       scaleOnly: false,
       policy: ConnectionAttemptPolicy.explicitScan,
     );
   }
 
-  Future<void> _runConnect({
+  Future<bool> _runConnect({
     required bool scaleOnly,
     required ConnectionAttemptPolicy policy,
+    bool adapterRecovery = false,
+    DeviceAttachedEvent? attachEvent,
   }) async {
     if (_isConnecting) {
+      if (adapterRecovery) return true;
       if (scaleOnly) {
         final completer = _queuedScaleOnly ??= Completer<void>();
-        return completer.future;
+        return completer.future.then((_) => true);
       }
-      return;
+      return true;
     }
 
     try {
-      await _executeConnect(scaleOnly, policy: policy);
+      if (adapterRecovery) {
+        _adapterRecoveryQueued = false;
+        await _executeAdapterRecovery();
+      } else if (attachEvent != null) {
+        return await _executeAttachProbe(attachEvent);
+      } else {
+        await _executeConnect(scaleOnly, policy: policy);
+      }
     } finally {
       // Single priority-aware drain loop: explicit always evaluated
       // first at each scheduling boundary. An explicit request arriving
-      // during a queued scale-only drain is picked up immediately.
-      while (_queuedExplicitScan != null || _queuedScaleOnly != null) {
+      // during a queued scale-only drain is picked up immediately. A
+      // queued attach probe runs first.
+      while (_pendingAttachAttempt ||
+          _queuedExplicitScan != null ||
+          _adapterRecoveryQueued ||
+          _queuedScaleOnly != null) {
+        if (_pendingAttachAttempt) {
+          _pendingAttachAttempt = false;
+          final event = _pendingAttachEvent;
+          _pendingAttachEvent = null;
+          if (event != null && !_machineConnected) {
+            final handled = await _executeAttachProbe(event);
+            if (!handled && settingsController.preferredMachineId != null) {
+              await _attemptAutomaticConnect();
+            }
+          }
+          continue;
+        }
+
         if (_queuedExplicitScan != null) {
           final drain = _queuedExplicitScan!;
           _queuedExplicitScan = null;
@@ -634,6 +812,12 @@ class ConnectionManager {
           } catch (e, st) {
             drain.completeError(e, st);
           }
+          continue;
+        }
+
+        if (_adapterRecoveryQueued) {
+          _adapterRecoveryQueued = false;
+          await _executeAdapterRecovery();
           continue;
         }
 
@@ -650,20 +834,24 @@ class ConnectionManager {
         }
       }
     }
+    return true;
   }
 
   Future<void> _executeConnect(
     bool scaleOnly, {
     required ConnectionAttemptPolicy policy,
+    ConnectionIntent? intent,
   }) async {
     _isConnecting = true;
     _publishStatus(
       currentStatus.copyWith(
-        intent: identical(policy, ConnectionAttemptPolicy.explicitScan)
-            ? ConnectionIntent.explicitDiscovery
-            : identical(policy, ConnectionAttemptPolicy.scaleRecovery)
+        intent:
+            intent ??
+            (identical(policy, ConnectionAttemptPolicy.explicitScan)
+                ? ConnectionIntent.explicitDiscovery
+                : identical(policy, ConnectionAttemptPolicy.scaleRecovery)
                 ? ConnectionIntent.scaleRecovery
-                : ConnectionIntent.automatic,
+                : ConnectionIntent.automatic),
         activeTargetTransport: () => null,
       ),
     );
@@ -677,6 +865,44 @@ class ConnectionManager {
         _activeScaleOnlyScan = false;
       }
       _isConnecting = false;
+    }
+  }
+
+  void _queueAdapterRecovery() {
+    if (_adapterRecoveryQueued) return;
+    _adapterRecoveryQueued = true;
+    if (_isConnecting) return;
+    unawaited(
+      _runConnect(
+        scaleOnly: false,
+        policy: ConnectionAttemptPolicy.automatic,
+        adapterRecovery: true,
+      ),
+    );
+  }
+
+  Future<void> _executeAdapterRecovery() async {
+    final preferredMachine = settingsController.preferredMachineId;
+    final preferredScale = settingsController.preferredScaleId;
+    if (preferredMachine != null &&
+        preferredMachine.isNotEmpty &&
+        !_machineConnected) {
+      await _executeConnect(
+        false,
+        policy: ConnectionAttemptPolicy.automatic,
+        intent: ConnectionIntent.adapterRecovery,
+      );
+      return;
+    }
+    if (_machineConnected &&
+        preferredScale != null &&
+        preferredScale.isNotEmpty &&
+        !_scaleConnected) {
+      await _executeConnect(
+        true,
+        policy: ConnectionAttemptPolicy.scaleRecovery,
+        intent: ConnectionIntent.adapterRecovery,
+      );
     }
   }
 
@@ -814,16 +1040,22 @@ class ConnectionManager {
     // Explicit scan was cancelled while the scan was in-flight — emit a
     // cancelled report and bail without applying policy.
     if (_explicitScanGeneration != scanGen) {
-      _scanReportSubject.add(scanRun.reportBuilder.build(
-        preferredMachineId: preferredMachineId,
-        preferredScaleId: preferredScaleId,
-        terminationReason: ScanTerminationReason.cancelledByUser,
-        adapterStateAtEnd: deviceScanner.currentAdapterState,
-      ));
-      _publishStatus(currentStatus.copyWith(
-        pendingAmbiguity: () => null,
-        phase: _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
-      ));
+      _scanReportSubject.add(
+        scanRun.reportBuilder.build(
+          preferredMachineId: preferredMachineId,
+          preferredScaleId: preferredScaleId,
+          terminationReason: ScanTerminationReason.cancelledByUser,
+          adapterStateAtEnd: deviceScanner.currentAdapterState,
+        ),
+      );
+      _publishStatus(
+        currentStatus.copyWith(
+          pendingAmbiguity: () => null,
+          phase: _machineConnected
+              ? ConnectionPhase.ready
+              : ConnectionPhase.idle,
+        ),
+      );
       _ensureScaleReacquisition();
       return;
     }
@@ -1467,10 +1699,12 @@ class ConnectionManager {
       );
 
       if (selectionSession == null || !selectionSession.isActive) {
-        _publishStatus(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => null,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => null,
+          ),
+        );
         _emit(machineError);
         rethrow;
       }
@@ -1479,18 +1713,22 @@ class ConnectionManager {
           .where((m) => m.deviceId != machine.deviceId)
           .toList();
       if (alternatives.isNotEmpty) {
-        _publishStatus(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => AmbiguityReason.machinePicker,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          ),
+        );
         _emit(machineError);
         rethrow;
       }
 
-      _publishStatus(currentStatus.copyWith(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: () => null,
-      ));
+      _publishStatus(
+        currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => null,
+        ),
+      );
       _emit(machineError);
       await _runScalePhase(
         null,
@@ -1606,8 +1844,10 @@ class ConnectionManager {
     }
     // Capture the machine error before connectScale publishes a clearing
     // phase (connectingScale) and the gatekeeper strips it.
-    final machineError = !_machineConnected &&
-            currentStatus.error?.kind == ConnectionErrorKind.machineConnectFailed
+    final machineError =
+        !_machineConnected &&
+            currentStatus.error?.kind ==
+                ConnectionErrorKind.machineConnectFailed
         ? currentStatus.error
         : null;
     session.scanReport.markAttempted(resolved.deviceId);
@@ -1734,9 +1974,7 @@ class ConnectionManager {
     return result;
   }
 
-  void _completeSelectionSessionIfResolved(
-    ConnectionSelectionSession session,
-  ) {
+  void _completeSelectionSessionIfResolved(ConnectionSelectionSession session) {
     if (currentStatus.pendingAmbiguity != null) return;
     _finishSelectionSession(session, ScanTerminationReason.completed);
   }
@@ -1772,13 +2010,8 @@ class ConnectionManager {
     queued?.complete();
     final session = _selectionSession;
     if (session != null) {
-      _publishStatus(currentStatus.copyWith(
-        pendingAmbiguity: () => null,
-      ));
-      _finishSelectionSession(
-        session,
-        ScanTerminationReason.cancelledByUser,
-      );
+      _publishStatus(currentStatus.copyWith(pendingAmbiguity: () => null));
+      _finishSelectionSession(session, ScanTerminationReason.cancelledByUser);
     }
     _settleAfterScalePhase();
     _ensureScaleReacquisition();
@@ -1794,13 +2027,8 @@ class ConnectionManager {
   void cancelSelectionSession() {
     final session = _selectionSession;
     if (session == null) return;
-    _publishStatus(currentStatus.copyWith(
-      pendingAmbiguity: () => null,
-    ));
-    _finishSelectionSession(
-      session,
-      ScanTerminationReason.cancelledByUser,
-    );
+    _publishStatus(currentStatus.copyWith(pendingAmbiguity: () => null));
+    _finishSelectionSession(session, ScanTerminationReason.cancelledByUser);
     _settleAfterScalePhase();
     _ensureScaleReacquisition();
   }
@@ -1809,10 +2037,7 @@ class ConnectionManager {
     final session = _selectionSession;
     if (session == null) return;
     if (emitReport) {
-      _finishSelectionSession(
-        session,
-        ScanTerminationReason.cancelledByUser,
-      );
+      _finishSelectionSession(session, ScanTerminationReason.cancelledByUser);
     } else {
       session.invalidate();
       _selectionSession = null;
@@ -1853,6 +2078,9 @@ class ConnectionManager {
     _cancelSelectionSession(emitReport: false);
     _stopMachineRecovery();
     _deferredScaleScan?.cancel();
+    _adapterRecoveryTimer?.cancel();
+    _adapterRecoveryTimer = null;
+    _adapterRecoveryQueued = false;
     _cancelPreferredScaleReconnect();
     await _attachReconnectCoordinator?.dispose();
     _queuedExplicitScan?.complete();

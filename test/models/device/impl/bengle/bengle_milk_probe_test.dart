@@ -31,22 +31,27 @@ void main() {
       expect(initial, ConnectionState.connected);
 
       bengle.setProbeAttached(false);
-      final after = await probe.connectionState
-          .firstWhere((s) => s == ConnectionState.disconnected);
+      final after = await probe.connectionState.firstWhere(
+        (s) => s == ConnectionState.disconnected,
+      );
       expect(after, ConnectionState.disconnected);
     });
 
     test('data emits temperature frames while steaming', () async {
       await bengle.requestState(MachineState.steam);
       await bengle.setStopAtTemperatureTarget(0.0);
-      final sample = await probe.data
-          .firstWhere((m) => m['temperature'] is num);
+      final sample = await probe.data.firstWhere(
+        (m) => m['temperature'] is num,
+      );
       expect(sample['timestamp'], isA<String>());
       expect((sample['temperature'] as num).toDouble(), greaterThan(0));
     });
 
     test('info exposes temperature channel', () {
-      expect(probe.info.dataChannels.map((c) => c.key), contains('temperature'));
+      expect(
+        probe.info.dataChannels.map((c) => c.key),
+        contains('temperature'),
+      );
     });
   });
 }

@@ -14,10 +14,7 @@ import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
 import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 
 class AdvancedPage extends StatelessWidget {
-  const AdvancedPage({
-    super.key,
-    required this.controller,
-  });
+  const AdvancedPage({super.key, required this.controller});
 
   static const routeName = '/advanced';
 
@@ -100,9 +97,7 @@ class AdvancedPage extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   'When a profile step has both a weight and firmware exit condition, '
                   'defer the weight-based advance to avoid racing the DE1 and skipping '
@@ -131,9 +126,7 @@ class AdvancedPage extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     'Will try to negotiate a larger MTU value '
                     'for Bluetooth connections. ',
@@ -221,10 +214,8 @@ class AdvancedPage extends StatelessWidget {
                 leading: const Icon(LucideIcons.bug),
                 title: const Text('Debug view'),
                 trailing: const Icon(Icons.chevron_right, size: 20),
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  DebugItemListView.routeName,
-                ),
+                onTap: () =>
+                    Navigator.pushNamed(context, DebugItemListView.routeName),
               ),
               const SettingsDivider(),
 
@@ -236,7 +227,7 @@ class AdvancedPage extends StatelessWidget {
                     color: Theme.of(context).colorScheme.error,
                   ),
                   title: Text(
-                    'Exit Decent',
+                    'Exit Decaid',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),

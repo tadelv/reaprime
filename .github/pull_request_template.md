@@ -2,7 +2,7 @@
 
 Describe the problem and fix in 2–5 bullets:
 
-> **Naming:** The display name is **Decent.app**. The repo, package, and bundle ID use legacy `reaprime` / `streamline-bridge` — see the naming table in [`CLAUDE.md`](CLAUDE.md).
+> **Naming:** The display name is **Decaid**. The Dart package, bundle ID, database, and plugin extension retain legacy identifiers for compatibility — see the naming table in [`CLAUDE.md`](CLAUDE.md).
 
 - Problem:
 - Why it matters:
@@ -92,9 +92,10 @@ List user-visible changes (including defaults, config, behavior). If none, write
 
 ### Local gates (run before pushing)
 
+- [ ] `dart format lib test` — no remaining changes
 - [ ] `flutter analyze` — clean (no new warnings)
 - [ ] `flutter test` — all pass
-- [ ] `(cd packages/dye2-plugin && npm run build)` — plugin builds
+- [ ] `./scripts/fetch_dye2_plugin.sh` — DYE2 plugin installed into `assets/plugins/dye2.reaplugin/`
 
 ### Manual verification (if applicable)
 

@@ -20,6 +20,10 @@ class UpdateCheckService {
   /// Injectable so the state machine is testable off-device.
   final bool _isAndroid;
 
+  /// Whether Sparkle owns app updates on this platform (macOS only).
+  /// Injectable so scheduling behavior is testable off-device.
+  final bool _isMacOS;
+
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
 
@@ -27,17 +31,22 @@ class UpdateCheckService {
   /// `/ws/v1/update`). Derived from [_availableUpdate] plus the current phase.
   late final BehaviorSubject<AppUpdateState> _state;
 
-  static const Duration _checkInterval = (String.fromEnvironment("simulate") == "1") ? Duration(hours: 1) : Duration(hours: 12);
+  static const Duration _checkInterval =
+      (String.fromEnvironment("simulate") == "1")
+      ? Duration(hours: 1)
+      : Duration(hours: 12);
 
   UpdateCheckService({
     required SettingsService settingsService,
     AndroidUpdater? updater,
     required WebUIStorage webUIStorage,
     bool? platformIsAndroid,
-  })  : _settingsService = settingsService,
-        _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
-        _webUIStorage = webUIStorage,
-        _isAndroid = platformIsAndroid ?? Platform.isAndroid {
+    bool? platformIsMacOS,
+  }) : _settingsService = settingsService,
+       _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
+       _webUIStorage = webUIStorage,
+       _isAndroid = platformIsAndroid ?? Platform.isAndroid,
+       _isMacOS = platformIsMacOS ?? Platform.isMacOS {
     _state = BehaviorSubject.seeded(_snapshot(AppUpdatePhase.idle));
   }
 
@@ -81,10 +90,10 @@ class UpdateCheckService {
   }
 
   bool get _inProgress => const {
-        AppUpdatePhase.checking,
-        AppUpdatePhase.downloading,
-        AppUpdatePhase.installing,
-      }.contains(_state.value.phase);
+    AppUpdatePhase.checking,
+    AppUpdatePhase.downloading,
+    AppUpdatePhase.installing,
+  }.contains(_state.value.phase);
 
   /// API command: force a re-check. No-op (coalesced) if an operation is
   /// already in flight.
@@ -148,21 +157,32 @@ class UpdateCheckService {
     }
   }
 
-  /// Start periodic update checks
+  /// Start periodic update checks. On macOS Sparkle owns app updates, so the
+  /// timer only refreshes skins; the APK-based check never runs.
   Future<void> _startPeriodicChecks() async {
-    _log.info('Starting periodic update checks (every ${_checkInterval.inHours} hours)');
-    
-    // Check immediately if we haven't checked recently
-    final lastCheck = await _settingsService.lastUpdateCheckTime();
-    if (lastCheck == null || DateTime.now().difference(lastCheck) > _checkInterval) {
-      await checkForUpdate();
+    _log.info(
+      'Starting periodic update checks (every ${_checkInterval.inHours} hours)'
+      '${_isMacOS ? ' [skins only — Sparkle owns macOS app updates]' : ''}',
+    );
+
+    if (_isMacOS) {
       await _updateSkins();
+    } else {
+      // Check immediately if we haven't checked recently
+      final lastCheck = await _settingsService.lastUpdateCheckTime();
+      if (lastCheck == null ||
+          DateTime.now().difference(lastCheck) > _checkInterval) {
+        await checkForUpdate();
+        await _updateSkins();
+      }
     }
 
     // Schedule periodic checks
     _periodicTimer?.cancel();
     _periodicTimer = Timer.periodic(_checkInterval, (_) async {
-      await checkForUpdate();
+      if (!_isMacOS) {
+        await checkForUpdate();
+      }
       await _updateSkins();
     });
   }
@@ -185,15 +205,21 @@ class UpdateCheckService {
     }
   }
 
-  /// Manually check for updates
+  /// Manually check for updates. No-op on macOS: Sparkle owns app updates and
+  /// presents its own UI; the REST/WS API must not mirror partial Sparkle
+  /// state into [AppUpdateState].
   Future<UpdateInfo?> checkForUpdate() async {
+    if (_isMacOS) {
+      _log.info('macOS app updates are owned by Sparkle; skipping APK check');
+      return null;
+    }
     try {
       _emit(AppUpdatePhase.checking);
       _log.info('Checking for updates (current: ${BuildInfo.version})');
 
       final updateInfo = await _updater.checkForUpdate(
         BuildInfo.version,
-        channel: UpdateChannel.stable,
+        channel: await _settingsService.updateChannel(),
       );
 
       await _settingsService.setLastUpdateCheckTime(DateTime.now());
@@ -215,9 +241,11 @@ class UpdateCheckService {
         _availableUpdate = null;
       }
 
-      _emit(_availableUpdate != null
-          ? AppUpdatePhase.available
-          : AppUpdatePhase.idle);
+      _emit(
+        _availableUpdate != null
+            ? AppUpdatePhase.available
+            : AppUpdatePhase.idle,
+      );
       return updateInfo;
     } catch (e, stackTrace) {
       _log.warning('Error checking for updates', e, stackTrace);
@@ -228,13 +256,14 @@ class UpdateCheckService {
 
   /// Get the GitHub releases page URL
   String getReleasesUrl() {
-    return 'https://github.com/tadelv/reaprime/releases';
+    return 'https://github.com/decentespresso/decaid/releases';
   }
 
   /// Get the specific release URL if an update is available
-  String? getReleaseUrl() {
-    if (_availableUpdate == null) return null;
-    return 'https://github.com/tadelv/reaprime/releases/tag/${_availableUpdate!.tagName}';
+  String? getReleaseUrl([UpdateInfo? update]) {
+    final release = update ?? _availableUpdate;
+    if (release == null) return null;
+    return 'https://github.com/decentespresso/decaid/releases/tag/${release.tagName}';
   }
 
   /// Enable automatic update checks
@@ -260,15 +289,13 @@ class UpdateCheckService {
   ///
   /// [downloadUrl] points at a real APK so the download/install path can be
   /// exercised end-to-end; defaults to the latest released Android APK.
-  void debugForceUpdate({
-    String version = '99.0.0',
-    String? downloadUrl,
-  }) {
+  void debugForceUpdate({String version = '99.0.0', String? downloadUrl}) {
     _log.info('DEBUG: forcing fake update notification ($version)');
     _availableUpdate = UpdateInfo(
       version: version,
-      downloadUrl: downloadUrl ??
-          'https://github.com/tadelv/reaprime/releases/download/v0.7.7/decent-android-0.7.7.apk',
+      downloadUrl:
+          downloadUrl ??
+          'https://github.com/decentespresso/decaid/releases/download/v0.7.7/decent-android-0.7.7.apk',
       releaseNotes: 'Forced update for testing the update API.',
       isPrerelease: false,
       tagName: 'v$version',

@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'  # Triggers on tags like v1.0.0, v2.1.3, etc.
 
+# Two tags pushed close together must not race the appcast feed.
+concurrency:
+  group: sparkle-appcast
+  cancel-in-progress: false
+
 # bundle_skins.sh (invoked by flutter_with_commit.sh) hits api.github.com.
 # Without auth, all jobs share the runner IP's 60 req/hr limit and silently
 # get empty manifests. Expose GITHUB_TOKEN to every job so curl gets 5000/hr.
@@ -25,6 +30,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -39,27 +46,22 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > android/app/debug.keystore
 
-      - name: Cache Flutter & Gradle
+      - name: Cache Gradle
         uses: actions/cache@v5
         with:
-          path: |
-            ~/.pub-cache
-            ~/.gradle
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.yaml') }}
+          path: ~/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Android APK
         run: ./flutter_with_commit.sh build apk --release
@@ -71,19 +73,19 @@ jobs:
         run: |
           # Extract version from tag (v1.2.3 -> 1.2.3)
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK with version
         run: |
           mv build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
+             build/app/outputs/flutter-apk/decaid-android-${{ steps.version.outputs.version }}.apk
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v7
         with:
           name: android-apk
-          path: build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
+          path: build/app/outputs/flutter-apk/decaid-android-${{ steps.version.outputs.version }}.apk
 
   build-macos:
     runs-on: macos-latest
@@ -98,22 +100,19 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install dependencies
         run: |
           flutter pub get
           brew install automake libtool
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -154,20 +153,23 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
-      - name: Codesign app (hardened runtime)
+      - name: Codesign app (Developer ID, deepest-first)
         run: |
-          APP="build/macos/Build/Products/Release/Decent.app"
-          codesign --deep --force \
-            --options runtime \
-            --entitlements macos/Runner/Release.entitlements \
-            --sign "Developer ID Application" \
-            "$APP"
+          # Never codesign --deep: it rewrites Sparkle's nested helpers with
+          # the host entitlements, breaking the sandboxed Installer XPC.
+          scripts/sign_macos_deepest_first.sh \
+            build/macos/Build/Products/Release/Decaid.app
+
+      - name: Verify signing gates (pre-notarization)
+        run: |
+          scripts/verify_macos_signature.sh \
+            build/macos/Build/Products/Release/Decaid.app
 
       # ---- Notarize ----
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app Decent.zip
+          ditto -c -k --keepParent Decaid.app Decaid.zip
 
       - name: Notarize app
         env:
@@ -176,7 +178,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/Decent.zip \
+            build/macos/Build/Products/Release/Decaid.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -195,7 +197,7 @@ jobs:
         run: |
           # Retry stapling — ticket propagation can lag behind notarytool --wait
           for i in 1 2 3 4 5; do
-            if xcrun stapler staple build/macos/Build/Products/Release/Decent.app; then
+            if xcrun stapler staple build/macos/Build/Products/Release/Decaid.app; then
               exit 0
             fi
             echo "Staple attempt $i failed, waiting 15s..."
@@ -204,22 +206,27 @@ jobs:
           echo "Stapling failed after 5 attempts"
           exit 1
 
+      - name: Verify signed + notarized app (spctl + stapler)
+        run: |
+          scripts/verify_macos_signature.sh \
+            build/macos/Build/Products/Release/Decaid.app XLS3XF57J8 1
+
       # ---- Final ZIP ----
       - name: Get version
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create release ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-${{ steps.version.outputs.version }}.zip
+          ditto -c -k --keepParent Decaid.app ../../../../../decaid-macos-${{ steps.version.outputs.version }}.zip
 
       - uses: actions/upload-artifact@v7
         with:
           name: macos-app
-          path: decent-macos-${{ steps.version.outputs.version }}.zip
+          path: decaid-macos-${{ steps.version.outputs.version }}.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -237,20 +244,17 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (unsigned)
         run: ./flutter_with_commit.sh build linux --release
@@ -261,18 +265,18 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Linux archive
         run: |
           cd build/linux/x64/release
-          tar -czf ../../../../decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
+          tar -czf ../../../../decaid-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Linux app artifact
         uses: actions/upload-artifact@v7
         with:
           name: linux-app
-          path: decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz
+          path: decaid-linux-x64-${{ steps.version.outputs.version }}.tar.gz
 
   build-raspberrypi:
     name: Build for Raspberry Pi (ARM64 / Pi 4+)
@@ -287,12 +291,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev
 
       - name: Set up Flutter
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           # Flutter publishes no prebuilt arm64 Linux SDK; the master channel
           # path lets flutter-action git-clone the tagged version instead.
           channel: 'master'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
@@ -300,16 +307,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (ARM64)
         run: ./flutter_with_commit.sh build linux --release
@@ -320,18 +322,18 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Raspberry Pi archive
         run: |
           cd build/linux/arm64/release
-          tar -czf ../../../../decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
+          tar -czf ../../../../decaid-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Raspberry Pi build artifact
         uses: actions/upload-artifact@v7
         with:
           name: raspberrypi-linux-arm64-app
-          path: decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
+          path: decaid-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
 
   build-windows:
     # Pinned: windows-latest rolled to VS 18 / MSVC 14.51, which hard-errors on
@@ -349,6 +351,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install nuget
         uses: nuget/setup-nuget@v2
@@ -358,16 +362,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Windows app (unsigned)
         shell: bash
@@ -380,18 +379,18 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Windows archive
         shell: pwsh
         run: |
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decent-windows-x64-${{ steps.version.outputs.version }}.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decaid-windows-x64-${{ steps.version.outputs.version }}.zip
 
       - name: Upload Windows app artifact
         uses: actions/upload-artifact@v7
         with:
           name: windows-app
-          path: decent-windows-x64-${{ steps.version.outputs.version }}.zip
+          path: decaid-windows-x64-${{ steps.version.outputs.version }}.zip
 
   build-ios:
     runs-on: macos-latest
@@ -409,6 +408,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       # Swift Package Manager (Flutter >=3.44 default) is enabled: the iOS
       # project commits the SPM integration and Package.resolved. Firebase
@@ -422,24 +423,42 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Cache Flutter & CocoaPods
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.pub-cache
-            ios/Pods
-          key: ${{ runner.os }}-ios-flutter-${{ hashFiles('**/pubspec.yaml', '**/Podfile.lock') }}
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
+      - name: Build IPA
+        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --no-codesign
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
-      - name: Build DYE2 plugin
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package unsigned IPA
         run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+          APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/decaid-ios-unsigned-${{ steps.version.outputs.version }}.ipa"
+          PACKAGE_DIR="$RUNNER_TEMP/unsigned-ipa"
+
+          test -d "$APP_PATH"
+
+          rm -rf "$PACKAGE_DIR"
+          mkdir -p "$PACKAGE_DIR/Payload"
+          cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
+
+          cd "$PACKAGE_DIR"
+          zip -qry "$OUTPUT_PATH" Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-ipa-unsigned
+          path: decaid-ios-unsigned-${{ steps.version.outputs.version }}.ipa
+          if-no-files-found: error
 
       - name: Import distribution certificate
         env:
@@ -480,16 +499,7 @@ jobs:
           # Extract UUID and install with correct filename
           PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
-
-      - name: Switch to manual signing for CI
-        env:
-          PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
-        run: |
-          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PBXPROJ"
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ""/PROVISIONING_PROFILE_SPECIFIER = "'"$PROVISIONING_PROFILE_NAME"'"/g' "$PBXPROJ"
-          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Development"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
+          cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/${PP_UUID}.mobileprovision"
 
       - name: Create ExportOptions.plist
         env:
@@ -502,7 +512,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>app-store-connect</string>
             <key>teamID</key>
             <string>${TEAM_ID}</string>
             <key>signingStyle</key>
@@ -520,10 +530,13 @@ jobs:
           </plist>
           EOF
 
-      - name: Build IPA
-        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --export-options-plist=ExportOptions.plist
-        env:
-          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
+      - name: Export signed IPA
+        run: |
+          rm -rf build/ios/ipa
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist ExportOptions.plist
 
       - name: Upload dSYMs to Firebase Crashlytics
         run: |
@@ -571,7 +584,7 @@ jobs:
         run: |
           # Write the API key to the expected location
           mkdir -p ~/.private_keys
-          echo "$API_KEY_P8" | base64 --decode > ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+          echo "$API_KEY_P8" | base64 --decode > "$HOME/.private_keys/AuthKey_${API_KEY_ID}.p8"
 
           # Find the built IPA
           IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
@@ -596,12 +609,14 @@ jobs:
             --apiIssuer "$API_ISSUER_ID"
 
           # Clean up API key
-          rm -f ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+          rm -f "$HOME/.private_keys/AuthKey_${API_KEY_ID}.p8"
 
   create-release:
     name: Create GitHub Release
-    needs: [build-android, build-macos, build-linux, build-raspberrypi, build-windows]
+    needs: [build-android, build-macos, build-linux, build-raspberrypi, build-windows, build-ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -612,8 +627,8 @@ jobs:
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -622,6 +637,15 @@ jobs:
 
       - name: Display structure of downloaded files
         run: ls -R release-artifacts
+
+      - name: Generate release notes
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${{ steps.version.outputs.tag }}" \
+            --jq .body > release-notes.md
+          test -s release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -632,42 +656,142 @@ jobs:
             release-artifacts/linux-app/*
             release-artifacts/raspberrypi-linux-arm64-app/*
             release-artifacts/windows-app/*
+            release-artifacts/ios-ipa-unsigned/*
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Decent ${{ steps.version.outputs.version }}
+          name: Decaid ${{ steps.version.outputs.version }}
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'rc') }}
-          generate_release_notes: true
-          body: |
-            ## Decent ${{ steps.version.outputs.version }}
-            
-            ### Downloads
-            
-            - **Android**: `decent-android-${{ steps.version.outputs.version }}.apk`
-            - **macOS**: `decent-macos-${{ steps.version.outputs.version }}.zip`
-            - **Linux x64**: `decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
-            - **Linux ARM64 (Raspberry Pi)**: `decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
-            - **Windows x64**: `decent-windows-x64-${{ steps.version.outputs.version }}.zip`
-            
-            ### Installation
-            
-            **Android**: Download the APK and install it on your device.
-            
-            **macOS**: Download the ZIP, extract it, and move the app to your Applications folder.
-            
-            **Linux**: Download the tar.gz, extract it, and run the executable inside the bundle directory.
-            
-            **Windows**: Download the ZIP, extract it, and run the executable inside the extracted folder.
-            
-            > **Windows users**: Decent requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
-
-            **iOS**: Available via TestFlight. Check the project's TestFlight page for access.
-            
-            ### What's Changed
-            <!-- GitHub will auto-generate release notes here -->
-            
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.tag }}
+          body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-appcast:
+    name: Publish Sparkle appcast
+    needs: [create-release]
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag and channel
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # Match the prerelease detection in create-release: any beta/alpha/rc
+          # tag publishes to the Sparkle beta channel.
+          if [[ "$VERSION" == *beta* || "$VERSION" == *alpha* || "$VERSION" == *rc* ]]; then
+            echo "channel=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch previous appcast from gh-pages branch
+        id: feed
+        run: |
+          # The gh-pages branch is the durable source of truth, read through
+          # git (not the Pages CDN) so a transient Pages/TLS failure can never
+          # be mistaken for a first publication.
+          if git fetch origin gh-pages 2>/dev/null && git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git show origin/gh-pages:appcast.xml > "$RUNNER_TEMP/previous-appcast.xml"
+            test -s "$RUNNER_TEMP/previous-appcast.xml"
+            echo "feed-present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "feed-present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce one-time bootstrap
+        if: steps.feed.outputs.feed-present == 'false'
+        run: |
+          if [ "${{ vars.SPARKLE_APPCAST_BOOTSTRAP }}" != "true" ]; then
+            echo "No appcast.xml exists on the gh-pages branch."
+            echo "For the FIRST Sparkle release only, set the repo variable"
+            echo "SPARKLE_APPCAST_BOOTSTRAP=true, re-run this workflow on the"
+            echo "release tag, then delete the variable."
+            exit 1
+          fi
+          echo "Bootstrap authorized via SPARKLE_APPCAST_BOOTSTRAP"
+
+      - name: Download the release ZIP asset
+        run: |
+          gh release download "${{ steps.version.outputs.tag }}" \
+            --pattern 'decaid-macos-*.zip' \
+            --dir "$RUNNER_TEMP/appcast-staging"
+          ls -la "$RUNNER_TEMP/appcast-staging"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch generated release notes
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${{ steps.version.outputs.tag }}" \
+            --jq .body > "$RUNNER_TEMP/appcast-staging/release-notes.md"
+          test -s "$RUNNER_TEMP/appcast-staging/release-notes.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Sparkle 2.9.5 release tools (pinned checksum)
+        run: |
+          curl -fSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+            https://github.com/sparkle-project/Sparkle/releases/download/2.9.5/Sparkle-2.9.5.tar.xz
+          echo "015336b601493e05c237964954bff6191370003d94edefe663724c88840d73cc  $RUNNER_TEMP/sparkle.tar.xz" \
+            | shasum -a 256 -c -
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP" bin
+          # GITHUB_PATH only applies to subsequent steps; export now so this
+          # step's sanity check can run, and append for the generate step.
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          generate_appcast --help >/dev/null
+
+      - name: Run appcast helper tests
+        run: scripts/test_appcast_helpers.sh
+
+      - name: Generate and validate appcast
+        run: |
+          if [ -z "${{ secrets.SPARKLE_ED_PRIVATE_KEY }}" ]; then
+            echo "FAIL: SPARKLE_ED_PRIVATE_KEY secret is not configured."
+            echo "Export the EdDSA private key from your login keychain"
+            echo "(Sparkle's generate_keys -x private-key-file) and run:"
+            echo "  gh secret set SPARKLE_ED_PRIVATE_KEY < private-key-file"
+            exit 1
+          fi
+          ZIP="$(ls "$RUNNER_TEMP/appcast-staging"/decaid-macos-*.zip | head -1)"
+          mkdir -p "$RUNNER_TEMP/pages"
+          PREV=""
+          if [ -f "$RUNNER_TEMP/previous-appcast.xml" ]; then
+            PREV="$RUNNER_TEMP/previous-appcast.xml"
+          fi
+          scripts/publish_appcast.sh \
+            "$ZIP" \
+            "$RUNNER_TEMP/appcast-staging/release-notes.md" \
+            "https://github.com/decentespresso/decaid/releases/download/${{ steps.version.outputs.tag }}/" \
+            "${{ steps.version.outputs.channel }}" \
+            - \
+            "$RUNNER_TEMP/pages/appcast.xml" \
+            "$PREV" <<< "${{ secrets.SPARKLE_ED_PRIVATE_KEY }}"
+
+      - name: Publish appcast to gh-pages branch
+        run: |
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git switch -c gh-pages origin/gh-pages
+          else
+            git switch --orphan gh-pages
+          fi
+          cp "$RUNNER_TEMP/pages/appcast.xml" appcast.xml
+          touch .nojekyll
+          git add appcast.xml .nojekyll
+          if git diff --cached --quiet; then
+            echo "appcast.xml unchanged; nothing to commit"
+          else
+            git -c user.name="github-actions[bot]" \
+                -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                commit -m "appcast: update for ${{ steps.version.outputs.tag }}"
+            git push origin gh-pages
+          fi
 
 
 

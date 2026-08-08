@@ -23,12 +23,15 @@ channels:
   MachineSnapshot:
     address: ws/v1/machine/snapshot
     description: >
-      Real-time snapshot data from the espresso machine. The socket re-binds
+      The socket may be opened before any machine is connected. It remains open
+      and silent while no machine is attached, then automatically attaches when
+      the first machine appears. Every frame remains a MachineSnapshot; no
+      error or status frame is emitted on this typed telemetry channel.
+      The socket re-binds
       across a machine instance swap: when the machine reconnects (for example
       after a power-cycle) the server re-attaches this socket to the new machine
-      and frames simply resume. Clients do not need to reconnect. No status
-      frame is emitted — every frame on this channel is a MachineSnapshot.
-      Link state is published on ws/v1/devices.
+      and frames simply resume. Clients do not need to reconnect.
+      Connection state remains available from /ws/v1/devices.
     messages:
       machineSnapshotMessage:
         $ref: '#/components/messages/MachineSnapshot'
@@ -64,14 +67,16 @@ channels:
         $ref: '#/components/messages/ScaleStatus'
   MachineRaw:
     description: >
+      Opening the socket before a machine connects does not close it. It remains
+      open and waits for attachment. A detached inbound command receives exactly
+      `{"error": "No machine connected"}`; it is not queued, and the socket
+      remains open after the error and attaches normally when a machine appears.
       Bidirectional channel for raw BLE characteristic data (read/write/notify).
       The server streams outbound data (notifications and read responses) and
       accepts inbound commands (read/write requests). Re-binds across a machine
       instance swap — see MachineSnapshot. Commands are delivered to the machine
       the socket is currently bound to, not the one present when the socket was
-      opened. If a command is sent while no machine is connected the server
-      replies with an error frame (`{"error": "No machine connected"}`). The
-      socket stays open across the disconnected gap.
+      opened.
     address: ws/v1/machine/raw
     messages:
       machineRawMessage:

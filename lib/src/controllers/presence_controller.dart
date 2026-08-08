@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/keep_awake_occurrence.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
@@ -268,13 +269,10 @@ class PresenceController {
     if (_currentMachineState == MachineState.sleeping) {
       _pendingUserPresent = true;
       _pendingUserPresentTimer?.cancel();
-      _pendingUserPresentTimer = Timer(
-        const Duration(seconds: 60),
-        () {
-          _pendingUserPresent = false;
-          _log.fine('Stale deferred userPresent cleared (60s timeout)');
-        },
-      );
+      _pendingUserPresentTimer = Timer(const Duration(seconds: 60), () {
+        _pendingUserPresent = false;
+        _log.fine('Stale deferred userPresent cleared (60s timeout)');
+      });
       _log.fine('Deferred sendUserPresent (machine asleep)');
       return;
     }
@@ -297,10 +295,7 @@ class PresenceController {
       return;
     }
 
-    _sleepTimer = Timer(
-      Duration(minutes: timeoutMinutes),
-      _onSleepTimeout,
-    );
+    _sleepTimer = Timer(Duration(minutes: timeoutMinutes), _onSleepTimeout);
   }
 
   void _onSleepTimeout() {
@@ -324,15 +319,16 @@ class PresenceController {
       return;
     }
 
-    // If machine is in idle or schedIdle, put it to sleep
-    if (_currentMachineState == MachineState.idle ||
-        _currentMachineState == MachineState.schedIdle) {
+    final state = _currentMachineState;
+    if (state != null && _canSleepFromState(state)) {
       _log.info('Sleep timeout fired, putting machine to sleep');
       _de1!.requestState(MachineState.sleeping).catchError((Object e) {
         _log.warning('Failed to request sleep', e);
       });
     }
   }
+
+  static const int _kSleepOnRefillMinFwBuild = 1357;
 
   /// Returns true for machine states where we should NOT auto-sleep.
   bool _isActiveState(MachineState? state) {
@@ -349,6 +345,22 @@ class PresenceController {
       default:
         return false;
     }
+  }
+
+  bool _canSleepFromState(MachineState state) {
+    if (state == MachineState.idle || state == MachineState.schedIdle) {
+      return true;
+    }
+    if (state == MachineState.needsWater) {
+      final de1 = _de1;
+      if (de1 == null ||
+          de1.implementation != DeviceImplementation.unifiedDe1) {
+        return false;
+      }
+      final fwBuild = int.tryParse(de1.machineInfo.version) ?? 0;
+      return fwBuild >= _kSleepOnRefillMinFwBuild;
+    }
+    return false;
   }
 
   int _secondsRemaining() {

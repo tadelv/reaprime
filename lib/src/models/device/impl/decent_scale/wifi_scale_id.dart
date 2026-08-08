@@ -14,6 +14,7 @@ class WifiScaleId {
 
   /// `wifi:host` → `host`. Returns the input unchanged if it lacks the prefix
   /// (defensive — callers only pass ids this class produced).
-  static String hostOf(String deviceId) =>
-      deviceId.startsWith(prefix) ? deviceId.substring(prefix.length) : deviceId;
+  static String hostOf(String deviceId) => deviceId.startsWith(prefix)
+      ? deviceId.substring(prefix.length)
+      : deviceId;
 }

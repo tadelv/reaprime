@@ -11,7 +11,7 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
 import 'package:reaprime/src/services/account/decent_proxy_service.dart';
-import 'package:reaprime/build_info.dart';
+import 'package:reaprime/src/util/safe_path.dart';
 
 class PluginSettingsValidationException implements Exception {
   final String message;
@@ -22,23 +22,25 @@ class PluginSettingsValidationException implements Exception {
 }
 
 class PluginLoaderService {
+  static const _loadTimeout = Duration(seconds: 1);
+  static const _maxConsecutiveLoadFailures = 3;
+  static const _loadingPluginKey = 'plugin.watchdog.loading';
+
   final PluginManager pluginManager;
-  final bool _appStoreMode;
   final _log = Logger('PluginLoaderService');
 
   late Directory _pluginsDir;
   late SharedPreferences _prefs;
   final Map<String, PluginManifest> _availablePluginsCache = {};
+  Future<void> _pluginLoadQueue = Future.value();
 
   PluginLoaderService({
     required KeyValueStoreService kvStore,
     DecentProxyService? decentProxyService,
-    bool? appStoreMode,
   }) : pluginManager = PluginManager(
          kvStore: kvStore,
          decentProxyService: decentProxyService,
-       ),
-       _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+       );
 
   bool _initialized = false;
 
@@ -54,6 +56,7 @@ class PluginLoaderService {
 
     // Initialize SharedPreferences
     _prefs = await SharedPreferences.getInstance();
+    await _recoverInterruptedPluginLoad();
 
     // Create plugins directory if it doesn't exist
     if (!_pluginsDir.existsSync()) {
@@ -78,12 +81,6 @@ class PluginLoaderService {
   /// user will provide filesystem path and permissions, REA should copy the contents over to
   /// the plugins folder
   Future<void> addPlugin(String sourcePath) async {
-    if (_appStoreMode) {
-      throw UnsupportedError(
-        'Plugin installation is not available on this platform',
-      );
-    }
-
     final source = File(sourcePath);
     final sourceDir = Directory(sourcePath);
 
@@ -111,6 +108,14 @@ class PluginLoaderService {
     final manifestJson = jsonDecode(await manifestFile.readAsString());
     final manifest = PluginManifest.fromJson(manifestJson);
 
+    // The id becomes a directory name under the plugins root; reject anything
+    // that is not exactly one safe path component before creating it.
+    if (!isSafePathComponent(manifest.id)) {
+      throw FormatException(
+        'Unsafe plugin id "${manifest.id}": must be a single safe path component',
+      );
+    }
+
     // Create plugin directory in plugins folder
     final pluginDir = Directory('${_pluginsDir.path}/${manifest.id}');
     if (pluginDir.existsSync()) {
@@ -131,6 +136,14 @@ class PluginLoaderService {
   /// Remove/uninstall a plugin
   /// This will unload the plugin if it's loaded and delete its files
   Future<void> removePlugin(String pluginId) async {
+    // The id would be joined into a filesystem path; reject unsafe ids
+    // before any unload, cache, or directory operation.
+    if (!isSafePathComponent(pluginId)) {
+      throw FormatException(
+        'Unsafe plugin id "$pluginId": must be a single safe path component',
+      );
+    }
+
     // Unload plugin if it's loaded
     if (isPluginLoaded(pluginId)) {
       await unloadPlugin(pluginId);
@@ -151,11 +164,21 @@ class PluginLoaderService {
 
     // Remove plugin settings
     await _prefs.remove('plugin.settings.$pluginId');
+    await _prefs.remove(_loadFailureKey(pluginId));
+    if (_prefs.getString(_loadingPluginKey) == pluginId) {
+      await _prefs.remove(_loadingPluginKey);
+    }
   }
 
   /// Load plugin into the runtime
   /// by using the PluginManager loadPlugin method
-  Future<void> loadPlugin(String pluginId) async {
+  Future<void> loadPlugin(String pluginId) {
+    final load = _pluginLoadQueue.then((_) => _loadPlugin(pluginId));
+    _pluginLoadQueue = load.then<void>((_) {}, onError: (_, _) {});
+    return load;
+  }
+
+  Future<void> _loadPlugin(String pluginId) async {
     if (!_availablePluginsCache.containsKey(pluginId)) {
       throw Exception('Plugin not found: $pluginId');
     }
@@ -163,30 +186,32 @@ class PluginLoaderService {
     final manifest = _availablePluginsCache[pluginId]!;
     final pluginDir = Directory('${_pluginsDir.path}/$pluginId');
 
-    // Read plugin.js file
-    final pluginFile = File('${pluginDir.path}/plugin.js');
-    if (!pluginFile.existsSync()) {
-      throw Exception('plugin.js not found for plugin: $pluginId');
+    await _prefs.setString(_loadingPluginKey, pluginId);
+    try {
+      final pluginFile = File('${pluginDir.path}/plugin.js');
+      if (!pluginFile.existsSync()) {
+        throw Exception('plugin.js not found for plugin: $pluginId');
+      }
+
+      final jsCode = await pluginFile.readAsString();
+      final settings = await pluginSettings(pluginId);
+
+      await pluginManager
+          .loadPlugin(
+            id: pluginId,
+            manifest: manifest,
+            jsCode: jsCode,
+            settings: settings,
+          )
+          .timeout(_loadTimeout);
+    } catch (_) {
+      await _prefs.remove(_loadingPluginKey);
+      await _recordLoadFailure(pluginId);
+      rethrow;
     }
 
-    final jsCode = await pluginFile.readAsString();
-
-    final settings = await pluginSettings(pluginId);
-
-    // Load plugin using PluginManager
-    // FIXME: add watchdog so we don't break the app with unloadable plugins
-    await Future.any([
-      pluginManager.loadPlugin(
-        id: pluginId,
-        manifest: manifest,
-        jsCode: jsCode,
-        settings: settings,
-      ),
-      Future.delayed(Duration(seconds: 1), () {
-        throw Exception("load timeout occured");
-      }),
-    ]);
-
+    await _prefs.remove(_loadingPluginKey);
+    await _prefs.remove(_loadFailureKey(pluginId));
     _log.info('Plugin loaded: $pluginId');
   }
 
@@ -218,6 +243,12 @@ class PluginLoaderService {
 
   /// Store a setting in prefs, whether a specific plugin should be autoloaded at initialize
   Future<void> setPluginAutoLoad(String pluginId, bool enabled) async {
+    if (enabled) {
+      await _prefs.remove(_loadFailureKey(pluginId));
+      if (_prefs.getString(_loadingPluginKey) == pluginId) {
+        await _prefs.remove(_loadingPluginKey);
+      }
+    }
     await _prefs.setBool('plugin.autoload.$pluginId', enabled);
   }
 
@@ -281,6 +312,11 @@ class PluginLoaderService {
 
   /// Get the directory path for a specific plugin
   String getPluginDirectory(String pluginId) {
+    if (!isSafePathComponent(pluginId)) {
+      throw FormatException(
+        'Unsafe plugin id "$pluginId": must be a single safe path component',
+      );
+    }
     if (!_availablePluginsCache.containsKey(pluginId)) {
       throw Exception('Plugin not found: $pluginId');
     }
@@ -306,6 +342,33 @@ class PluginLoaderService {
   }
 
   // Private helper methods
+
+  String _loadFailureKey(String pluginId) =>
+      'plugin.watchdog.loadFailures.$pluginId';
+
+  Future<void> _recordLoadFailure(String pluginId) async {
+    final failureKey = _loadFailureKey(pluginId);
+    final failures = (_prefs.getInt(failureKey) ?? 0) + 1;
+    await _prefs.setInt(failureKey, failures);
+    if (failures < _maxConsecutiveLoadFailures) return;
+
+    await _prefs.setBool('plugin.autoload.$pluginId', false);
+    _log.warning(
+      'Disabled auto-load for plugin $pluginId after $failures consecutive load failures',
+    );
+  }
+
+  Future<void> _recoverInterruptedPluginLoad() async {
+    final pluginId = _prefs.getString(_loadingPluginKey);
+    if (pluginId == null) return;
+
+    await _prefs.setInt(_loadFailureKey(pluginId), _maxConsecutiveLoadFailures);
+    await _prefs.setBool('plugin.autoload.$pluginId', false);
+    await _prefs.remove(_loadingPluginKey);
+    _log.warning(
+      'Disabled auto-load for plugin $pluginId after an interrupted load',
+    );
+  }
 
   Future<void> _copyBundledPlugins() async {
     // Get list of bundled plugins from assets
@@ -407,6 +470,7 @@ class PluginLoaderService {
       'assets/plugins/settings.reaplugin',
       'assets/plugins/dye2.reaplugin',
       'assets/plugins/decent-profile.reaplugin',
+      'assets/plugins/shot-upload.reaplugin',
       // Add more bundled plugins here as they are added to the app
     ];
   }
@@ -429,6 +493,15 @@ class PluginLoaderService {
 
         final manifestJson = jsonDecode(await manifestFile.readAsString());
         final manifest = PluginManifest.fromJson(manifestJson);
+
+        // An unsafe id must not enter the cache, where it could later drive
+        // filesystem paths (issue #547 follow-up).
+        if (!isSafePathComponent(manifest.id)) {
+          _log.warning(
+            'Skipping plugin with unsafe id "${manifest.id}" at ${dir.path}',
+          );
+          continue;
+        }
 
         _availablePluginsCache[manifest.id] = manifest;
         _log.fine('Found plugin: ${manifest.id}');

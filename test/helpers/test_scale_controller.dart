@@ -13,12 +13,12 @@ class TestScaleController extends ScaleController {
   final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
 
   TestScaleController(this.testScale)
-      : _connectionState =
-            BehaviorSubject.seeded(device.ConnectionState.connected);
+    : _connectionState = BehaviorSubject.seeded(
+        device.ConnectionState.connected,
+      );
 
   @override
-  Stream<device.ConnectionState> get connectionState =>
-      _connectionState.stream;
+  Stream<device.ConnectionState> get connectionState => _connectionState.stream;
 
   @override
   device.ConnectionState get currentConnectionState => _connectionState.value;
@@ -35,11 +35,13 @@ class TestScaleController extends ScaleController {
   }
 
   void emitWeight(double weight, {double weightFlow = 0.0}) {
-    _weight.add(WeightSnapshot(
-      timestamp: DateTime(2026, 1, 15, 8, 0),
-      weight: weight,
-      weightFlow: weightFlow,
-    ));
+    _weight.add(
+      WeightSnapshot(
+        timestamp: DateTime(2026, 1, 15, 8, 0),
+        weight: weight,
+        weightFlow: weightFlow,
+      ),
+    );
   }
 
   void simulateDisconnect() {

@@ -21,48 +21,41 @@ WakeSchedule schedule({
 void main() {
   group('activeKeepAwakeOccurrence', () {
     test('start is inclusive', () {
-      final occurrence = activeKeepAwakeOccurrence(
-        [schedule()],
-        DateTime(2026, 1, 15, 7),
-      );
+      final occurrence = activeKeepAwakeOccurrence([
+        schedule(),
+      ], DateTime(2026, 1, 15, 7));
 
       expect(occurrence?.start, DateTime(2026, 1, 15, 7));
       expect(occurrence?.end, DateTime(2026, 1, 15, 8));
     });
 
     test('end is exclusive', () {
-      final occurrence = activeKeepAwakeOccurrence(
-        [schedule()],
-        DateTime(2026, 1, 15, 8),
-      );
+      final occurrence = activeKeepAwakeOccurrence([
+        schedule(),
+      ], DateTime(2026, 1, 15, 8));
 
       expect(occurrence, isNull);
     });
 
     test('null and zero durations remain wake-only', () {
       expect(
-        activeKeepAwakeOccurrence(
-          [schedule(keepAwakeFor: null)],
-          DateTime(2026, 1, 15, 7),
-        ),
+        activeKeepAwakeOccurrence([
+          schedule(keepAwakeFor: null),
+        ], DateTime(2026, 1, 15, 7)),
         isNull,
       );
       expect(
-        activeKeepAwakeOccurrence(
-          [schedule(keepAwakeFor: 0)],
-          DateTime(2026, 1, 15, 7),
-        ),
+        activeKeepAwakeOccurrence([
+          schedule(keepAwakeFor: 0),
+        ], DateTime(2026, 1, 15, 7)),
         isNull,
       );
     });
 
     test('checks the previous day for a duration crossing midnight', () {
-      final occurrence = activeKeepAwakeOccurrence(
-        [
-          schedule(hour: 23, keepAwakeFor: 120, daysOfWeek: {3}),
-        ],
-        DateTime(2026, 1, 15, 0, 30),
-      );
+      final occurrence = activeKeepAwakeOccurrence([
+        schedule(hour: 23, keepAwakeFor: 120, daysOfWeek: {3}),
+      ], DateTime(2026, 1, 15, 0, 30));
 
       expect(occurrence?.start, DateTime(2026, 1, 14, 23));
       expect(occurrence?.end, DateTime(2026, 1, 15, 1));
@@ -73,24 +66,18 @@ void main() {
 
       expect(activeKeepAwakeOccurrence([schedule()], now), isNotNull);
       expect(
-        activeKeepAwakeOccurrence(
-          [
-            schedule(daysOfWeek: {DateTime.friday}),
-          ],
-          now,
-        ),
+        activeKeepAwakeOccurrence([
+          schedule(daysOfWeek: {DateTime.friday}),
+        ], now),
         isNull,
       );
     });
 
     test('overlapping occurrences return the latest end', () {
-      final occurrence = activeKeepAwakeOccurrence(
-        [
-          schedule(id: 'short', keepAwakeFor: 60),
-          schedule(id: 'long', minute: 30, keepAwakeFor: 120),
-        ],
-        DateTime(2026, 1, 15, 7, 45),
-      );
+      final occurrence = activeKeepAwakeOccurrence([
+        schedule(id: 'short', keepAwakeFor: 60),
+        schedule(id: 'long', minute: 30, keepAwakeFor: 120),
+      ], DateTime(2026, 1, 15, 7, 45));
 
       expect(occurrence?.scheduleId, 'long');
       expect(occurrence?.end, DateTime(2026, 1, 15, 9, 30));
@@ -113,10 +100,9 @@ void main() {
 
     test('uses elapsed duration from the concrete start', () {
       final start = DateTime(2026, 1, 15, 7);
-      final occurrence = activeKeepAwakeOccurrence(
-        [schedule(keepAwakeFor: 90)],
-        start,
-      );
+      final occurrence = activeKeepAwakeOccurrence([
+        schedule(keepAwakeFor: 90),
+      ], start);
 
       expect(occurrence?.end, start.add(const Duration(minutes: 90)));
     });

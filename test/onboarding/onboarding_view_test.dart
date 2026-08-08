@@ -6,17 +6,21 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 void main() {
   testWidgets('renders current step widget', (tester) async {
-    final controller = OnboardingController(steps: [
-      OnboardingStep(
-        id: 'test-step',
-        shouldShow: () async => true,
-        builder: (_) => const Text('Step Content'),
-      ),
-    ]);
+    final controller = OnboardingController(
+      steps: [
+        OnboardingStep(
+          id: 'test-step',
+          shouldShow: () async => true,
+          builder: (_) => const Text('Step Content'),
+        ),
+      ],
+    );
     await controller.initialize();
 
     await tester.pumpWidget(
-      ShadApp(home: Scaffold(body: OnboardingView(controller: controller))),
+      ShadApp(
+        home: Scaffold(body: OnboardingView(controller: controller)),
+      ),
     );
     await tester.pump();
 
@@ -24,17 +28,21 @@ void main() {
   });
 
   testWidgets('blocks system back navigation via PopScope', (tester) async {
-    final controller = OnboardingController(steps: [
-      OnboardingStep(
-        id: 'test-step',
-        shouldShow: () async => true,
-        builder: (_) => const Text('Step Content'),
-      ),
-    ]);
+    final controller = OnboardingController(
+      steps: [
+        OnboardingStep(
+          id: 'test-step',
+          shouldShow: () async => true,
+          builder: (_) => const Text('Step Content'),
+        ),
+      ],
+    );
     await controller.initialize();
 
     await tester.pumpWidget(
-      ShadApp(home: Scaffold(body: OnboardingView(controller: controller))),
+      ShadApp(
+        home: Scaffold(body: OnboardingView(controller: controller)),
+      ),
     );
     await tester.pump();
 

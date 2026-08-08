@@ -291,9 +291,7 @@ void main() {
       });
 
       test('batch IDs reference existing batches', () {
-        final shots = [
-          makeShot(beanBrand: 'Roaster A', beanType: 'Ethiopia'),
-        ];
+        final shots = [makeShot(beanBrand: 'Roaster A', beanType: 'Ethiopia')];
 
         final result = extractor.extract(shots);
 
@@ -302,9 +300,7 @@ void main() {
       });
 
       test('grinder IDs reference existing grinders', () {
-        final shots = [
-          makeShot(grinderModel: 'Niche Zero'),
-        ];
+        final shots = [makeShot(grinderModel: 'Niche Zero')];
 
         final result = extractor.extract(shots);
 
@@ -328,9 +324,7 @@ void main() {
 
   group('EntityExtractor.mergeGrinderSpecs', () {
     test('enriches existing grinder with DYE data when model matches', () {
-      final fromShots = [
-        Grinder.create(model: 'Niche Zero'),
-      ];
+      final fromShots = [Grinder.create(model: 'Niche Zero')];
       final fromDye = [
         Grinder.create(
           model: 'Niche Zero',
@@ -352,14 +346,9 @@ void main() {
     });
 
     test('matching is case-insensitive', () {
-      final fromShots = [
-        Grinder.create(model: 'niche zero'),
-      ];
+      final fromShots = [Grinder.create(model: 'niche zero')];
       final fromDye = [
-        Grinder.create(
-          model: 'NICHE ZERO',
-          burrs: '63mm conical',
-        ),
+        Grinder.create(model: 'NICHE ZERO', burrs: '63mm conical'),
       ];
 
       final merged = extractor.mergeGrinderSpecs(fromShots, fromDye);
@@ -369,9 +358,7 @@ void main() {
     });
 
     test('adds DYE-only grinders not found in shots', () {
-      final fromShots = [
-        Grinder.create(model: 'Niche Zero'),
-      ];
+      final fromShots = [Grinder.create(model: 'Niche Zero')];
       final fromDye = [
         Grinder.create(
           model: 'EK43',
@@ -389,9 +376,7 @@ void main() {
     });
 
     test('keeps shot grinders that have no DYE match', () {
-      final fromShots = [
-        Grinder.create(model: 'Unknown Grinder'),
-      ];
+      final fromShots = [Grinder.create(model: 'Unknown Grinder')];
       final fromDye = <Grinder>[];
 
       final merged = extractor.mergeGrinderSpecs(fromShots, fromDye);
@@ -412,9 +397,7 @@ void main() {
     });
 
     test('handles empty fromShots list', () {
-      final fromDye = [
-        Grinder.create(model: 'EK43', burrs: '98mm flat'),
-      ];
+      final fromDye = [Grinder.create(model: 'EK43', burrs: '98mm flat')];
 
       final merged = extractor.mergeGrinderSpecs([], fromDye);
 

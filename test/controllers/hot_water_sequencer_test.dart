@@ -365,10 +365,7 @@ void main() {
       scale.emitWeight(45, flow: 1, at: clock);
       await settle();
 
-      expect(
-        m.requested.where((s) => s == MachineState.idle).length,
-        1,
-      );
+      expect(m.requested.where((s) => s == MachineState.idle).length, 1);
       m.dispose();
     });
 

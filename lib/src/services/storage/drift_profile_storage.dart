@@ -26,8 +26,9 @@ class DriftProfileStorageService implements ProfileStorageService {
   }
 
   @override
-  Future<List<domain.ProfileRecord>> getAll(
-      {domain.Visibility? visibility}) async {
+  Future<List<domain.ProfileRecord>> getAll({
+    domain.Visibility? visibility,
+  }) async {
     final rows = await _db.profileDao.getAllProfiles(
       visibility: visibility?.name,
     );

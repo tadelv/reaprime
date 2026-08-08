@@ -39,6 +39,10 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:reaprime/src/services/database/database.dart' hide Workflow;
+import 'package:reaprime/src/services/database/mappers/shot_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/steam_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/bean_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/grinder_mapper.dart';
 import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
 import 'package:reaprime/src/services/storage/drift_grinder_storage.dart';
 import 'package:reaprime/src/services/storage/drift_profile_storage.dart';
@@ -56,7 +60,9 @@ import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_data_sources.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
+import 'package:reaprime/src/services/macos_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/cli/cli_args.dart';
@@ -72,6 +78,7 @@ import 'src/services/foreground_service.dart';
 import 'src/services/network/multicast_lock_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
+import 'src/settings/update_dialog.dart';
 import 'src/services/serial/serial_service.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -304,9 +311,7 @@ void main(List<String> args) async {
   settingsController.telemetryService = telemetryService;
 
   // Initialize profile storage and controller
-  final profileController = ProfileController(
-    storage: profileStorage,
-  );
+  final profileController = ProfileController(storage: profileStorage);
   await profileController.initialize();
 
   final deviceController = DeviceController(services);
@@ -433,15 +438,23 @@ void main(List<String> args) async {
     decentProxyService = null;
   } else {
     final decentCredentialStore = await createCredentialStore();
+    // Override with --dart-define=DECENT_BASE_URL=http://localhost:8000 for
+    // local server development; defaults to production.
+    const decentBaseUrl = String.fromEnvironment(
+      'DECENT_BASE_URL',
+      defaultValue: 'https://decentespresso.com',
+    );
     decentAccountService = DecentAccountService(
       httpClient: http.Client(),
       credentialStore: decentCredentialStore,
+      baseUrl: decentBaseUrl,
     );
     // Same credential store as the account service: the proxy reads the
     // credentials that account login wrote, and never exposes them to callers.
     decentProxyService = DecentProxyService(
       httpClient: http.Client(),
       credentialStore: decentCredentialStore,
+      baseUrl: decentBaseUrl,
     );
     // User-managed API-client tokens: persisted in the same secure store and
     // loaded into the validator alongside the per-process skin token.
@@ -461,6 +474,10 @@ void main(List<String> args) async {
   // Don't initialize plugins yet - wait for permissions to be granted
   // pluginService.initialize() will be called from PermissionsView after permissions are granted
   pluginService.pluginManager.de1Controller = de1Controller;
+  // Broadcast a `shotStored` plugin event once a shot is persisted, so plugins
+  // can react to the exact newly-stored shot (no timer/latest-lookup race).
+  persistenceController.onShotStored = (shotId) =>
+      pluginService.pluginManager.broadcastEvent('shotStored', {'id': shotId});
 
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {
@@ -486,6 +503,8 @@ void main(List<String> args) async {
     webUIStorage: webUIStorage,
   );
 
+  final macosUpdater = Platform.isMacOS ? MacOSUpdater() : null;
+
   try {
     await startWebServer(
       deviceController,
@@ -507,6 +526,40 @@ void main(List<String> args) async {
       beanStorage: beanStorage,
       grinderStorage: grinderStorage,
       connectionManager: connectionManager,
+      backupSources: BackupDataSources(
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.shotDao.getShotsForExport(
+            limit: limit,
+            cursorTimestamp: afterTimestamp,
+            cursorId: afterId,
+          );
+          return rows.map(ShotMapper.fromRow).toList();
+        },
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.steamDao.getSteamsForExport(
+            limit: limit,
+            cursorTimestamp: afterTimestamp,
+            cursorId: afterId,
+          );
+          return rows.map(SteamMapper.fromRow).toList();
+        },
+        pageBeans: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.beanDao.getBeansForExport(
+            limit: limit,
+            cursorCreatedAt: afterCreatedAt,
+            cursorId: afterId,
+          );
+          return rows.map(BeanMapper.fromRow).toList();
+        },
+        pageGrinders: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          final rows = await appDatabase.grinderDao.getGrindersForExport(
+            limit: limit,
+            cursorCreatedAt: afterCreatedAt,
+            cursorId: afterId,
+          );
+          return rows.map(GrinderMapper.fromRow).toList();
+        },
+      ),
       wifiScaleDiscoveryService: wifiScaleDiscoveryService,
       rememberedDevicesController: rememberedDevicesController,
       decentAccountService: decentAccountService,
@@ -532,6 +585,20 @@ void main(List<String> args) async {
     };
   });
   await settingsController.loadSettings();
+  if (macosUpdater != null) {
+    try {
+      await macosUpdater.configure(
+        automaticChecks: settingsController.automaticUpdateCheck,
+        channel: settingsController.updateChannel,
+      );
+    } catch (e, st) {
+      log.warning(
+        'Sparkle configuration failed; continuing without macOS auto-update',
+        e,
+        st,
+      );
+    }
+  }
   bleDiscoveryService.requestLargeMtuNonAndroid = () =>
       settingsController.isFeatureFlagEnabled(.largeBleMtuNonAndroid);
 
@@ -604,6 +671,7 @@ void main(List<String> args) async {
         webUIService: webUIService,
         webUIStorage: webUIStorage,
         updateCheckService: updateCheckService,
+        macosUpdater: macosUpdater,
         webViewLogService: webViewLogService,
         presenceController: presenceController,
         beanStorage: beanStorage,
@@ -714,13 +782,12 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       SnackBar(
         content: Row(
           children: [
-            Expanded(
-              child: Text('Update: ${updateInfo.version}'),
-            ),
+            Expanded(child: Text('Update: ${updateInfo.version}')),
             SnackBarAction(
               label: 'View',
               onPressed: () {
-                _showUpdateDialog(context, updateInfo);
+                final releaseUrl = updateCheckService?.getReleaseUrl();
+                if (releaseUrl != null) launchUrl(Uri.parse(releaseUrl));
               },
             ),
             SnackBarAction(
@@ -752,72 +819,17 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     });
   }
 
-  void _showUpdateDialog(BuildContext context, dynamic updateInfo) async {
-    if (Platform.isAndroid) {
-      _showAndroidDownloadDialog(context, updateInfo as UpdateInfo);
-    } else {
-      final info = updateInfo as UpdateInfo;
-      final releaseUrl = updateCheckService?.getReleaseUrl();
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Update ${info.version}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Version ${info.version} is available'),
-              const SizedBox(height: 8),
-              Text(
-                'Current version: ${BuildInfo.version}',
-              ),
-              if (info.releaseNotes.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Release Notes:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: SingleChildScrollView(
-                    child: Text(info.releaseNotes),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Later'),
-            ),
-            if (releaseUrl != null)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  launchUrl(Uri.parse(releaseUrl));
-                },
-                child: const Text('Download'),
-              ),
-          ],
-        ),
-      );
-    }
-  }
-
   /// Show a download+install dialog that starts downloading immediately.
-  void _showAndroidDownloadDialog(
-    BuildContext context,
-    UpdateInfo updateInfo,
-  ) {
+  void _showAndroidDownloadDialog(BuildContext context, UpdateInfo updateInfo) {
     final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _AndroidQuickUpdateDialog(
+      builder: (ctx) => AndroidQuickUpdateDialog(
         updateInfo: updateInfo,
-        updater: updater,
+        onDownload: (info, onProgress) =>
+            updater.downloadUpdate(info, onProgress: onProgress),
+        onInstall: updater.installUpdate,
       ),
     );
   }
@@ -841,6 +853,7 @@ class AppRoot extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
+  final MacOSUpdater? macosUpdater;
   final WebViewLogService webViewLogService;
   final PresenceController presenceController;
   final BeanStorageService? beanStorage;
@@ -869,6 +882,7 @@ class AppRoot extends StatefulWidget {
     required this.connectionManager,
     required this.scanStateGuardian,
     this.updateCheckService,
+    this.macosUpdater,
     this.beanStorage,
     this.grinderStorage,
     this.profileStorageService,
@@ -932,6 +946,7 @@ class _AppRootState extends State<AppRoot> {
         webUIService: widget.webUIService,
         webUIStorage: widget.webUIStorage,
         updateCheckService: widget.updateCheckService,
+        macosUpdater: widget.macosUpdater,
         webViewLogService: widget.webViewLogService,
         presenceController: widget.presenceController,
         beanStorage: widget.beanStorage,
@@ -949,10 +964,7 @@ class _AppRootState extends State<AppRoot> {
     // (which change the key). Otherwise, the new PlatformMenuBar tries to
     // acquire the static _lockedContext lock before the old one is disposed.
     if (Platform.isMacOS) {
-      return PlatformMenuBar(
-        menus: _buildPlatformMenus(),
-        child: child,
-      );
+      return PlatformMenuBar(menus: _buildPlatformMenus(), child: child);
     }
     // Windows/Linux have no native menu bar, so mirror the macOS simulated-
     // WebView menu shortcuts with Ctrl+Alt+<digit> bindings (Cmd→Ctrl) when the
@@ -1006,20 +1018,17 @@ class _AppRootState extends State<AppRoot> {
   List<PlatformMenuItem> _buildPlatformMenus() {
     return [
       PlatformMenu(
-        label: 'Decent',
+        label: 'Decaid',
         menus: [
           PlatformMenuItemGroup(
             members: [
-              PlatformMenuItem(
-                label: 'About Decent',
-                onSelected: null,
-              ),
+              PlatformMenuItem(label: 'About Decaid', onSelected: null),
             ],
           ),
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'Quit Decent',
+                label: 'Quit Decaid',
                 shortcut: const SingleActivator(
                   LogicalKeyboardKey.keyQ,
                   meta: true,
@@ -1106,118 +1115,5 @@ class _AppRootState extends State<AppRoot> {
         ],
       ),
     ];
-  }
-}
-
-/// Minimal update dialog that starts downloading immediately.
-/// Used from the persistent SnackBar "Download" action on Android.
-class _AndroidQuickUpdateDialog extends StatefulWidget {
-  final UpdateInfo updateInfo;
-  final AndroidUpdater updater;
-
-  const _AndroidQuickUpdateDialog({
-    required this.updateInfo,
-    required this.updater,
-  });
-
-  @override
-  State<_AndroidQuickUpdateDialog> createState() =>
-      _AndroidQuickUpdateDialogState();
-}
-
-class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
-  bool _isDownloading = true;
-  bool _isInstalling = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _startDownload();
-  }
-
-  Future<void> _startDownload() async {
-    try {
-      final path = await widget.updater.downloadUpdate(widget.updateInfo);
-      if (!mounted) return;
-      setState(() {
-        _isDownloading = false;
-        _isInstalling = true;
-      });
-      final success = await widget.updater.installUpdate(path);
-      if (!mounted) return;
-      if (success) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Update installation started. Follow the on-screen prompts.',
-            ),
-          ),
-        );
-      } else {
-        setState(() {
-          _isInstalling = false;
-          _error =
-              'Install permission required. Grant permission and try again.';
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Failed: $e';
-        _isDownloading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Update ${widget.updateInfo.version}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_isDownloading) ...[
-            const LinearProgressIndicator(),
-            const SizedBox(height: 12),
-            const Text('Downloading update…'),
-          ],
-          if (_isInstalling) ...[
-            const LinearProgressIndicator(),
-            const SizedBox(height: 12),
-            const Text('Installing update…'),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isDownloading ? null : () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-        if (_error != null)
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _error = null;
-                _isDownloading = true;
-              });
-              _startDownload();
-            },
-            child: const Text('Retry'),
-          ),
-      ],
-    );
   }
 }

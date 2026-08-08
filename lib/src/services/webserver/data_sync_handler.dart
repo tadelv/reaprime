@@ -1,38 +1,39 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_result.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
+import 'package:reaprime/src/util/temp_archive_files.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// Sync modes for data synchronization between two Decent instances.
 enum SyncMode { pull, push, twoWay }
 
-/// Exception thrown when the sync target returns an error.
 class SyncTargetException implements Exception {
+  final String error;
   final String message;
   final int? statusCode;
-  final String? responseBody;
 
-  SyncTargetException(this.message, {this.statusCode, this.responseBody});
+  const SyncTargetException(this.error, this.message, {this.statusCode});
 
   @override
   String toString() => 'SyncTargetException: $message';
 }
 
-/// Handles data synchronization between two Decent instances.
-///
-/// Supports three modes:
-/// - **pull**: Fetch data from a remote instance and import it locally.
-/// - **push**: Export local data and send it to a remote instance.
-/// - **two_way**: Pull then push (both directions).
-///
-/// Uses the existing export/import ZIP format via [DataExportHandler].
+class _LocalExportException implements Exception {
+  final Object cause;
+
+  const _LocalExportException(this.cause);
+}
+
 class DataSyncHandler {
-  static const _requestTimeout = Duration(seconds: 30);
+  static const _skippedPushMessage =
+      'Push was not attempted because pull did not complete.';
 
   final DataExportHandler _exportHandler;
   final http.Client _httpClient;
@@ -41,38 +42,41 @@ class DataSyncHandler {
   DataSyncHandler({
     required DataExportHandler exportHandler,
     required http.Client httpClient,
-  })  : _exportHandler = exportHandler,
-        _httpClient = httpClient;
+  }) : _exportHandler = exportHandler,
+       _httpClient = httpClient;
 
   void addRoutes(RouterPlus app) {
     app.post('/api/v1/data/sync', _handleSync);
   }
 
   Future<Response> _handleSync(Request request) async {
-    // Parse request body
-    final String bodyStr;
+    final dynamic decoded;
     try {
-      bodyStr = await request.readAsString();
-    } catch (e) {
-      return jsonBadRequest({'error': 'Could not read request body'});
-    }
-
-    final Map<String, dynamic> body;
-    try {
-      body = jsonDecode(bodyStr) as Map<String, dynamic>;
-    } catch (e) {
+      final body = await _readRequestBody(request);
+      decoded = jsonDecode(body);
+    } on SyncBodyTooLarge {
+      return jsonPayloadTooLarge({
+        'error': 'Request body too large',
+        'message': 'The sync request body exceeds the size limit.',
+      });
+    } catch (_) {
       return jsonBadRequest({'error': 'Invalid JSON'});
     }
+    if (decoded is! Map) {
+      return jsonBadRequest({
+        'error': 'Invalid JSON',
+        'message': 'The request body must be a JSON object.',
+      });
+    }
+    final body = Map<String, dynamic>.from(decoded);
 
-    // Validate required fields
-    final target = body['target'] as String?;
-    if (target == null || target.isEmpty) {
+    final target = body['target'];
+    if (target is! String || target.isEmpty) {
       return jsonBadRequest({
         'error': 'Missing required field',
         'message': '"target" is required',
       });
     }
-
     final targetUri = Uri.tryParse(target);
     if (targetUri == null ||
         !targetUri.hasScheme ||
@@ -84,169 +88,573 @@ class DataSyncHandler {
       });
     }
 
-    final modeStr = body['mode'] as String?;
-    if (modeStr == null) {
+    final modeValue = body['mode'];
+    if (modeValue is! String) {
       return jsonBadRequest({
         'error': 'Missing required field',
-        'message':
-            '"mode" is required. Valid values: pull, push, two_way',
+        'message': '"mode" is required. Valid values: pull, push, two_way',
+      });
+    }
+    final mode = _parseMode(modeValue);
+    if (mode == null) {
+      return jsonBadRequest({
+        'error': 'Invalid mode',
+        'message': 'Valid values: pull, push, two_way',
       });
     }
 
-    final SyncMode mode;
-    switch (modeStr) {
-      case 'pull':
-        mode = SyncMode.pull;
-      case 'push':
-        mode = SyncMode.push;
-      case 'two_way':
-        mode = SyncMode.twoWay;
-      default:
-        return jsonBadRequest({
-          'error': 'Invalid mode',
-          'message': 'Valid values: pull, push, two_way',
-        });
+    final onConflict = body['onConflict'];
+    if (onConflict != null && onConflict is! String) {
+      return jsonBadRequest({
+        'error': 'Invalid onConflict value',
+        'message': 'Valid values: skip, overwrite',
+      });
+    }
+    final strategy = _parseStrategy(onConflict as String? ?? 'skip');
+    if (strategy == null) {
+      return jsonBadRequest({
+        'error': 'Invalid onConflict value',
+        'message': 'Valid values: skip, overwrite',
+      });
     }
 
-    final onConflict = body['onConflict'] as String? ?? 'skip';
-    final ConflictStrategy strategy;
-    switch (onConflict) {
-      case 'skip':
-        strategy = ConflictStrategy.skip;
-      case 'overwrite':
-        strategy = ConflictStrategy.overwrite;
-      default:
-        return jsonBadRequest({
-          'error': 'Invalid onConflict value',
-          'message': 'Valid values: skip, overwrite',
-        });
+    final continueValue = body['continueOnPullFailure'];
+    if (continueValue != null && continueValue is! bool) {
+      return jsonBadRequest({
+        'error': 'Invalid continueOnPullFailure value',
+        'message': 'continueOnPullFailure must be a boolean',
+      });
+    }
+    final continueOnPullFailure = continueValue as bool? ?? false;
+    if (continueOnPullFailure && mode != SyncMode.twoWay) {
+      return jsonBadRequest({
+        'error': 'Invalid continueOnPullFailure value',
+        'message': 'continueOnPullFailure applies only to two_way mode',
+      });
     }
 
-    final sections = (body['sections'] as List<dynamic>?)?.cast<String>();
+    final sectionsResult = _parseSections(body['sections']);
+    if (sectionsResult.error != null) {
+      return jsonBadRequest(sectionsResult.error!);
+    }
+    final sections = sectionsResult.sections;
+    final expectedSections = sections ?? _exportHandler.sectionKeys;
 
-    // Execute sync
-    final results = <String, dynamic>{};
-    bool pullFailed = false;
-    bool pushFailed = false;
+    DataTransferPhaseOutcome? pull;
+    DataTransferPhaseOutcome? push;
 
-    // Pull phase
     if (mode == SyncMode.pull || mode == SyncMode.twoWay) {
       try {
-        final pullResult = await _pull(target, strategy, sections);
-        results['pull'] = pullResult;
-      } catch (e) {
-        pullFailed = true;
-        results['pull'] = _errorResult(e);
+        pull = await _pull(target, strategy, expectedSections);
+      } catch (error) {
+        pull = _failure(error);
       }
     }
 
-    // Push phase
-    if (mode == SyncMode.push || mode == SyncMode.twoWay) {
+    if (mode == SyncMode.push) {
       try {
-        final pushResult = await _push(target, strategy, sections);
-        results['push'] = pushResult;
-      } catch (e) {
-        pushFailed = true;
-        results['push'] = _errorResult(e);
+        push = await _push(target, strategy, sections, expectedSections);
+      } catch (error) {
+        push = _failure(error);
+      }
+    } else if (mode == SyncMode.twoWay) {
+      if (pull!.complete || continueOnPullFailure) {
+        try {
+          push = await _push(target, strategy, sections, expectedSections);
+        } catch (error) {
+          push = _failure(error);
+        }
+      } else {
+        push = DataTransferPhaseOutcome(
+          status: DataTransferStatus.skipped,
+          sections: {},
+          reason: 'pull_not_complete',
+          message: _skippedPushMessage,
+        );
       }
     }
 
-    // Determine response status:
-    // - 200: all phases succeeded
-    // - 207: partial success in two_way mode (one phase failed)
-    // - 502: all phases failed, or single-direction mode failed
-    if (mode == SyncMode.twoWay && (pullFailed != pushFailed)) {
-      return jsonMultiStatus(results);
-    }
-
-    if (pullFailed || pushFailed) {
-      return jsonBadGateway(results);
-    }
-
-    return jsonOk(results);
+    return _response(mode: mode, pull: pull, push: push);
   }
 
-  /// Pull data from the target instance and import it locally.
-  Future<Map<String, dynamic>> _pull(
+  /// Streams the local export into a temp ZIP, then imports from the file.
+  ///
+  /// The target only responds after it has generated its export archive, so
+  /// there is no short header timeout; connection establishment is bounded by
+  /// the HTTP client's connection timeout, idle gaps by
+  /// [DataTransferLimits.syncIdleTimeout], and the network stages (headers
+  /// and download) by a deadline of [DataTransferLimits.syncOverallTimeout]
+  /// starting at the request. The deadline aborts the request at the
+  /// transport level ([http.AbortableRequest]), so a timed-out pull cancels
+  /// the download — including while the target is still generating its
+  /// export, before any headers arrived — and never starts its import. The
+  /// local import itself is NOT cut off: it runs to completion and its
+  /// actual result is reported, because abandoning an import mid-write
+  /// would leave the database mutating after the caller was told the phase
+  /// failed.
+  Future<DataTransferPhaseOutcome> _pull(
     String target,
     ConflictStrategy strategy,
-    List<String>? sections,
+    List<String> expectedSections,
   ) async {
+    final limits = _exportHandler.limits;
     _log.info('Pulling data from $target');
-
-    final uri = Uri.parse('$target/api/v1/data/export');
-    final response = await _httpClient.get(uri).timeout(_requestTimeout);
-
-    if (response.statusCode != 200) {
-      throw SyncTargetException(
-        'Target returned status ${response.statusCode}',
-        statusCode: response.statusCode,
-        responseBody: response.body,
+    final tempDir = await TempArchiveDir.create('reaprime-sync-pull-');
+    final deadline = DateTime.now().add(limits.syncOverallTimeout);
+    final abortCompleter = Completer<void>();
+    // Abort the transport when the deadline expires. Future.timeout only
+    // stops waiting; without this, a pre-header timeout would leave the
+    // connection and the target's export running to completion.
+    final abortTimer = Timer(limits.syncOverallTimeout, () {
+      if (!abortCompleter.isCompleted) abortCompleter.complete();
+    });
+    try {
+      final request = http.AbortableRequest(
+        'GET',
+        Uri.parse('$target/api/v1/data/export'),
+        abortTrigger: abortCompleter.future,
       );
-    }
+      // No short header timeout: the target only responds after generating
+      // its export archive. The deadline bounds the wait.
+      final streamed = await _httpClient
+          .send(request)
+          .timeout(_remaining(deadline));
 
-    return await _exportHandler.importFromBytes(
-      response.bodyBytes,
-      strategy,
-      sections: sections,
-    );
+      if (streamed.statusCode != 200) {
+        throw SyncTargetException(
+          'Target error',
+          'Target returned status ${streamed.statusCode}',
+          statusCode: streamed.statusCode,
+        );
+      }
+
+      final zipFile = File(tempDir.filePath('pull.zip'));
+      final raf = await zipFile.open(mode: FileMode.write);
+      var received = 0;
+      Object? abortError;
+      final done = Completer<void>();
+      StreamSubscription<List<int>>? sub;
+      try {
+        sub = streamed.stream
+            .timeout(limits.syncIdleTimeout)
+            .listen(
+              (chunk) {
+                if (abortError != null) return;
+                received += chunk.length;
+                if (received > limits.maxImportRequestBytes) {
+                  abortError = InvalidBackupException(
+                    message: 'The pulled archive exceeds the size limit.',
+                    reason: 'request_too_large',
+                  );
+                  sub?.cancel();
+                  done.completeError(abortError!);
+                  return;
+                }
+                raf.writeFromSync(chunk);
+              },
+              onError: (Object e, StackTrace st) {
+                if (abortError == null) done.completeError(e, st);
+              },
+              onDone: () {
+                if (abortError != null) {
+                  done.completeError(abortError!);
+                } else {
+                  done.complete();
+                }
+              },
+              cancelOnError: true,
+            );
+        await done.future.timeout(_remaining(deadline));
+      } finally {
+        abortTimer.cancel();
+        await sub?.cancel();
+        await raf.close();
+      }
+
+      final outcome = await _exportHandler.importFromZipFile(
+        zipFile,
+        strategy,
+        sections: expectedSections,
+      );
+      return outcome.phase;
+    } finally {
+      await tempDir.dispose();
+    }
   }
 
-  /// Export local data and push it to the target instance.
-  Future<Map<String, dynamic>> _push(
+  /// Exports locally into a temp ZIP and streams it to the target with a
+  /// known content length.
+  ///
+  /// The network stages (upload and response) share one deadline of
+  /// [DataTransferLimits.syncOverallTimeout] starting at the request; the
+  /// local export runs before the deadline and is not cut off. The body is
+  /// fed through `sink.addStream`, whose controller pauses the file read
+  /// while the transport is backpressured, keeping the upload bounded in
+  /// memory. A deadline expiry aborts the transport
+  /// ([http.AbortableStreamedRequest]), so a push that is still uploading
+  /// cannot complete remotely. If the archive was already fully uploaded
+  /// before the deadline, the remote outcome is unknowable (the target may
+  /// have begun importing); the phase then reports `timeout_unknown`
+  /// instead of claiming the push did not happen.
+  Future<DataTransferPhaseOutcome> _push(
     String target,
     ConflictStrategy strategy,
     List<String>? sections,
+    List<String> expectedSections,
   ) async {
+    final limits = _exportHandler.limits;
     _log.info('Pushing data to $target');
+    final tempDir = await TempArchiveDir.create('reaprime-sync-push-');
+    try {
+      final File zipFile;
+      try {
+        zipFile = await _exportHandler.exportToZipFile(
+          tempDir.directory,
+          sections: sections,
+        );
+      } catch (error) {
+        throw _LocalExportException(error);
+      }
 
-    final zipBytes = await _exportHandler.exportToBytes(sections: sections);
-
-    final uri = Uri.parse(
-      '$target/api/v1/data/import?onConflict=${strategy.name}',
-    );
-    final response = await _httpClient
-        .post(
-          uri,
-          body: zipBytes,
-          headers: {'Content-Type': 'application/octet-stream'},
-        )
-        .timeout(_requestTimeout);
-
-    if (response.statusCode != 200) {
-      throw SyncTargetException(
-        'Target returned status ${response.statusCode}',
-        statusCode: response.statusCode,
-        responseBody: response.body,
+      final length = await zipFile.length();
+      final deadline = DateTime.now().add(limits.syncOverallTimeout);
+      final abortCompleter = Completer<void>();
+      final request = http.AbortableStreamedRequest(
+        'POST',
+        Uri.parse('$target/api/v1/data/import?onConflict=${strategy.name}'),
+        abortTrigger: abortCompleter.future,
       );
-    }
+      request.headers['content-type'] = 'application/octet-stream';
+      request.contentLength = length;
 
-    return jsonDecode(response.body) as Map<String, dynamic>;
+      // bodySent is set only when the file was fully read (never when the
+      // source is cancelled by an abort or errors), so a timeout after the
+      // upload completed can be told apart from one mid-upload.
+      var bodySent = false;
+      var aborted = false;
+      Stream<List<int>> bodyStream() async* {
+        await for (final chunk in zipFile.openRead()) {
+          yield chunk;
+        }
+        bodySent = true;
+      }
+
+      // addStream couples the file read to the transport's consumption:
+      // while the sink's listener is paused (backpressure) the source
+      // subscription pauses too, so the unsent archive cannot accumulate
+      // in memory. The sink closes only after the file is fully read
+      // (addStream does not forward the source's done event), and never
+      // after an abort, when the controller is already cancelled. A
+      // transport abort cancels the generator and with it the file read.
+      final bodyStreamDone = request.sink.addStream(bodyStream()).then((
+        _,
+      ) async {
+        if (!aborted) await request.sink.close();
+      });
+
+      // Aborts the upload: the transport closes the connection, the sink's
+      // listener errors, and addStream cancels the file read.
+      Future<void> abortUpload() async {
+        aborted = true;
+        if (!abortCompleter.isCompleted) abortCompleter.complete();
+        try {
+          await bodyStreamDone;
+        } catch (_) {}
+      }
+
+      try {
+        // The target only responds after it has received and imported the
+        // whole archive, so there is no short header timeout here; the
+        // network deadline bounds the wait. send() completes only after
+        // the body has been fully written, so bodySent is settled here.
+        final completed = await Future.wait<Object?>([
+          _httpClient.send(request),
+          bodyStreamDone,
+        ], eagerError: true).timeout(_remaining(deadline));
+        final streamed = completed.first as http.StreamedResponse;
+        final statusCode = streamed.statusCode;
+        if (statusCode != 200 && statusCode != 207) {
+          throw SyncTargetException(
+            'Target error',
+            'Target returned status $statusCode',
+            statusCode: statusCode,
+          );
+        }
+
+        final body = await _readBoundedResponse(
+          streamed.stream,
+          limits.maxSyncResponseBytes,
+          limits.syncIdleTimeout,
+          _remaining(deadline),
+        );
+
+        final dynamic decoded;
+        try {
+          decoded = jsonDecode(body);
+        } catch (_) {
+          return DataTransferPhaseOutcome.failed(
+            error: 'Invalid target response',
+            message: 'The target returned invalid JSON.',
+            reason: 'invalid_json',
+          );
+        }
+        return DataTransferPhaseOutcome.fromRemote(
+          decoded,
+          expectedSections,
+          minimumStatus: statusCode == 207 ? DataTransferStatus.partial : null,
+        );
+      } on TimeoutException {
+        final uploadComplete = bodySent;
+        await abortUpload();
+        if (uploadComplete) {
+          // The whole archive reached the transport before the deadline;
+          // the target may have already imported it. Report the outcome as
+          // unknown rather than claiming the push did not happen.
+          return DataTransferPhaseOutcome.failed(
+            error: 'Sync timed out',
+            message:
+                'The sync timed out; the target may have already '
+                'imported the pushed archive.',
+            reason: 'timeout_unknown',
+          );
+        }
+        rethrow;
+      } catch (_) {
+        await abortUpload();
+        rethrow;
+      }
+    } finally {
+      await tempDir.dispose();
+    }
   }
 
-  Map<String, dynamic> _errorResult(Object error) {
+  /// Time remaining on the phase deadline (zero when it has expired).
+  Duration _remaining(DateTime deadline) {
+    final left = deadline.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  Response _response({
+    required SyncMode mode,
+    required DataTransferPhaseOutcome? pull,
+    required DataTransferPhaseOutcome? push,
+  }) {
+    final phases = [pull, push].whereType<DataTransferPhaseOutcome>().toList();
+    final status = _operationStatus(mode, phases);
+    final result = <String, dynamic>{
+      'status': status.name,
+      'complete': status == DataTransferStatus.complete,
+      'partial': status == DataTransferStatus.partial,
+      'mode': _wireMode(mode),
+      if (pull != null) 'pull': _legacyPhaseResult(pull),
+      if (push != null) 'push': _legacyPhaseResult(push),
+      'phases': {
+        if (pull != null) 'pull': pull.toMetadata(),
+        if (push != null) 'push': push.toMetadata(),
+      },
+    };
+
+    if (status == DataTransferStatus.complete) return jsonOk(result);
+    if (mode == SyncMode.twoWay && status == DataTransferStatus.partial) {
+      return jsonMultiStatus(result);
+    }
+    return jsonBadGateway(result);
+  }
+
+  Map<String, dynamic> _legacyPhaseResult(DataTransferPhaseOutcome phase) {
+    if (phase.status == DataTransferStatus.skipped) return {};
+    if (phase.sections.isNotEmpty) return phase.sectionResults;
+    final result = phase.toMetadata();
+    if (phase.statusCode != null) result['status'] = phase.statusCode;
+    return result;
+  }
+
+  DataTransferStatus _operationStatus(
+    SyncMode mode,
+    List<DataTransferPhaseOutcome> phases,
+  ) {
+    if (phases.every((phase) => phase.complete)) {
+      return DataTransferStatus.complete;
+    }
+    if (mode == SyncMode.twoWay &&
+        phases.any(
+          (phase) =>
+              phase.status == DataTransferStatus.complete ||
+              phase.status == DataTransferStatus.partial,
+        )) {
+      return DataTransferStatus.partial;
+    }
+    if (mode != SyncMode.twoWay &&
+        phases.any((phase) => phase.status == DataTransferStatus.partial)) {
+      return DataTransferStatus.partial;
+    }
+    return DataTransferStatus.failed;
+  }
+
+  DataTransferPhaseOutcome _failure(Object error) {
+    if (error is InvalidBackupException) {
+      return DataTransferPhaseOutcome.failed(
+        error: 'Invalid backup archive',
+        message: error.message,
+        reason: error.reason,
+      );
+    }
+    if (error is _LocalExportException) {
+      return DataTransferPhaseOutcome.failed(
+        error: 'Local export failed',
+        message: '${error.cause}',
+        reason: 'local_export_failed',
+      );
+    }
     if (error is SyncTargetException) {
-      return {
-        'error': 'Target error',
-        'status': error.statusCode,
-        'message': error.message,
-      };
+      return DataTransferPhaseOutcome.failed(
+        error: error.error,
+        message: error.message,
+        reason: 'target_error',
+        statusCode: error.statusCode,
+      );
+    }
+    if (error is http.RequestAbortedException) {
+      // Only the phase deadline completes the abort trigger, so an aborted
+      // request means the deadline expired.
+      return DataTransferPhaseOutcome.failed(
+        error: 'Target unreachable',
+        message: 'Request timed out',
+        reason: 'timeout',
+      );
     }
     if (error is http.ClientException) {
-      return {
-        'error': 'Target unreachable',
-        'message': error.message,
-      };
+      return DataTransferPhaseOutcome.failed(
+        error: 'Target unreachable',
+        message: error.message,
+        reason: 'target_unreachable',
+      );
     }
     if (error is TimeoutException) {
-      return {
-        'error': 'Target unreachable',
-        'message': 'Request timed out after ${_requestTimeout.inSeconds} seconds',
-      };
+      return DataTransferPhaseOutcome.failed(
+        error: 'Target unreachable',
+        message: 'Request timed out',
+        reason: 'timeout',
+      );
     }
-    return {
-      'error': 'Sync failed',
-      'message': '$error',
-    };
+    return DataTransferPhaseOutcome.failed(
+      error: 'Sync failed',
+      message: '$error',
+      reason: 'unexpected_error',
+    );
   }
+
+  Future<String> _readRequestBody(Request request) async {
+    final limits = _exportHandler.limits;
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in request.read()) {
+      builder.add(chunk);
+      if (builder.length > limits.maxSyncRequestBytes) {
+        throw const SyncBodyTooLarge();
+      }
+    }
+    return utf8.decode(builder.takeBytes());
+  }
+
+  /// Reads a response body with an idle timeout between events and an overall
+  /// timeout for the whole body. Either timeout cancels the subscription so
+  /// the connection is released even if the caller has already given up on
+  /// the phase.
+  Future<String> _readBoundedResponse(
+    Stream<List<int>> stream,
+    int maxBytes,
+    Duration idleTimeout,
+    Duration overallTimeout,
+  ) async {
+    final builder = BytesBuilder(copy: false);
+    final done = Completer<String>();
+    StreamSubscription<List<int>>? sub;
+    sub = stream
+        .timeout(idleTimeout)
+        .listen(
+          (chunk) {
+            builder.add(chunk);
+            if (builder.length > maxBytes) {
+              sub?.cancel();
+              done.completeError(
+                SyncTargetException(
+                  'Target error',
+                  'Target response is too large.',
+                ),
+              );
+            }
+          },
+          onError: (Object e, StackTrace st) => done.completeError(e, st),
+          onDone: () => done.complete(utf8.decode(builder.takeBytes())),
+          cancelOnError: true,
+        );
+    try {
+      return await done.future.timeout(overallTimeout);
+    } finally {
+      await sub.cancel();
+    }
+  }
+
+  _SectionsResult _parseSections(dynamic value) {
+    if (value == null) return const _SectionsResult(null);
+    if (value is! List || value.any((section) => section is! String)) {
+      return _SectionsResult.errorResult({
+        'error': 'Invalid sections value',
+        'message': 'sections must be an array of section names',
+      });
+    }
+
+    final sections = <String>[];
+    for (final section in value.cast<String>()) {
+      if (!sections.contains(section)) sections.add(section);
+    }
+    if (sections.isEmpty) {
+      return _SectionsResult.errorResult({
+        'error': 'Invalid sections value',
+        'message': 'sections must not be empty',
+      });
+    }
+    final unknown = sections
+        .where((section) => !_exportHandler.sectionKeys.contains(section))
+        .toList(growable: false);
+    if (unknown.isNotEmpty) {
+      return _SectionsResult.errorResult({
+        'error': 'Unknown section',
+        'message': 'Unknown data section(s): ${unknown.join(', ')}',
+      });
+    }
+    return _SectionsResult(sections);
+  }
+
+  SyncMode? _parseMode(String value) => switch (value) {
+    'pull' => SyncMode.pull,
+    'push' => SyncMode.push,
+    'two_way' => SyncMode.twoWay,
+    _ => null,
+  };
+
+  String _wireMode(SyncMode mode) => switch (mode) {
+    SyncMode.pull => 'pull',
+    SyncMode.push => 'push',
+    SyncMode.twoWay => 'two_way',
+  };
+
+  ConflictStrategy? _parseStrategy(String value) => switch (value) {
+    'skip' => ConflictStrategy.skip,
+    'overwrite' => ConflictStrategy.overwrite,
+    _ => null,
+  };
+}
+
+class SyncBodyTooLarge implements Exception {
+  const SyncBodyTooLarge();
+}
+
+class _SectionsResult {
+  final List<String>? sections;
+  final Map<String, dynamic>? error;
+
+  const _SectionsResult(this.sections) : error = null;
+
+  const _SectionsResult.errorResult(this.error) : sections = null;
 }

@@ -98,7 +98,7 @@ paths:
             type: boolean
             default: true
         - name: quick
-          description: If true, Decent.app returns an empty array immediately while the same scan-first policy continues in the background. Useful when polling for device updates manually.
+          description: If true, Decaid returns an empty array immediately while the same scan-first policy continues in the background. Useful when polling for device updates manually.
           in: query
           schema:
             type: boolean
@@ -337,6 +337,12 @@ paths:
       responses:
         "200":
           description: Profile updated successfully
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/shotSettings:
     post:
       summary: Update Shot Settings
@@ -351,6 +357,12 @@ paths:
       responses:
         "200":
           description: Shot settings updated successfully
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/capabilities:
     get:
       summary: List machine capabilities
@@ -404,9 +416,13 @@ paths:
         "200":
           description: Setpoint accepted
         "400":
-          description: Temperature missing or out of range 0.0–80.0
+          description: Temperature missing or out of range 0.0–80.0, or malformed JSON
         "404":
           description: Machine connected but does not support cup warmer
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/ledStrip:
     get:
       summary: Get LED strip configuration
@@ -442,9 +458,13 @@ paths:
         "200":
           description: Configuration accepted
         "400":
-          description: Invalid request body
+          description: Invalid request body or malformed JSON
         "404":
           description: Machine connected but does not support LED strip
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/ledStrip/commit:
     post:
@@ -466,6 +486,10 @@ paths:
           description: Commit accepted
         "404":
           description: Machine connected but does not support LED strip
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/ledStrip/reset:
     post:
@@ -492,6 +516,10 @@ paths:
                 $ref: "#/components/schemas/LedStripState"
         "404":
           description: Machine connected but does not support LED strip
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
   /api/v1/machine/settings:
     get:
       summary: Get machine settings
@@ -516,7 +544,13 @@ paths:
               $ref: "#/components/schemas/De1SettingsRequest"
       responses:
         "202":
-          description: Settings update accepted
+          description: Settings update accepted (one grouped serialized device write)
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/settings/advanced:
     get:
@@ -542,7 +576,13 @@ paths:
               $ref: "#/components/schemas/De1AdvancedSettingsRequest"
       responses:
         "202":
-          description: Advanced settings update accepted
+          description: Advanced settings update accepted (one grouped serialized device write)
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/settings/reset:
     delete:
@@ -554,7 +594,9 @@ paths:
       tags: [Machine]
       responses:
         "202":
-          description: Reset accepted
+          description: Reset accepted (one grouped serialized device write)
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
         "500":
           description: No DE1 connected
 
@@ -583,6 +625,12 @@ paths:
       responses:
         "202":
           description: Calibration settings updated successfully
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/waterLevels:
     post:
@@ -597,6 +645,12 @@ paths:
       responses:
         "202":
           description: Levels updated
+        "400":
+          description: Malformed JSON body
+        "503":
+          description: Machine disconnected mid-write and no replacement appeared within the bounded wait
+        "500":
+          description: No machine was ever connected
 
   /api/v1/machine/firmware:
     get:
@@ -901,7 +955,22 @@ paths:
       summary: Update current workflow
       description: |
         Updates the current workflow. This is the **recommended method** for applying changes
-        to the machine and brewing parameters in one atomic operation.
+        to the machine and brewing parameters in one ordered mutation.
+
+        Each HTTP request is an independent mutation. Requests are processed in FIFO order,
+        and partial request bodies are deep-merged against the workflow state when that request
+        reaches the front of the queue. The server does not debounce or combine separate
+        requests. Machine side effects from workflow PUT requests do not execute concurrently,
+        so a request may wait behind an in-flight machine operation. Each response describes
+        the workflow resulting from that request. High-frequency clients should throttle input
+        on the client side rather than relying on server-side debounce.
+
+        Machine-write failures return an error response before the controller workflow is
+        committed. The machine writes are multi-step and may be partially applied; retrying
+        the same request re-attempts the requested settings.
+
+        Bodies are limited to 1 MiB. At most eight workflow requests may be active or queued,
+        and a request that waits more than 30 seconds for its turn is skipped.
 
         You can update the complete workflow or just specific fields:
         - **context**: Set dose, grinder, coffee, and people metadata (recommended)
@@ -1008,8 +1077,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "408":
+          description: The client did not finish sending the request body within the timeout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Request body exceeds the 1 MiB workflow payload limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Eight workflow requests are already active or queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          description: Internal server error during DE1 side-effect writes
+          description: A required direct machine write failed; the controller workflow remains unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: >
+            The request waited more than 30 seconds for its turn and was
+            skipped, or the machine disconnected mid-write and no replacement
+            machine appeared within the bounded wait (10 seconds). In both
+            cases the controller workflow is unchanged.
           content:
             application/json:
               schema:
@@ -3759,6 +3856,17 @@ paths:
         - workflow.json — current workflow/recipe
         - settings.json — all settings, wake schedules, device preferences
         - store.json — all KV store namespaces and key/value pairs
+        - steams.json — all steam records
+        - beans.json — all beans and batches
+        - grinders.json — all grinders
+
+        Exports are streamed section-by-section through a bounded, file-backed
+        ZIP writer and served from a temporary file with a known
+        Content-Length; the full archive is never held in memory. A single
+        export may not exceed 2 GiB of uncompressed section data (400/500
+        error, use selected-section export). The archive is atomic: if any
+        requested section fails, an error is returned and no partial ZIP is
+        exposed.
       tags: [Data Management]
       responses:
         "200":
@@ -3774,16 +3882,51 @@ paths:
                 type: string
               description: 'attachment; filename="decent_export_{timestamp}.zip"'
         "500":
-          description: Internal server error
+          description: Export failed atomically; the response identifies failed sections and no partial ZIP is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/v1/data/import:
     post:
       summary: Import app data from archive
       description: |
         Imports app data from a ZIP archive previously created by the export
-        endpoint. Each JSON file in the archive is processed independently —
-        missing files are skipped. Unknown files are ignored for forward
-        compatibility. Use the onConflict parameter to control how duplicate
-        records are handled.
+        endpoint. Each recognized JSON section is processed independently.
+        Missing sections are allowed, but the archive must contain at least one
+        recognized selected section. Unknown files and metadata.json alone do
+        not constitute an importable backup. Metadata is optional for legacy
+        archives without metadata.json, but is validated when present. Use the
+        onConflict parameter to control how duplicate records are handled.
+
+        A 200 response means every processed section completed without errors.
+        A 207 response means recognized sections were processed but at least
+        one section returned or encountered an error, including when all
+        recognized sections failed. Warnings and conflict skips do not cause
+        207. Sections are not imported transactionally; a successful section
+        is not rolled back when another section fails.
+
+        The request body is streamed into a temporary file; the whole archive
+        is never buffered in memory. Imports are bounded by the following
+        limits (exceeding any of them returns 400 with `Invalid backup
+        archive`):
+
+        - `maxImportRequestBytes` (default 2 GiB): compressed request size.
+        - `maxEntryCount` (default 4096): number of ZIP entries.
+        - `maxEntryUncompressedBytes` (default 1 GiB): per-entry uncompressed
+          size.
+        - `maxTotalUncompressedBytes` (default 2 GiB): sum of uncompressed
+          entry sizes (ZIP-bomb protection).
+        - `maxMetadataBytes` (default 64 KiB): metadata.json size.
+        - `maxRecordBytes` (default 64 MiB): individual JSON record size
+          (e.g. one shot, profile, or KV value).
+        - `maxFilenameBytes` / `maxExtraFieldBytes` / `maxCommentBytes`
+          (256 B / 64 KiB / 64 KiB): ZIP header field caps.
+
+        ZIP64 archives, encrypted entries, unsupported compression methods,
+        duplicate entry names, directory/symlink entries masquerading as
+        recognized files, truncated archives, CRC mismatches, and malformed
+        JSON all fail safely with 400.
       tags: [Data Management]
       parameters:
         - in: query
@@ -3805,11 +3948,13 @@ paths:
               format: binary
       responses:
         "200":
-          description: Import completed successfully
+          description: At least one recognized section was processed and all processed sections completed without errors
           content:
             application/json:
               schema:
                 type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/SectionImportResult"
                 properties:
                   profiles:
                     $ref: "#/components/schemas/SectionImportResult"
@@ -3821,8 +3966,22 @@ paths:
                     $ref: "#/components/schemas/SectionImportResult"
                   store:
                     $ref: "#/components/schemas/SectionImportResult"
+                  steams:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  beans:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  grinders:
+                    $ref: "#/components/schemas/SectionImportResult"
+        "207":
+          description: Recognized sections were processed, but one or more sections contain errors
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/SectionImportResult"
         "400":
-          description: Invalid archive, unsupported format version, or invalid onConflict value
+          description: Invalid ZIP, malformed or unsupported metadata, unknown requested selection, no recognized data sections, or invalid onConflict value
           content:
             application/json:
               schema:
@@ -3842,10 +4001,34 @@ paths:
         instance over the network. Supports three modes:
         - **pull**: imports data from the target into this instance
         - **push**: exports data from this instance to the target
-        - **two_way**: performs pull then push (returns 207 if one phase fails)
+        - **two_way**: performs pull then push only after a complete pull by default
 
-        Only the specified sections are synced. If no sections are provided,
-        all available sections are synced.
+        Pull, push, and two_way requests may omit sections, which means all
+        locally registered sections. An explicitly empty sections list is
+        invalid for every mode.
+        Duplicate names are deduplicated in first-occurrence order and
+        unknown names return 400. Semantic status is derived from section
+        results rather than HTTP 200 alone. Existing direct section maps stay
+        under pull and push; phase metadata is additive under phases. Legacy
+        remote import result maps are supported.
+
+        Pull responses are streamed to a temporary ZIP before import; push
+        requests stream a locally built temporary ZIP with a known content
+        length. The sync request body is limited to 1 MiB, and target
+        responses to 8 MiB. Transfers apply a connection timeout (10 s,
+        connect establishment only), an idle timeout (30 s between stream
+        events), and one deadline (10 min) per phase covering the network
+        stages (upload/download and response). Timeouts abort the request
+        at the transport level: a timed-out pull is cut off even while the
+        target is still generating its export (before headers) and never
+        starts its import; a timed-out push aborts its upload (and the
+        upload is backpressured, so the file is never read ahead of the
+        network). Local export and the pull-side import run to completion
+        and report their actual results. If the archive was already fully
+        uploaded before the deadline, the remote outcome is unknown and the
+        phase reports reason `timeout_unknown`. A generated archive is also
+        bounded by the 2 GiB import request limit, and per-record limits
+        are measured in UTF-8 bytes.
       tags: [Data Management]
       requestBody:
         required: true
@@ -3878,8 +4061,21 @@ paths:
                   type: array
                   items:
                     type: string
-                    enum: [profiles, shots, workflow, settings, store, beans, grinders]
-                  description: Data sections to sync. Defaults to all sections if omitted.
+                    enum: [profiles, shots, workflow, settings, store, steams, beans, grinders]
+                  minItems: 1
+                  uniqueItems: false
+                  description: |
+                    Data sections to sync. Optional for every mode; omission
+                    means all locally registered sections. An explicitly empty
+                    list is invalid for every mode. Duplicate names are
+                    deduplicated in first-occurrence order.
+                continueOnPullFailure:
+                  type: boolean
+                  default: false
+                  description: |
+                    Two_way only. When true, allows push after pull is partial
+                    or failed. It is false by default and is not inferred from
+                    overwrite conflict handling.
       responses:
         "200":
           description: Sync completed successfully
@@ -3888,13 +4084,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "207":
-          description: Partial success (two_way mode, one phase failed)
+          description: Incomplete two-way synchronization with meaningful progress
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SyncResult"
         "400":
-          description: Validation error (missing required fields, invalid mode, etc.)
+          description: Validation error (missing required fields, invalid mode, empty or unknown sections, etc.)
           content:
             application/json:
               schema:
@@ -3905,16 +4101,11 @@ paths:
                   message:
                     type: string
         "502":
-          description: Target Bridge unreachable or returned an error
+          description: Unsuccessful single-direction synchronization or two-way synchronization with no complete or partial phase
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                  message:
-                    type: string
+                $ref: "#/components/schemas/SyncResult"
 
   /api/v1/info:
     get:
@@ -4113,6 +4304,47 @@ paths:
                     enum: [stalled, resumed, disconnected]
         "400":
           description: No scale connected or scale is not a MockScale
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "404":
+          description: Unknown command or endpoint not available (non-simulate build)
+
+  /api/v1/debug/machine/{command}:
+    post:
+      summary: Control mock machine (simulate mode only)
+      description: |
+        Debug endpoints for controlling the simulated machine. Only available
+        when the app is launched with a non-empty `simulate` Dart define.
+        Returns 404 on production builds.
+      tags: [Debug]
+      parameters:
+        - name: command
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [disconnect]
+          description: |
+            - `disconnect` — simulate machine disconnect (emits disconnected
+              state; no automatic reconnect)
+      responses:
+        "200":
+          description: Command executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [disconnected]
+        "400":
+          description: No machine connected or machine is not a MockDe1
           content:
             application/json:
               schema:
@@ -5064,7 +5296,7 @@ components:
       type: object
       properties:
         gatewayMode:
-          description: Control whether Decent acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means decent will not show graphs, but will control the shot (stop at weight)
+          description: Control whether Decaid acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means Decaid will not show graphs, but will control the shot (stop at weight)
           type: string
           enum: ["disabled", "full", "tracking"]
           nullable: true
@@ -5149,6 +5381,9 @@ components:
           type: boolean
           nullable: true
           description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring. Default value is true.
+        keepAwake:
+          type: boolean
+          description: When enabled, the wake lock stays on while the app is running, preventing the tablet screen from turning off. Default value is true.
         simulatedDevices:
           description: List of simulated device types to enable in scan results
           type: array
@@ -5242,6 +5477,9 @@ components:
         lowBatteryBrightnessLimit:
           type: boolean
           description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring.
+        keepAwake:
+          type: boolean
+          description: When enabled, the wake lock stays on while the app is running, preventing the tablet screen from turning off. Default value is true.
         simulatedDevices:
           description: List of simulated device types currently enabled in scan results
           type: array
@@ -5680,7 +5918,7 @@ components:
           type: array
           items:
             type: string
-            enum: [log, api, emit, pluginStorage, pluginNotify, proxy.decent_api]
+            enum: [log, api, emit, pluginStorage, pluginNotify, proxy.decent_api, proxy.decent_api.write]
         settings:
           description: Plugin settings schema
           type: object
@@ -5935,6 +6173,10 @@ components:
       type: object
       description: Result of importing a single data section from an archive
       properties:
+        status:
+          type: string
+          enum: [complete, partial, failed]
+          description: Semantic result for this section. Errors with progress are partial; errors without progress are failed.
         imported:
           type: integer
           description: Number of records successfully imported
@@ -5952,23 +6194,91 @@ components:
             type: string
           description: Warning messages (e.g., platform mismatch for device preferences)
 
-    SyncResult:
+    SyncPhaseResult:
       type: object
-      description: Result of a data sync operation. Contains per-phase results keyed by direction.
+      required: [status, complete, partial]
       properties:
-        pull:
-          type: object
-          description: Per-section results for the pull phase (present for pull and two_way modes)
-          additionalProperties:
-            $ref: "#/components/schemas/SectionImportResult"
-        push:
-          type: object
-          description: Per-section results for the push phase (present for push and two_way modes)
-          additionalProperties:
-            $ref: "#/components/schemas/SectionImportResult"
+        status:
+          type: string
+          enum: [complete, partial, failed, skipped]
+        complete:
+          type: boolean
+        partial:
+          type: boolean
         error:
           type: string
-          description: Error message if a phase failed (present in 207 responses)
+        message:
+          type: string
+        reason:
+          type: string
+        statusCode:
+          type: integer
+          format: int32
+
+    SyncLegacyPhaseResult:
+      type: object
+      required: [error, message]
+      description: Fatal phase details preserved at the legacy pull or push path
+      properties:
+        status:
+          oneOf:
+            - type: string
+              enum: [complete, partial, failed, skipped]
+            - type: integer
+              format: int32
+        complete:
+          type: boolean
+        partial:
+          type: boolean
+        error:
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        statusCode:
+          type: integer
+          format: int32
+
+    SyncResult:
+      type: object
+      required: [status, complete, partial, mode, phases]
+      description: |
+        Semantic result of a data sync operation. Direct section results are
+        preserved under pull and push for compatibility. Phase metadata is
+        additive under phases.
+      properties:
+        status:
+          type: string
+          enum: [complete, partial, failed]
+        complete:
+          type: boolean
+        partial:
+          type: boolean
+        mode:
+          type: string
+          enum: [pull, push, two_way]
+        pull:
+          oneOf:
+            - type: object
+              description: Per-section results for the pull phase, preserved at direct paths
+              additionalProperties:
+                $ref: "#/components/schemas/SectionImportResult"
+            - $ref: "#/components/schemas/SyncLegacyPhaseResult"
+        push:
+          oneOf:
+            - type: object
+              description: Per-section results for the push phase, preserved at direct paths
+              additionalProperties:
+                $ref: "#/components/schemas/SectionImportResult"
+            - $ref: "#/components/schemas/SyncLegacyPhaseResult"
+        phases:
+          type: object
+          properties:
+            pull:
+              $ref: "#/components/schemas/SyncPhaseResult"
+            push:
+              $ref: "#/components/schemas/SyncPhaseResult"
 
     WorkflowContext:
       type: object

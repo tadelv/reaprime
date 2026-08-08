@@ -78,29 +78,31 @@ void main() {
       expect(blob.bytes, isNull);
     });
 
-    test('survives a new store instance over the same blob (persistence)',
-        () async {
-      await store.write(key: 'email', value: 'a@b.com');
-      final reopened =
-          EncryptedCredentialStore(keyBytes: _keyA, blob: blob);
-      expect(await reopened.read(key: 'email'), 'a@b.com');
-    });
+    test(
+      'survives a new store instance over the same blob (persistence)',
+      () async {
+        await store.write(key: 'email', value: 'a@b.com');
+        final reopened = EncryptedCredentialStore(keyBytes: _keyA, blob: blob);
+        expect(await reopened.read(key: 'email'), 'a@b.com');
+      },
+    );
 
     test('wrong key cannot decrypt — reads as empty store', () async {
       await store.write(key: 'email', value: 'a@b.com');
-      final wrongKey =
-          EncryptedCredentialStore(keyBytes: _keyB, blob: blob);
+      final wrongKey = EncryptedCredentialStore(keyBytes: _keyB, blob: blob);
       expect(await wrongKey.read(key: 'email'), isNull);
     });
 
-    test('tampered ciphertext fails the GCM tag — reads as empty store',
-        () async {
-      await store.write(key: 'email', value: 'a@b.com');
-      final tampered = Uint8List.fromList(blob.bytes!);
-      tampered[tampered.length - 1] ^= 0xFF; // flip a bit in the MAC
-      blob.bytes = tampered;
-      expect(await store.read(key: 'email'), isNull);
-    });
+    test(
+      'tampered ciphertext fails the GCM tag — reads as empty store',
+      () async {
+        await store.write(key: 'email', value: 'a@b.com');
+        final tampered = Uint8List.fromList(blob.bytes!);
+        tampered[tampered.length - 1] ^= 0xFF; // flip a bit in the MAC
+        blob.bytes = tampered;
+        expect(await store.read(key: 'email'), isNull);
+      },
+    );
 
     test('concurrent writes do not corrupt the store', () async {
       await Future.wait([

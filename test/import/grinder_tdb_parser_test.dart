@@ -9,9 +9,7 @@ void main() {
   late List<Grinder> grinders;
 
   setUpAll(() {
-    final file = File(
-      'test/fixtures/de1app/plugins/DYE/grinders.tdb',
-    );
+    final file = File('test/fixtures/de1app/plugins/DYE/grinders.tdb');
     tdbContent = file.readAsStringSync();
     grinders = GrinderTdbParser.parse(tdbContent);
   });

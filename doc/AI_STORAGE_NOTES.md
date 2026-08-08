@@ -79,6 +79,17 @@ flutter test test/database/
 flutter test test/services/storage_service_test.dart
 ```
 
+## Export Paging (issue #555)
+
+Backup export pages collections instead of calling `getAll...()`. Shots and
+steams page via keyset cursors ordered by `(timestamp, id)` ascending
+(`getShotsForExport` / `getSteamsForExport`); beans and grinders page by
+`(createdAt, id)` (`getBeansForExport` / `getGrindersForExport`). Cursor
+paging is stable under concurrent inserts/deletes — no duplicates or
+omissions — which offset paging cannot guarantee. The page functions are
+built in `main.dart` from the DAOs and carried by `BackupDataSources`; the
+storage service interfaces are unchanged.
+
 ## Keeping Notes Fresh
 
 Add migration gotchas, storage ownership changes, and data integrity rules. Prune when schema versions are retired.

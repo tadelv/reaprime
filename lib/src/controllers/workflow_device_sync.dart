@@ -122,7 +122,7 @@ class WorkflowDeviceSync {
           return;
         }
         try {
-          await _de1.connectedDe1().setProfile(profile);
+          await _de1.runDeviceWrite((device) => device.setProfile(profile));
           if (generation != _generation) return;
           _lastPushedProfile = profile;
           _attempt = 0;
@@ -131,9 +131,7 @@ class WorkflowDeviceSync {
             onUploadErrorCleared?.call();
           }
         } on DeviceNotConnectedException {
-          _log.fine(
-            'DE1 not connected; skipping profile push',
-          );
+          _log.fine('DE1 not connected; skipping profile push');
           return;
         } catch (e, st) {
           if (generation != _generation) return;

@@ -8,10 +8,7 @@ void main() {
   late Set<String> allowedOrigins;
 
   setUp(() {
-    allowedOrigins = {
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-    };
+    allowedOrigins = {'http://localhost:3000', 'http://127.0.0.1:3000'};
 
     handler = const Pipeline()
         .addMiddleware(accountProxyCorsMiddleware(() => allowedOrigins))
@@ -27,21 +24,13 @@ void main() {
         .addHandler((_) => Response.ok('ok'));
   });
 
-  Future<Response> request(
-    String method,
-    String path, {
-    String? origin,
-  }) async {
+  Future<Response> request(String method, String path, {String? origin}) async {
     final headers = <String, String>{};
     if (origin != null) {
       headers['origin'] = origin;
     }
     return await handler(
-      Request(
-        method,
-        Uri.parse('http://localhost$path'),
-        headers: headers,
-      ),
+      Request(method, Uri.parse('http://localhost$path'), headers: headers),
     );
   }
 

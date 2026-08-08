@@ -9,13 +9,7 @@ import 'hds_serial_disconnect_test.dart';
 /// Build a valid HDS weight frame: [0x03, 0xCE, high, low, 0x00]
 Uint8List weightFrame(double weight) {
   final raw = (weight * 10).toInt();
-  return Uint8List.fromList([
-    0x03,
-    0xCE,
-    (raw >> 8) & 0xFF,
-    raw & 0xFF,
-    0x00,
-  ]);
+  return Uint8List.fromList([0x03, 0xCE, (raw >> 8) & 0xFF, raw & 0xFF, 0x00]);
 }
 
 void main() {

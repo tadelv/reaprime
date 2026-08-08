@@ -147,9 +147,7 @@ class _FakeBlePlatform extends UniversalBlePlatform {
       BleConnectionState.disconnected;
 
   @override
-  Future<List<BleDevice>> getSystemDevices(
-    List<String>? withServices,
-  ) async {
+  Future<List<BleDevice>> getSystemDevices(List<String>? withServices) async {
     return List<BleDevice>.unmodifiable(systemDevices);
   }
 }
@@ -203,9 +201,7 @@ void main() {
   });
 
   tearDown(() async {
-    // Stop any active watch so its refresh/liveness timers cannot fire
-    // in a later test against that test's replaced UniversalBle fake.
-    await service.stopDeviceWatch();
+    await service.dispose();
   });
 
   ({ScanFilter? filter, PlatformConfig? config}) lastStart() =>
@@ -249,6 +245,36 @@ void main() {
         contains('AA:BB:CC:DD:EE:FF'),
       );
       await sub.cancel();
+    });
+
+    test('normalized duplicate results create one candidate', () async {
+      var transports = 0;
+      final sut = UniversalBleDiscoveryService(
+        watchSupportGate: () => true,
+        transportFactory:
+            ({
+              required device,
+              required stopScan,
+              required requestLargeMtuNonAndroid,
+              required lifecycleGate,
+            }) {
+              transports++;
+              return FakeBleTransport();
+            },
+      );
+      addTearDown(sut.dispose);
+      await sut.initialize();
+      await sut.startDeviceWatch(_watchFilter);
+
+      platform.updateScanResult(
+        BleDevice(deviceId: 'AA:BB:CC:DD:EE:FF', name: 'Decent Scale'),
+      );
+      platform.updateScanResult(
+        BleDevice(deviceId: 'aa:bb:cc:dd:ee:ff', name: 'Decent Scale'),
+      );
+      await pump();
+
+      expect(transports, 1);
     });
   });
 
@@ -566,8 +592,7 @@ void main() {
       });
     });
 
-    test(
-        'the liveness probe restarts a silently dead native scan', () {
+    test('the liveness probe restarts a silently dead native scan', () {
       // The fork's SafeScanner can swallow a start (scan-frequency
       // throttling returns success without scanning, and a later stop
       // cancels the pending auto-start) and onScanFailed never reaches
@@ -586,9 +611,13 @@ void main() {
         async.elapse(const Duration(minutes: 2));
         async.flushMicrotasks();
 
-        expect(platform.startScanCalls.length, greaterThanOrEqualTo(2),
-            reason: 'the probe must notice the dead scan and restart it '
-                'instead of waiting for the 25-min refresh');
+        expect(
+          platform.startScanCalls.length,
+          greaterThanOrEqualTo(2),
+          reason:
+              'the probe must notice the dead scan and restart it '
+              'instead of waiting for the 25-min refresh',
+        );
         expect(lastStart().filter?.withNamePrefix, ['Decent Scale']);
 
         zoned.stopDeviceWatch();
@@ -609,8 +638,11 @@ void main() {
         async.elapse(const Duration(minutes: 10));
         async.flushMicrotasks();
 
-        expect(platform.startScanCalls, hasLength(1),
-            reason: 'probes on a healthy scan must not churn the session');
+        expect(
+          platform.startScanCalls,
+          hasLength(1),
+          reason: 'probes on a healthy scan must not churn the session',
+        );
 
         zoned.stopDeviceWatch();
         async.flushMicrotasks();
@@ -676,9 +708,7 @@ void main() {
       () async {
         const deviceId = 'AA:BB:CC:DD:EE:01';
 
-        platform.systemDevices.add(
-          BleDevice(deviceId: deviceId, name: 'DE1'),
-        );
+        platform.systemDevices.add(BleDevice(deviceId: deviceId, name: 'DE1'));
 
         final transport = transportForModel(129);
         final sut = UniversalBleDiscoveryService(
@@ -687,6 +717,7 @@ void main() {
                 required device,
                 required stopScan,
                 required requestLargeMtuNonAndroid,
+                required lifecycleGate,
               }) {
                 return transport;
               },
@@ -741,6 +772,7 @@ void main() {
                 required device,
                 required stopScan,
                 required requestLargeMtuNonAndroid,
+                required lifecycleGate,
               }) {
                 return transport;
               },
@@ -772,14 +804,8 @@ void main() {
           isEmpty,
           reason: 'the rejected device must never enter the registry',
         );
-        expect(
-          transport.disconnectCalls,
-          greaterThanOrEqualTo(1),
-        );
-        expect(
-          transport.disposeCalls,
-          greaterThanOrEqualTo(1),
-        );
+        expect(transport.disconnectCalls, greaterThanOrEqualTo(1));
+        expect(transport.disposeCalls, greaterThanOrEqualTo(1));
       },
     );
   });
@@ -788,9 +814,7 @@ void main() {
     test(
       'new transports read the current SettingsController flag value',
       () async {
-        final settingsController = SettingsController(
-          MockSettingsService(),
-        );
+        final settingsController = SettingsController(MockSettingsService());
         await settingsController.loadSettings();
 
         final capturedValues = <bool>[];
@@ -798,15 +822,14 @@ void main() {
 
         final sut = UniversalBleDiscoveryService(
           watchSupportGate: () => true,
-          requestLargeMtuNonAndroid: () =>
-              settingsController.isFeatureFlagEnabled(
-                FeatureFlag.largeBleMtuNonAndroid,
-              ),
+          requestLargeMtuNonAndroid: () => settingsController
+              .isFeatureFlagEnabled(FeatureFlag.largeBleMtuNonAndroid),
           transportFactory:
               ({
                 required device,
                 required stopScan,
                 required requestLargeMtuNonAndroid,
+                required lifecycleGate,
               }) {
                 capturedValues.add(requestLargeMtuNonAndroid);
 
@@ -826,10 +849,7 @@ void main() {
         await sut.startDeviceWatch(const DeviceWatchFilter());
 
         platform.updateScanResult(
-          BleDevice(
-            deviceId: 'AA:BB:CC:DD:EE:10',
-            name: 'DE1',
-          ),
+          BleDevice(deviceId: 'AA:BB:CC:DD:EE:10', name: 'DE1'),
         );
         await pump();
 
@@ -839,10 +859,7 @@ void main() {
         );
 
         platform.updateScanResult(
-          BleDevice(
-            deviceId: 'AA:BB:CC:DD:EE:11',
-            name: 'DE1',
-          ),
+          BleDevice(deviceId: 'AA:BB:CC:DD:EE:11', name: 'DE1'),
         );
         await pump();
 

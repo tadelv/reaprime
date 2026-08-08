@@ -38,9 +38,11 @@ void main() {
       // initIntegratedScale was already called via onConnect in setUp.
       // Confirm a log message was emitted noting the unwired endpoint.
       expect(
-        logRecords.any((r) =>
-            r.message.contains('IntegratedScaleCapability') &&
-            r.message.contains('unwired')),
+        logRecords.any(
+          (r) =>
+              r.message.contains('IntegratedScaleCapability') &&
+              r.message.contains('unwired'),
+        ),
         isTrue,
         reason: 'expected init log entry about unwired endpoint',
       );
@@ -52,18 +54,22 @@ void main() {
       await expectLater(bengle.weightSnapshot, emitsDone);
     });
 
-    test('tareIntegratedScale logs and no-ops when wires are unwired',
-        () async {
-      logRecords.clear();
-      await bengle.tareIntegratedScale();
-      expect(
-        logRecords.any((r) =>
-            r.message.contains('IntegratedScaleCapability') &&
-            r.message.contains('tare')),
-        isTrue,
-        reason: 'expected tare log entry about unwired control endpoint',
-      );
-    });
+    test(
+      'tareIntegratedScale logs and no-ops when wires are unwired',
+      () async {
+        logRecords.clear();
+        await bengle.tareIntegratedScale();
+        expect(
+          logRecords.any(
+            (r) =>
+                r.message.contains('IntegratedScaleCapability') &&
+                r.message.contains('tare'),
+          ),
+          isTrue,
+          reason: 'expected tare log entry about unwired control endpoint',
+        );
+      },
+    );
 
     test('BengleScaleEndpoint.weight.uuid and representation are null', () {
       expect(BengleScaleEndpoint.weight.uuid, isNull);
@@ -97,17 +103,21 @@ void main() {
       // so we time out — which is the success signal here.
       var streamCompletedWithoutValue = false;
       try {
-        await bengle.weightSnapshot
-            .first
-            .timeout(const Duration(milliseconds: 50));
+        await bengle.weightSnapshot.first.timeout(
+          const Duration(milliseconds: 50),
+        );
       } on TimeoutException {
         // Expected: stream is open but quiet — capability is alive.
       } on StateError {
         streamCompletedWithoutValue = true;
       }
-      expect(streamCompletedWithoutValue, isFalse,
-          reason: 'weightSnapshot was closed after reconnect — mixin '
-              'failed to re-init its BehaviorSubject');
+      expect(
+        streamCompletedWithoutValue,
+        isFalse,
+        reason:
+            'weightSnapshot was closed after reconnect — mixin '
+            'failed to re-init its BehaviorSubject',
+      );
     });
   });
 }

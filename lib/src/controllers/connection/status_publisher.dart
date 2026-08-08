@@ -68,8 +68,9 @@ class StatusPublisher {
     _subject.add(
       next.copyWith(
         error: () => effectiveError,
-        activeTargetTransport:
-            next.phase == ConnectionPhase.ready ? () => null : null,
+        activeTargetTransport: next.phase == ConnectionPhase.ready
+            ? () => null
+            : null,
       ),
     );
   }

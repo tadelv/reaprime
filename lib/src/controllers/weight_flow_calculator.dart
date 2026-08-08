@@ -34,8 +34,9 @@ class FlowCalculator {
 
     final first = _samples.first;
     final last = _samples.last;
-    final deltaTimeMs =
-        last.timestamp.difference(first.timestamp).inMilliseconds;
+    final deltaTimeMs = last.timestamp
+        .difference(first.timestamp)
+        .inMilliseconds;
     final deltaWeight = last.weight - first.weight;
 
     // Avoid division by zero

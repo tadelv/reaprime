@@ -5,8 +5,9 @@ import 'package:reaprime/src/services/android_updater.dart';
 class UpdateDialog extends StatefulWidget {
   final UpdateInfo updateInfo;
   final String currentVersion;
-  final Future<String> Function(UpdateInfo) onDownload;
+  final Future<String> Function(UpdateInfo, void Function(double)) onDownload;
   final Future<bool> Function(String) onInstall;
+  final VoidCallback onViewReleaseNotes;
 
   const UpdateDialog({
     super.key,
@@ -14,6 +15,7 @@ class UpdateDialog extends StatefulWidget {
     required this.currentVersion,
     required this.onDownload,
     required this.onInstall,
+    required this.onViewReleaseNotes,
   });
 
   @override
@@ -25,6 +27,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
   bool _isInstalling = false;
   String? _downloadedPath;
   String? _error;
+  double? _downloadProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -52,22 +55,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
               ),
             ],
             SizedBox(height: 16),
-            if (widget.updateInfo.releaseNotes.isNotEmpty) ...[
-              Text(
-                'Release Notes:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              SizedBox(height: 8),
-              Container(
-                constraints: BoxConstraints(maxHeight: 200),
-                child: SingleChildScrollView(
-                  child: Text(
-                    widget.updateInfo.releaseNotes,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ),
-            ],
+            TextButton.icon(
+              onPressed: widget.onViewReleaseNotes,
+              icon: const Icon(Icons.open_in_new),
+              label: const Text("What's new"),
+            ),
             if (_error != null) ...[
               SizedBox(height: 16),
               Container(
@@ -76,17 +68,18 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Colors.red),
-                ),
+                child: Text(_error!, style: TextStyle(color: Colors.red)),
               ),
             ],
             if (_isDownloading) ...[
               SizedBox(height: 16),
-              LinearProgressIndicator(),
+              LinearProgressIndicator(value: _downloadProgress),
               SizedBox(height: 8),
-              Text('Downloading update...'),
+              Text(
+                _downloadProgress == null
+                    ? 'Downloading update…'
+                    : 'Downloading update… ${(_downloadProgress! * 100).round()}%',
+              ),
             ],
             if (_isInstalling) ...[
               SizedBox(height: 16),
@@ -125,7 +118,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
     });
 
     try {
-      final path = await widget.onDownload(widget.updateInfo);
+      final path = await widget.onDownload(widget.updateInfo, (progress) {
+        if (mounted) setState(() => _downloadProgress = progress);
+      });
+      if (!mounted) return;
       setState(() {
         _downloadedPath = path;
         _isDownloading = false;
@@ -161,7 +157,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
         }
       } else {
         setState(() {
-          _error = 'Installation permission required. Please grant permission and try again.';
+          _error =
+              'Installation permission required. Please grant permission and try again.';
           _isInstalling = false;
         });
       }
@@ -171,5 +168,127 @@ class _UpdateDialogState extends State<UpdateDialog> {
         _isInstalling = false;
       });
     }
+  }
+}
+
+class AndroidQuickUpdateDialog extends StatefulWidget {
+  final UpdateInfo updateInfo;
+  final Future<String> Function(UpdateInfo, void Function(double)) onDownload;
+  final Future<bool> Function(String) onInstall;
+
+  const AndroidQuickUpdateDialog({
+    super.key,
+    required this.updateInfo,
+    required this.onDownload,
+    required this.onInstall,
+  });
+
+  @override
+  State<AndroidQuickUpdateDialog> createState() =>
+      _AndroidQuickUpdateDialogState();
+}
+
+class _AndroidQuickUpdateDialogState extends State<AndroidQuickUpdateDialog> {
+  bool _isDownloading = true;
+  bool _isInstalling = false;
+  String? _error;
+  double? _downloadProgress;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDownload();
+  }
+
+  Future<void> _startDownload() async {
+    try {
+      final path = await widget.onDownload(widget.updateInfo, (progress) {
+        if (mounted) setState(() => _downloadProgress = progress);
+      });
+      if (!mounted) return;
+      setState(() {
+        _isDownloading = false;
+        _isInstalling = true;
+      });
+      final success = await widget.onInstall(path);
+      if (!mounted) return;
+      if (success) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Update installation started. Follow the on-screen prompts.',
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          _isInstalling = false;
+          _error =
+              'Install permission required. Grant permission and try again.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed: $e';
+        _isDownloading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Update ${widget.updateInfo.version}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isDownloading) ...[
+            LinearProgressIndicator(value: _downloadProgress),
+            const SizedBox(height: 12),
+            Text(
+              _downloadProgress == null
+                  ? 'Downloading update…'
+                  : 'Downloading update… ${(_downloadProgress! * 100).round()}%',
+            ),
+          ],
+          if (_isInstalling) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text('Installing update…'),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isDownloading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        if (_error != null)
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _error = null;
+                _isDownloading = true;
+                _downloadProgress = null;
+              });
+              _startDownload();
+            },
+            child: const Text('Retry'),
+          ),
+      ],
+    );
   }
 }

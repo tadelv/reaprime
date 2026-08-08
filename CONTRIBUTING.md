@@ -1,8 +1,8 @@
-# Contributing to Decent.app
+# Contributing to Decaid
 
 Thanks for contributing. This guide tells you what's required to land a PR — items marked **(required)** are hard gates, not suggestions.
 
-> **Naming note:** The display name is **Decent.app**. The repo, package, and bundle ID still use legacy `reaprime` / `streamline-bridge` identifiers. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
+> **Naming note:** The display name is **Decaid**. The Dart package, bundle ID, database, and plugin extension retain legacy identifiers for compatibility. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
 
 ## Quick Reference
 
@@ -24,11 +24,11 @@ Thanks for contributing. This guide tells you what's required to land a PR — i
 
 ## Local Setup
 
-Requirements: Flutter (stable), Node.js 20+ (for the DYE2 bundled plugin).
+Requirements: Flutter (stable), the [GitHub CLI](https://cli.github.com) (`gh`, authenticated — used to fetch the DYE2 bundled plugin), `jq` (validates the fetched plugin's manifest).
 
 ```bash
 flutter pub get
-(cd packages/dye2-plugin && npm ci && npm run build)
+./scripts/fetch_dye2_plugin.sh   # installs assets/plugins/dye2.reaplugin/ from the pinned allofmeng/dye2 release (scripts/fetch_dye2_plugin.sh)
 
 # Run with simulated hardware (no DE1 / scale required):
 flutter run --dart-define=simulate=1
@@ -38,7 +38,7 @@ See [`CLAUDE.md`](CLAUDE.md) for the full command reference.
 
 ## Branching & PRs
 
-- Branch from `main`. Push to your fork, open a PR against `tadelv/reaprime:main`.
+- Branch from `main`. Push to your fork, open a PR against `decentespresso/decaid:main`.
 - One feature or fix per PR. No bundling unrelated changes.
 - Reference the issue: `Fixes #123` or `Related #123`.
 - A maintainer will review. Expect a few rounds of feedback.
@@ -80,7 +80,7 @@ Run these before pushing. Same checks that CI runs:
 ```bash
 flutter analyze                          # must be clean — no new warnings
 flutter test                             # all must pass
-(cd packages/dye2-plugin && npm run build)  # plugin must build
+./scripts/fetch_dye2_plugin.sh           # assets/plugins/dye2.reaplugin/ must exist
 ```
 
 `dart format` is currently **advisory** in CI — the codebase predates the Dart 3.7 "tall style" formatter. Format your own changes (`dart format lib test`) but don't reformat untouched files in the same PR.

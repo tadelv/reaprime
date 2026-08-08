@@ -3,17 +3,12 @@ part of '../webserver_service.dart';
 final class PluginsHandler {
   final PluginManager pluginManager;
   final PluginLoaderService pluginService;
-  final bool _appStoreMode;
 
   final Logger _log = Logger("PluginsHandler");
 
   final Random _random = Random();
 
-  PluginsHandler(
-      {required this.pluginManager,
-      required this.pluginService,
-      bool? appStoreMode})
-      : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  PluginsHandler({required this.pluginManager, required this.pluginService});
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/plugins', (Request req) async {
@@ -28,10 +23,6 @@ final class PluginsHandler {
     });
 
     app.post('/api/v1/plugins/install', (Request request) async {
-      if (_appStoreMode) {
-        return jsonForbidden(
-            {'error': 'Plugin installation is not available on this platform'});
-      }
       try {
         final payload = await request.readAsString();
         final json = jsonDecode(payload) as Map<String, dynamic>;
@@ -40,8 +31,9 @@ final class PluginsHandler {
           return jsonBadRequest({'error': 'url is required'});
         }
         // Plugin install from URL not yet implemented
-        return jsonNotImplemented(
-            {'error': 'Plugin install from URL not yet implemented'});
+        return jsonNotImplemented({
+          'error': 'Plugin install from URL not yet implemented',
+        });
       } catch (e) {
         return jsonError({'error': 'Failed to install plugin: $e'});
       }
@@ -50,24 +42,25 @@ final class PluginsHandler {
     app.get('/api/v1/plugins/<id>/settings', _handlePluginSettingsGet);
     app.post('/api/v1/plugins/<id>/settings', _handlePluginSettingsPost);
 
-    app.post('/api/v1/plugins/<id>/enable',
-        (Request request, String id) async {
+    app.post('/api/v1/plugins/<id>/enable', (Request request, String id) async {
       try {
         if (pluginService.getPluginManifest(id) == null) {
           return jsonNotFound({'error': 'Plugin not found: $id'});
         }
+        await pluginService.setPluginAutoLoad(id, true);
         if (!pluginService.isPluginLoaded(id)) {
           await pluginService.loadPlugin(id);
         }
-        await pluginService.setPluginAutoLoad(id, true);
         return jsonOk({'message': 'Plugin enabled', 'id': id});
       } catch (e) {
         return jsonError({'error': 'Failed to enable plugin: $e'});
       }
     });
 
-    app.post('/api/v1/plugins/<id>/disable',
-        (Request request, String id) async {
+    app.post('/api/v1/plugins/<id>/disable', (
+      Request request,
+      String id,
+    ) async {
       try {
         if (pluginService.getPluginManifest(id) == null) {
           return jsonNotFound({'error': 'Plugin not found: $id'});
@@ -83,10 +76,6 @@ final class PluginsHandler {
     });
 
     app.delete('/api/v1/plugins/<id>', (Request request, String id) async {
-      if (_appStoreMode) {
-        return jsonForbidden(
-            {'error': 'Plugin removal is not available on this platform'});
-      }
       try {
         if (pluginService.getPluginManifest(id) == null) {
           return jsonNotFound({'error': 'Plugin not found: $id'});
@@ -106,10 +95,9 @@ final class PluginsHandler {
     _log.info("handling $req");
     final id = req.params['id'];
     final endpoint = req.params['endpoint'];
-    final manifest =
-        pluginManager.loadedPlugins
-            .firstWhereOrNull((e) => e.pluginId == id)
-            ?.manifest;
+    final manifest = pluginManager.loadedPlugins
+        .firstWhereOrNull((e) => e.pluginId == id)
+        ?.manifest;
     if (manifest == null) {
       return jsonNotFound({'error': 'plugin with $id not loaded'});
     }
@@ -120,9 +108,9 @@ final class PluginsHandler {
       return jsonNotFound({'error': 'endpoint $endpoint not available'});
     }
     if (apiEndpoint.type != ApiEndpointType.websocket) {
-      return jsonBadRequest(
-        {'error': 'endpoint $endpoint is not a websocket type'},
-      );
+      return jsonBadRequest({
+        'error': 'endpoint $endpoint is not a websocket type',
+      });
     }
 
     return sws.webSocketHandler((WebSocketChannel socket, String? protocol) {
@@ -169,10 +157,9 @@ final class PluginsHandler {
       return jsonBadRequest({'error': 'id and endpoint required'});
     }
 
-    final manifest =
-        pluginManager.loadedPlugins
-            .firstWhereOrNull((e) => e.pluginId == id)
-            ?.manifest;
+    final manifest = pluginManager.loadedPlugins
+        .firstWhereOrNull((e) => e.pluginId == id)
+        ?.manifest;
 
     if (manifest == null) {
       return jsonNotFound({'error': 'plugin with $id not loaded'});
@@ -187,9 +174,7 @@ final class PluginsHandler {
     }
 
     if (apiEndpoint.type != ApiEndpointType.http) {
-      return jsonBadRequest(
-        {'error': 'endpoint $endpoint is not a http type'},
-      );
+      return jsonBadRequest({'error': 'endpoint $endpoint is not a http type'});
     }
 
     // Read request details
@@ -216,52 +201,32 @@ final class PluginsHandler {
         'query': req.url.queryParameters,
       };
 
+      // Register the pending request before dispatching to the plugin.
+      final responseFuture = pluginManager.registerPendingHttp(id, requestId);
+
       // Dispatch the event to the plugin
       pluginManager.dispatchEvent(id, 'httpRequest', requestData);
 
       // Wait for the plugin's response (with timeout)
-      final response = await _waitForPluginResponse(requestId);
-
-      if (response == null) {
-        return jsonError({'error': 'Plugin did not respond in time'});
-      }
+      final response = await responseFuture;
 
       // Parse the plugin's response
       final status = response['status'] as int? ?? 200;
-      final responseHeaders = (response['headers'] as Map<String, dynamic>? ??
-              {})
-          .map((k, v) => MapEntry(k, v.toString()));
+      final responseHeaders =
+          (response['headers'] as Map<String, dynamic>? ?? {}).map(
+            (k, v) => MapEntry(k, v.toString()),
+          );
       final responseBody = response['body'];
 
       // Send the response back to the client
       return Response(status, body: responseBody, headers: responseHeaders);
+    } on PluginHttpError catch (e) {
+      _log.warning("Plugin $id HTTP request failed", e);
+      return jsonError({'error': e.message});
     } catch (e) {
       _log.warning("Error handling HTTP request for plugin $id", e);
       return jsonError({'error': 'Error processing request: ${e.toString()}'});
     }
-  }
-
-  Future<Map<String, dynamic>?> _waitForPluginResponse(String requestId) async {
-    final Completer<Map<String, dynamic>?> completer = Completer();
-    final stopwatch = Stopwatch()..start();
-
-    // Check every 100ms for up to 30 seconds
-    Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (stopwatch.elapsed > const Duration(seconds: 30)) {
-        timer.cancel();
-        completer.complete(null);
-        return;
-      }
-
-      // Check if the plugin has responded
-      final response = pluginManager.getPendingHttpResponse(requestId);
-      if (response != null) {
-        timer.cancel();
-        completer.complete(response);
-      }
-    });
-
-    return completer.future;
   }
 
   Future<Response> _extractPluginId(

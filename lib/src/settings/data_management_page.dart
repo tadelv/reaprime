@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
@@ -21,11 +21,15 @@ import 'package:reaprime/src/import/widgets/import_summary_view.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/settings/backup_import_response.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_transfer_service.dart';
+import 'package:reaprime/src/util/temp_archive_files.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:share_plus/share_plus.dart';
 
 final Logger _log = Logger("DataManagement");
 
@@ -115,9 +119,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
               const SizedBox(width: 8),
               Text(
                 'Export & Backup',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -125,11 +129,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Create backups of your data or export specific items',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -167,9 +170,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
               const SizedBox(width: 8),
               Text(
                 'Import & Restore',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -177,11 +180,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Restore data from a previous backup',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -207,11 +209,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Use "Import Shots (JSON)" for legacy shot exports — single JSON files or arrays of shot records.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.5),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
           ),
         ],
       ),
@@ -230,9 +231,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
               const SizedBox(width: 8),
               Text(
                 'Privacy & Feedback',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -240,11 +241,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Control data sharing and send feedback',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           ShadSwitch(
@@ -261,10 +261,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
           ShadButton.outline(
             onPressed: () => showFeedbackDialog(
               context,
-              githubToken: rot13(const String.fromEnvironment(
-                'GITHUB_FEEDBACK_TOKEN',
-                defaultValue: '',
-              )),
+              githubToken: rot13(
+                const String.fromEnvironment(
+                  'GITHUB_FEEDBACK_TOKEN',
+                  defaultValue: '',
+                ),
+              ),
             ),
             child: const Text("Send Feedback"),
           ),
@@ -284,51 +286,62 @@ class _DataManagementPageState extends State<DataManagementPage> {
     if (!mounted) return;
     _showProgressDialog(context, 'Preparing full backup...');
 
-    final Uint8List responseBytes;
-    final client = HttpClient();
+    final tempDir = await TempArchiveDir.create('reaprime-native-export-');
+    final transfer = BackupTransferService();
+    late final File zipFile;
     try {
-      final request = await client.getUrl(
-        Uri.parse('http://localhost:8080/api/v1/data/export'),
+      // Streams the localhost response into a temp file after validating
+      // HTTP status and MIME; never accumulates the archive in memory.
+      zipFile = await transfer.downloadExportZip(
+        'http://localhost:8080/api/v1/data/export',
+        tempDir.directory,
       );
-      final response = await request.close();
-      final builder = BytesBuilder();
-      await for (final chunk in response) {
-        builder.add(chunk);
-      }
-      responseBytes = builder.takeBytes();
     } catch (e) {
       _log.severe("Failed to export full backup", e);
       _dismissProgressDialog();
+      await tempDir.dispose();
       if (mounted) {
+        final message = e is BackupTransferException ? e.message : '$e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export full backup: $e')),
+          SnackBar(content: Text('Failed to export full backup: $message')),
         );
       }
       return;
     } finally {
-      client.close();
+      transfer.close();
     }
 
-    if (!mounted) return;
-    _dismissProgressDialog(); // dismiss progress dialog before picker
+    if (!mounted) {
+      // The page went away while downloading; the downloaded backup must not
+      // be left behind in the system temp directory.
+      await tempDir.dispose();
+      return;
+    }
+    _dismissProgressDialog(); // dismiss progress dialog before picker/share
 
-    try {
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final fileName = 'decent_export_$timestamp.zip';
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
+    final fileName = 'decent_export_$timestamp.zip';
 
-      final outputFile = await FilePicker.saveFile(
-        fileName: fileName,
-        dialogTitle: 'Choose where to save backup',
-        bytes: responseBytes,
-      );
-
-      if (outputFile != null) {
-        // file_picker writes bytes on all platforms (mobile SAF, desktop
-        // saveBytesToFile, web Blob download) — no manual write needed.
+    if (Platform.isIOS || Platform.isAndroid) {
+      // OS share/save sheet with the temp file; the receiving app may read
+      // the file after the sheet closes, so cleanup is deferred.
+      try {
+        final result = await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(zipFile.path, mimeType: 'application/zip')],
+            subject: 'Decent backup',
+          ),
+        );
+        if (result.status == ShareResultStatus.dismissed) {
+          // Cancelled — do not report success.
+          await tempDir.dispose();
+          return;
+        }
+        Timer(const Duration(minutes: 5), () => tempDir.dispose());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -337,13 +350,43 @@ class _DataManagementPageState extends State<DataManagementPage> {
             ),
           );
         }
+      } catch (e) {
+        _log.severe("Failed to export full backup", e);
+        await tempDir.dispose();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to export full backup: $e')),
+          );
+        }
       }
-    } catch (e) {
-      _log.severe("Failed to export full backup", e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export full backup: $e')),
+    } else {
+      try {
+        // Desktop: obtain a destination path, then stream-copy the temp
+        // file (no bytes are passed to the picker).
+        final outputFile = await FilePicker.saveFile(
+          fileName: fileName,
+          dialogTitle: 'Choose where to save backup',
         );
+        if (outputFile != null) {
+          await zipFile.copy(outputFile);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Full backup exported successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        _log.severe("Failed to export full backup", e);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to export full backup: $e')),
+          );
+        }
+      } finally {
+        await tempDir.dispose();
       }
     }
   }
@@ -359,15 +402,15 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final webviewLogFile = File('${docs.path}/webview_console.log');
 
       final hasAppLog = await logFile.exists();
-      final hasWebviewLog = await webviewLogFile.exists() &&
-          (await webviewLogFile.length()) > 0;
+      final hasWebviewLog =
+          await webviewLogFile.exists() && (await webviewLogFile.length()) > 0;
 
       if (!hasAppLog && !hasWebviewLog) {
         _dismissProgressDialog();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No log files found')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('No log files found')));
         }
         return;
       }
@@ -384,9 +427,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       _log.severe("Failed to export logs", e);
       _dismissProgressDialog();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export logs: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export logs: $e')));
       }
       return;
     }
@@ -414,9 +457,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
     } catch (e) {
       _log.severe("Failed to export logs", e);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export logs: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export logs: $e')));
       }
     }
   }
@@ -437,9 +480,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       _log.severe("Failed to export shots", e, st);
       _dismissProgressDialog();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export shots: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export shots: $e')));
       }
       return;
     }
@@ -467,9 +510,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
     } catch (e, st) {
       _log.severe("Failed to export shots", e, st);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export shots: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export shots: $e')));
       }
     }
   }
@@ -482,8 +525,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       context: context,
       builder: (context) => ShadDialog(
         title: const Text('Import Backup'),
-        description:
-            const Text('Choose how to handle data that already exists'),
+        description: const Text(
+          'Choose how to handle data that already exists',
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -513,6 +557,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
+      withReadStream: true,
     );
     if (result == null || result.files.isEmpty) return;
 
@@ -521,53 +566,67 @@ class _DataManagementPageState extends State<DataManagementPage> {
     // Show progress dialog
     _showProgressDialog(context, 'Importing backup...');
 
+    final transfer = BackupTransferService();
     try {
       final file = result.files.first;
-      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
-
-      final client = HttpClient();
-      try {
-        final request = await client.postUrl(
-          Uri.parse(
-            'http://localhost:8080/api/v1/data/import?onConflict=$strategy',
-          ),
+      // Prefer the picker's local path; fall back to the read stream (cloud/
+      // provider files) or an in-memory blob for tiny files. Never read the
+      // whole archive via readAsBytes().
+      final filePath = file.path;
+      Stream<List<int>>? readStream = file.readStream;
+      final int? length;
+      if (filePath != null) {
+        length = await File(filePath).length();
+      } else if (readStream != null) {
+        length = null;
+      } else if (file.bytes != null) {
+        readStream = Stream.fromIterable([file.bytes!]);
+        length = file.bytes!.length;
+      } else {
+        throw const BackupImportException(
+          'Could not access the selected file.',
         );
-        request.headers.contentType =
-            ContentType('application', 'zip');
-        request.add(bytes);
-        final response = await request.close();
-        final responseBody = await response.transform(utf8.decoder).join();
+      }
 
-        if (response.statusCode != 200) {
-          throw Exception('Server returned ${response.statusCode}: $responseBody');
-        }
+      final importResponse = await transfer.uploadZip(
+        'http://localhost:8080/api/v1/data/import',
+        strategy,
+        filePath: filePath,
+        readStream: readStream,
+        contentLength: length,
+      );
 
-        final responseJson =
-            jsonDecode(responseBody) as Map<String, dynamic>;
+      if (!mounted) return;
 
-        if (!mounted) return;
+      // Pop progress dialog
+      Navigator.of(context).pop();
 
-        // Pop progress dialog
-        Navigator.of(context).pop();
+      if (!mounted) return;
 
-        if (!mounted) return;
+      // Show result summary
+      await _showImportResultDialog(importResponse);
 
-        // Show result summary
-        await _showImportResultDialog(responseJson);
-
-        // Notify listeners that shots have changed
+      if (importResponse.shouldNotifyShotsChanged) {
         widget.persistenceController.notifyShotsChanged();
-      } finally {
-        client.close();
+      }
+    } on BackupImportException catch (e) {
+      _log.severe("Failed to import backup", e);
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       _log.severe("Failed to import backup", e);
       if (mounted) {
         Navigator.of(context).pop(); // Pop progress dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import backup: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to import backup: $e')));
       }
+    } finally {
+      transfer.close();
     }
   }
 
@@ -583,9 +642,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
     final filePath = result.files.single.path;
     if (filePath == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to access file')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to access file')));
       }
       return;
     }
@@ -657,10 +716,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setState) {
             setCopyState = setState;
-            final isMilestone = filesToCopy == 0 ||
+            final isMilestone =
+                filesToCopy == 0 ||
                 filesCopied == filesToCopy ||
                 (filesToCopy > 0 &&
-                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) == 0);
+                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) ==
+                        0);
             return ShadDialog(
               title: const Text('Copying files...'),
               child: Column(
@@ -734,9 +795,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
         _log.severe('De1app scan failed', e);
         if (mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Scan failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
         }
         return;
       }
@@ -747,7 +808,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (scanResult.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No DE1 app data found in this folder')),
+            const SnackBar(
+              content: Text('No DE1 app data found in this folder'),
+            ),
           );
         }
         return;
@@ -772,7 +835,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
 
       // Run import with progress dialog
       ImportResult? importResult;
-      ImportProgress progress = const ImportProgress(current: 0, total: 0, phase: '');
+      ImportProgress progress = const ImportProgress(
+        current: 0,
+        total: 0,
+        phase: '',
+      );
       int shotsImported = 0;
       int profilesImported = 0;
 
@@ -823,9 +890,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
         _log.severe('De1app import failed', e);
         if (mounted) {
           Navigator.of(context).pop(); // dismiss progress dialog
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Import failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
         }
         return;
       }
@@ -889,15 +956,20 @@ class _DataManagementPageState extends State<DataManagementPage> {
     }
   }
 
-  Future<void> _showImportResultDialog(Map<String, dynamic> response) async {
+  Future<void> _showImportResultDialog(BackupImportResponse response) async {
     final sections = <Widget>[];
 
-    for (final entry in response.entries) {
+    for (final entry in response.sections.entries) {
       if (entry.value is Map<String, dynamic>) {
         final data = entry.value as Map<String, dynamic>;
         final imported = data['imported'] ?? 0;
         final skipped = data['skipped'] ?? 0;
-        final errors = data['errors'] as List<dynamic>? ?? [];
+        final errors = data['errors'] is List
+            ? data['errors'] as List<dynamic>
+            : const <dynamic>[];
+        final warnings = data['warnings'] is List
+            ? data['warnings'] as List<dynamic>
+            : const <dynamic>[];
 
         sections.add(
           Text(
@@ -909,12 +981,16 @@ class _DataManagementPageState extends State<DataManagementPage> {
         for (final error in errors) {
           sections.add(
             Text(
-              '  Warning: $error',
+              '  Error: $error',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           );
+        }
+
+        for (final warning in warnings) {
+          sections.add(Text('  Warning: $warning'));
         }
       }
     }
@@ -922,7 +998,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     await showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-        title: const Text('Import Complete'),
+        title: Text(backupImportDialogTitle(response.status)),
         actions: [
           ShadButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -932,10 +1008,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            ...sections,
-          ],
+          children: [const SizedBox(height: 8), ...sections],
         ),
       ),
     );

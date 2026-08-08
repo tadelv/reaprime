@@ -31,9 +31,7 @@ class GrinderTdbParser {
           settingSmallStep: double.tryParse(
             specs['small_step']?.toString() ?? '',
           ),
-          settingBigStep: double.tryParse(
-            specs['big_step']?.toString() ?? '',
-          ),
+          settingBigStep: double.tryParse(specs['big_step']?.toString() ?? ''),
         ),
       );
     }

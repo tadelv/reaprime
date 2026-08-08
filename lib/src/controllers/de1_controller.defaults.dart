@@ -105,24 +105,26 @@ extension Defaults on De1Controller {
     if (!stillCurrent()) return;
     await device.setFlushFlow(settings.flow);
     if (!stillCurrent()) return;
-    await device.setFlushTemperature(
-      settings.targetTemperature.toDouble(),
-    );
+    await device.setFlushTemperature(settings.targetTemperature.toDouble());
     if (!stillCurrent()) return;
     _rinseStream.add(settings);
   }
 
-  Future<void> applySettingsDefaults() async {
-    await _de1?.setFanThreshhold(55);
+  /// Bulk reset of firmware settings. Writes through the passed
+  /// [device] (never a fresh `_de1` read) so the whole reset is one
+  /// queued, retryable group; call via [runDeviceWrite] from the REST
+  /// route. Does not reserve a queue entry itself.
+  Future<void> applySettingsDefaults(De1Interface device) async {
+    await device.setFanThreshhold(55);
 
-    await _de1?.setHeaterIdleTemp(95);
-    await _de1?.setHeaterPhase1Flow(2.0);
-    await _de1?.setHeaterPhase2Flow(4.0);
-    await _de1?.setHeaterPhase2Timeout(4.0);
+    await device.setHeaterIdleTemp(95);
+    await device.setHeaterPhase1Flow(2.0);
+    await device.setHeaterPhase2Flow(4.0);
+    await device.setHeaterPhase2Timeout(4.0);
 
-    await _de1?.setRefillKitSettings(.auto);
+    await device.setRefillKitSettings(.auto);
 
-    await _de1?.setFlowEstimation(1.0);
-    await _de1?.setSteamPurgeMode(0);
+    await device.setFlowEstimation(1.0);
+    await device.setSteamPurgeMode(0);
   }
 }

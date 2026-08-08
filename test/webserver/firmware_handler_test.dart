@@ -144,12 +144,9 @@ void main() {
       Request('DELETE', Uri.parse('http://localhost/api/v1/machine/firmware')),
     );
     expect(response.statusCode, 202);
-    expect(
-      jsonDecode(await response.readAsString()),
-      {
-        'operation': {'state': 'idle'},
-      },
-    );
+    expect(jsonDecode(await response.readAsString()), {
+      'operation': {'state': 'idle'},
+    });
   });
 
   test('managed apply rejects malformed JSON and invalid force', () async {
@@ -179,14 +176,11 @@ void main() {
     );
 
     expect(response.statusCode, 200);
-    expect(
-      await _readEvents(response),
-      [
-        {'status': 'erasing', 'progress': 0.0},
-        {'status': 'uploading', 'progress': 1.0},
-        {'status': 'done', 'progress': 1.0},
-      ],
-    );
+    expect(await _readEvents(response), [
+      {'status': 'erasing', 'progress': 0.0},
+      {'status': 'uploading', 'progress': 1.0},
+      {'status': 'done', 'progress': 1.0},
+    ]);
   });
 
   test('force cannot bypass bundled firmware model compatibility', () async {

@@ -1,0 +1,278 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/plugins/plugin_loader_service.dart';
+import 'package:reaprime/src/plugins/plugin_manager.dart';
+import 'package:reaprime/src/plugins/plugin_manifest.dart';
+import 'package:reaprime/src/services/webserver_service.dart';
+import 'package:shelf_plus/shelf_plus.dart';
+
+import '../../plugins/plugin_test_helpers.dart';
+
+class _FakePluginLoaderService extends Fake implements PluginLoaderService {}
+
+void main() {
+  const pluginId = 'http.plugin';
+
+  PluginManifest httpManifest() {
+    return PluginManifest(
+      id: pluginId,
+      name: pluginId,
+      author: 'Test',
+      description: 'Test',
+      version: '1.0.0',
+      apiVersion: 1,
+      permissions: const {},
+      settings: const {},
+      api: PluginApi(
+        endpoints: [
+          ApiEndpoint(id: 'hello', type: ApiEndpointType.http, data: const {}),
+        ],
+      ),
+    );
+  }
+
+  test('synchronous plugin response completes the request directly', () async {
+    final manager = PluginManager(
+      kvStore: FakeKeyValueStoreService(),
+      pluginHttpTimeout: const Duration(seconds: 5),
+    );
+    addTearDown(manager.cancelAllOperations);
+    await manager.loadPlugin(
+      id: pluginId,
+      manifest: httpManifest(),
+      settings: {},
+      jsCode:
+          '''
+        function createPlugin(host) {
+          return {
+            id: "$pluginId",
+            handleHttpRequest: (request) => ({
+              status: 200,
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({echo: request.body})
+            })
+          };
+        }
+      ''',
+    );
+    final app = Router().plus;
+    PluginsHandler(
+      pluginManager: manager,
+      pluginService: _FakePluginLoaderService(),
+    ).addRoutes(app);
+
+    final response = await app.call(
+      Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/plugins/$pluginId/hello'),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(await response.readAsString(), '{"echo":null}');
+    expect(manager.activePendingOpCount, 0);
+  });
+
+  test('asynchronous plugin response completes the request directly', () async {
+    final manager = PluginManager(
+      kvStore: FakeKeyValueStoreService(),
+      pluginHttpTimeout: const Duration(seconds: 5),
+    );
+    addTearDown(manager.cancelAllOperations);
+    await manager.loadPlugin(
+      id: pluginId,
+      manifest: httpManifest(),
+      settings: {},
+      jsCode:
+          '''
+        function createPlugin(host) {
+          return {
+            id: "$pluginId",
+            handleHttpRequest: async (request) => {
+              await new Promise(r => setTimeout(r, 30));
+              return { status: 200, headers: {}, body: "async-response" };
+            }
+          };
+        }
+      ''',
+    );
+    final app = Router().plus;
+    PluginsHandler(
+      pluginManager: manager,
+      pluginService: _FakePluginLoaderService(),
+    ).addRoutes(app);
+
+    final response = await app.call(
+      Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/plugins/$pluginId/hello'),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(await response.readAsString(), 'async-response');
+    expect(manager.activePendingOpCount, 0);
+  });
+
+  test('throwing plugin handler returns a 500 error response', () async {
+    final manager = PluginManager(
+      kvStore: FakeKeyValueStoreService(),
+      pluginHttpTimeout: const Duration(seconds: 5),
+    );
+    addTearDown(manager.cancelAllOperations);
+    await manager.loadPlugin(
+      id: pluginId,
+      manifest: httpManifest(),
+      settings: {},
+      jsCode:
+          '''
+        function createPlugin(host) {
+          return {
+            id: "$pluginId",
+            handleHttpRequest: () => { throw new Error("boom"); }
+          };
+        }
+      ''',
+    );
+    final app = Router().plus;
+    PluginsHandler(
+      pluginManager: manager,
+      pluginService: _FakePluginLoaderService(),
+    ).addRoutes(app);
+
+    final response = await app.call(
+      Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/plugins/$pluginId/hello'),
+      ),
+    );
+
+    expect(response.statusCode, 500);
+    expect(manager.activePendingOpCount, 0);
+  });
+
+  test(
+    'timeout returns a clean error and removes the registry entry',
+    () async {
+      final manager = PluginManager(
+        kvStore: FakeKeyValueStoreService(),
+        pluginHttpTimeout: const Duration(milliseconds: 200),
+      );
+      addTearDown(manager.cancelAllOperations);
+      await manager.loadPlugin(
+        id: pluginId,
+        manifest: httpManifest(),
+        settings: {},
+        jsCode:
+            '''
+        function createPlugin(host) {
+          return { id: "$pluginId" };
+        }
+      ''',
+      );
+      final app = Router().plus;
+      PluginsHandler(
+        pluginManager: manager,
+        pluginService: _FakePluginLoaderService(),
+      ).addRoutes(app);
+
+      final response = await app.call(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/v1/plugins/$pluginId/hello'),
+        ),
+      );
+
+      expect(response.statusCode, 500); // jsonError
+      expect(
+        await response.readAsString(),
+        contains('did not respond in time'),
+      );
+      expect(manager.activePendingOpCount, 0);
+    },
+  );
+
+  test('response arriving after timeout is ignored and not retained', () async {
+    final manager = PluginManager(
+      kvStore: FakeKeyValueStoreService(),
+      pluginHttpTimeout: const Duration(milliseconds: 200),
+    );
+    addTearDown(manager.cancelAllOperations);
+    await manager.loadPlugin(
+      id: pluginId,
+      manifest: httpManifest(),
+      settings: {},
+      jsCode:
+          '''
+        function createPlugin(host) {
+          return {
+            id: "$pluginId",
+            handleHttpRequest: (request) => new Promise((resolve) => {
+              setTimeout(() => resolve({
+                status: 200, headers: {}, body: "late-response"
+              }), 400);
+            })
+          };
+        }
+      ''',
+    );
+    final app = Router().plus;
+    PluginsHandler(
+      pluginManager: manager,
+      pluginService: _FakePluginLoaderService(),
+    ).addRoutes(app);
+
+    final response = await app.call(
+      Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/plugins/$pluginId/hello'),
+      ),
+    );
+    expect(await response.readAsString(), contains('did not respond in time'));
+
+    // Let the late response arrive and verify it is dropped.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    expect(manager.activePendingOpCount, 0);
+  });
+
+  test('plugin unload completes pending HTTP requests with an error', () async {
+    final manager = PluginManager(
+      kvStore: FakeKeyValueStoreService(),
+      pluginHttpTimeout: const Duration(seconds: 5),
+    );
+    addTearDown(manager.cancelAllOperations);
+    await manager.loadPlugin(
+      id: pluginId,
+      manifest: httpManifest(),
+      settings: {},
+      jsCode:
+          '''
+        function createPlugin(host) {
+          return {
+            id: "$pluginId",
+            handleHttpRequest: (request) => new Promise((resolve) => {
+              setTimeout(() => resolve({ status: 200, headers: {}, body: "never" }), 5000);
+            })
+          };
+        }
+      ''',
+    );
+    final app = Router().plus;
+    PluginsHandler(
+      pluginManager: manager,
+      pluginService: _FakePluginLoaderService(),
+    ).addRoutes(app);
+
+    final responseFuture = app.call(
+      Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/plugins/$pluginId/hello'),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await manager.unloadPlugin(pluginId);
+
+    final response = await responseFuture;
+    expect(await response.readAsString(), contains('unloaded'));
+    expect(manager.activePendingOpCount, 0);
+  });
+}

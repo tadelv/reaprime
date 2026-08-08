@@ -45,7 +45,14 @@ void main() {
       // Real Bengle reply observed on hardware: [4, 80, 0, c, 80, 0, 0, 0, ...]
       // Value bytes [4..7] = [0x80, 0x00, 0x00, 0x00] little-endian = 128.
       final payload = [
-        0x04, 0x80, 0x00, 0x0C, 0x80, 0x00, 0x00, 0x00,
+        0x04,
+        0x80,
+        0x00,
+        0x0C,
+        0x80,
+        0x00,
+        0x00,
+        0x00,
         ...List.filled(12, 0),
       ];
       final hex = payload
@@ -61,7 +68,14 @@ void main() {
     test('returns null when the address triplet does not match', () {
       // Different address in the payload.
       final payload = [
-        0x04, 0x99, 0x99, 0x99, 0x00, 0x00, 0x00, 0x05,
+        0x04,
+        0x99,
+        0x99,
+        0x99,
+        0x00,
+        0x00,
+        0x00,
+        0x05,
         ...List.filled(12, 0),
       ];
       final hex = payload
@@ -76,8 +90,7 @@ void main() {
 
     test('returns null for a non-[E] line', () {
       expect(
-        decodeMmrInt32Response('[M]00112233',
-            expectedAddr: (0x80, 0x00, 0x0C)),
+        decodeMmrInt32Response('[M]00112233', expectedAddr: (0x80, 0x00, 0x0C)),
         isNull,
       );
     });
@@ -93,8 +106,7 @@ void main() {
       // Need at least 8 bytes (4 header + 4 value); supply 6.
       final hex = '040000000000';
       expect(
-        decodeMmrInt32Response('[E]$hex',
-            expectedAddr: (0x00, 0x00, 0x00)),
+        decodeMmrInt32Response('[E]$hex', expectedAddr: (0x00, 0x00, 0x00)),
         isNull,
       );
     });

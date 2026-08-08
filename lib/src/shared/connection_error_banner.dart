@@ -15,10 +15,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class ConnectionErrorBanner extends StatelessWidget {
   final ConnectionManager connectionManager;
 
-  const ConnectionErrorBanner({
-    super.key,
-    required this.connectionManager,
-  });
+  const ConnectionErrorBanner({super.key, required this.connectionManager});
 
   @override
   Widget build(BuildContext context) {

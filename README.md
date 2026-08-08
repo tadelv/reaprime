@@ -1,6 +1,6 @@
-# Decent.app
+# Decaid
 
-> **Decent.app** connects your Decent Espresso machine to beautiful,
+> **Decaid** connects your Decent Espresso machine to beautiful,
 modern user interfaces (called "skins").  
 Think of it as the bridge between your
 DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://github.com/allofmeng/streamline_project).
@@ -13,7 +13,7 @@ DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://g
 - Works with scales to automatically stop shots at your target weight
 - Runs on Android tablets, desktop computers, and more
 
-**For developers:** Decent.app provides
+**For developers:** Decaid provides
 a complete REST and WebSocket API, making it
 easy to build custom interfaces without dealing with the
 complexity of machine communication and device connectivity.
@@ -49,7 +49,7 @@ complexity of machine communication and device connectivity.
 
 To browse the complete API documentation:
 
-1. Start Decent.app
+1. Start Decaid
 2. Navigate to [http://localhost:4001](http://localhost:4001)
 
 Or:  
@@ -72,15 +72,15 @@ The API provides:
 | **macOS** | ✅ Full support | Desktop development and testing |
 | **Linux** | ✅ Full support | ARM64 and x86_64 |
 | **Windows** | ✅ Full support | Desktop operation |
-| **iOS** | ⚠️ Experimental | Limited testing |
+| **iPad** | ✅ Full support | [Install to your iPad now with SideStep](https://decentespresso.com/downloads) |
 
 ### Background Operation
 
-On Android, Decent.app can run as a foreground service, maintaining stable connections to your machine and scale while tucked away in the background.
+On Android, Decaid can run as a foreground service, maintaining stable connections to your machine and scale while tucked away in the background.
 
 ## WebUI / Skins
 
-Similar to the original DE1 app, Decent.app supports loading and displaying different "skins" (web-based UIs).
+Similar to the original DE1 app, Decaid supports loading and displaying different "skins" (web-based UIs).
 
 ### Accessing Skins
 
@@ -144,7 +144,7 @@ Similar to the original DE1 app, Decent.app supports loading and displaying diff
 
 ## Plugins
 
-Decent.app features a JavaScript plugin system for dynamic functionality expansion.
+Decaid features a JavaScript plugin system for dynamic functionality expansion.
 
 **Capabilities:**
 - React to machine state changes
@@ -222,6 +222,16 @@ Build both architectures:
 make dual-build
 ```
 
+For a systemd installation, order ReaPrime after BlueZ:
+
+```ini
+[Unit]
+Wants=bluetooth.service
+After=bluetooth.service
+```
+
+This reduces startup races but does not replace the application's Bluetooth recovery.
+
 ## System Requirements
 
 ### Minimum Requirements
@@ -283,21 +293,23 @@ make dual-build
 
 ## About the Name
 
-**Decent.app** (formerly REA → ReaPrime → Streamline Bridge) is the companion app for Decent Espresso machines.
+**Decaid** (formerly REA → ReaPrime → Streamline Bridge) is the companion app for Decent Espresso machines.
 
 ### The Evolution
 
-The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved through **ReaPrime** and **Streamline Bridge**, users found the naming confusing. **Decent.app** is simple, direct, and says exactly what it is.
+The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved through **ReaPrime** and **Streamline Bridge**, it eventually became **Decent.app**.
 
-- **Codebase & repo** still use legacy identifiers (`reaprime`, `tadelv/reaprime`) to avoid breaking App Store / Firebase / Google Play bindings.
-- **Display name** is **Decent** on iOS / Android launchers; **Decent.app** on macOS Finder and in written reference.
+In 2026, ten years after the first commit to the original **de1app** repository on May 14, 2016, we renamed the app **Decaid**. The name commemorates that decade of Decent Espresso history while capturing the app's purpose: it **aids** you in making *decent* espresso.
+
+- **Internal identifiers** remain unchanged (`reaprime` Dart package, `net.tadel.reaprime` bundle ID, `streamline_bridge` database, and `.reaplugin` extension) to avoid breaking existing integrations.
+- **Display name** is **Decaid** on all platforms. On macOS, Finder displays the application bundle as **Decaid.app**; use **Decaid** in prose.
 
 ## Credits
 
 ### Acknowledgments
 
 - **[@randomcoffeesnob](https://github.com/randomcoffeesnob)**: Original name inspiration and ongoing support
-- **[@mimoja](https://github.com/mimoja)**: First Flutter app version
+- **[@mimoja](https://github.com/mimoja)**: [First Flutter app](https://github.com/Mimoja/flupresso) version
 - **Decent Espresso community**: Testing, feedback, and feature requests
 
 ### License
@@ -308,6 +320,6 @@ See the [LICENSE](LICENSE.txt) file for details.
 
 ---
 
-**Need help?** Check our [documentation](/doc) or open an [issue](https://github.com/tadelv/reaprime/issues).
+**Need help?** Check our [documentation](/doc) or open an [issue](https://github.com/decentespresso/decaid/issues).
 
 

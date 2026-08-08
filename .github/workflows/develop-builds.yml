@@ -36,11 +36,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -55,38 +61,37 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > android/app/debug.keystore
 
-      - name: Cache Flutter & Gradle
+      - name: Cache Gradle
         uses: actions/cache@v5
         with:
-          path: |
-            ~/.pub-cache
-            ~/.gradle
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.yaml', '**/pubspec.lock') }}
+          path: ~/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Android APK
         run: ./flutter_with_commit.sh build apk --release
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Package Android APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk decaid-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
+
       - name: Upload Android APK
         uses: actions/upload-artifact@v7
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: decaid-android-develop
+          path: decaid-android-develop-${{ steps.build-id.outputs.short_sha }}.apk
+          if-no-files-found: error
 
   build-macos:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
@@ -97,6 +102,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Install automake and libtool
         run: brew install automake libtool
 
@@ -105,6 +114,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -112,16 +123,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ---- Import signing certificate ----
       - name: Import signing certificate
@@ -159,20 +165,23 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
-      - name: Codesign app (hardened runtime)
+      - name: Codesign app (Developer ID, deepest-first)
         run: |
-          APP="build/macos/Build/Products/Release/Decent.app"
-          codesign --deep --force \
-            --options runtime \
-            --entitlements macos/Runner/Release.entitlements \
-            --sign "Developer ID Application" \
-            "$APP"
+          # Never codesign --deep: it rewrites Sparkle's nested helpers with
+          # the host entitlements, breaking the sandboxed Installer XPC.
+          scripts/sign_macos_deepest_first.sh \
+            build/macos/Build/Products/Release/Decaid.app
+
+      - name: Verify signing gates (pre-notarization)
+        run: |
+          scripts/verify_macos_signature.sh \
+            build/macos/Build/Products/Release/Decaid.app
 
       # ---- Notarize ----
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app Decent.zip
+          ditto -c -k --keepParent Decaid.app Decaid.zip
 
       - name: Notarize app
         env:
@@ -181,7 +190,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/Decent.zip \
+            build/macos/Build/Products/Release/Decaid.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -200,7 +209,7 @@ jobs:
         run: |
           # Retry stapling — ticket propagation can lag behind notarytool --wait
           for i in 1 2 3 4 5; do
-            if xcrun stapler staple build/macos/Build/Products/Release/Decent.app; then
+            if xcrun stapler staple build/macos/Build/Products/Release/Decaid.app; then
               exit 0
             fi
             echo "Staple attempt $i failed, waiting 15s..."
@@ -209,17 +218,23 @@ jobs:
           echo "Stapling failed after 5 attempts"
           exit 1
 
+      - name: Verify signed + notarized app (spctl + stapler)
+        run: |
+          scripts/verify_macos_signature.sh \
+            build/macos/Build/Products/Release/Decaid.app XLS3XF57J8 1
+
       # ---- Upload ----
       - name: Create development ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-develop.zip
+          ditto -c -k --keepParent Decaid.app ../../../../../decaid-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
         with:
-          name: macos-app
-          path: decent-macos-develop.zip
+          name: decaid-macos-develop
+          path: decaid-macos-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          if-no-files-found: error
 
   build-linux:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
@@ -230,6 +245,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev
 
@@ -238,31 +257,34 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (unsigned)
         run: ./flutter_with_commit.sh build linux --release
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Create Linux archive
+        run: |
+          cd build/linux/x64/release
+          tar -czf ../../../../decaid-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
+
       - name: Upload Linux app
         uses: actions/upload-artifact@v7
         with:
-          name: linux-app
-          path: build/linux/x64/release/bundle
+          name: decaid-linux-x64-develop
+          path: decaid-linux-x64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
+          if-no-files-found: error
 
   build-raspberrypi:
     name: Build for Raspberry Pi (ARM64 / Pi 4+)
@@ -277,13 +299,20 @@ jobs:
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev
 
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Flutter
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           # Flutter publishes no prebuilt arm64 Linux SDK; the master channel
           # path lets flutter-action git-clone the tagged version instead.
           channel: 'master'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
@@ -291,27 +320,28 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (ARM64)
         run: ./flutter_with_commit.sh build linux --release
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Create Raspberry Pi archive
+        run: |
+          cd build/linux/arm64/release
+          tar -czf ../../../../decaid-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz bundle
+
       - name: Upload Raspberry Pi build (ARM64)
         uses: actions/upload-artifact@v7
         with:
-          name: raspberrypi-linux-arm64-app
-          path: build/linux/arm64/release/bundle
+          name: decaid-linux-arm64-develop
+          path: decaid-linux-arm64-develop-${{ steps.build-id.outputs.short_sha }}.tar.gz
+          if-no-files-found: error
 
   build-ios:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'ios'
@@ -322,6 +352,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set build identifier
+        id: build-id
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Select latest Xcode
         run: xcodes select 26.3
 
@@ -330,6 +364,8 @@ jobs:
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -337,116 +373,39 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Cache Flutter & CocoaPods
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.pub-cache
-            ios/Pods
-          key: ${{ runner.os }}-ios-flutter-${{ hashFiles('**/pubspec.yaml', '**/Podfile.lock') }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
-
-      - name: Import distribution certificate
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
         env:
-          CERTIFICATE_P12: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_P12 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-        run: |
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-
-          # Create temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Decode and import certificate
-          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
-          security import certificate.p12 \
-            -k "$KEYCHAIN_PATH" \
-            -P "$CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-
-          # Allow codesign to access keychain
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Make this keychain the default
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-
-          # Clean up
-          rm certificate.p12
-
-      - name: Install provisioning profile
-        env:
-          PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_B64 }}
-        run: |
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          echo "$PROVISIONING_PROFILE" | base64 --decode > "$PP_PATH"
-
-          # Extract UUID and install with correct filename
-          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
-
-      - name: Switch to manual signing for CI
-        env:
-          PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
-        run: |
-          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PBXPROJ"
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ""/PROVISIONING_PROFILE_SPECIFIER = "'"$PROVISIONING_PROFILE_NAME"'"/g' "$PBXPROJ"
-          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Development"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
-
-      - name: Create ExportOptions.plist
-        env:
-          TEAM_ID: ${{ secrets.TEAM_ID }}
-          PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
-        run: |
-          cat > ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>${TEAM_ID}</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>signingCertificate</key>
-            <string>Apple Distribution</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>net.tadel.reaprime</key>
-              <string>${PROVISIONING_PROFILE_NAME}</string>
-            </dict>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build IPA
-        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --export-options-plist=ExportOptions.plist
+        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --no-codesign
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
-      - name: Upload iOS IPA
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/decaid-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa"
+          PACKAGE_DIR="$RUNNER_TEMP/unsigned-ipa"
+
+          test -d "$APP_PATH"
+
+          rm -rf "$PACKAGE_DIR"
+          mkdir -p "$PACKAGE_DIR/Payload"
+          cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
+
+          cd "$PACKAGE_DIR"
+          zip -qry "$OUTPUT_PATH" Payload
+
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v7
         with:
-          name: ios-ipa
-          path: build/ios/ipa/*.ipa
+          name: decaid-ios-unsigned-develop
+          path: decaid-ios-unsigned-develop-${{ steps.build-id.outputs.short_sha }}.ipa
+          if-no-files-found: error
 
-      # TestFlight upload is only done in release builds (release.yml)
 
   build-windows:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
@@ -460,11 +419,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set build identifier
+        id: build-id
+        shell: bash
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           flutter-version: '3.44.2'
+          cache: true
+          pub-cache: true
 
       - name: Install nuget
         uses: nuget/setup-nuget@v2
@@ -474,16 +440,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Build DYE2 plugin
-        run: |
-          cd packages/dye2-plugin
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Windows app (unsigned)
         shell: bash
@@ -491,11 +452,16 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Create Windows archive
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decaid-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
+
       - name: Upload Windows app
         uses: actions/upload-artifact@v7
         with:
-          name: windows-app
-          path: build/windows/x64/runner/Release
+          name: decaid-windows-x64-develop
+          path: decaid-windows-x64-develop-${{ steps.build-id.outputs.short_sha }}.zip
+          if-no-files-found: error
 
 
 

@@ -6,11 +6,7 @@ class OnboardingView extends StatefulWidget {
   final OnboardingController controller;
   final VoidCallback? onComplete;
 
-  const OnboardingView({
-    super.key,
-    required this.controller,
-    this.onComplete,
-  });
+  const OnboardingView({super.key, required this.controller, this.onComplete});
 
   static const routeName = '/onboarding';
 
@@ -48,9 +44,7 @@ class _OnboardingViewState extends State<OnboardingView> {
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return PopScope(
       canPop: false,

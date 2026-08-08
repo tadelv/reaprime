@@ -8,7 +8,8 @@ class SettingsTile extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
 
-  const SettingsTile({super.key, 
+  const SettingsTile({
+    super.key,
     required this.icon,
     required this.label,
     this.trailing,
@@ -38,10 +39,10 @@ class SettingsSectionHeader extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -69,17 +70,14 @@ class InfoRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 72,
-          child: Text(
-            '$label:',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          child: Text('$label:', style: Theme.of(context).textTheme.bodySmall),
         ),
         Expanded(
           child: Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontFamily: 'monospace',
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
           ),
         ),
       ],

@@ -1,6 +1,6 @@
 # API Reference
 
-Decent.app exposes REST and WebSocket APIs on port 8080. Full OpenAPI specs are in [`assets/api/rest_v1.yml`](../assets/api/rest_v1.yml) and [`assets/api/websocket_v1.yml`](../assets/api/websocket_v1.yml). Interactive docs are available at port 4001 when the app is running.
+Decaid exposes REST and WebSocket APIs on port 8080. Full OpenAPI specs are in [`assets/api/rest_v1.yml`](../assets/api/rest_v1.yml) and [`assets/api/websocket_v1.yml`](../assets/api/websocket_v1.yml). Interactive docs are available at port 4001 when the app is running.
 
 For skin development, see [`doc/Skins.md`](Skins.md). For plugin development, see [`doc/Plugins.md`](Plugins.md).
 
@@ -42,11 +42,11 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | GET | `/api/v1/machine/state` | Current machine state + substate | |
 | PUT | `/api/v1/machine/state/{newState}` | Request state change (`idle`, `sleep`, `espresso`, …) | |
 | GET | `/api/v1/machine/settings` | DE1 machine settings (temps, flows) | |
-| POST | `/api/v1/machine/settings` | Update machine settings | |
+| POST | `/api/v1/machine/settings` | Update machine settings (one grouped, serialized device write per request) | |
 | POST | `/api/v1/machine/shotSettings` | Update shot settings (steam temp, hot water, target volume, group temp) | |
 | GET | `/api/v1/machine/settings/advanced` | Advanced heater/phase settings | |
 | POST | `/api/v1/machine/settings/advanced` | Update advanced settings (heater phase flows/timeouts, idle temp, `heaterVoltage`, `refillKitSetting`) | |
-| DELETE | `/api/v1/machine/settings/reset` | Reset machine settings to defaults (fan, heater idle/phase flows + ph2 timeout, refill kit auto, flow multiplier 1.0, steam purge 0) | |
+| DELETE | `/api/v1/machine/settings/reset` | Reset machine settings to defaults (fan, heater idle/phase flows + ph2 timeout, refill kit auto, flow multiplier 1.0, steam purge 0) — one grouped, serialized device write | |
 | GET | `/api/v1/machine/calibration` | Flow estimation calibration | |
 | POST | `/api/v1/machine/calibration` | Update calibration | |
 | POST | `/api/v1/machine/profile` | Upload profile to machine | |
@@ -170,7 +170,24 @@ in-app stop will trigger on.
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
 | GET | `/api/v1/workflow` | Get current workflow (profile + context) | `workflow_handler.dart` |
-| PUT | `/api/v1/workflow` | Update workflow (deep merge) | |
+| PUT | `/api/v1/workflow` | Update workflow (one ordered deep-merge mutation) | `workflow_handler.dart` |
+
+Each `PUT /api/v1/workflow` is one independent mutation. Requests run in FIFO order without
+cross-request or cross-client coalescing. Partial updates are deep-merged against the latest
+workflow state when each request executes, and each response contains that request's resulting
+workflow. Requests may wait behind machine I/O; the server does not debounce high-frequency
+input, so clients should throttle controls themselves. Bodies larger than 1 MiB return `413`,
+requests beyond the eight-entry active/queued limit return `429`, and requests waiting more
+than 30 seconds for execution return `503` without being applied. Machine-write failures
+return an error before the controller workflow is committed. Multi-step machine writes may
+be partially applied, and retrying the same request re-attempts the requested settings.
+Request bodies have a 30-second read timeout; body-read failures return `408`
+without poisoning later queued mutations. If the machine disconnects while a
+workflow device write is in flight, the write is retried once on the replacement
+machine (waiting up to 10 seconds for one to appear); if no replacement arrives the
+request returns `503` and the workflow is not committed. A `stopAtTemperature`-only
+workflow change never touches the DE1 directly — the Bengle bridge applies it
+asynchronously — so it commits even while no machine is connected.
 
 ### Beans
 
@@ -204,7 +221,7 @@ in-app stop will trigger on.
 | GET | `/api/v1/settings` | All app settings (gateway, theme, charging, devices, etc.) | `settings_handler.dart` |
 | POST | `/api/v1/settings` | Update settings (partial, key-by-key) | |
 
-Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMultiplier`, `volumeFlowMultiplier`, `hotWaterFlowMultiplier`, `scalePowerMode`, `blockOnNoScale`, `blockTareDuringShot`, `stopHotWaterAtWeight`, `preferredMachineId`, `preferredScaleId`, `defaultSkinId`, `automaticUpdateCheck`, `chargingMode`, `nightModeEnabled`, `nightModeSleepTime`, `nightModeMorningTime`, `lowBatteryBrightnessLimit`, `simulatedDevices`.
+Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMultiplier`, `volumeFlowMultiplier`, `hotWaterFlowMultiplier`, `scalePowerMode`, `blockOnNoScale`, `blockTareDuringShot`, `stopHotWaterAtWeight`, `preferredMachineId`, `preferredScaleId`, `defaultSkinId`, `automaticUpdateCheck`, `chargingMode`, `nightModeEnabled`, `nightModeSleepTime`, `nightModeMorningTime`, `lowBatteryBrightnessLimit`, `keepAwake`, `simulatedDevices`.
 
 `stopHotWaterAtWeight` (boolean, default `true`): when on and a scale is connected, hot-water dispensing tares the scale and stops at the configured hot-water `volume` target treated as grams (mirrors the espresso stop-at-weight). The machine's own volume/time stop remains a backstop, and the value is ignored in `full` gateway mode (a skin owns the machine). `hotWaterFlowMultiplier` (number, default `0.3`) is the seconds-of-lookahead applied to scale weight flow for that stop — separate from `weightFlowMultiplier` because hot water dispenses with a different pump/flow profile than espresso. See [DeviceManagement.md](DeviceManagement.md#hot-water-stop-at-weight).
 
@@ -300,7 +317,83 @@ same request prevent all fields from being stored (validation is atomic).
 | POST | `/api/v1/data/import` | Import from ZIP (raw bytes, `Content-Type: application/zip`) | |
 | POST | `/api/v1/data/sync` | Sync with another Bridge instance | `data_sync_handler.dart` |
 
-Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders).
+Sync accepts `target` (URL), `mode` (`pull`, `push`, `two_way`), `onConflict` (`skip` or `overwrite`), and `sections` (profiles, shots, workflow, settings, store, steams, beans, grinders). `sections` is optional for all three modes; omission means all locally registered sections. An explicitly empty or malformed list, or unknown section, returns `400` before any network request. Duplicate names are deduplicated in first-occurrence order.
+
+Sync responses use semantic results rather than transport status alone. Each direct section under `pull.<section>` and `push.<section>` remains available and gains `status` (`complete`, `partial`, or `failed`). Additive phase metadata is under `phases.<phase>` with `status`, `complete`, and `partial`; fatal phase details remain available at the legacy `pull` or `push` path and are repeated under `phases`. Skipped-push reasons are reported under `phases`. A phase is complete only when every expected section is represented without errors. Warnings, conflict skips, and zero imported records do not make a valid section partial. Section errors with progress are partial; errors without progress are failed. Partial imports are not transactional.
+
+In `two_way` mode, push runs only after every expected pull section completes by default. Set `continueOnPullFailure: true` to explicitly continue after a partial or failed pull; the option is limited to `two_way` and is never inferred from overwrite handling. A complete operation returns `200`, an incomplete single-direction operation returns `502`, and an incomplete two-way operation with meaningful progress returns `207`; a two-way operation with no complete or partial phase returns `502` (its body may still report `partial` only when meaningful progress exists). Legacy flat and structured remote import responses are supported, but malformed, contradictory, hybrid, missing-section, and HTTP `200` responses with embedded errors are not treated as success.
+
+Backups are ZIP archives with one JSON file per registered section:
+`profiles.json`, `shots.json`, `workflow.json`, `settings.json`, `store.json`,
+`steams.json`, `beans.json`, and `grinders.json`. Import matches files by their
+registered section names; unknown files are ignored, but an archive must contain
+at least one recognized selected section. `metadata.json` is not payload:
+metadata-only, empty, and unknown-only archives return `400`. Metadata is
+optional for legacy archives without it. When present, its JSON and
+`formatVersion` are validated before any section is imported. ZIP integrity and
+structural JSON are validated for every selected section before storage is
+mutated; any failure returns `400` without importing a section. Semantic record
+errors are processed independently and are not transactional, so successful
+sections are not rolled back when another section reports semantic errors.
+Export is atomic: if any requested
+section fails to export, the request returns an error identifying the failed
+section(s) and no partial ZIP is returned.
+
+`POST /api/v1/data/import` preserves its section-keyed response body. `200`
+means at least one recognized section was processed and every processed section
+completed without errors. `207 Multi-Status` means at least one processed
+section contains errors; successful sections, counts, warnings, and errors are
+all retained. Warnings and conflict-strategy skips alone still return `200`.
+Clients must inspect both the HTTP status and each section result.
+
+Data sync preserves the same phase distinction. A complete pull or push is
+represented by `200`. An incomplete single-direction sync returns `502`, even
+when its body reports semantic `partial` progress. A two-way sync returns `207`
+when it has meaningful progress but is incomplete; a two-way sync with no
+complete or partial phase returns `502`. Phase results remain under `pull` and
+`push`, including successful sections and fatal error details.
+
+### Bounded-memory transfer (issue #555)
+
+Backup export, import, and sync stream data instead of buffering whole
+archives in memory; peak memory scales with one page of records and one JSON
+record, never with backup size.
+
+- **Export** streams each section (records paged via stable keyset cursors)
+  through a file-backed ZIP writer (raw deflate via `dart:io`, data
+descriptors, central directory written last) and serves the completed
+temporary ZIP with `Content-Type: application/zip`, `Content-Disposition:
+attachment`, and `Content-Length`. The archive is atomic: a failing section
+returns an error and no partial ZIP.
+- **Import** streams the request body into a temporary ZIP (never
+`read().toList()`), opens it with `InputFileStream` / `ZipDecoder`, and writes
+one selected entry at a time to a bounded temporary JSON file for incremental
+parsing. Every selected entry is structurally validated before the record-import
+pass begins. ZIP bombs, duplicate names, encrypted/unsupported entries, CRC
+failures, truncation, Zip64, and malformed JSON all fail safely.
+- **Sync** pulls stream the remote response into a temporary ZIP; pushes
+export locally and stream the file with a known content length.
+- **Native transfer** downloads the localhost export into a temporary file
+(validating HTTP status and `application/zip` before presenting a
+destination), shares it via the OS share sheet on iOS/Android, and streams
+picked files into the import request.
+
+Limits (documented in `assets/api/rest_v1.yml`): request body 2 GiB, entry
+count 4096, per-entry uncompressed 1 GiB, total uncompressed 2 GiB,
+metadata 64 KiB, per-record 64 MiB (measured in UTF-8 bytes), ZIP header
+fields 256 B/64 KiB/64 KiB; sync request body 1 MiB, target response
+8 MiB; connection 10 s (TCP establishment only — server-side
+export/import processing is not counted against it), idle 30 s, and one
+deadline (10 min) per phase covering the network stages (upload/download
+and response). Timeouts abort the request at the transport level: a
+timed-out pull is cut off even while the target is still generating its
+export (before headers) and never starts its import; a timed-out push
+aborts its upload, and the upload is backpressured so the archive file
+is never read ahead of the network. Local export and the pull-side
+import run to completion and report their actual results. If the archive
+was already fully uploaded before the deadline, the remote outcome is
+unknown and the phase reports reason `timeout_unknown`. A generated
+archive is also bounded by the 2 GiB import request limit.
 
 ### Account
 
@@ -338,8 +431,9 @@ Only registered when the app is launched with a non-empty `simulate` Dart define
 | POST | `/api/v1/debug/scale/stall` | Pause mock scale weight emission (stays "connected") | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/resume` | Resume weight emission after stall | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/disconnect` | Simulate scale disconnect (emits disconnected state, stops data) | `debug_handler.dart` |
+| POST | `/api/v1/debug/machine/disconnect` | Simulate mock machine disconnect (emits disconnected state, no auto-reconnect) | `debug_handler.dart` |
 
-Mock-scale command endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`.
+Mock-scale command endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`. The machine command endpoint returns 400 if no machine is connected or the connected machine is not a `MockDe1`, and 404 for unknown commands (any debug route 404s on production builds).
 
 ---
 
@@ -388,8 +482,9 @@ For clients this means:
   `{"error": "No machine connected"}` rather than silently dropping it. The socket stays open and
   resumes normal operation when a machine reconnects. Raw commands are not queued for later delivery.
 
-The one unchanged case: opening a machine socket while **no** machine is connected still returns an
-error frame and closes, so reconnect-until-present loops keep working.
+Machine sockets opened before the first machine connection behave like any later disconnected gap:
+the socket stays open and remains silent until a machine attaches. No error or status frame is emitted
+on the typed telemetry sockets.
 
 ### `shotState` events
 

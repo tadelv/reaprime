@@ -209,10 +209,8 @@ void main() {
     });
 
     expect(
-      () => service.proxyGet(
-        callerId: 'skin',
-        path: 'support/api/%2e%2e/admin',
-      ),
+      () =>
+          service.proxyGet(callerId: 'skin', path: 'support/api/%2e%2e/admin'),
       throwsA(isA<DecentProxyForbiddenPathException>()),
     );
 
@@ -234,10 +232,7 @@ void main() {
     });
 
     expect(
-      () => service.proxyGet(
-        callerId: 'skin',
-        path: 'support/api/%zz/admin',
-      ),
+      () => service.proxyGet(callerId: 'skin', path: 'support/api/%zz/admin'),
       throwsA(isA<DecentProxyForbiddenPathException>()),
     );
   });

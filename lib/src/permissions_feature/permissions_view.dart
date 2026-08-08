@@ -122,9 +122,7 @@ class _PermissionsViewState extends State<PermissionsView> {
         await ForegroundTaskService.start();
 
         // Wire foreground service auto-stop to machine connection state
-        ForegroundTaskService.watchMachineConnection(
-          widget.de1controller.de1,
-        );
+        ForegroundTaskService.watchMachineConnection(widget.de1controller.de1);
 
         // CRITICAL: Request battery optimization exemption
         // This prevents Android from killing the app in the background
@@ -138,11 +136,13 @@ class _PermissionsViewState extends State<PermissionsView> {
       }
     } else {
       try {
-        await UniversalBle.availabilityStream.firstWhere(
-          (e) => e == AvailabilityState.poweredOn,
-        ).timeout(Duration(seconds: 5));
+        await UniversalBle.availabilityStream
+            .firstWhere((e) => e == AvailabilityState.poweredOn)
+            .timeout(Duration(seconds: 5));
       } on TimeoutException {
-        _log.warning('Bluetooth availability check timed out, continuing without BLE');
+        _log.warning(
+          'Bluetooth availability check timed out, continuing without BLE',
+        );
       }
     }
 

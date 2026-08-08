@@ -124,16 +124,15 @@ class SettingsTdbParser {
     final doseWeight = (doseRaw != null && doseRaw != 0) ? doseRaw : null;
 
     // Target yield: null if 0 or missing
-    final yieldRaw =
-        _parseDouble(data['final_desired_shot_weight_advanced']);
+    final yieldRaw = _parseDouble(data['final_desired_shot_weight_advanced']);
     final targetYield = (yieldRaw != null && yieldRaw != 0) ? yieldRaw : null;
 
     // Grinder setting: null if "0" or empty
     final grinderSettingRaw = _nonEmpty(data['grinder_setting']?.toString());
     final grinderSetting =
         (grinderSettingRaw != null && grinderSettingRaw != '0')
-            ? grinderSettingRaw
-            : null;
+        ? grinderSettingRaw
+        : null;
 
     // Grinder model: null if empty
     final grinderModel = _nonEmpty(data['grinder_model']?.toString());
@@ -156,10 +155,10 @@ class SettingsTdbParser {
       hotWaterVolume: _parseInt(data['water_volume']),
       rinseFlow: _parseDouble(data['flush_flow']),
       rinseDuration: _parseInt(data['flush_seconds']),
-      machineBluetoothAddress:
-          _nonEmpty(data['bluetooth_address']?.toString()),
-      scaleBluetoothAddress:
-          _nonEmpty(data['scale_bluetooth_address']?.toString()),
+      machineBluetoothAddress: _nonEmpty(data['bluetooth_address']?.toString()),
+      scaleBluetoothAddress: _nonEmpty(
+        data['scale_bluetooth_address']?.toString(),
+      ),
     );
   }
 

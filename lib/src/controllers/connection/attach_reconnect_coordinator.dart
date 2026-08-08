@@ -5,7 +5,7 @@ import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 class AttachReconnectCoordinator {
   final Duration settleDelay;
   final bool Function() shouldAttempt;
-  final Future<bool> Function() attempt;
+  final Future<bool> Function(DeviceAttachedEvent event) attempt;
   final FutureOr<void> Function() recover;
 
   late final StreamSubscription<DeviceAttachedEvent> _subscription;
@@ -13,6 +13,7 @@ class AttachReconnectCoordinator {
   Future<void>? _inFlightAttempt;
   bool _inFlight = false;
   bool _disposed = false;
+  DeviceAttachedEvent? _pendingEvent;
 
   AttachReconnectCoordinator({
     required Stream<DeviceAttachedEvent> attachEvents,
@@ -24,31 +25,34 @@ class AttachReconnectCoordinator {
     _subscription = attachEvents.listen(_onAttach);
   }
 
-  void _onAttach(DeviceAttachedEvent _) {
-    if (_disposed || _inFlight || _settleTimer != null || !shouldAttempt()) {
-      return;
-    }
+  void _onAttach(DeviceAttachedEvent event) {
+    if (_disposed || _inFlight) return;
+    _pendingEvent = event;
+    if (_settleTimer != null) return;
+    if (!shouldAttempt()) return;
     _settleTimer = Timer(settleDelay, () {
       _settleTimer = null;
       if (_disposed || _inFlight || !shouldAttempt()) return;
+      final event = _pendingEvent;
+      if (event == null) return;
       _inFlight = true;
-      _inFlightAttempt = _startAttempt();
+      _inFlightAttempt = _startAttempt(event);
       unawaited(_inFlightAttempt);
     });
   }
 
-  Future<void> _startAttempt() async {
+  Future<void> _startAttempt(DeviceAttachedEvent event) async {
     try {
-      await _runAttempt();
+      await _runAttempt(event);
     } finally {
       _inFlightAttempt = null;
     }
   }
 
-  Future<void> _runAttempt() async {
+  Future<void> _runAttempt(DeviceAttachedEvent event) async {
     var succeeded = false;
     try {
-      succeeded = await attempt();
+      succeeded = await attempt(event);
     } catch (_) {
       succeeded = false;
     } finally {

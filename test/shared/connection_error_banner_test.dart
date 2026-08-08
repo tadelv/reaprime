@@ -10,20 +10,20 @@ void main() {
   group('ConnectionErrorBanner', () {
     testWidgets('renders when status.error is set', (tester) async {
       final cm = FakeConnectionManager();
-      cm.setError(ConnectionError(
-        kind: ConnectionErrorKind.scaleConnectFailed,
-        severity: ConnectionErrorSeverity.error,
-        timestamp: DateTime.now().toUtc(),
-        message: 'Scale connect failed.',
-        suggestion: 'Wake the scale and try again.',
-        deviceName: 'Decent Scale',
-      ));
+      cm.setError(
+        ConnectionError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'Scale connect failed.',
+          suggestion: 'Wake the scale and try again.',
+          deviceName: 'Decent Scale',
+        ),
+      );
 
       await tester.pumpWidget(
         ShadApp(
-          home: Scaffold(
-            body: ConnectionErrorBanner(connectionManager: cm),
-          ),
+          home: Scaffold(body: ConnectionErrorBanner(connectionManager: cm)),
         ),
       );
       await tester.pump();
@@ -37,9 +37,7 @@ void main() {
       final cm = FakeConnectionManager();
       await tester.pumpWidget(
         ShadApp(
-          home: Scaffold(
-            body: ConnectionErrorBanner(connectionManager: cm),
-          ),
+          home: Scaffold(body: ConnectionErrorBanner(connectionManager: cm)),
         ),
       );
       await tester.pump();
@@ -49,19 +47,19 @@ void main() {
 
     testWidgets('Retry button dispatches a scan on press', (tester) async {
       final cm = FakeConnectionManager();
-      cm.setError(ConnectionError(
-        kind: ConnectionErrorKind.scaleConnectFailed,
-        severity: ConnectionErrorSeverity.error,
-        timestamp: DateTime.now().toUtc(),
-        message: 'x',
-        deviceName: 'Decent Scale',
-      ));
+      cm.setError(
+        ConnectionError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'x',
+          deviceName: 'Decent Scale',
+        ),
+      );
 
       await tester.pumpWidget(
         ShadApp(
-          home: Scaffold(
-            body: ConnectionErrorBanner(connectionManager: cm),
-          ),
+          home: Scaffold(body: ConnectionErrorBanner(connectionManager: cm)),
         ),
       );
       await tester.pump();
@@ -73,21 +71,22 @@ void main() {
       expect(cm.automaticConnectCalls, 0);
     });
 
-    testWidgets('disconnect Retry uses automatic recovery policy',
-        (tester) async {
+    testWidgets('disconnect Retry uses automatic recovery policy', (
+      tester,
+    ) async {
       final cm = FakeConnectionManager();
-      cm.setError(ConnectionError(
-        kind: ConnectionErrorKind.machineDisconnected,
-        severity: ConnectionErrorSeverity.error,
-        timestamp: DateTime.now().toUtc(),
-        message: 'x',
-      ));
+      cm.setError(
+        ConnectionError(
+          kind: ConnectionErrorKind.machineDisconnected,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'x',
+        ),
+      );
 
       await tester.pumpWidget(
         ShadApp(
-          home: Scaffold(
-            body: ConnectionErrorBanner(connectionManager: cm),
-          ),
+          home: Scaffold(body: ConnectionErrorBanner(connectionManager: cm)),
         ),
       );
       await tester.pump();
@@ -99,28 +98,27 @@ void main() {
       expect(cm.scanAndConnectCalls, 0);
     });
 
-    testWidgets(
-      'adapterOff has no Retry button (text-only instruction)',
-      (tester) async {
-        final cm = FakeConnectionManager();
-        cm.setError(ConnectionError(
+    testWidgets('adapterOff has no Retry button (text-only instruction)', (
+      tester,
+    ) async {
+      final cm = FakeConnectionManager();
+      cm.setError(
+        ConnectionError(
           kind: ConnectionErrorKind.adapterOff,
           severity: ConnectionErrorSeverity.error,
           timestamp: DateTime.now().toUtc(),
           message: 'Bluetooth is off.',
-        ));
+        ),
+      );
 
-        await tester.pumpWidget(
-          ShadApp(
-            home: Scaffold(
-              body: ConnectionErrorBanner(connectionManager: cm),
-            ),
-          ),
-        );
-        await tester.pump();
+      await tester.pumpWidget(
+        ShadApp(
+          home: Scaffold(body: ConnectionErrorBanner(connectionManager: cm)),
+        ),
+      );
+      await tester.pump();
 
-        expect(find.text('Retry'), findsNothing);
-      },
-    );
+      expect(find.text('Retry'), findsNothing);
+    });
   });
 }

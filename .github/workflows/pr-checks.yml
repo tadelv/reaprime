@@ -12,8 +12,27 @@ permissions:
   contents: read
 
 jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+
+      - name: Dart format check
+        run: dart format --output=none --set-exit-if-changed lib test
+
   flutter:
-    name: Format / analyze / test
+    name: Analyze / test
+    needs: format
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -25,13 +44,7 @@ jobs:
         with:
           channel: stable
           cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: packages/dye2-plugin/package-lock.json
+          pub-cache: true
 
       - name: Flutter pub get
         run: flutter pub get
@@ -41,11 +54,11 @@ jobs:
       # so populate them before any flutter command that touches assets
       # (analyze emits asset_directory_does_not_exist; test loads the
       # bundled_skins manifest at runtime).
-      - name: Build DYE2 plugin
-        working-directory: packages/dye2-plugin
-        run: |
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Tests only assert manifest shape (non-empty list of string IDs) and
       # `flutter analyze` only needs the asset dir to exist. Skip the real
@@ -57,12 +70,6 @@ jobs:
           mkdir -p assets/bundled_skins
           printf '["stub-skin"]\n' > assets/bundled_skins/manifest.json
           : > assets/bundled_skins/stub-skin.zip
-
-      # Format check is advisory until the codebase has been mass-reformatted
-      # for Dart 3.7+ "tall style". Once that lands, drop continue-on-error.
-      - name: Dart format check (advisory)
-        continue-on-error: true
-        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Flutter analyze
         run: flutter analyze
@@ -83,6 +90,7 @@ jobs:
 
   build-smoke:
     name: Linux build smoke
+    needs: format
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -99,22 +107,16 @@ jobs:
         with:
           channel: stable
           cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: packages/dye2-plugin/package-lock.json
+          pub-cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build DYE2 plugin
-        working-directory: packages/dye2-plugin
-        run: |
-          npm ci
-          npm run build
+      - name: Fetch DYE2 plugin
+        shell: bash
+        run: ./scripts/fetch_dye2_plugin.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Linux app (unsigned)
         run: flutter build linux --release

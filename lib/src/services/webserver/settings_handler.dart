@@ -53,6 +53,7 @@ class SettingsHandler {
         'nightModeSleepTime': _controller.nightModeSleepTime,
         'nightModeMorningTime': _controller.nightModeMorningTime,
         'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
+        'keepAwake': _controller.keepAwake,
         'simulatedDevices': _controller.simulatedDevices
             .map((e) => e.name)
             .toList(),
@@ -72,9 +73,9 @@ class SettingsHandler {
           json['gatewayMode'],
         );
         if (gatewayMode == null) {
-          return jsonBadRequest(
-            {'message': '${json["gatewayMode"]} is not a gateway mode'},
-          );
+          return jsonBadRequest({
+            'message': '${json["gatewayMode"]} is not a gateway mode',
+          });
         }
         await _controller.updateGatewayMode(gatewayMode);
       }
@@ -92,9 +93,9 @@ class SettingsHandler {
         if (value is num) {
           await _controller.setWeightFlowMultiplier(value.toDouble());
         } else {
-          return jsonBadRequest(
-            {'message': 'weightFlowMultiplier must be a number'},
-          );
+          return jsonBadRequest({
+            'message': 'weightFlowMultiplier must be a number',
+          });
         }
       }
       if (json.containsKey('volumeFlowMultiplier')) {
@@ -102,9 +103,9 @@ class SettingsHandler {
         if (value is num) {
           await _controller.setVolumeFlowMultiplier(value.toDouble());
         } else {
-          return jsonBadRequest(
-            {'message': 'volumeFlowMultiplier must be a number'},
-          );
+          return jsonBadRequest({
+            'message': 'volumeFlowMultiplier must be a number',
+          });
         }
       }
       if (json.containsKey('hotWaterFlowMultiplier')) {
@@ -112,9 +113,9 @@ class SettingsHandler {
         if (value is num) {
           await _controller.setHotWaterFlowMultiplier(value.toDouble());
         } else {
-          return jsonBadRequest(
-            {'message': 'hotWaterFlowMultiplier must be a number'},
-          );
+          return jsonBadRequest({
+            'message': 'hotWaterFlowMultiplier must be a number',
+          });
         }
       }
       if (json.containsKey('scalePowerMode')) {
@@ -134,9 +135,9 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setBlockOnNoScale(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'blockOnNoScale must be a boolean'},
-          );
+          return jsonBadRequest({
+            'message': 'blockOnNoScale must be a boolean',
+          });
         }
       }
       if (json.containsKey('blockTareDuringShot')) {
@@ -144,9 +145,9 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setBlockTareDuringShot(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'blockTareDuringShot must be a boolean'},
-          );
+          return jsonBadRequest({
+            'message': 'blockTareDuringShot must be a boolean',
+          });
         }
       }
       if (json.containsKey('stopHotWaterAtWeight')) {
@@ -154,9 +155,9 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setStopHotWaterAtWeight(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'stopHotWaterAtWeight must be a boolean'},
-          );
+          return jsonBadRequest({
+            'message': 'stopHotWaterAtWeight must be a boolean',
+          });
         }
       }
       if (json.containsKey('preferredMachineId')) {
@@ -164,9 +165,9 @@ class SettingsHandler {
         if (value == null || value is String) {
           await _controller.setPreferredMachineId(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'preferredMachineId must be a string or null'},
-          );
+          return jsonBadRequest({
+            'message': 'preferredMachineId must be a string or null',
+          });
         }
       }
       if (json.containsKey('preferredScaleId')) {
@@ -174,9 +175,9 @@ class SettingsHandler {
         if (value == null || value is String) {
           await _controller.setPreferredScaleId(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'preferredScaleId must be a string or null'},
-          );
+          return jsonBadRequest({
+            'message': 'preferredScaleId must be a string or null',
+          });
         }
       }
       if (json.containsKey('defaultSkinId')) {
@@ -185,14 +186,12 @@ class SettingsHandler {
           try {
             await _webUIStorage.setDefaultSkin(value);
           } catch (e) {
-            return jsonBadRequest(
-              {'message': 'Invalid skin ID: ${e.toString()}'},
-            );
+            return jsonBadRequest({
+              'message': 'Invalid skin ID: ${e.toString()}',
+            });
           }
         } else {
-          return jsonBadRequest(
-            {'message': 'defaultSkinId must be a string'},
-          );
+          return jsonBadRequest({'message': 'defaultSkinId must be a string'});
         }
       }
       if (json.containsKey('automaticUpdateCheck')) {
@@ -200,17 +199,17 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setAutomaticUpdateCheck(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'automaticUpdateCheck must be a boolean'},
-          );
+          return jsonBadRequest({
+            'message': 'automaticUpdateCheck must be a boolean',
+          });
         }
       }
       if (json.containsKey('chargingMode')) {
         final mode = ChargingModeFromString.fromString(json['chargingMode']);
         if (mode == null) {
-          return jsonBadRequest(
-            {'message': '${json["chargingMode"]} is not a valid charging mode'},
-          );
+          return jsonBadRequest({
+            'message': '${json["chargingMode"]} is not a valid charging mode',
+          });
         }
         await _controller.setChargingMode(mode);
       }
@@ -219,9 +218,9 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setNightModeEnabled(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'nightModeEnabled must be a boolean'},
-          );
+          return jsonBadRequest({
+            'message': 'nightModeEnabled must be a boolean',
+          });
         }
       }
       if (json.containsKey('nightModeSleepTime')) {
@@ -229,9 +228,9 @@ class SettingsHandler {
         if (value is int && value >= 0 && value < 1440) {
           await _controller.setNightModeSleepTime(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'nightModeSleepTime must be an integer 0-1439'},
-          );
+          return jsonBadRequest({
+            'message': 'nightModeSleepTime must be an integer 0-1439',
+          });
         }
       }
       if (json.containsKey('nightModeMorningTime')) {
@@ -239,9 +238,9 @@ class SettingsHandler {
         if (value is int && value >= 0 && value < 1440) {
           await _controller.setNightModeMorningTime(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'nightModeMorningTime must be an integer 0-1439'},
-          );
+          return jsonBadRequest({
+            'message': 'nightModeMorningTime must be an integer 0-1439',
+          });
         }
       }
       if (json.containsKey('lowBatteryBrightnessLimit')) {
@@ -249,9 +248,17 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setLowBatteryBrightnessLimit(value);
         } else {
-          return jsonBadRequest(
-            {'message': 'lowBatteryBrightnessLimit must be a boolean'},
-          );
+          return jsonBadRequest({
+            'message': 'lowBatteryBrightnessLimit must be a boolean',
+          });
+        }
+      }
+      if (json.containsKey('keepAwake')) {
+        final value = json['keepAwake'];
+        if (value is bool) {
+          await _controller.setKeepAwake(value);
+        } else {
+          return jsonBadRequest({'message': 'keepAwake must be a boolean'});
         }
       }
       if (json.containsKey('simulatedDevices')) {

@@ -22,7 +22,11 @@ Profile _representativeProfile() => const Profile(
       sensor: TemperatureSensor.coffee,
       transition: TransitionType.smooth,
       volume: 0,
-      exit: StepExitCondition(type: ExitType.flow, condition: ExitCondition.over, value: 4.0),
+      exit: StepExitCondition(
+        type: ExitType.flow,
+        condition: ExitCondition.over,
+        value: 4.0,
+      ),
       limiter: StepLimiter(value: 8.0, range: 2.0),
     ),
     ProfileStepPressure(
@@ -42,8 +46,11 @@ Profile _representativeProfile() => const Profile(
 /// Returns ordered profile payloads — header + frames + tail — from [writes],
 /// filtering out MMR writes (`A006`).
 List<Uint8List> profilePayloads(List<FakeBleWrite> writes) => writes
-    .where((w) => w.characteristicUUID == Endpoint.headerWrite.uuid ||
-        w.characteristicUUID == Endpoint.frameWrite.uuid)
+    .where(
+      (w) =>
+          w.characteristicUUID == Endpoint.headerWrite.uuid ||
+          w.characteristicUUID == Endpoint.frameWrite.uuid,
+    )
     .map((w) => w.data)
     .toList();
 
@@ -65,8 +72,11 @@ void main() {
       await de1.setProfile(_representativeProfile());
 
       final payloads = profilePayloads(transport.writes);
-      expect(payloads.length, greaterThanOrEqualTo(5),
-          reason: 'header + 2 frames + 1 extension + tail');
+      expect(
+        payloads.length,
+        greaterThanOrEqualTo(5),
+        reason: 'header + 2 frames + 1 extension + tail',
+      );
 
       // Header: [version, stepCount, countStart, minPressure, maxFlow]
       final header = payloads[0];
@@ -113,10 +123,17 @@ void main() {
         notes: '',
         author: 'test',
         beverageType: BeverageType.espresso,
-        steps: [ProfileStepFlow(
-          name: 'x', flow: 9.25, seconds: 10, temperature: 90,
-          sensor: TemperatureSensor.coffee, transition: TransitionType.fast, volume: 0,
-        )],
+        steps: [
+          ProfileStepFlow(
+            name: 'x',
+            flow: 9.25,
+            seconds: 10,
+            temperature: 90,
+            sensor: TemperatureSensor.coffee,
+            transition: TransitionType.fast,
+            volume: 0,
+          ),
+        ],
         targetVolumeCountStart: 0,
         tankTemperature: 90,
       );
@@ -180,10 +197,17 @@ void main() {
         notes: '',
         author: 'test',
         beverageType: BeverageType.espresso,
-        steps: [ProfileStepFlow(
-          name: 'x', flow: 9.25, seconds: 10, temperature: 90,
-          sensor: TemperatureSensor.coffee, transition: TransitionType.fast, volume: 0,
-        )],
+        steps: [
+          ProfileStepFlow(
+            name: 'x',
+            flow: 9.25,
+            seconds: 10,
+            temperature: 90,
+            sensor: TemperatureSensor.coffee,
+            transition: TransitionType.fast,
+            volume: 0,
+          ),
+        ],
         targetVolumeCountStart: 0,
         tankTemperature: 90,
       );
@@ -194,12 +218,17 @@ void main() {
 
     test('withResponse flag is true on all profile writes', () async {
       await bengle.setProfile(_representativeProfile());
-      final profileWrites = transport.writes
-          .where((w) => w.characteristicUUID == Endpoint.headerWrite.uuid ||
-              w.characteristicUUID == Endpoint.frameWrite.uuid);
+      final profileWrites = transport.writes.where(
+        (w) =>
+            w.characteristicUUID == Endpoint.headerWrite.uuid ||
+            w.characteristicUUID == Endpoint.frameWrite.uuid,
+      );
       for (final w in profileWrites) {
-        expect(w.withResponse, isTrue,
-            reason: '${w.characteristicUUID} must use writeWithResponse');
+        expect(
+          w.withResponse,
+          isTrue,
+          reason: '${w.characteristicUUID} must use writeWithResponse',
+        );
       }
     });
   });

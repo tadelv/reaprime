@@ -37,9 +37,10 @@ For non-trivial features or fixes, write a plan in `doc/plans/`. Seek approval f
 ### Verification
 
 After every meaningful code change:
-1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
-2. Run full `flutter test` before committing and before claiming done.
-3. Evidence before assertions — show test output, not just "tests pass."
+1. Run `dart format lib test`.
+2. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
+3. Run full `flutter test` before committing and before claiming done.
+4. Evidence before assertions — show test output, not just "tests pass."
 
 For API/spec changes, smoke-test via `scripts/sb-dev.sh` + `curl`/`websocat`. See `.agents/skills/decent-app/verification.md`.
 
@@ -77,9 +78,9 @@ If your output contradicts documented architecture or conventions, surface it ex
 
 ## Tracking
 
-GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue` commands for triage, labeling, and closing.
+GitHub Issues on `decentespresso/decaid` is the canonical issue tracker. Use `gh issue` commands for triage, labeling, and closing.
 
-**Triage labels** (used on `tadelv/reaprime`):
+**Triage labels** (used on `decentespresso/decaid`):
 
 | Label | Meaning |
 |-------|---------|
@@ -109,12 +110,14 @@ GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue
 
 | Layer | Value |
 |-------|-------|
-| User-facing name | **Decent.app** (short: "Decent") |
+| User-facing name | **Decaid** |
 | Dart package name | `reaprime` |
 | Plugin file extension | `.reaplugin` |
 | Bundle ID | `net.tadel.reaprime` |
 | Database name | `streamline_bridge` |
-| GitHub repo | `tadelv/reaprime` |
+| GitHub repo | `decentespresso/decaid` |
+
+**Decaid** combines "decade" and "Decent aide." The name marks ten years since the original `de1app` repository's first commit on May 14, 2016. Preserve `Decent.app` and ReaPrime where they are historical or internal identifiers.
 
 ## Don't
 

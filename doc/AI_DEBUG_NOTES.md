@@ -126,6 +126,12 @@ not infer renderer health from page DOM shape or deliberately crash the renderer
 custom skins have no common ready signal and Apple WebViews use a different
 termination callback.
 
+# Scale Frame And Feed Failures
+
+An Acaia shot that stops at a weight far above the scale display can be a timer-bodied event-11 frame or a short frame reading bytes from an adjacent frame as weight. Confirm the scale implementation and protocol in the logs, then inspect frame length, event type, and event-11 selector. Selector `7` is timer and must never publish weight; selector `5` requires its complete six-byte weight body inside the same frame.
+
+An Acaia scale that is linked but publishes no weight must not be reported connected. Identification and configuration writes, settings frames, timer frames, and information frames do not establish readiness. Initialization must observe a valid weight frame or tear down and leave retry ownership with ConnectionManager.
+
 ## Keeping Notes Fresh
 
 Add debugging patterns with: symptom, root cause, fix pattern, prevention. Prune when fixes ship and patterns are no longer current.

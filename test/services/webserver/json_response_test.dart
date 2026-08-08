@@ -5,11 +5,7 @@ import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf/shelf.dart';
 
 Request _get({Map<String, String> headers = const {}}) {
-  return Request(
-    'GET',
-    Uri.parse('http://localhost/test'),
-    headers: headers,
-  );
+  return Request('GET', Uri.parse('http://localhost/test'), headers: headers);
 }
 
 void main() {
@@ -27,10 +23,7 @@ void main() {
         expect(etag, endsWith('"'));
         // 16 hex chars + 2 quote chars
         expect(etag!.length, 18);
-        expect(
-          jsonDecode(await response.readAsString()),
-          {'a': 1, 'b': 'x'},
-        );
+        expect(jsonDecode(await response.readAsString()), {'a': 1, 'b': 'x'});
       },
     );
 
@@ -73,10 +66,9 @@ void main() {
 
     test('treats If-None-Match: * as a wildcard match → 304', () async {
       // Per RFC 7232 §3.2: "*" matches any current representation.
-      final r = jsonOkConditional(
-        _get(headers: {'If-None-Match': '*'}),
-        {'whatever': true},
-      );
+      final r = jsonOkConditional(_get(headers: {'If-None-Match': '*'}), {
+        'whatever': true,
+      });
 
       expect(r.statusCode, 304);
       expect(r.headers['etag'], isNotNull);

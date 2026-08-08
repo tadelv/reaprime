@@ -8,16 +8,15 @@ class Color16 {
   final int blue;
 
   const Color16(this.red, this.green, this.blue)
-      : assert(red >= 0 && red <= 65535),
-        assert(green >= 0 && green <= 65535),
-        assert(blue >= 0 && blue <= 65535);
+    : assert(red >= 0 && red <= 65535),
+      assert(green >= 0 && green <= 65535),
+      assert(blue >= 0 && blue <= 65535);
 
   /// Full-off convenience.
   static const off = Color16(0, 0, 0);
 
   /// Encode to 12 hex chars: RRRRGGGGBBBB (upper-case).
-  String toJson() =>
-      '${_hex4(red)}${_hex4(green)}${_hex4(blue)}';
+  String toJson() => '${_hex4(red)}${_hex4(green)}${_hex4(blue)}';
 
   /// Parse a 12-hex-char string. On failure returns [off].
   static Color16 fromJson(dynamic hex) {
@@ -39,8 +38,10 @@ class Color16 {
 
   @override
   bool operator ==(Object other) =>
-      other is Color16 && red == other.red && green == other.green &&
-          blue == other.blue;
+      other is Color16 &&
+      red == other.red &&
+      green == other.green &&
+      blue == other.blue;
 
   @override
   int get hashCode => Object.hash(red, green, blue);
@@ -60,14 +61,14 @@ class ZoneLedState {
   const ZoneLedState({this.sleeping = Color16.off, this.awake = Color16.off});
 
   Map<String, dynamic> toJson() => {
-        'sleeping': sleeping.toJson(),
-        'awake': awake.toJson(),
-      };
+    'sleeping': sleeping.toJson(),
+    'awake': awake.toJson(),
+  };
 
   factory ZoneLedState.fromJson(Map<String, dynamic> json) => ZoneLedState(
-        sleeping: Color16.fromJson(json['sleeping']),
-        awake: Color16.fromJson(json['awake']),
-      );
+    sleeping: Color16.fromJson(json['sleeping']),
+    awake: Color16.fromJson(json['awake']),
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -79,8 +80,7 @@ class ZoneLedState {
   int get hashCode => Object.hash(sleeping, awake);
 
   @override
-  String toString() =>
-      'ZoneLedState(sleeping: $sleeping, awake: $awake)';
+  String toString() => 'ZoneLedState(sleeping: $sleeping, awake: $awake)';
 }
 
 /// Configuration state for Bengle's non-addressable LED zones.
@@ -110,19 +110,22 @@ class LedStripState {
   });
 
   Map<String, dynamic> toJson() => {
-        'frontStrip': frontStrip.toJson(),
-        'backStrip': backStrip.toJson(),
-        'frontSwitch': frontSwitch.toJson(),
-      };
+    'frontStrip': frontStrip.toJson(),
+    'backStrip': backStrip.toJson(),
+    'frontSwitch': frontSwitch.toJson(),
+  };
 
   factory LedStripState.fromJson(Map<String, dynamic> json) => LedStripState(
-        frontStrip: ZoneLedState.fromJson(
-            json['frontStrip'] as Map<String, dynamic>? ?? const {}),
-        backStrip: ZoneLedState.fromJson(
-            json['backStrip'] as Map<String, dynamic>? ?? const {}),
-        frontSwitch: ZoneLedState.fromJson(
-            json['frontSwitch'] as Map<String, dynamic>? ?? const {}),
-      );
+    frontStrip: ZoneLedState.fromJson(
+      json['frontStrip'] as Map<String, dynamic>? ?? const {},
+    ),
+    backStrip: ZoneLedState.fromJson(
+      json['backStrip'] as Map<String, dynamic>? ?? const {},
+    ),
+    frontSwitch: ZoneLedState.fromJson(
+      json['frontSwitch'] as Map<String, dynamic>? ?? const {},
+    ),
+  );
 
   @override
   bool operator ==(Object other) =>

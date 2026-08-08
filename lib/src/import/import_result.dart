@@ -3,7 +3,11 @@ class ImportError {
   final String filename;
   final String reason;
   final String? details;
-  const ImportError({required this.filename, required this.reason, this.details});
+  const ImportError({
+    required this.filename,
+    required this.reason,
+    this.details,
+  });
   @override
   String toString() => '$filename: $reason';
 }
@@ -16,7 +20,14 @@ class ScanResult {
   final bool hasSettings;
   final String sourcePath;
   final String? shotSource; // 'history_v2', 'history', or null
-  const ScanResult({required this.shotCount, required this.profileCount, required this.hasDyeGrinders, required this.hasSettings, required this.sourcePath, this.shotSource});
+  const ScanResult({
+    required this.shotCount,
+    required this.profileCount,
+    required this.hasDyeGrinders,
+    required this.hasSettings,
+    required this.sourcePath,
+    this.shotSource,
+  });
   int get totalItems => shotCount + profileCount;
   bool get isEmpty => totalItems == 0 && !hasDyeGrinders && !hasSettings;
 }
@@ -33,7 +44,48 @@ class ImportResult {
   final int grindersSkipped;
   final bool settingsApplied;
   final List<ImportError> errors;
-  const ImportResult({this.shotsImported = 0, this.shotsSkipped = 0, this.profilesImported = 0, this.profilesSkipped = 0, this.beansCreated = 0, this.beansSkipped = 0, this.grindersCreated = 0, this.grindersSkipped = 0, this.settingsApplied = false, this.errors = const []});
+  const ImportResult({
+    this.shotsImported = 0,
+    this.shotsSkipped = 0,
+    this.profilesImported = 0,
+    this.profilesSkipped = 0,
+    this.beansCreated = 0,
+    this.beansSkipped = 0,
+    this.grindersCreated = 0,
+    this.grindersSkipped = 0,
+    this.settingsApplied = false,
+    this.errors = const [],
+  });
+
+  factory ImportResult.fromBackupSections(Map<String, dynamic> sections) {
+    int count(String section, String field) {
+      final value = sections[section];
+      if (value is! Map) return 0;
+      return value[field] is int ? value[field] as int : 0;
+    }
+
+    final errors = <ImportError>[];
+    for (final entry in sections.entries) {
+      final value = entry.value;
+      if (value is! Map || value['errors'] is! List) continue;
+      for (final error in value['errors'] as List) {
+        errors.add(ImportError(filename: entry.key, reason: '$error'));
+      }
+    }
+
+    return ImportResult(
+      shotsImported: count('shots', 'imported'),
+      shotsSkipped: count('shots', 'skipped'),
+      profilesImported: count('profiles', 'imported'),
+      profilesSkipped: count('profiles', 'skipped'),
+      beansCreated: count('beans', 'imported'),
+      beansSkipped: count('beans', 'skipped'),
+      grindersCreated: count('grinders', 'imported'),
+      grindersSkipped: count('grinders', 'skipped'),
+      errors: errors,
+    );
+  }
+
   bool get hasErrors => errors.isNotEmpty;
   ImportResult operator +(ImportResult other) {
     return ImportResult(

@@ -5,7 +5,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 /// Utilities for calculating content-based hashes for profiles
 class ProfileHash {
   /// Calculate hash of execution-relevant fields
-  /// 
+  ///
   /// This hash identifies the functional behavior of the profile.
   /// Fields included:
   /// - beverage_type
@@ -33,17 +33,17 @@ class ProfileHash {
 
     // Convert to stable JSON string (keys sorted)
     final jsonStr = _encodeJsonStable(data);
-    
+
     // Calculate SHA-256 hash
     final bytes = utf8.encode(jsonStr);
     final hash = sha256.convert(bytes);
-    
+
     // Return first 20 characters prefixed with 'profile:'
     return 'profile:${hash.toString().substring(0, 20)}';
   }
 
   /// Calculate hash of metadata/presentation fields
-  /// 
+  ///
   /// This hash identifies the human-readable aspects of the profile.
   /// Fields included:
   /// - title
@@ -59,18 +59,18 @@ class ProfileHash {
     final jsonStr = _encodeJsonStable(data);
     final bytes = utf8.encode(jsonStr);
     final hash = sha256.convert(bytes);
-    
+
     return hash.toString();
   }
 
   /// Calculate compound hash (hash of profile hash + metadata hash)
-  /// 
+  ///
   /// This detects any changes to the profile, whether functional or presentational.
   static String calculateCompoundHash(String profileHash, String metadataHash) {
     final combined = '$profileHash:$metadataHash';
     final bytes = utf8.encode(combined);
     final hash = sha256.convert(bytes);
-    
+
     return hash.toString();
   }
 
@@ -79,7 +79,7 @@ class ProfileHash {
     final profileHash = calculateProfileHash(profile);
     final metadataHash = calculateMetadataHash(profile);
     final compoundHash = calculateCompoundHash(profileHash, metadataHash);
-    
+
     return ProfileHashes(
       profileHash: profileHash,
       metadataHash: metadataHash,

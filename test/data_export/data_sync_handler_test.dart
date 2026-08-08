@@ -1,70 +1,209 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:http/testing.dart' as http_testing;
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// A simple mock section that stores/returns canned data.
 class MockExportSection implements DataExportSection {
   @override
   final String filename;
 
-  final dynamic exportData;
+  final Object? exportData;
   final SectionImportResult importResult;
+  final bool failExport;
+  final int importCalls;
 
-  /// Captured import calls for verification.
-  dynamic lastImportedData;
   ConflictStrategy? lastStrategy;
-  bool importCalled = false;
+  int _calls = 0;
 
   MockExportSection({
     required this.filename,
     this.exportData = const {'mock': true},
     this.importResult = const SectionImportResult(imported: 1),
+    this.failExport = false,
+    this.importCalls = 0,
   });
 
   @override
-  Future<dynamic> export() async => exportData;
+  Future<void> exportJson(JsonSink output) async {
+    if (failExport) throw Exception('Export failed');
+    output.writeRaw(jsonEncode(exportData));
+  }
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
-    importCalled = true;
-    lastImportedData = data;
+    _calls++;
     lastStrategy = strategy;
+    // Fully consume the input (mirrors handler two-pass consumption).
+    await for (final _ in input.valuesAtDepth(1)) {}
     return importResult;
+  }
+
+  int get calls => _calls;
+}
+
+/// A [MockExportSection] whose import takes [delay], for deadline tests.
+class SlowImportSection extends MockExportSection {
+  final Duration delay;
+
+  SlowImportSection({required super.filename, required this.delay});
+
+  @override
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
+    ConflictStrategy strategy,
+  ) async {
+    await Future<void>.delayed(delay);
+    return super.importJson(input, strategy);
   }
 }
 
+/// Builds a ZIP with [files] using the old in-memory encoder (backward
+/// compatibility surface for remote pulls).
 List<int> buildZip(Map<String, dynamic> files) {
-  final archive = Archive();
-  for (final entry in files.entries) {
-    archive.addFile(ArchiveFile.string(entry.key, jsonEncode(entry.value)));
+  return ZipEncoderLegacy.encode(files);
+}
+
+/// Minimal legacy ZipEncoder helper (avoids importing archive directly).
+class ZipEncoderLegacy {
+  static List<int> encode(Map<String, dynamic> files) {
+    final archive = <String, String>{};
+    files.forEach((name, value) {
+      archive[name] = jsonEncode(value);
+    });
+    return buildRawZip(archive);
   }
-  return ZipEncoder().encode(archive);
+}
+
+List<int> buildRawZip(Map<String, String> files) {
+  // Hand-rolled ZIP (stored entries) so we control the bytes exactly.
+  final entries = <Map<String, Object>>[];
+  final body = BytesBuilder();
+  for (final entry in files.entries) {
+    final nameBytes = utf8.encode(entry.key);
+    final content = utf8.encode(entry.value);
+    final crc = _crc32(content);
+    final localOffset = body.length;
+    final local = BytesBuilder(copy: false);
+    local.addByte(0x50);
+    local.addByte(0x4B);
+    local.addByte(0x03);
+    local.addByte(0x04);
+    _u16(local, 20);
+    _u16(local, 0);
+    _u16(local, 0);
+    _u16(local, 0);
+    _u16(local, 0);
+    _u32(local, crc);
+    _u32(local, content.length);
+    _u32(local, content.length);
+    _u16(local, nameBytes.length);
+    _u16(local, 0);
+    local.add(nameBytes);
+    local.add(content);
+    body.add(local.takeBytes());
+    entries.add({
+      'name': nameBytes,
+      'offset': localOffset,
+      'crc': crc,
+      'size': content.length,
+    });
+  }
+  final cdOffset = body.length;
+  for (final entry in entries) {
+    final name = entry['name'] as List<int>;
+    final cd = BytesBuilder(copy: false);
+    cd.addByte(0x50);
+    cd.addByte(0x4B);
+    cd.addByte(0x01);
+    cd.addByte(0x02);
+    _u16(cd, 0x031E);
+    _u16(cd, 20);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u32(cd, entry['crc'] as int);
+    _u32(cd, entry['size'] as int);
+    _u32(cd, entry['size'] as int);
+    _u16(cd, name.length);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u16(cd, 0);
+    _u32(cd, 0);
+    _u32(cd, entry['offset'] as int);
+    cd.add(name);
+    body.add(cd.takeBytes());
+  }
+  final cdSize = body.length - cdOffset;
+  final eocd = BytesBuilder(copy: false);
+  eocd.addByte(0x50);
+  eocd.addByte(0x4B);
+  eocd.addByte(0x05);
+  eocd.addByte(0x06);
+  _u16(eocd, 0);
+  _u16(eocd, 0);
+  _u16(eocd, entries.length);
+  _u16(eocd, entries.length);
+  _u32(eocd, cdSize);
+  _u32(eocd, cdOffset);
+  _u16(eocd, 0);
+  body.add(eocd.takeBytes());
+  return body.takeBytes();
+}
+
+void _u16(BytesBuilder b, int value) {
+  b.addByte(value & 0xFF);
+  b.addByte((value >> 8) & 0xFF);
+}
+
+void _u32(BytesBuilder b, int value) {
+  b.addByte(value & 0xFF);
+  b.addByte((value >> 8) & 0xFF);
+  b.addByte((value >> 16) & 0xFF);
+  b.addByte((value >> 24) & 0xFF);
+}
+
+int _crc32(List<int> bytes) {
+  // Standard CRC-32.
+  var crc = 0xFFFFFFFF;
+  for (final byte in bytes) {
+    crc ^= byte;
+    for (var i = 0; i < 8; i++) {
+      crc = (crc >> 1) ^ (0xEDB88320 & (-(crc & 1)));
+    }
+  }
+  return crc ^ 0xFFFFFFFF;
 }
 
 void main() {
-  late MockExportSection profileSection;
+  final sections = [
+    MockExportSection(filename: 'profiles.json', exportData: {'profiles': []}),
+    MockExportSection(filename: 'shots.json', exportData: {'shots': []}),
+  ];
 
-  setUp(() {
-    profileSection = MockExportSection(
-      filename: 'profiles.json',
-      exportData: {'profiles': []},
-      importResult: const SectionImportResult(imported: 1),
-    );
-  });
-
-  Handler buildSyncHandler(http.Client client) {
+  Handler buildSyncHandler(
+    http.Client client, {
+    List<DataExportSection>? registeredSections,
+    DataTransferLimits? limits,
+  }) {
     final exportHandler = DataExportHandler(
-      sections: [profileSection],
+      sections: registeredSections ?? sections,
+      limits: limits ?? const DataTransferLimits(),
     );
     final syncHandler = DataSyncHandler(
       exportHandler: exportHandler,
@@ -75,387 +214,688 @@ void main() {
     return app.call;
   }
 
-  Future<Response> sendSync(Handler handler, Map<String, dynamic> body) async {
-    return await handler(
-      Request(
-        'POST',
-        Uri.parse('http://localhost/api/v1/data/sync'),
-        body: jsonEncode(body),
-        headers: {'content-type': 'application/json'},
-      ),
-    );
-  }
+  Future<Response> sendSync(Handler handler, Map<String, dynamic> body) async =>
+      await handler(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/v1/data/sync'),
+          body: jsonEncode(body),
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+
+  Map<String, dynamic> requestBody({
+    required String mode,
+    String? target,
+    List<String>? selectedSections,
+    bool? continueOnPullFailure,
+    String? onConflict,
+  }) => {
+    'target': target ?? 'http://192.168.1.50:8080',
+    'mode': mode,
+    ...?selectedSections == null ? null : {'sections': selectedSections},
+    ...?continueOnPullFailure == null
+        ? null
+        : {'continueOnPullFailure': continueOnPullFailure},
+    ...?onConflict == null ? null : {'onConflict': onConflict},
+  };
 
   group('DataSyncHandler', () {
     group('validation', () {
-      test('returns 400 when target is missing', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
-        final handler = buildSyncHandler(client);
-
-        final response = await sendSync(handler, {'mode': 'pull'});
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['message'], contains('target'));
-      });
-
-      test('returns 400 when mode is missing', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
-        final handler = buildSyncHandler(client);
-
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
+      test('uses all registered sections when sections are omitted for pull '
+          'and push', () async {
+        final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
+        final client = http_testing.MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response.bytes(targetZip, 200);
+          }
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
         });
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['message'], contains('mode'));
-      });
-
-      test('returns 400 for invalid target URL', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
         final handler = buildSyncHandler(client);
 
-        final response = await sendSync(handler, {
-          'target': 'not-a-url',
+        for (final mode in ['pull', 'push']) {
+          final response = await sendSync(handler, requestBody(mode: mode));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 200);
+          expect(body['complete'], isTrue);
+          if (mode == 'pull') {
+            expect(body['pull']['profiles']['imported'], 1);
+          } else {
+            expect(body['push']['profiles']['imported'], 1);
+          }
+        }
+      });
+
+      test('pull succeeds when the target takes longer than a connect '
+          'timeout to generate its export', () async {
+        // The target only responds after generating its export archive;
+        // that processing time must not be counted against a short
+        // connection timeout (issue #555 review).
+        final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
+        final client = http_testing.MockClient((request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          return http.Response.bytes(targetZip, 200);
+        });
+        final handler = buildSyncHandler(
+          client,
+          limits: const DataTransferLimits(
+            syncHeaderTimeout: Duration(milliseconds: 1),
+          ),
+        );
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+        final body = jsonDecode(await response.readAsString());
+        expect(response.statusCode, 200);
+        expect(body['complete'], isTrue);
+      });
+
+      test('push succeeds when the target takes longer than a connect '
+          'timeout to import the archive', () async {
+        final client = http_testing.MockClient((request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
+        });
+        final handler = buildSyncHandler(
+          client,
+          limits: const DataTransferLimits(
+            syncHeaderTimeout: Duration(milliseconds: 1),
+          ),
+        );
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        final body = jsonDecode(await response.readAsString());
+        expect(response.statusCode, 200);
+        expect(body['complete'], isTrue);
+      });
+
+      test(
+        'pull overall timeout aborts the download and never imports',
+        () async {
+          final client = http_testing.MockClient((request) async {
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+            return http.Response.bytes(
+              buildZip({'profiles.json': [], 'shots.json': []}),
+              200,
+            );
+          });
+          final freshShots = MockExportSection(filename: 'shots.json');
+          final handler = buildSyncHandler(
+            client,
+            registeredSections: [
+              MockExportSection(filename: 'profiles.json'),
+              freshShots,
+            ],
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 50),
+            ),
+          );
+          final response = await sendSync(handler, requestBody(mode: 'pull'));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 502);
+          expect(body['complete'], isFalse);
+          expect(body['pull']['reason'], 'timeout');
+          // The phase must not import anything after the caller was told the
+          // phase timed out.
+          expect(freshShots.calls, 0);
+        },
+      );
+
+      test(
+        'push timeout after the upload completed reports an unknown outcome',
+        () async {
+          final stopwatch = Stopwatch()..start();
+          final client = http_testing.MockClient((request) async {
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+            return http.Response(
+              '{"profiles":{"imported":1},"shots":{"imported":1}}',
+              200,
+            );
+          });
+          final handler = buildSyncHandler(
+            client,
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 50),
+            ),
+          );
+          final response = await sendSync(handler, requestBody(mode: 'push'));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 502);
+          expect(body['complete'], isFalse);
+          // The mock consumed the (small) body well before the deadline, so
+          // the remote may have started importing; the outcome must be
+          // reported as unknown rather than claiming the push did not
+          // happen.
+          expect(body['push']['reason'], 'timeout_unknown');
+          // The phase must fail at the deadline, not after the target's own
+          // delay (300 ms); the loose bound guards against slow CI.
+          stopwatch.stop();
+          expect(
+            stopwatch.elapsed,
+            lessThan(const Duration(milliseconds: 250)),
+          );
+        },
+      );
+
+      test(
+        'pull lets the local import finish past the phase deadline',
+        () async {
+          // The download completes within the deadline, but the local import
+          // takes longer than the deadline. It must run to completion and
+          // report its actual result (not a timeout): abandoning an import
+          // mid-write would leave the database mutating after the caller was
+          // told the phase failed.
+          final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
+          final client = http_testing.MockClient((request) async {
+            await Future<void>.delayed(const Duration(milliseconds: 40));
+            return http.Response.bytes(targetZip, 200);
+          });
+          final slowShots = SlowImportSection(
+            filename: 'shots.json',
+            delay: const Duration(milliseconds: 200),
+          );
+          final handler = buildSyncHandler(
+            client,
+            registeredSections: [
+              MockExportSection(filename: 'profiles.json'),
+              slowShots,
+            ],
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 100),
+            ),
+          );
+          final response = await sendSync(handler, requestBody(mode: 'pull'));
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 200);
+          expect(body['complete'], isTrue);
+          expect(slowShots.calls, 1);
+        },
+      );
+
+      test('pull timeout aborts the connection while the target is '
+          'generating its export', () async {
+        // The target accepts the connection but never responds. The phase
+        // deadline must abort the request at the transport level, not just
+        // stop waiting (which would leave the connection and the target's
+        // export running until they finish on their own).
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final socketClosed = Completer<void>();
+        server.listen((socket) {
+          socket.listen(
+            null,
+            onDone: () => socketClosed.complete(),
+            onError: (Object _) {
+              if (!socketClosed.isCompleted) socketClosed.complete();
+            },
+          );
+        });
+        final client = IOClient(
+          HttpClient()..connectionTimeout = const Duration(seconds: 1),
+        );
+        final handler = buildSyncHandler(
+          client,
+          limits: const DataTransferLimits(
+            syncOverallTimeout: Duration(milliseconds: 300),
+          ),
+        );
+        try {
+          final response = await sendSync(
+            handler,
+            requestBody(
+              mode: 'pull',
+              target: 'http://127.0.0.1:${server.port}',
+            ),
+          );
+          final body = jsonDecode(await response.readAsString());
+          expect(response.statusCode, 502);
+          expect(body['pull']['reason'], 'timeout');
+          // The abort must have closed the connection promptly after the
+          // deadline; without the transport abort this future never
+          // completes.
+          await socketClosed.future.timeout(const Duration(seconds: 2));
+        } finally {
+          await server.close();
+          client.close();
+        }
+      });
+
+      test(
+        'push timeout closes the body stream before temporary cleanup',
+        () async {
+          // A server socket that never reads the request body: the kernel
+          // buffer fills, the transport backpressures, and the file read must
+          // pause rather than draining the whole archive into memory. At the
+          // deadline the upload is still in flight, so the outcome is an
+          // interrupted upload ('timeout'), never 'timeout_unknown'.
+          final server = await ServerSocket.bind(
+            InternetAddress.loopbackIPv4,
+            0,
+          );
+          final random = Random(7);
+          const chars =
+              'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          final bigData = String.fromCharCodes(
+            List.generate(
+              6 * 1024 * 1024,
+              (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+            ),
+          );
+          final client = IOClient(
+            HttpClient()..connectionTimeout = const Duration(seconds: 1),
+          );
+          final handler = buildSyncHandler(
+            client,
+            registeredSections: [
+              MockExportSection(filename: 'profiles.json', exportData: bigData),
+            ],
+            limits: const DataTransferLimits(
+              syncOverallTimeout: Duration(milliseconds: 300),
+            ),
+          );
+          final tempDirsBefore = await Directory.systemTemp
+              .list()
+              .where(
+                (entry) =>
+                    entry is Directory &&
+                    entry.path
+                        .split(Platform.pathSeparator)
+                        .last
+                        .startsWith('reaprime-sync-push-'),
+              )
+              .map((entry) => entry.path)
+              .toSet();
+          try {
+            final response = await sendSync(
+              handler,
+              requestBody(
+                mode: 'push',
+                target: 'http://127.0.0.1:${server.port}',
+              ),
+            );
+            final body = jsonDecode(await response.readAsString());
+            expect(response.statusCode, 502);
+            expect(body['push']['reason'], 'timeout');
+            final tempDirsAfter = await Directory.systemTemp
+                .list()
+                .where(
+                  (entry) =>
+                      entry is Directory &&
+                      entry.path
+                          .split(Platform.pathSeparator)
+                          .last
+                          .startsWith('reaprime-sync-push-'),
+                )
+                .map((entry) => entry.path)
+                .toSet();
+            expect(tempDirsAfter.difference(tempDirsBefore), isEmpty);
+          } finally {
+            await server.close();
+            client.close();
+          }
+        },
+      );
+
+      test('rejects empty and unknown section lists', () async {
+        final handler = buildSyncHandler(
+          http_testing.MockClient((_) async {
+            return http.Response('{}', 500);
+          }),
+        );
+        final badSectionBodies = [
+          jsonEncode({'target': 'http://x', 'mode': 'pull', 'sections': []}),
+          jsonEncode({
+            'target': 'http://x',
+            'mode': 'pull',
+            'sections': ['unknown'],
+          }),
+          jsonEncode({
+            'target': 'http://x',
+            'mode': 'pull',
+            'sections': 'profiles',
+          }),
+          jsonEncode({'target': 'http://x', 'mode': 'pull', 'sections': 42}),
+        ];
+        for (final body in badSectionBodies) {
+          final response = await handler(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/v1/data/sync'),
+              body: body,
+              headers: {'content-type': 'application/json'},
+            ),
+          );
+          expect(response.statusCode, 400, reason: body);
+        }
+      });
+
+      test('rejects invalid bodies and modes', () async {
+        final handler = buildSyncHandler(
+          http_testing.MockClient((_) async {
+            return http.Response('{}', 500);
+          }),
+        );
+        final badRequests = [
+          'not json',
+          jsonEncode({'target': 'not-a-url', 'mode': 'pull'}),
+          jsonEncode({'target': 'http://x', 'mode': 'bogus'}),
+          jsonEncode({
+            'target': 'http://x',
+            'mode': 'pull',
+            'continueOnPullFailure': true,
+          }),
+        ];
+        for (final body in badRequests) {
+          final response = await handler(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/v1/data/sync'),
+              body: body,
+              headers: {'content-type': 'application/json'},
+            ),
+          );
+          expect(response.statusCode, 400, reason: body);
+        }
+      });
+
+      test('rejects oversized sync request bodies', () async {
+        final bigBody = jsonEncode({
+          'target': 'http://x',
           'mode': 'pull',
+          'padding': 'x' * 2048,
         });
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['error'], 'Invalid target URL');
-      });
-
-      test('returns 400 for invalid mode', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
-        final handler = buildSyncHandler(client);
-
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'invalid',
-        });
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['error'], 'Invalid mode');
-      });
-
-      test('returns 400 for invalid onConflict value', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
-        final handler = buildSyncHandler(client);
-
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'pull',
-          'onConflict': 'merge',
-        });
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['error'], 'Invalid onConflict value');
-      });
-
-      test('returns 400 for invalid JSON body', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('', 200));
-        final exportHandler = DataExportHandler(sections: [profileSection]);
-        final syncHandler = DataSyncHandler(
-          exportHandler: exportHandler,
-          httpClient: client,
+        // Wrap the shared handler in a small-limits export handler.
+        final smallExport = DataExportHandler(
+          sections: sections,
+          limits: const DataTransferLimits(maxSyncRequestBytes: 256),
+        );
+        final sync = DataSyncHandler(
+          exportHandler: smallExport,
+          httpClient: http_testing.MockClient((_) async {
+            return http.Response('{}', 500);
+          }),
         );
         final app = Router().plus;
-        syncHandler.addRoutes(app);
-
+        sync.addRoutes(app);
         final response = await app.call(
           Request(
             'POST',
             Uri.parse('http://localhost/api/v1/data/sync'),
-            body: 'not json',
+            body: bigBody,
             headers: {'content-type': 'application/json'},
           ),
         );
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['error'], 'Invalid JSON');
+        expect(response.statusCode, 413);
       });
     });
 
-    group('pull mode', () {
-      test('pulls data from target and imports locally', () async {
+    group('pull', () {
+      test('streams a remote archive and imports it', () async {
         final targetZip = buildZip({
-          'metadata.json': {'formatVersion': 1, 'platform': 'android'},
-          'profiles.json': {'profiles': [
-            {'id': 'remote1', 'name': 'Remote Profile'}
-          ]},
+          'metadata.json': {'formatVersion': 1},
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
         });
-
+        var pulled = false;
         final client = http_testing.MockClient((request) async {
-          expect(request.method, 'GET');
-          expect(
-            request.url.toString(),
-            'http://192.168.1.50:8080/api/v1/data/export',
-          );
-          return http.Response.bytes(targetZip, 200);
+          if (request.method == 'GET') {
+            pulled = true;
+            expect(request.url.path, '/api/v1/data/export');
+            return http.Response.bytes(targetZip, 200);
+          }
+          return http.Response('{}', 500);
         });
-
         final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'pull',
-        });
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
 
+        expect(pulled, isTrue);
         expect(response.statusCode, 200);
         final body = jsonDecode(await response.readAsString());
-        expect(body['pull'], contains('profiles'));
-        expect(profileSection.importCalled, isTrue);
+        expect(body['status'], 'complete');
+        expect(body['pull']['profiles']['imported'], 1);
       });
 
-      test('pull uses skip strategy by default', () async {
-        final targetZip = buildZip({
-          'metadata.json': {'formatVersion': 1},
-          'profiles.json': {'profiles': []},
+      test('classifies a non-200 pull as a target error', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response('nope', 503);
         });
-
-        final client = http_testing.MockClient(
-            (_) async => http.Response.bytes(targetZip, 200));
-
         final handler = buildSyncHandler(client);
-        await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'pull',
-        });
-
-        expect(profileSection.lastStrategy, ConflictStrategy.skip);
-      });
-
-      test('pull uses overwrite strategy when specified', () async {
-        final targetZip = buildZip({
-          'metadata.json': {'formatVersion': 1},
-          'profiles.json': {'profiles': []},
-        });
-
-        final client = http_testing.MockClient(
-            (_) async => http.Response.bytes(targetZip, 200));
-
-        final handler = buildSyncHandler(client);
-        await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'pull',
-          'onConflict': 'overwrite',
-        });
-
-        expect(profileSection.lastStrategy, ConflictStrategy.overwrite);
-      });
-
-      test('pull returns 502 when target returns error', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('Server Error', 500));
-
-        final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'pull',
-        });
-
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
         expect(response.statusCode, 502);
         final body = jsonDecode(await response.readAsString());
-        expect(body['pull']['error'], 'Target error');
-        expect(body['pull']['status'], 500);
+        expect(body['pull']['reason'], 'target_error');
       });
 
-      test('pull returns 502 when target is unreachable', () async {
-        final client = http_testing.MockClient(
-            (_) => throw http.ClientException('Connection refused'));
-
-        final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'pull',
+      test('classifies a malformed pull archive as invalid backup', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response.bytes([1, 2, 3, 4, 5, 6], 200);
         });
-
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
         expect(response.statusCode, 502);
         final body = jsonDecode(await response.readAsString());
-        expect(body['pull']['error'], 'Target unreachable');
+        expect(body['pull']['reason'], contains('invalid'));
+      });
+
+      test('preserves a partial pull result', () async {
+        final targetZip = buildZip({
+          'metadata.json': {'formatVersion': 1},
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
+        });
+        final client = http_testing.MockClient((request) async {
+          return http.Response.bytes(targetZip, 200);
+        });
+        final failingShots = MockExportSection(
+          filename: 'shots.json',
+          importResult: const SectionImportResult(
+            imported: 1,
+            errors: ['bad record'],
+          ),
+        );
+        final handler = buildSyncHandler(
+          client,
+          registeredSections: [
+            MockExportSection(filename: 'profiles.json'),
+            failingShots,
+          ],
+        );
+        final response = await sendSync(handler, requestBody(mode: 'pull'));
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['phases']['pull']['status'], 'partial');
       });
     });
 
-    group('push mode', () {
-      test('exports local data and sends to target', () async {
-        Uri? capturedUri;
-        List<int>? capturedBody;
-
+    group('push', () {
+      test('streams the local export to the target', () async {
+        var pushedBody = <int>[];
         final client = http_testing.MockClient((request) async {
-          capturedUri = request.url;
-          capturedBody = request.bodyBytes;
           expect(request.method, 'POST');
+          expect(request.url.path, '/api/v1/data/import');
+          expect(request.url.queryParameters['onConflict'], 'skip');
+          pushedBody = request.bodyBytes;
           return http.Response(
-            '{"profiles":{"imported":1,"skipped":0}}',
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
             200,
           );
         });
-
         final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'push',
-          'onConflict': 'overwrite',
-        });
-
+        final response = await sendSync(handler, requestBody(mode: 'push'));
         expect(response.statusCode, 200);
-        expect(
-          capturedUri.toString(),
-          'http://192.168.1.50:8080/api/v1/data/import?onConflict=overwrite',
-        );
-
-        // Verify ZIP was sent
-        final archive = ZipDecoder().decodeBytes(capturedBody!);
-        expect(archive.findFile('profiles.json'), isNotNull);
-
+        expect(pushedBody, isNotEmpty);
         final body = jsonDecode(await response.readAsString());
-        expect(body['push'], isNotNull);
+        expect(body['push']['profiles']['imported'], 1);
       });
 
-      test('push uses skip strategy by default', () async {
-        Uri? capturedUri;
-
+      test('local export failure prevents the remote request', () async {
+        var remoteCalled = false;
         final client = http_testing.MockClient((request) async {
-          capturedUri = request.url;
-          return http.Response('{"profiles":{"imported":0}}', 200);
+          remoteCalled = true;
+          return http.Response('{}', 500);
         });
-
-        final handler = buildSyncHandler(client);
-        await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'push',
-        });
-
-        expect(capturedUri.toString(),
-            contains('onConflict=skip'));
+        final failing = MockExportSection(
+          filename: 'profiles.json',
+          failExport: true,
+        );
+        final handler = buildSyncHandler(client, registeredSections: [failing]);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        expect(response.statusCode, 502);
+        expect(remoteCalled, isFalse);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['reason'], 'local_export_failed');
       });
 
-      test('push returns 502 when target returns error', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('Server Error', 500));
-
-        final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'push',
+      test('classifies remote 207 as a partial push', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response(
+            '{"profiles":{"imported":1,"errors":["x"]}}',
+            207,
+          );
         });
-
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
         expect(response.statusCode, 502);
         final body = jsonDecode(await response.readAsString());
-        expect(body['push']['error'], 'Target error');
-        expect(body['push']['status'], 500);
+        expect(body['phases']['push']['status'], 'partial');
       });
 
-      test('push returns 502 when target is unreachable', () async {
-        final client = http_testing.MockClient(
-            (_) => throw http.ClientException('Connection refused'));
-
-        final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'push',
+      test('classifies invalid remote JSON as invalid_json', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response('not json at all', 200);
         });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'push'));
+        final body = jsonDecode(await response.readAsString());
+        expect(body['push']['reason'], 'invalid_json');
+      });
 
+      test('rejects an oversized remote response body', () async {
+        final smallExport = DataExportHandler(
+          sections: sections,
+          limits: const DataTransferLimits(maxSyncResponseBytes: 64),
+        );
+        final client = http_testing.MockClient((request) async {
+          return http.Response(
+            '{"profiles":{"imported":1},"padding":"${'x' * 256}"}',
+            200,
+          );
+        });
+        final sync = DataSyncHandler(
+          exportHandler: smallExport,
+          httpClient: client,
+        );
+        final app = Router().plus;
+        sync.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/sync'),
+            body: jsonEncode(requestBody(mode: 'push')),
+            headers: {'content-type': 'application/json'},
+          ),
+        );
         expect(response.statusCode, 502);
         final body = jsonDecode(await response.readAsString());
-        expect(body['push']['error'], 'Target unreachable');
+        expect(body['push']['reason'], 'target_error');
       });
     });
 
-    group('two_way mode', () {
-      test('performs both pull and push', () async {
+    group('two_way', () {
+      test('runs push after a complete pull', () async {
         final targetZip = buildZip({
           'metadata.json': {'formatVersion': 1},
-          'profiles.json': {'profiles': []},
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
         });
-
-        int requestCount = 0;
         final client = http_testing.MockClient((request) async {
-          requestCount++;
           if (request.method == 'GET') {
             return http.Response.bytes(targetZip, 200);
           }
-          return http.Response('{"profiles":{"imported":0}}', 200);
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
         });
-
         final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'two_way',
-        });
-
+        final response = await sendSync(handler, requestBody(mode: 'two_way'));
         expect(response.statusCode, 200);
         final body = jsonDecode(await response.readAsString());
-        expect(body['pull'], isNotNull);
-        expect(body['push'], isNotNull);
-        expect(requestCount, 2);
+        expect(body['pull']['status'] ?? body['pull']['profiles'], isNotNull);
+        expect(body['push']['profiles']['imported'], 1);
+        expect(body['phases']['push']['status'], 'complete');
       });
 
-      test('returns 207 when pull succeeds but push fails', () async {
+      test('skips push after a fatal pull by default', () async {
+        final client = http_testing.MockClient((request) async {
+          return http.Response('server error', 500);
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(handler, requestBody(mode: 'two_way'));
+        expect(response.statusCode, 502);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['phases']['push']['status'], 'skipped');
+        expect(body['phases']['push']['reason'], 'pull_not_complete');
+      });
+
+      test('allows explicit continuation after a failed pull', () async {
+        var pushCalled = false;
+        final client = http_testing.MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response('error', 500);
+          }
+          pushCalled = true;
+          return http.Response(
+            '{"profiles":{"imported":1},"shots":{"imported":1}}',
+            200,
+          );
+        });
+        final handler = buildSyncHandler(client);
+        final response = await sendSync(
+          handler,
+          requestBody(mode: 'two_way', continueOnPullFailure: true),
+        );
+        expect(pushCalled, isTrue);
+        expect(response.statusCode, 207); // pull failed, push complete
+        final body = jsonDecode(await response.readAsString());
+        expect(body['phases']['pull']['status'], 'failed');
+        expect(body['phases']['push']['status'], 'complete');
+      });
+
+      test('returns 207 when pull completes and push is partial', () async {
         final targetZip = buildZip({
           'metadata.json': {'formatVersion': 1},
-          'profiles.json': {'profiles': []},
+          'profiles.json': [],
+          'shots.json': [],
         });
-
         final client = http_testing.MockClient((request) async {
           if (request.method == 'GET') {
             return http.Response.bytes(targetZip, 200);
           }
-          return http.Response('Server Error', 500);
+          return http.Response(
+            '{"profiles":{"imported":0,"errors":["boom"]}}',
+            207,
+          );
         });
-
         final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'two_way',
-        });
-
+        final response = await sendSync(handler, requestBody(mode: 'two_way'));
         expect(response.statusCode, 207);
         final body = jsonDecode(await response.readAsString());
-        expect(body['pull'], contains('profiles'));
-        expect(body['push']['error'], 'Target error');
-      });
-
-      test('returns 207 when push succeeds but pull fails', () async {
-        final client = http_testing.MockClient((request) async {
-          if (request.method == 'GET') {
-            return http.Response('Server Error', 500);
-          }
-          return http.Response('{"profiles":{"imported":0}}', 200);
-        });
-
-        final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'two_way',
-        });
-
-        expect(response.statusCode, 207);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['pull']['error'], 'Target error');
-        expect(body['push'], isNotNull);
-      });
-
-      test('returns 502 when both pull and push fail', () async {
-        final client = http_testing.MockClient(
-            (_) async => http.Response('Server Error', 500));
-
-        final handler = buildSyncHandler(client);
-        final response = await sendSync(handler, {
-          'target': 'http://192.168.1.50:8080',
-          'mode': 'two_way',
-        });
-
-        expect(response.statusCode, 502);
+        expect(body['status'], 'partial');
       });
     });
   });

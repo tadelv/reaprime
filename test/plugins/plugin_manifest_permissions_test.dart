@@ -10,7 +10,12 @@ void main() {
       'description': 'Test',
       'version': '1.0.0',
       'apiVersion': 1,
-      'permissions': ['log', 'api', 'proxy.decent_api'],
+      'permissions': [
+        'log',
+        'api',
+        'proxy.decent_api',
+        'proxy.decent_api.write',
+      ],
       'settings': <String, dynamic>{},
       'api': <dynamic>[],
     });
@@ -18,6 +23,10 @@ void main() {
     expect(manifest.permissions, contains(PluginPermissions.log));
     expect(manifest.permissions, contains(PluginPermissions.api));
     expect(manifest.permissions, contains(PluginPermissions.proxyDecentApi));
+    expect(
+      manifest.permissions,
+      contains(PluginPermissions.proxyDecentApiWrite),
+    );
   });
 
   test('serializes permissions using manifest wire values', () {

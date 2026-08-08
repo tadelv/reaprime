@@ -14,11 +14,8 @@ import '../../helpers/mock_settings_service.dart';
 import '../../helpers/test_scale.dart';
 import '../../helpers/test_scale_controller.dart';
 
-ShotStateEvent _event(ShotState state) => ShotStateEvent(
-  event: 'state',
-  timestamp: DateTime.now(),
-  state: state,
-);
+ShotStateEvent _event(ShotState state) =>
+    ShotStateEvent(event: 'state', timestamp: DateTime.now(), state: state);
 
 void main() {
   late Handler handler;
@@ -114,10 +111,7 @@ void main() {
     'PUT /api/v1/scale/tare — blockTareDuringShot enabled, full gateway mode',
     () {
       setUp(
-        () => wire(
-          blockTareDuringShot: true,
-          gatewayMode: GatewayMode.full,
-        ),
+        () => wire(blockTareDuringShot: true, gatewayMode: GatewayMode.full),
       );
 
       test('allows tare even while a tracked shot looks active', () async {

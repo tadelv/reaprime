@@ -5,20 +5,16 @@ enum ScanTerminationReason {
   completed,
   timedOut,
   cancelledByUser,
-  adapterStateChanged
+  adapterStateChanged,
 }
 
 class ConnectionResult {
   final bool success;
   final String? error;
 
-  const ConnectionResult.succeeded()
-      : success = true,
-        error = null;
+  const ConnectionResult.succeeded() : success = true, error = null;
   const ConnectionResult.failed(this.error) : success = false;
-  const ConnectionResult.skipped()
-      : success = false,
-        error = null;
+  const ConnectionResult.skipped() : success = false, error = null;
 }
 
 class MatchedDevice {

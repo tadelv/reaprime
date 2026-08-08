@@ -83,7 +83,10 @@ class LauncherView extends StatelessWidget {
   final bool isDegradedAndroid;
 
   bool get _supportsWebView =>
-      Platform.isIOS || Platform.isAndroid || Platform.isMacOS || Platform.isWindows;
+      Platform.isIOS ||
+      Platform.isAndroid ||
+      Platform.isMacOS ||
+      Platform.isWindows;
 
   @override
   Widget build(BuildContext context) {
@@ -126,8 +129,9 @@ class LauncherView extends StatelessWidget {
                             children: [
                               if (!hasMachine)
                                 ConnectDeviceHeroCard(
-                                  onScan: () => Navigator.of(context)
-                                      .pushNamed(LauncherScanPage.routeName),
+                                  onScan: () => Navigator.of(
+                                    context,
+                                  ).pushNamed(LauncherScanPage.routeName),
                                 ),
                               _buildSkinSlot(context, slot),
                             ],
@@ -153,9 +157,11 @@ class LauncherView extends StatelessWidget {
       case LauncherSkinSlot.browserHero:
         return BrowserHeroCard(deviceIp: webUIService.deviceIp());
       case LauncherSkinSlot.returnToSkin:
-        return _ReturnToSkinButton(onTap: () {
-          Navigator.of(context).pushNamed(SkinView.routeName);
-        });
+        return _ReturnToSkinButton(
+          onTap: () {
+            Navigator.of(context).pushNamed(SkinView.routeName);
+          },
+        );
       case LauncherSkinSlot.skinUnavailable:
         return SkinUnavailableCard(
           reason: SkinUnavailableReason.notServing,
@@ -221,12 +227,13 @@ class LauncherView extends StatelessWidget {
           crossAxisSpacing: 12,
           childAspectRatio: 1.0,
           children: destinations
-              .map((d) => DestinationCard(
-                    icon: d.icon,
-                    label: d.label,
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(d.route),
-                  ))
+              .map(
+                (d) => DestinationCard(
+                  icon: d.icon,
+                  label: d.label,
+                  onTap: () => Navigator.of(context).pushNamed(d.route),
+                ),
+              )
               .toList(),
         );
       },

@@ -91,17 +91,14 @@ class ScaleController {
       _scaleSnapshot?.cancel();
       _scaleSnapshot = null;
       _connectionController.add(ConnectionState.disconnected);
-      throw StateError(
-        'Scale failed to connect (state: ${state.name})',
-      );
+      throw StateError('Scale failed to connect (state: ${state.name})');
     }
     // Subscribe to connection state AFTER onConnect succeeds, so we don't
     // get poisoned by a BehaviorSubject replaying a stale 'disconnected'
     // state from before reconnection.
-    _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
-    _connectionController.add(ConnectionState.connected);
+    _scaleConnection = scale.connectionState.listen(_processConnection);
   }
 
   /// Adopt a scale that has already been connected and had [onConnect]
@@ -134,10 +131,9 @@ class ScaleController {
       _connectionController.add(ConnectionState.disconnected);
       throw StateError('Adopted scale not connected (state: ${state.name})');
     }
-    _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
-    _connectionController.add(ConnectionState.connected);
+    _scaleConnection = scale.connectionState.listen(_processConnection);
   }
 
   void _onDisconnect() {

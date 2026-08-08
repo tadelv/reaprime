@@ -11,6 +11,8 @@ class PersistenceController {
 
   PersistenceController({required this.storageService});
 
+  void Function(String shotId)? onShotStored;
+
   /// Fires whenever shots are added, updated, or deleted.
   /// Consumers should re-query what they need from [storageService].
   final _shotsChangedSubject = PublishSubject<void>();
@@ -35,6 +37,7 @@ class PersistenceController {
     try {
       await storageService.storeShot(record);
       _shotsChangedSubject.add(null);
+      onShotStored?.call(record.id);
     } catch (e, st) {
       _log.severe("Error saving shot:", e, st);
     }

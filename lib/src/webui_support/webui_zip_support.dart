@@ -11,9 +11,9 @@ import 'package:path/path.dart' as p;
 /// standing up the full storage + asset bundle stack.
 ///
 /// Issues this file addresses:
-///   - https://github.com/tadelv/reaprime/issues/147
+///   - https://github.com/decentespresso/decaid/issues/147
 ///     `_installFromZip` crashed on Windows-reserved filename chars.
-///   - https://github.com/tadelv/reaprime/issues/148
+///   - https://github.com/decentespresso/decaid/issues/148
 ///     `_copyBundledSkins` silently skipped every later bundled skin if any
 ///     earlier one threw.
 
@@ -32,15 +32,17 @@ final _win32ReservedChars = RegExp(r'[<>:"|?*]');
 String sanitizeZipEntryPath(String entryName) {
   if (entryName.isEmpty) return entryName;
   final segments = entryName.split('/');
-  final sanitised = segments.map((segment) {
-    var s = segment.replaceAll(_win32ReservedChars, '_');
-    // Win32 silently drops trailing dots and spaces from path components;
-    // strip them so what we ask for is what we get on disk.
-    while (s.isNotEmpty && (s.endsWith('.') || s.endsWith(' '))) {
-      s = s.substring(0, s.length - 1);
-    }
-    return s;
-  }).join('/');
+  final sanitised = segments
+      .map((segment) {
+        var s = segment.replaceAll(_win32ReservedChars, '_');
+        // Win32 silently drops trailing dots and spaces from path components;
+        // strip them so what we ask for is what we get on disk.
+        while (s.isNotEmpty && (s.endsWith('.') || s.endsWith(' '))) {
+          s = s.substring(0, s.length - 1);
+        }
+        return s;
+      })
+      .join('/');
   return sanitised;
 }
 
@@ -55,8 +57,47 @@ class ExtractionResult {
   const ExtractionResult({required this.extracted, required this.skipped});
 }
 
+/// Returns true when [entryName] is safe to write under a destination
+/// directory. Archive entry names are untrusted input, so this rejects
+/// anything that could resolve outside the extraction root:
+///
+///   - NUL bytes
+///   - absolute paths (leading `/` or `\`, Windows drive prefixes, UNC)
+///   - `..` path components, using `/` or `\` separators (so Windows-style
+///     traversal like `..\escape` is caught on every host)
+///
+/// Win32-reserved characters (`<>:"|?*`) are NOT rejected here — they are
+/// handled by [sanitizeZipEntryPath] so otherwise-valid POSIX filenames
+/// survive on non-Windows hosts.
+bool isSafeZipEntryPath(String entryName) {
+  if (entryName.contains('\x00')) return false;
+  if (entryName.startsWith('/') || entryName.startsWith('\\')) return false;
+  if (entryName.startsWith('\\\\') || entryName.startsWith('//')) return false;
+
+  // Windows drive prefix (`C:...`): rooted on Windows.
+  if (entryName.length >= 2 && entryName.codeUnitAt(1) == 0x3A /* : */ ) {
+    final first = entryName.codeUnitAt(0);
+    final isLetter =
+        (first >= 0x41 && first <= 0x5A) || (first >= 0x61 && first <= 0x7A);
+    if (isLetter) return false;
+  }
+
+  // Normalise Windows separators so `..\escape` is caught on every host.
+  final normalized = entryName.replaceAll('\\', '/');
+  for (final segment in normalized.split('/')) {
+    if (segment == '..') return false;
+  }
+  return true;
+}
+
 /// Extracts every entry of [archive] under [destDir], isolating per-entry
 /// failures so a single bad entry cannot abort the whole extraction.
+///
+/// Archive entry names are treated as untrusted. Every entry is validated
+/// against path-traversal before anything is written: if any entry is
+/// absolute, contains `..` components, or would resolve outside [destDir],
+/// the whole archive is rejected with a [FormatException] and nothing is
+/// written — traversal is never silently sanitised away.
 ///
 /// When [sanitize] is true, each entry path is run through
 /// [sanitizeZipEntryPath] first — callers set this on Windows, where the
@@ -74,18 +115,34 @@ ExtractionResult extractArchiveToDirectory(
   required bool sanitize,
   Logger? log,
 }) {
+  // Pass 1: validate every entry before writing any files. A single unsafe
+  // entry rejects the whole archive so nothing can land outside destDir.
+  for (final entry in archive) {
+    final originalName = entry.name;
+    final safeName = sanitize
+        ? sanitizeZipEntryPath(originalName)
+        : originalName;
+    final outPath = p.normalize(p.join(destDir.path, safeName));
+    if (!isSafeZipEntryPath(originalName) ||
+        (outPath != destDir.path && !p.isWithin(destDir.path, outPath))) {
+      throw FormatException(
+        'Rejecting zip archive: entry "$originalName" resolves outside the '
+        'extraction directory',
+      );
+    }
+  }
+
   var extracted = 0;
   var skipped = 0;
 
   for (final entry in archive) {
     final originalName = entry.name;
-    final safeName =
-        sanitize ? sanitizeZipEntryPath(originalName) : originalName;
+    final safeName = sanitize
+        ? sanitizeZipEntryPath(originalName)
+        : originalName;
 
     if (safeName != originalName) {
-      log?.fine(
-        'Sanitised zip entry name: "$originalName" -> "$safeName"',
-      );
+      log?.fine('Sanitised zip entry name: "$originalName" -> "$safeName"');
     }
 
     if (safeName.isEmpty) {
@@ -139,11 +196,7 @@ Future<void> installBundledSkinList(
     try {
       await installOne(skinId);
     } catch (e, st) {
-      log?.warning(
-        'Failed to install bundled skin "$skinId"',
-        e,
-        st,
-      );
+      log?.warning('Failed to install bundled skin "$skinId"', e, st);
     }
   }
 }

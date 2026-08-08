@@ -57,7 +57,7 @@ bool isBenignFrameworkError(Object error) {
   // state). Not a code bug.
   if (errorString.startsWith('PlatformException(') &&
       (errorString.contains('Bonsoir') ||
-       errorString.contains('ServiceNotRunning'))) {
+          errorString.contains('ServiceNotRunning'))) {
     return true;
   }
 

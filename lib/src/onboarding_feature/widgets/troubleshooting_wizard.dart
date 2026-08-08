@@ -55,12 +55,11 @@ List<TroubleshootingStep> troubleshootingSteps({
           ? 'Bluetooth Permission Required'
           : 'Is Bluetooth enabled?',
       description: adapterState == AdapterState.unauthorized
-          ? 'Decent.app needs Bluetooth permission to discover your espresso machine. '
-              'Go to Settings > Privacy & Security > Bluetooth and enable it for Decent.app.'
+          ? 'Decaid needs Bluetooth permission to discover your espresso machine. '
+                'Go to Settings > Privacy & Security > Bluetooth and enable it for Decaid.'
           : 'Bluetooth adapter state: ${adapterState.name}',
       buttonText: 'Continue',
-      shouldShow: () =>
-          runningOnIOS && adapterState != AdapterState.poweredOn,
+      shouldShow: () => runningOnIOS && adapterState != AdapterState.poweredOn,
       extraBuilder: (context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: AccessibleButton(
@@ -101,18 +100,15 @@ Future<void> showTroubleshootingWizard({
 }) {
   return showDialog<void>(
     context: context,
-    builder: (dialogContext) => _TroubleshootingWizardDialog(
-      adapterState: adapterState,
-    ),
+    builder: (dialogContext) =>
+        _TroubleshootingWizardDialog(adapterState: adapterState),
   );
 }
 
 class _TroubleshootingWizardDialog extends StatefulWidget {
   final AdapterState adapterState;
 
-  const _TroubleshootingWizardDialog({
-    required this.adapterState,
-  });
+  const _TroubleshootingWizardDialog({required this.adapterState});
 
   @override
   State<_TroubleshootingWizardDialog> createState() =>

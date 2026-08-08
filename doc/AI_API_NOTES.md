@@ -24,6 +24,19 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 - Content-based hash IDs for profile deduplication (`ProfileController`).
 - ETag / `If-None-Match` support on cacheable resources (#203).
 
+### Backup Import and Sync Invariants
+
+- A successful backup import requires at least one recognized selected payload; metadata alone is not payload.
+- `200` means all processed import sections completed without errors. Any section error, including a returned `SectionImportResult.errors` list, means `207`.
+- ZIP integrity and structural JSON for every selected section are validated before any section mutates storage. Any failure in that phase returns `400` and imports nothing.
+- Semantic record and section errors remain isolated after validation, so other recognized sections may import. Those imports are not transactional and successful sections are not rolled back.
+- `DataImportOutcome` (or its equivalent) is the source of import completeness classification; clients must not infer it by reparsing the section response map.
+- Data sync preserves complete, partial, and fatal phase states. A remote import `207` is a partial push, not a target failure.
+- UI clients must not collapse `207` into complete success.
+- Backup export is atomic: a requested section export failure returns an error and never a partial ZIP. Native callers validate HTTP `200` and `application/zip` before opening a save picker.
+- Remote sync clients accept legacy flat section maps and structured `sections` responses, but fail closed for missing sections, malformed semantic fields, contradictory declarations, or a hybrid representation.
+- In every sync mode, omitted sections mean all locally registered sections; explicit empty, unknown, or malformed section lists are rejected before network activity.
+
 ## WebSocket Conventions
 
 - WebSocket topics are path-based: `/ws/v1/machine/state`, `/ws/v1/machine/shotState`, `/ws/v1/scale/snapshot`, etc.
@@ -99,7 +112,7 @@ A machine power-cycle drops the De1 object and builds a new one under the same d
 
 - **No `{"status": ...}` frames.** Unlike the scale socket, the machine sockets carry a single typed payload per frame and existing clients parse every frame as that type; injecting a status frame would be a breaking change to the wire contract. Link state is already published, instance-independently, on `/ws/v1/devices`.
 
-- **Initial attachment is deterministic.** The initial machine is read from `connectedDe1OrNull` and subscribed immediately, before subscribing to the controller stream. This eliminates the window where a command could arrive while `attached` is still null waiting for the BehaviorSubject replay.
+- **Initial attachment is deterministic.** When `connectedDe1OrNull` returns a machine, it is subscribed immediately before subscribing to the controller stream. When no machine exists, the socket starts detached and waits for the first non-null `De1Controller.de1` event. Telemetry sockets emit nothing until attachment, while raw commands still return the documented detached-command error.
 
 - **Commands during disconnect produce an error frame.** `/ws/v1/machine/raw` commands sent while no machine is attached get a `{"error": "No machine connected"}` response rather than being silently dropped. The socket stays open. Raw commands are never queued for later delivery — a delayed raw read/write could be stale or unsafe.
 
@@ -118,3 +131,169 @@ All four machine sockets: `/ws/v1/machine/snapshot`, `/ws/v1/machine/shotSetting
 ## Keeping Notes Fresh
 
 Add protocol compatibility rules, API versioning decisions, and endpoint design rationale. Prune when specs are updated.
+
+## Data Sync Invariants
+
+- Sync phase success is derived from requested section semantics, not transport status alone.
+- Existing direct `pull.<section>` and `push.<section>` paths are compatibility surfaces; semantic phase data is additive under `phases`.
+- Pull, push, and two-way may omit sections; omission means all locally registered sections. Explicit empty lists are invalid in every mode. Missing requested archive or import sections prevent completion.
+- Legacy HTTP `200` import bodies with embedded errors are partial or failed according to section progress.
+- Two-way push requires a complete pull unless `continueOnPullFailure: true` is explicitly requested.
+- Skipped push is represented as a `skipped` phase, and partial section processing is not transactional.
+
+## Bounded Backup Streaming (issue #555)
+
+The backup pipeline streams data end to end; peak memory scales with one page
+of records and one JSON record, never with backup size. Rationale and traps:
+
+- **ZIP export keeps the custom streaming writer because `archive`'s encoder
+  buffers compressed entries.** Import uses `archive`'s file-backed
+  `InputFileStream` / `ZipDecoder` path. Each selected `ArchiveFile` writes to
+  one bounded temporary JSON file through `OutputFileStream`; size and CRC are
+  verified before incremental parsing, and the file is deleted before the next
+  entry. New exports remain byte-compatible with `ZipDecoder`, and old
+  `ZipEncoder` backups still import.
+- **JSON is parsed with a real incremental parser**
+  (`util/incremental_json_parser.dart`): a token-level state machine that
+  yields complete values at a configured depth (1 for array sections, 3 for
+  the KV `namespaces` map, 0 for singletons), handles strings/escapes/UTF-8
+  boundaries, and throws on truncation, trailing garbage, and bad tokens.
+  Import first validates every selected section without mutation, then runs
+  the record imports. Malformed JSON returns `400` without importing any
+  section; valid JSON with individually invalid records keeps per-record error
+  accounting.
+- **Sections stream records** via injected page functions (keyset cursors for
+  shots/steams on `(timestamp, id)`, beans/grinders on `(createdAt, id)`;
+  profile ids and KV keys are small, documented exceptions). Storage
+  interfaces are unchanged; `BackupDataSources` carries the DB-backed page
+  functions from `main.dart`, and tests inject instrumented paging seams.
+- **Limits** are centralized in `data_transfer_limits.dart` and injectable
+  for tests: request body 2 GiB, entry count 4096, per-entry uncompressed
+  1 GiB, total uncompressed 2 GiB, metadata 64 KiB, per-record 64 MiB, ZIP
+  header fields 256 B/64 KiB/64 KiB, sync request 1 MiB, target response
+  8 MiB; timeouts 10 s connection (TCP establishment only) / 30 s idle /
+  10 min deadline per phase covering the NETWORK stages only (upload/
+  download + response); local export and the pull-side import run to
+  completion and report their actual results. Timeouts abort the request
+  at the transport level via `http.AbortableRequest` /
+  `AbortableStreamedRequest`: a timed-out pull is cut off even before
+  headers (while the target is still generating its export) and never
+  starts its import; a timed-out push aborts its upload so a push still
+  uploading cannot complete remotely. The push body is fed with
+  `sink.addStream`, which pauses the file read while the transport is
+  backpressured (the archive is never read ahead of the network); the
+  sink closes only after the file is fully read (`addStream` does not
+  forward the source's done event). Once the archive is fully uploaded
+  the remote outcome is unknowable and the phase reports reason
+  `timeout_unknown` rather than claiming the push did not happen. The
+  completed export archive is also bounded by the 2 GiB import request
+  limit, and per-record caps are measured in UTF-8 bytes. All are below
+  ZIP64 thresholds so Zip64 can be rejected outright.
+- **Temp files**: every operation owns one unique temp directory
+  (`util/temp_archive_files.dart`), deleted in `finally` or on stream
+  cancel/done. Native export defers cleanup (grace timer) because the OS
+  share sheet reads the file asynchronously.
+- **Legacy compatibility**: entry names, JSON shapes (including
+  `store.json`'s `namespaces` wrapper and beans' embedded `batches`),
+  `metadata.json` semantics, conflict strategies, selected-section behavior,
+  platform warnings, atomic export, non-transactional section isolation, and
+  `200`/`207`/`400` + sync phase semantics are unchanged.
+
+## Workflow PUT Queue
+
+`PUT /api/v1/workflow` operations are serialized through one queue owned by
+`WorkflowHandler`. One HTTP request is exactly one queue entry. Separate requests
+must not be coalesced without a future explicit client or session contract. The
+handler reads the workflow base when a queue entry reaches execution, then applies
+only that request's deep merge. Machine side effects from workflow PUTs, profile
+sync, and Bengle workflow bridges share the `De1Controller` device-write queue.
+Each entry captures one machine and connection generation; workflow setting writes
+retry once on a replacement machine after that generation's startup initialization
+settles. Startup defaults finish before the generation barrier releases. A failure
+must not poison the queue tail.
+Request bodies are read with a 30-second timeout before their queued operation
+executes; body-read failures are observed immediately and do not poison the queue.
+The body stream subscription is cancelled on completion, error, size rejection, or
+timeout so expired readers cannot outlive admission accounting.
+Admission is limited to 1 MiB per body and eight active or queued requests. A request
+that waits 30 seconds for execution returns `503` and its queued mutation is skipped.
+
+Direct machine writes complete before controller workflow state is committed. The
+handler commits with a controller revision check; if another workflow source changes
+the controller during device I/O, the request rebases its merge and repeats the
+required writes before retrying the commit. A machine-write failure returns `500` and
+leaves controller workflow state unchanged; multi-step device writes may still be
+partially applied, so a retry re-attempts the requested settings. `WorkflowDeviceSync`
+remains the owner of asynchronous profile upload after controller changes.
+
+### Device-Write Retry and Machine Replacement
+
+`De1Controller.runDeviceWrite()` is the single serialization point for all REST
+machine writes (workflow PUTs, profile, shot settings, machine settings). The write
+callback receives the machine acquired inside the retry loop, so a disconnected
+interval (controller holding no machine) is handled by waiting — bounded by
+`ConnectionTimings.machineReplacementTimeout` (10 s) — for a non-null replacement and
+that generation's startup initialization to settle, then re-running the complete
+grouped write once on the replacement. The old machine is never acquired for a new
+write after the generation changes (an already-running write may still finish on it,
+see below). If no replacement appears within the bound, the handler returns
+`503 Machine unavailable`; if there was never a machine at all, the first attempt
+fails fast with `500` (unchanged behavior). The first attempt never waits: the bounded
+wait only applies to retries after a mid-write disconnect.
+
+A machine generation change cannot cancel an in-flight native write: the old machine
+may receive a partial or complete attempt. Only after that attempt finishes does the
+post-write generation check reject it, and the retry then re-runs the complete grouped
+operation from the start on the replacement.
+
+### REST Route Serialization Audit
+
+All mutating machine routes in `de1handler.dart` route their physical writes through
+`runDeviceWrite` (one HTTP request = one queue entry, parse-then-write, controller
+streams published only after the grouped write succeeds):
+
+- `PUT /api/v1/workflow` (workflow handler, device writes via `updateWorkflowSettings`)
+- `POST /api/v1/machine/profile`
+- `POST /api/v1/machine/shotSettings`
+- `POST /api/v1/machine/settings` (all fields, one entry)
+- `POST /api/v1/machine/settings/advanced`
+- `DELETE /api/v1/machine/settings/reset` (complete reset, one entry)
+- `POST /api/v1/machine/calibration`
+- `POST /api/v1/machine/waterLevels`
+- `PUT /api/v1/machine/cupWarmer`, `PUT /api/v1/machine/ledStrip`,
+  `POST /api/v1/machine/ledStrip/commit`, `POST /api/v1/machine/ledStrip/reset`
+
+Every endpoint above can return `503` when the machine disconnects mid-write and no
+replacement appears within the bounded wait, and `400` for malformed JSON bodies
+(machine settings, advanced, calibration, waterLevels, cupWarmer, ledStrip,
+profile, and shot settings parse their complete body before reserving a queue entry).
+Machine-write failures otherwise map to `500`.
+
+Documented bypasses:
+
+- `PUT /api/v1/machine/state/<newState>`: latency-sensitive machine commands (a stop
+  request must not queue behind a settings or profile write) that target the state
+  characteristic, not the settings/MMR registers the queue serializes.
+- Raw low-level MMR commands via `/ws/v1/machine/raw`: intentionally unqueued (see
+  the machine WebSocket re-bind section); a delayed raw read/write could be stale.
+
+### Machine Disconnect Simulation (debug only)
+
+`MockDe1.simulateDisconnect()` emits a disconnected connection state explicitly; it
+does not schedule a reconnect. It is exposed only through the simulate-mode
+`POST /api/v1/debug/machine/disconnect` route (via `DebugHandler`), mirroring the
+scale debug commands. Writing `heaterPh2Timeout` is an ordinary MMR write on
+`MockDe1`; on real hardware Decaid treats it as an ordinary MMR write — no reset
+behavior is documented.
+
+### Status Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | Workflow updated and committed |
+| 400 | Malformed or invalid JSON |
+| 408 | Client did not finish sending the body within the timeout |
+| 413 | Body exceeds 1 MiB limit |
+| 429 | Admission capacity full (8 active or queued requests) |
+| 500 | A required direct machine write failed, or no machine was ever connected |
+| 503 | Mutation timed out waiting for its execution turn, or no replacement machine appeared within the bounded wait |

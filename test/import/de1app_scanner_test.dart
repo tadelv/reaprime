@@ -34,7 +34,10 @@ void main() {
       });
 
       test('totalItems is shotCount + profileCount', () {
-        expect(result.totalItems, equals(result.shotCount + result.profileCount));
+        expect(
+          result.totalItems,
+          equals(result.shotCount + result.profileCount),
+        );
       });
 
       test('isEmpty is false', () {
@@ -71,7 +74,9 @@ void main() {
       late ScanResult result;
 
       setUpAll(() async {
-        tempDir = await Directory.systemTemp.createTemp('de1app_scanner_empty_v2_');
+        tempDir = await Directory.systemTemp.createTemp(
+          'de1app_scanner_empty_v2_',
+        );
         // Create empty history_v2/ and history/ with a .shot file
         await Directory('${tempDir.path}/history_v2').create();
         final historyDir = Directory('${tempDir.path}/history');
@@ -93,8 +98,9 @@ void main() {
 
     group('settings.tdb detection', () {
       test('hasSettings is true when settings.tdb exists', () async {
-        final tempDir =
-            await Directory.systemTemp.createTemp('de1app_scanner_settings_');
+        final tempDir = await Directory.systemTemp.createTemp(
+          'de1app_scanner_settings_',
+        );
         try {
           await File('${tempDir.path}/settings.tdb').writeAsString('');
           final result = await De1appScanner.scan(tempDir.path);
@@ -105,8 +111,9 @@ void main() {
       });
 
       test('hasSettings is false when settings.tdb does not exist', () async {
-        final tempDir =
-            await Directory.systemTemp.createTemp('de1app_scanner_no_settings_');
+        final tempDir = await Directory.systemTemp.createTemp(
+          'de1app_scanner_no_settings_',
+        );
         try {
           final result = await De1appScanner.scan(tempDir.path);
           expect(result.hasSettings, isFalse);
@@ -116,8 +123,9 @@ void main() {
       });
 
       test('isEmpty is false when only hasSettings is true', () async {
-        final tempDir =
-            await Directory.systemTemp.createTemp('de1app_scanner_only_settings_');
+        final tempDir = await Directory.systemTemp.createTemp(
+          'de1app_scanner_only_settings_',
+        );
         try {
           await File('${tempDir.path}/settings.tdb').writeAsString('');
           final result = await De1appScanner.scan(tempDir.path);
@@ -137,7 +145,9 @@ void main() {
       late ScanResult result;
 
       setUpAll(() async {
-        tempDir = await Directory.systemTemp.createTemp('de1app_scanner_empty_');
+        tempDir = await Directory.systemTemp.createTemp(
+          'de1app_scanner_empty_',
+        );
         result = await De1appScanner.scan(tempDir.path);
       });
 

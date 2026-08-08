@@ -44,9 +44,7 @@ class _TestDe1Controller extends De1Controller {
   final TestDe1 testDe1;
 
   _TestDe1Controller(this.testDe1)
-    : super(
-        controller: DeviceController([_FakeDiscoveryService()]),
-      );
+    : super(controller: DeviceController([_FakeDiscoveryService()]));
 
   @override
   De1Interface connectedDe1() => testDe1;
@@ -763,10 +761,7 @@ void main() {
         emitPouringFrameWithPressure(0, 4.0);
         async.elapse(Duration(milliseconds: 10));
 
-        expect(
-          testDe1.requestedStates,
-          isNot(contains(MachineState.skipStep)),
-        );
+        expect(testDe1.requestedStates, isNot(contains(MachineState.skipStep)));
 
         // Frame 1: pure weight step → fires
         scaleController.emitWeight(22.0);
@@ -1123,85 +1118,84 @@ void main() {
       });
     });
 
-    test(
-      'recorded trace stops at the machine-reported shot end; drips only '
-      'refine the yield',
-      () {
-        fakeAsync((async) {
-          scaleController.emitWeight(0.0);
+    test('recorded trace stops at the machine-reported shot end; drips only '
+        'refine the yield', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
 
-          final shotSequencer = ShotSequencer(
-            scaleController: scaleController,
-            de1controller: de1Controller,
-            persistenceController: persistenceController,
-            targetProfile: profile,
-            // High target so app-side SAW never fires — the machine itself
-            // reports the shot end via the pouringDone substate.
-            targetYield: 100.0,
-            bypassSAW: false,
-            blockOnNoScale: false,
-            weightFlowMultiplier: 0.0,
-            volumeFlowMultiplier: 0.0,
-            stepExitArbiterEnabled: true,
-          );
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          // High target so app-side SAW never fires — the machine itself
+          // reports the shot end via the pouringDone substate.
+          targetYield: 100.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
+        );
 
-          final recorded = <ShotSnapshot>[];
-          shotSequencer.shotData.listen(recorded.add);
+        final recorded = <ShotSnapshot>[];
+        shotSequencer.shotData.listen(recorded.add);
 
-          async.elapse(Duration(milliseconds: 10));
-          driveToPouring(shotSequencer);
-          async.elapse(Duration(milliseconds: 10));
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
 
-          // Two real pour samples climb toward the final weight.
-          scaleController.emitWeight(30.0, weightFlow: 1.5);
-          testDe1.emitStateAndSubstate(
-            MachineState.espresso,
-            MachineSubstate.pouring,
-          );
-          async.elapse(Duration(milliseconds: 10));
+        // Two real pour samples climb toward the final weight.
+        scaleController.emitWeight(30.0, weightFlow: 1.5);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
 
-          scaleController.emitWeight(35.5, weightFlow: 0.8);
-          testDe1.emitStateAndSubstate(
-            MachineState.espresso,
-            MachineSubstate.pouring,
-          );
-          async.elapse(Duration(milliseconds: 10));
+        scaleController.emitWeight(35.5, weightFlow: 0.8);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
 
-          // Machine reports the shot is done — this is the boundary. Recording
-          // must stop here; this sample and the drips after it are excluded.
-          scaleController.emitWeight(36.0, weightFlow: 0.3);
-          testDe1.emitStateAndSubstate(
-            MachineState.espresso,
-            MachineSubstate.pouringDone,
-          );
-          async.elapse(Duration(milliseconds: 10));
+        // Machine reports the shot is done — this is the boundary. Recording
+        // must stop here; this sample and the drips after it are excluded.
+        scaleController.emitWeight(36.0, weightFlow: 0.3);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
 
-          // Post-stop drip refines the yield but stays out of the trace.
-          scaleController.emitWeight(36.4, weightFlow: 0.2);
-          testDe1.emitStateAndSubstate(
-            MachineState.espresso,
-            MachineSubstate.pouringDone,
-          );
-          async.elapse(Duration(milliseconds: 10));
+        // Post-stop drip refines the yield but stays out of the trace.
+        scaleController.emitWeight(36.4, weightFlow: 0.2);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
 
-          // The two driveToPouring frames carry the seeded 0.0 weight, then the
-          // two pour samples. Nothing from the stopping window is recorded.
-          expect(
-            recorded.map((s) => s.scale?.weight).toList(),
-            [0.0, 0.0, 30.0, 35.5],
-          );
-          expect(
-            recorded.last.machine.state.substate,
-            MachineSubstate.pouring,
-            reason: 'trace ends on the last actively-pouring sample',
-          );
-          // The yield, however, follows the last drip.
-          expect(shotSequencer.trustedFinalYield, 36.4);
+        // The two driveToPouring frames carry the seeded 0.0 weight, then the
+        // two pour samples. Nothing from the stopping window is recorded.
+        expect(recorded.map((s) => s.scale?.weight).toList(), [
+          0.0,
+          0.0,
+          30.0,
+          35.5,
+        ]);
+        expect(
+          recorded.last.machine.state.substate,
+          MachineSubstate.pouring,
+          reason: 'trace ends on the last actively-pouring sample',
+        );
+        // The yield, however, follows the last drip.
+        expect(shotSequencer.trustedFinalYield, 36.4);
 
-          shotSequencer.dispose();
-        });
-      },
-    );
+        shotSequencer.dispose();
+      });
+    });
 
     test('suppresses weight and flow to 0 until the pour-time tare', () {
       fakeAsync((async) {
@@ -1848,9 +1842,7 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         expect(
-          decisions.where(
-            (d) => d.reason == ShotDecisionReason.profileAdvance,
-          ),
+          decisions.where((d) => d.reason == ShotDecisionReason.profileAdvance),
           isEmpty,
           reason:
               'an app-skipped frame must not double-report as a '
@@ -1924,9 +1916,7 @@ void main() {
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
         expect(
-          decisions.where(
-            (d) => d.reason == ShotDecisionReason.profileAdvance,
-          ),
+          decisions.where((d) => d.reason == ShotDecisionReason.profileAdvance),
           hasLength(2),
         );
 
@@ -2105,9 +2095,7 @@ void main() {
         }
 
         expect(
-          decisions.where(
-            (d) => d.reason == ShotDecisionReason.profileAdvance,
-          ),
+          decisions.where((d) => d.reason == ShotDecisionReason.profileAdvance),
           hasLength(1),
           reason:
               'a BLE frame reorder must not re-emit an advance already '

@@ -89,9 +89,7 @@ class FirmwareHandler {
             : null,
         'recommendedArtifactId': recommended?.id,
         'updateAvailable': updateAvailable,
-        'operation': {
-          'state': _resolveOperationState().name,
-        },
+        'operation': {'state': _resolveOperationState().name},
       }),
       headers: {'Content-Type': 'application/json'},
     );

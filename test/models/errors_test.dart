@@ -33,8 +33,11 @@ void main() {
       expect(
         () => controller.connectedDe1(),
         throwsA(
-          isA<DeviceNotConnectedException>()
-              .having((e) => e.kind, 'kind', DeviceKind.machine),
+          isA<DeviceNotConnectedException>().having(
+            (e) => e.kind,
+            'kind',
+            DeviceKind.machine,
+          ),
         ),
       );
     });
@@ -46,8 +49,11 @@ void main() {
       expect(
         () => controller.connectedScale(),
         throwsA(
-          isA<DeviceNotConnectedException>()
-              .having((e) => e.kind, 'kind', DeviceKind.scale),
+          isA<DeviceNotConnectedException>().having(
+            (e) => e.kind,
+            'kind',
+            DeviceKind.scale,
+          ),
         ),
       );
     });

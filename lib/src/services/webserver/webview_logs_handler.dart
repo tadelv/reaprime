@@ -9,7 +9,7 @@ class WebViewLogsHandler {
   final WebViewLogService _webViewLogService;
 
   WebViewLogsHandler({required WebViewLogService webViewLogService})
-      : _webViewLogService = webViewLogService;
+    : _webViewLogService = webViewLogService;
 
   void addRoutes(RouterPlus app) {
     // REST: raw log file contents

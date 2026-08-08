@@ -9,12 +9,14 @@ import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/device_watch.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/usb_attach_probe.dart';
 import 'package:reaprime/src/models/device/watch_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
-class DeviceController implements DeviceScanner, DeviceAttachNotifier {
+class DeviceController
+    implements DeviceScanner, DeviceAttachNotifier, UsbAttachProbe {
   final List<DeviceDiscoveryService> _services;
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
@@ -41,8 +43,7 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
       BehaviorSubject.seeded(AdapterState.unknown);
 
   @override
-  Stream<AdapterState> get adapterStateStream =>
-      _adapterStateStream.stream;
+  Stream<AdapterState> get adapterStateStream => _adapterStateStream.stream;
 
   @override
   AdapterState get currentAdapterState => _adapterStateStream.value;
@@ -53,6 +54,9 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
   @override
   Stream<DeviceAttachedEvent> get deviceAttached =>
       _deviceAttachedStream.stream;
+
+  /// Weak origin association for attach-probe routing.
+  final Expando<DeviceDiscoveryService> _attachOrigins = Expando();
 
   final List<StreamSubscription> _serviceSubscriptions = [];
 
@@ -143,6 +147,7 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
         }
         if (service case final DeviceAttachNotifier notifier) {
           final attachSub = notifier.deviceAttached.listen((event) {
+            _attachOrigins[event] = service;
             _log.info("device attached on $service: $event");
             if (!_deviceAttachedStream.isClosed) {
               _deviceAttachedStream.add(event);
@@ -275,6 +280,17 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
     return null;
   }
 
+  @override
+  Future<AttachProbeResult> connectAttachedMachine(
+    DeviceAttachedEvent event,
+  ) async {
+    final origin = _attachOrigins[event];
+    if (origin case final UsbAttachProbe probe) {
+      return probe.connectAttachedMachine(event);
+    }
+    return const AttachProbeUnavailable();
+  }
+
   Iterable<DeviceWatchCapable> get _watchCapableServices => _services
       .whereType<DeviceWatchCapable>()
       .where((s) => s.supportsDeviceWatch);
@@ -337,8 +353,7 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
     // will produce the authoritative list when it completes.
     if (!isScanning) {
       // Detect disconnections: devices that were in previous update but not in current
-      final disconnectedIds =
-          _previousDeviceIds.difference(currentDeviceIds);
+      final disconnectedIds = _previousDeviceIds.difference(currentDeviceIds);
       for (var deviceId in disconnectedIds) {
         _disconnectedAt[deviceId] = DateTime.now();
         final name = _deviceNamesById[deviceId] ?? deviceId;
@@ -352,7 +367,8 @@ class DeviceController implements DeviceScanner, DeviceAttachNotifier {
           final duration = DateTime.now().difference(disconnectedTime);
           final name = _deviceNamesById[deviceId] ?? deviceId;
           _log.info(
-              "Device $name ($deviceId) reconnected after ${duration.inSeconds}s");
+            "Device $name ($deviceId) reconnected after ${duration.inSeconds}s",
+          );
 
           // Set telemetry custom key with reconnection duration
           _telemetryService?.setCustomKey(

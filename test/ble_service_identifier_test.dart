@@ -7,35 +7,35 @@ void main() {
       final identifier = BleServiceIdentifier.short('fff0');
 
       expect(identifier.short, equals('fff0'));
-      expect(
-          identifier.long, equals('0000fff0-0000-1000-8000-00805f9b34fb'));
+      expect(identifier.long, equals('0000fff0-0000-1000-8000-00805f9b34fb'));
     });
 
     test('long constructor with base UUID pattern extracts short form', () {
-      final identifier =
-          BleServiceIdentifier.long('0000ff08-0000-1000-8000-00805f9b34fb');
+      final identifier = BleServiceIdentifier.long(
+        '0000ff08-0000-1000-8000-00805f9b34fb',
+      );
 
       expect(identifier.short, equals('ff08'));
-      expect(
-          identifier.long, equals('0000ff08-0000-1000-8000-00805f9b34fb'));
+      expect(identifier.long, equals('0000ff08-0000-1000-8000-00805f9b34fb'));
     });
 
     test('long constructor with custom UUID cannot extract short form', () {
-      final identifier =
-          BleServiceIdentifier.long('06c31822-8682-4744-9211-febc93e3bece');
+      final identifier = BleServiceIdentifier.long(
+        '06c31822-8682-4744-9211-febc93e3bece',
+      );
 
-      expect(
-          identifier.long, equals('06c31822-8682-4744-9211-febc93e3bece'));
+      expect(identifier.long, equals('06c31822-8682-4744-9211-febc93e3bece'));
       expect(() => identifier.short, throwsStateError);
     });
 
     test('both constructor accepts explicit short and long UUIDs', () {
       final identifier = BleServiceIdentifier.both(
-          'fff0', '0000fff0-0000-1000-8000-00805f9b34fb');
+        'fff0',
+        '0000fff0-0000-1000-8000-00805f9b34fb',
+      );
 
       expect(identifier.short, equals('fff0'));
-      expect(
-          identifier.long, equals('0000fff0-0000-1000-8000-00805f9b34fb'));
+      expect(identifier.long, equals('0000fff0-0000-1000-8000-00805f9b34fb'));
     });
 
     test('short constructor validates 4 hex chars', () {
@@ -55,8 +55,9 @@ void main() {
 
     test('identifiers with same long form are equal', () {
       final id1 = BleServiceIdentifier.short('fff0');
-      final id2 =
-          BleServiceIdentifier.long('0000fff0-0000-1000-8000-00805f9b34fb');
+      final id2 = BleServiceIdentifier.long(
+        '0000fff0-0000-1000-8000-00805f9b34fb',
+      );
 
       expect(id1, equals(id2));
       expect(id1.hashCode, equals(id2.hashCode));
@@ -77,7 +78,8 @@ void main() {
 
     test('parse auto-detects long UUID', () {
       final id = BleServiceIdentifier.parse(
-          '06c31822-8682-4744-9211-febc93e3bece');
+        '06c31822-8682-4744-9211-febc93e3bece',
+      );
       expect(id.long, equals('06c31822-8682-4744-9211-febc93e3bece'));
     });
 
@@ -95,8 +97,9 @@ void main() {
     test('can be used as Map keys', () {
       final map = <BleServiceIdentifier, String>{};
       final key1 = BleServiceIdentifier.short('fff0');
-      final key2 =
-          BleServiceIdentifier.long('0000fff0-0000-1000-8000-00805f9b34fb');
+      final key2 = BleServiceIdentifier.long(
+        '0000fff0-0000-1000-8000-00805f9b34fb',
+      );
 
       map[key1] = 'value';
       expect(map[key2], equals('value'));

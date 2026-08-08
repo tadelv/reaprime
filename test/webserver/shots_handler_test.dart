@@ -122,10 +122,7 @@ void main() {
         ),
       );
       await beanStorage.updateBean(
-        bean.copyWith(
-          roaster: 'Renamed roaster',
-          name: 'Renamed coffee',
-        ),
+        bean.copyWith(roaster: 'Renamed roaster', name: 'Renamed coffee'),
       );
 
       final response = await sendGet('/api/v1/shots?beanId=${bean.id}');
@@ -133,10 +130,10 @@ void main() {
       final body =
           jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['total'], 2);
-      expect(
-        (body['items'] as List).map((item) => item['id']).toList(),
-        ['s2', 's1'],
-      );
+      expect((body['items'] as List).map((item) => item['id']).toList(), [
+        's2',
+        's1',
+      ]);
     });
 
     test(

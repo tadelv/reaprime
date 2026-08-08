@@ -102,8 +102,9 @@ mixin LedStripCapability on UnifiedDe1 {
   /// a fresh one is created here.
   Future<void> initLedStrip() async {
     if (_ledStripState.isClosed) {
-      _ledStripState =
-          BehaviorSubject<LedStripState>.seeded(const LedStripState());
+      _ledStripState = BehaviorSubject<LedStripState>.seeded(
+        const LedStripState(),
+      );
     }
     _stubWarningsEmitted = 0;
     _logStubOnce('no write surface registered. Awaiting FW.');
@@ -116,4 +117,3 @@ mixin LedStripCapability on UnifiedDe1 {
     }
   }
 }
-

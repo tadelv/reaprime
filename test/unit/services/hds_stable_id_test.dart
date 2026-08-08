@@ -25,17 +25,11 @@ void main() {
     });
 
     test('returns null when vid is null', () {
-      expect(
-        computeUsbStableId(vid: null, pid: 0x7522, serial: 'ABC'),
-        isNull,
-      );
+      expect(computeUsbStableId(vid: null, pid: 0x7522, serial: 'ABC'), isNull);
     });
 
     test('returns null when pid is null', () {
-      expect(
-        computeUsbStableId(vid: 0x1a86, pid: null, serial: 'ABC'),
-        isNull,
-      );
+      expect(computeUsbStableId(vid: 0x1a86, pid: null, serial: 'ABC'), isNull);
     });
   });
 }

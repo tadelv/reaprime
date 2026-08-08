@@ -74,7 +74,7 @@ Discovery services are responsible for scanning and creating device instances. E
 - **Platform:** All (Android, iOS, macOS, Windows, Linux)
 - **Package:** `universal_ble` (native backends on mobile/Windows/macOS; pure-Dart BlueZ backend on Linux)
 - **File:** `lib/src/services/universal_ble_discovery_service.dart`
-- **Discovery:** Unfiltered BLE scan + name-based matching (`DeviceMatcher`); also queries system/bonded devices (`getSystemDevices`) for CoreBluetooth/BlueZ. Single BLE stack on every platform since the flutter_blue_plus → universal_ble consolidation (see `doc/plans/archive/ble-universal-ble-migration/`).
+- **Discovery:** Unfiltered BLE scan + name-based matching (`DeviceMatcher`); also queries system/bonded devices (`getSystemDevices`) for CoreBluetooth/BlueZ. Apple devices returned as system-connected must still go through `connect()` so `universal_ble` attaches native callbacks and its CoreBluetooth delegate; this is idempotent and does not start a second physical connection. Single BLE stack on every platform since the flutter_blue_plus → universal_ble consolidation (see `doc/plans/archive/ble-universal-ble-migration/`).
 - **Linux/BlueZ note:** `UniversalBleTransport` applies BlueZ-specific connect handling on `Platform.isLinux` (stop scan + settle before connect to avoid `le-connection-abort-by-local`, post-connect settle, `discoverServices` retry) — without it the DE1 cold connect fails with "Failed to resolve services".
 
 #### 2. SerialService
@@ -176,16 +176,53 @@ the required `DeviceScanner` interface. A scanner exposes attach hints only when
 it also implements `DeviceAttachNotifier`, so BLE, Wi-Fi, and simulated scanners
 remain unchanged.
 
-`AttachReconnectCoordinator` owns the subscription, configurable 500 ms settle
-timer, burst coalescing, in-flight guard, and disposal. Disposal waits for an
-in-flight attempt before `ConnectionManager` tears down its dependencies. The
-delay lets Android's CDC interface become usable after the earlier attach
-broadcast. If a preferred
-machine is absent, it invokes the normal `ConnectionManager.connect()` policy,
-including remembered-device quick-connect and scan fallback. An unsuccessful
-attempt explicitly re-arms machine recovery. It ignores hints when a machine is
-already connected or no preferred machine exists; this prevents an unrelated USB
-attach from connecting another device or opening a picker.
+`AttachReconnectCoordinator` owns the attach subscription, configurable 500 ms
+settle timer, burst coalescing, in-flight guard, and disposal. Disposal waits
+for an in-flight attempt before `ConnectionManager` tears down its
+dependencies. The delay lets Android's CDC interface become usable after the
+earlier attach broadcast.
+
+`UsbAttachProbe` is a second optional capability for the originating serial
+service. `SerialServiceAndroid.connectAttachedMachine` correlates the attach
+event with a newly listed USB device (by stable ID when Android supplied one,
+otherwise only devices not already connected), runs the normal serial admission
+and detection, and connects the device only when it is a supported machine
+(`De1Interface`). Scales, sensors, debug ports, keyboards, and other USB
+devices are rejected and their transports disposed. The typed result
+distinguishes a connected machine from "no supported machine attached" from
+"machine detected but connection or identity initialization failed". When
+the originating service only implements the notifier (no probe capability),
+the result is "probe unavailable" and the legacy preferred-machine policy
+runs instead.
+
+When the scanner implements `UsbAttachProbe`, a physical USB attachment is
+explicit connection intent and wins over passive preferred-machine policy:
+`ConnectionManager` runs the probe ahead of any preferred-machine scan,
+adopts the connected machine, and persists its USB device id as the preferred
+machine. A stale BLE preference, a different preferred USB machine, a
+simulated preference, or no preference at all are all overridden by the
+physically attached machine; no BLE scan runs and no machine picker opens.
+An attached machine that fails to connect preserves the previous preference
+and returns control to the existing preferred-machine recovery policy (or
+surfaces the normal machine-connection failure when no preference exists).
+Unsupported or uncorrelated attachments change nothing — no scan, no picker,
+no preference update, and an already scheduled recovery attempt is left
+alone. A machine that is already connected is never replaced; the attach
+attempt re-checks before executing.
+
+When the probe capability is unavailable (a notifier-only scanner, or a
+`DeviceController` whose originating service cannot probe), the original
+behavior applies: a preferred machine must exist, and the normal
+`ConnectionManager.connect()` policy (remembered-device quick-connect and
+scan fallback) runs, with machine recovery explicitly re-armed after an
+unsuccessful attempt.
+
+An attach event arriving while another connection operation owns the connect
+guard is queued as one coalesced probe; in-flight automatic/recovery scanning
+is superseded through the existing scan-generation mechanism, while explicit
+user scans and scale-only connects are waited out. The queued probe runs
+before other drained work, re-checks that no machine connected meanwhile, and
+never runs in parallel with another connect.
 
 The original incident showed 20.3 seconds between USB enumeration and connection
 because recovery was waiting for its backoff timer; the existing backoff can
@@ -532,9 +569,11 @@ Device preferences are stored via `SettingsController`:
 Identity remains per transport. BLE and USB IDs for the same physical machine
 are not aliased. If the BLE ID is preferred while Bluetooth is unavailable, a
 discovered USB identity is offered for selection; selecting it persists that USB
-ID. Later automatic startup and Android USB-attach recovery can quick-connect
+ID. Later automatic startup and recovery scans can quick-connect
 through the remembered USB record, with normal implementation validation and
-scan fallback on failure.
+scan fallback on failure. A physically attached Android USB machine bypasses
+preference entirely (see "Android USB attach recovery") and persists its USB
+ID as the preferred machine after a successful connection.
 
 ---
 
@@ -584,6 +623,8 @@ Future<void> connectToDe1(De1Interface de1Interface) async {
 - Exposes weight snapshots and connection state
 
 **Note:** ScaleController does **not** auto-connect. Connection decisions are made by `ConnectionManager`. ScaleController only handles the mechanics of connecting to a specific scale.
+
+Device implementations define their own readiness gate before `ScaleController` adopts them. Acaia requires its first structurally valid weight frame. An awake Decent Scale connection requires a recognised FFF4 status or weight frame, retrying the subscription and status probe once after two seconds. A deliberately sleeping reconnect restores the subscription while remaining dark and defers readiness verification until wake. Successful GATT setup or arbitrary notifications alone are not connected readiness. A mute transport is torn down without powering off the scale, and normal ConnectionManager recovery remains responsible for retrying.
 
 **Connection Flow:**
 ```dart
@@ -707,8 +748,10 @@ scale discovery:
 - **No preferred scale:** `_armPostQuickConnectScaleScan()` (single deferred
   scale-only scan after ~3s, same delay as the post-wake reconnect)
 
-Quick-connect is reserved for automatic startup and recovery, including
-Android USB-attach recovery. Explicit native, REST, and WebSocket scans call
+Quick-connect is reserved for automatic startup and recovery. Android
+USB-attach recovery probes the attached device directly instead of
+quick-connecting when the scanner supports `UsbAttachProbe` (see "Android USB
+attach recovery"). Explicit native, REST, and WebSocket scans call
 `scanAndConnect()` and always scan before applying policy. The phase stream shows
 `idle → connectingMachine → ready` on success. On failure:
 `connectingMachine` is published before the attempt, then phase falls

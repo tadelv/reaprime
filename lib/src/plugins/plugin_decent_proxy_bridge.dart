@@ -6,10 +6,16 @@ class PluginDecentProxyBridge {
   final DecentProxyService? decentProxyService;
   final Logger _log;
 
-  PluginDecentProxyBridge({
-    required this.decentProxyService,
-    Logger? log,
-  }) : _log = log ?? Logger('PluginDecentProxyBridge');
+  PluginDecentProxyBridge({required this.decentProxyService, Logger? log})
+    : _log = log ?? Logger('PluginDecentProxyBridge');
+
+  /// Exact paths a plugin holding `proxy.decent_api.write` may POST to. Writes
+  /// are least-privilege: a specific method + a specific path, never the whole
+  /// `support/api/` namespace. Add entries here as new write endpoints appear.
+  static const Set<String> _writeAllowedPaths = {'support/api/shot_upload'};
+
+  static String _canonicalPath(String path) =>
+      path.trim().replaceAll(RegExp(r'^/+'), '');
 
   Future<Map<String, dynamic>> proxyForPlugin({
     required String pluginId,
@@ -17,15 +23,11 @@ class PluginDecentProxyBridge {
     required String? path,
     String method = 'GET',
     Map<String, String>? query,
+    String? body,
+    String? contentType,
   }) async {
     if (manifest == null) {
       throw StateError('Plugin is not loaded: $pluginId');
-    }
-    if (!manifest.permissions.contains(PluginPermissions.proxyDecentApi)) {
-      _log.warning(
-        'Plugin $pluginId attempted Decent proxy access without permission',
-      );
-      throw StateError('Plugin permission required: proxy.decent_api');
     }
     if (decentProxyService == null) {
       throw StateError('Decent account proxy is not available');
@@ -35,15 +37,50 @@ class PluginDecentProxyBridge {
     }
 
     final normalizedMethod = method.toUpperCase();
-    if (normalizedMethod != 'GET') {
-      throw UnsupportedError('Decent proxy only supports GET for plugins');
+    final callerId = 'plugin:$pluginId';
+    final canonicalPath = _canonicalPath(path);
+    final DecentProxyResponse response;
+    switch (normalizedMethod) {
+      case 'GET':
+        // Reads: `proxy.decent_api` (unchanged, read-only).
+        if (!manifest.permissions.contains(PluginPermissions.proxyDecentApi)) {
+          _log.warning('Plugin $pluginId GET without proxy.decent_api');
+          throw StateError('Plugin permission required: proxy.decent_api');
+        }
+        response = await decentProxyService!.proxyGet(
+          callerId: callerId,
+          path: path,
+          query: query,
+        );
+      case 'POST':
+        // Writes: a distinct `proxy.decent_api.write` capability, restricted to
+        // an explicit path allowlist (not the whole support/api/ namespace).
+        if (!manifest.permissions.contains(
+          PluginPermissions.proxyDecentApiWrite,
+        )) {
+          _log.warning('Plugin $pluginId POST without proxy.decent_api.write');
+          throw StateError(
+            'Plugin permission required: proxy.decent_api.write',
+          );
+        }
+        if (!_writeAllowedPaths.contains(canonicalPath)) {
+          _log.warning(
+            'Plugin $pluginId POST to disallowed path $canonicalPath',
+          );
+          throw StateError('Decent proxy write not allowed for path: $path');
+        }
+        response = await decentProxyService!.proxyPost(
+          callerId: callerId,
+          path: path,
+          query: query,
+          body: body,
+          contentType: contentType,
+        );
+      default:
+        throw UnsupportedError(
+          'Decent proxy supports GET and POST for plugins',
+        );
     }
-
-    final response = await decentProxyService!.proxyGet(
-      callerId: 'plugin:$pluginId',
-      path: path,
-      query: query,
-    );
     return {
       'status': response.statusCode,
       'headers': response.headers,

@@ -249,7 +249,10 @@ void main() {
 
           await s.fetchSerialNumbers();
 
-          expect(capturedRequest.url.toString(), '$_baseUrl/support/api/sn?onlyespressomachines=1');
+          expect(
+            capturedRequest.url.toString(),
+            '$_baseUrl/support/api/sn?onlyespressomachines=1',
+          );
           expect(capturedRequest.headers['authorization'], expectedAuth);
           expect(capturedRequest.method, 'GET');
         },
@@ -295,17 +298,11 @@ void main() {
         await store.write(key: 'email', value: 'test@example.com');
         await store.write(key: 'password', value: 'cryptpw_abc123');
 
-        expect(
-          () => service.fetchSerialNumbers(),
-          throwsA(isA<Exception>()),
-        );
+        expect(() => service.fetchSerialNumbers(), throwsA(isA<Exception>()));
       });
 
       test('throws when not logged in', () async {
-        expect(
-          () => service.fetchSerialNumbers(),
-          throwsA(isA<StateError>()),
-        );
+        expect(() => service.fetchSerialNumbers(), throwsA(isA<StateError>()));
       });
     });
 

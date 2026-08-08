@@ -219,7 +219,8 @@ void main() {
     expect(
       decision.timestamp,
       DateTime(2026, 1, 15, 8, 0),
-      reason: 'frames carry the triggering snapshot timestamp (TestDe1 stamps '
+      reason:
+          'frames carry the triggering snapshot timestamp (TestDe1 stamps '
           'all snapshots with this fixed time), not publish wall clock, so '
           'clients can align decisions with snapshot telemetry',
     );
@@ -230,7 +231,8 @@ void main() {
     expect(
       record.id,
       decision.shotId,
-      reason: 'the persisted record id must match the live shotId so '
+      reason:
+          'the persisted record id must match the live shotId so '
           'clients can correlate the stream to the saved shot',
     );
   });
@@ -238,9 +240,7 @@ void main() {
   test('keeps forwarding across consecutive shots (per-shot sequencer '
       'recreation)', () async {
     await driveShot();
-    final firstShotId = events
-        .singleWhere((e) => e.event == 'decision')
-        .shotId;
+    final firstShotId = events.singleWhere((e) => e.event == 'decision').shotId;
 
     // Machine returns to idle between shots.
     testDe1.emitStateAndSubstate(MachineState.idle, MachineSubstate.idle);
@@ -272,16 +272,19 @@ void main() {
 
     expect(
       events.any(
-        (e) => e.event == 'decision' && e.decision?.kind == ShotDecisionKind.abort,
+        (e) =>
+            e.event == 'decision' && e.decision?.kind == ShotDecisionKind.abort,
       ),
       isTrue,
-      reason: 'the aborted preheat emits an abort decision, not a stuck '
+      reason:
+          'the aborted preheat emits an abort decision, not a stuck '
           'preheating frame',
     );
     expect(
       events.where((e) => e.event == 'terminal'),
       isEmpty,
-      reason: 'the abort decision is the terminal signal; no duplicate '
+      reason:
+          'the abort decision is the terminal signal; no duplicate '
           'disconnected frame',
     );
     expect(events.last.state, ShotState.idle);
@@ -298,34 +301,37 @@ void main() {
     expect(storage.storedShots.single.stopReason, 'machineEnded');
   });
 
-  test('publishes a terminal frame when the machine disconnects mid-shot',
-      () async {
-    testDe1.emitStateAndSubstate(
-      MachineState.espresso,
-      MachineSubstate.preparingForShot,
-    );
-    await pump();
-    testDe1.emitStateAndSubstate(
-      MachineState.espresso,
-      MachineSubstate.pouring,
-    );
-    await pump();
+  test(
+    'publishes a terminal frame when the machine disconnects mid-shot',
+    () async {
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.preparingForShot,
+      );
+      await pump();
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      await pump();
 
-    de1Controller.disconnect();
-    await pump();
+      de1Controller.disconnect();
+      await pump();
 
-    final terminal = events.singleWhere((e) => e.event == 'terminal');
-    expect(terminal.decision?.reason, ShotDecisionReason.disconnected);
-    expect(
-      events.last.state,
-      ShotState.idle,
-      reason: 'the feed re-seeds idle so late joiners never see a stale '
-          'pouring frame',
-    );
-    expect(
-      storage.storedShots,
-      isEmpty,
-      reason: 'a disconnected shot is torn down, not persisted',
-    );
-  });
+      final terminal = events.singleWhere((e) => e.event == 'terminal');
+      expect(terminal.decision?.reason, ShotDecisionReason.disconnected);
+      expect(
+        events.last.state,
+        ShotState.idle,
+        reason:
+            'the feed re-seeds idle so late joiners never see a stale '
+            'pouring frame',
+      );
+      expect(
+        storage.storedShots,
+        isEmpty,
+        reason: 'a disconnected shot is torn down, not persisted',
+      );
+    },
+  );
 }

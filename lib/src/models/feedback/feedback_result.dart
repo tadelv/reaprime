@@ -24,16 +24,13 @@ class FeedbackSubmissionResult {
   }
 
   factory FeedbackSubmissionResult.failed(String errorMessage) {
-    return FeedbackSubmissionResult(
-      success: false,
-      errorMessage: errorMessage,
-    );
+    return FeedbackSubmissionResult(success: false, errorMessage: errorMessage);
   }
 
   Map<String, dynamic> toJson() => {
-        'success': success,
-        if (issueUrl != null) 'issueUrl': issueUrl,
-        if (errorMessage != null) 'errorMessage': errorMessage,
-        if (issueNumber != null) 'issueNumber': issueNumber,
-      };
+    'success': success,
+    if (issueUrl != null) 'issueUrl': issueUrl,
+    if (errorMessage != null) 'errorMessage': errorMessage,
+    if (issueNumber != null) 'issueNumber': issueNumber,
+  };
 }

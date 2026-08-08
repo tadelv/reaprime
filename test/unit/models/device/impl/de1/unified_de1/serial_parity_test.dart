@@ -218,10 +218,10 @@ void main() {
 
     test('disconnect clears cached persistent frames', () async {
       serial.input.add('[N]0102\n');
-      expect(
-        (await transport.read(Endpoint.stateInfo)).buffer.asUint8List(),
-        [1, 2],
-      );
+      expect((await transport.read(Endpoint.stateInfo)).buffer.asUint8List(), [
+        1,
+        2,
+      ]);
 
       await transport.disconnect();
       await transport.connect();
@@ -345,24 +345,29 @@ void main() {
       expect(result.buffer.asUint8List(), [1]);
     });
 
-    test('read timeout is not extended by a fresh unsubscribe timeout',
-        () async {
-      const timeout = Duration(milliseconds: 300);
-      final unsubscribe = serial.blockCommand('<-A>');
-      final stopwatch = Stopwatch()..start();
+    test(
+      'read timeout is not extended by a fresh unsubscribe timeout',
+      () async {
+        const timeout = Duration(milliseconds: 300);
+        final unsubscribe = serial.blockCommand('<-A>');
+        final stopwatch = Stopwatch()..start();
 
-      try {
-        await expectLater(
-          transport.read(Endpoint.versions, timeout: timeout),
-          throwsA(isA<TimeoutException>()),
-        );
-        stopwatch.stop();
+        try {
+          await expectLater(
+            transport.read(Endpoint.versions, timeout: timeout),
+            throwsA(isA<TimeoutException>()),
+          );
+          stopwatch.stop();
 
-        expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 500)));
-      } finally {
-        if (!unsubscribe.isCompleted) unsubscribe.complete();
-      }
-    });
+          expect(
+            stopwatch.elapsed,
+            lessThan(const Duration(milliseconds: 500)),
+          );
+        } finally {
+          if (!unsubscribe.isCompleted) unsubscribe.complete();
+        }
+      },
+    );
 
     test('malformed responses do not complete a request', () async {
       final result = transport.read(

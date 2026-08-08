@@ -62,9 +62,9 @@ void main() {
 
   group('initial connection intent', () {
     testWidgets('uses scanAndConnect when intent is provided', (tester) async {
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pump();
 
       expect(mockCm.scanAndConnectCallCount, 1);
@@ -86,17 +86,17 @@ void main() {
 
   group('picker selection', () {
     testWidgets('machine picker calls selectMachine', (tester) async {
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [
-          FakeDe1(deviceId: 'm1', name: 'DE1 #1'),
-        ],
-      ));
+      mockCm.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+          foundMachines: [FakeDe1(deviceId: 'm1', name: 'DE1 #1')],
+        ),
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('DE1 #1'), findsOneWidget);
@@ -108,22 +108,25 @@ void main() {
       await tester.pump();
 
       expect(mockCm.selectMachineCallCount, 1);
-      expect(mockCm.scanAndConnectCallCount, 1,
-          reason: 'scan count must not increase for a picker selection');
+      expect(
+        mockCm.scanAndConnectCallCount,
+        1,
+        reason: 'scan count must not increase for a picker selection',
+      );
     });
 
     testWidgets('scale picker calls selectScale', (tester) async {
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.scalePicker,
-        foundScales: [
-          TestScale(deviceId: 's1', name: 'Decent Scale'),
-        ],
-      ));
+      mockCm.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: AmbiguityReason.scalePicker,
+          foundScales: [TestScale(deviceId: 's1', name: 'Decent Scale')],
+        ),
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Decent Scale'), findsOneWidget);
@@ -135,23 +138,27 @@ void main() {
       await tester.pump();
 
       expect(mockCm.selectScaleCallCount, 1);
-      expect(mockCm.scanAndConnectCallCount, 1,
-          reason: 'scan count must not increase for a picker selection');
+      expect(
+        mockCm.scanAndConnectCallCount,
+        1,
+        reason: 'scan count must not increase for a picker selection',
+      );
     });
 
-    testWidgets('machine picker transitions to scale picker after selection',
-        (tester) async {
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [
-          FakeDe1(deviceId: 'm1', name: 'DE1 #1'),
-        ],
-      ));
+    testWidgets('machine picker transitions to scale picker after selection', (
+      tester,
+    ) async {
+      mockCm.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+          foundMachines: [FakeDe1(deviceId: 'm1', name: 'DE1 #1')],
+        ),
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('DE1 #1'));
@@ -161,13 +168,13 @@ void main() {
 
       expect(mockCm.selectMachineCallCount, 1);
 
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.scalePicker,
-        foundScales: [
-          TestScale(deviceId: 's1', name: 'Decent Scale'),
-        ],
-      ));
+      mockCm.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: AmbiguityReason.scalePicker,
+          foundScales: [TestScale(deviceId: 's1', name: 'Decent Scale')],
+        ),
+      );
 
       await tester.pumpAndSettle();
 
@@ -186,141 +193,150 @@ void main() {
 
   group('error plus picker coexistence', () {
     testWidgets(
-        'machine connect failure with another candidate shows picker and error',
-        (tester) async {
-      final candidate1 = FakeDe1(deviceId: 'm1', name: 'DE1 #1');
-      final candidate2 = FakeDe1(deviceId: 'm2', name: 'DE1 #2');
+      'machine connect failure with another candidate shows picker and error',
+      (tester) async {
+        final candidate1 = FakeDe1(deviceId: 'm1', name: 'DE1 #1');
+        final candidate2 = FakeDe1(deviceId: 'm2', name: 'DE1 #2');
 
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [candidate1, candidate2],
-      ));
+        mockCm.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: AmbiguityReason.machinePicker,
+            foundMachines: [candidate1, candidate2],
+          ),
+        );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+        );
+        await tester.pumpAndSettle();
 
-      // Select candidate1, simulate failure.
-      await tester.tap(find.text('DE1 #1'));
-      await tester.pump();
+        // Select candidate1, simulate failure.
+        await tester.tap(find.text('DE1 #1'));
+        await tester.pump();
 
-      mockCm.shouldFailMachineConnect = true;
-      await tester.tap(find.text('Connect'));
-      await tester.pumpAndSettle();
+        mockCm.shouldFailMachineConnect = true;
+        await tester.tap(find.text('Connect'));
+        await tester.pumpAndSettle();
 
-      // Picker must still be visible with both candidates.
-      expect(find.text('DE1 #1'), findsOneWidget);
-      expect(find.text('DE1 #2'), findsOneWidget);
-      expect(find.text('Connect'), findsOneWidget);
+        // Picker must still be visible with both candidates.
+        expect(find.text('DE1 #1'), findsOneWidget);
+        expect(find.text('DE1 #2'), findsOneWidget);
+        expect(find.text('Connect'), findsOneWidget);
 
-      // Failure text must be visible.
-      expect(find.text('Machine DE1 #1 failed to connect.'), findsOneWidget);
+        // Failure text must be visible.
+        expect(find.text('Machine DE1 #1 failed to connect.'), findsOneWidget);
 
-      // The user can select the alternative without a new scan.
-      await tester.tap(find.text('DE1 #2'));
-      await tester.pump();
+        // The user can select the alternative without a new scan.
+        await tester.tap(find.text('DE1 #2'));
+        await tester.pump();
 
-      mockCm.shouldFailMachineConnect = false;
-      await tester.tap(find.text('Connect'));
-      await tester.pump();
+        mockCm.shouldFailMachineConnect = false;
+        await tester.tap(find.text('Connect'));
+        await tester.pump();
 
-      expect(mockCm.selectMachineCallCount, 2);
-      expect(mockCm.scanAndConnectCallCount, 1);
-    });
-
-    testWidgets(
-        'selected machine fails with another candidate — picker remains visible',
-        (tester) async {
-      final candidate1 = FakeDe1(deviceId: 'm1', name: 'DE1 #1');
-      final candidate2 = FakeDe1(deviceId: 'm2', name: 'Alt Machine');
-
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [candidate1, candidate2],
-      ));
-
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('DE1 #1'));
-      await tester.pump();
-
-      mockCm.shouldFailMachineConnect = true;
-      await tester.tap(find.text('Connect'));
-      await tester.pumpAndSettle();
-
-      // Both candidates still present in the picker.
-      expect(find.text('DE1 #1'), findsOneWidget);
-      expect(find.text('Alt Machine'), findsOneWidget);
-
-      // Error message visible.
-      expect(find.text('Machine DE1 #1 failed to connect.'), findsOneWidget);
-
-      // No uncaught exception — the widget is still rendering.
-      expect(tester.takeException(), isNull);
-    });
+        expect(mockCm.selectMachineCallCount, 2);
+        expect(mockCm.scanAndConnectCallCount, 1);
+      },
+    );
 
     testWidgets(
-        'machine fails with no alternatives — scalePicker shows with error',
-        (tester) async {
-      final machine = FakeDe1(deviceId: 'm1', name: 'My DE1');
+      'selected machine fails with another candidate — picker remains visible',
+      (tester) async {
+        final candidate1 = FakeDe1(deviceId: 'm1', name: 'DE1 #1');
+        final candidate2 = FakeDe1(deviceId: 'm2', name: 'Alt Machine');
 
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [machine],
-      ));
+        mockCm.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: AmbiguityReason.machinePicker,
+            foundMachines: [candidate1, candidate2],
+          ),
+        );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+        );
+        await tester.pumpAndSettle();
 
-      mockCm.shouldFailMachineConnect = true;
-      await tester.tap(find.text('My DE1'));
-      await tester.pump();
-      await tester.tap(find.text('Connect'));
-      await tester.pump();
+        await tester.tap(find.text('DE1 #1'));
+        await tester.pump();
 
-      // Now emit scalePicker from the session with retained scale candidates.
-      mockCm.emitStatus(ConnectionStatus(
-        phase: ConnectionPhase.idle,
-        pendingAmbiguity: AmbiguityReason.scalePicker,
-        foundScales: [
-          TestScale(deviceId: 's1', name: 'My Scale'),
-        ],
-        error: ConnectionError(
-          kind: ConnectionErrorKind.machineConnectFailed,
-          severity: ConnectionErrorSeverity.error,
-          timestamp: DateTime.now().toUtc(),
-          message: 'Machine My DE1 failed to connect.',
-          suggestion: 'Try another machine.',
-        ),
-      ));
+        mockCm.shouldFailMachineConnect = true;
+        await tester.tap(find.text('Connect'));
+        await tester.pumpAndSettle();
 
-      await tester.pumpAndSettle();
+        // Both candidates still present in the picker.
+        expect(find.text('DE1 #1'), findsOneWidget);
+        expect(find.text('Alt Machine'), findsOneWidget);
 
-      // Scale picker is visible.
-      expect(find.text('My Scale'), findsOneWidget);
-      expect(find.text('Scales'), findsOneWidget);
+        // Error message visible.
+        expect(find.text('Machine DE1 #1 failed to connect.'), findsOneWidget);
 
-      // Machine error is visible inline.
-      expect(find.text('Machine My DE1 failed to connect.'), findsOneWidget);
+        // No uncaught exception — the widget is still rendering.
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-      // Select the scale — call selectScale, not a new scan.
-      await tester.tap(find.text('My Scale'));
-      await tester.pump();
-      await tester.tap(find.text('Connect'));
-      await tester.pump();
+    testWidgets(
+      'machine fails with no alternatives — scalePicker shows with error',
+      (tester) async {
+        final machine = FakeDe1(deviceId: 'm1', name: 'My DE1');
 
-      expect(mockCm.selectScaleCallCount, 1);
-      expect(mockCm.scanAndConnectCallCount, 1);
-    });
+        mockCm.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: AmbiguityReason.machinePicker,
+            foundMachines: [machine],
+          ),
+        );
+
+        await tester.pumpWidget(
+          buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+        );
+        await tester.pumpAndSettle();
+
+        mockCm.shouldFailMachineConnect = true;
+        await tester.tap(find.text('My DE1'));
+        await tester.pump();
+        await tester.tap(find.text('Connect'));
+        await tester.pump();
+
+        // Now emit scalePicker from the session with retained scale candidates.
+        mockCm.emitStatus(
+          ConnectionStatus(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: AmbiguityReason.scalePicker,
+            foundScales: [TestScale(deviceId: 's1', name: 'My Scale')],
+            error: ConnectionError(
+              kind: ConnectionErrorKind.machineConnectFailed,
+              severity: ConnectionErrorSeverity.error,
+              timestamp: DateTime.now().toUtc(),
+              message: 'Machine My DE1 failed to connect.',
+              suggestion: 'Try another machine.',
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // Scale picker is visible.
+        expect(find.text('My Scale'), findsOneWidget);
+        expect(find.text('Scales'), findsOneWidget);
+
+        // Machine error is visible inline.
+        expect(find.text('Machine My DE1 failed to connect.'), findsOneWidget);
+
+        // Select the scale — call selectScale, not a new scan.
+        await tester.tap(find.text('My Scale'));
+        await tester.pump();
+        await tester.tap(find.text('Connect'));
+        await tester.pump();
+
+        expect(mockCm.selectScaleCallCount, 1);
+        expect(mockCm.scanAndConnectCallCount, 1);
+      },
+    );
   });
 
   group('wired discovery without Bluetooth', () {
@@ -337,24 +353,27 @@ void main() {
       );
     }
 
-    testWidgets('serial picker remains interactive with a Bluetooth notice',
-        (tester) async {
+    testWidgets('serial picker remains interactive with a Bluetooth notice', (
+      tester,
+    ) async {
       final serialMachine = FakeDe1(
         deviceId: 'usb-machine',
         name: 'USB Machine',
         transportType: TransportType.serial,
       );
       final condition = bluetoothOffCondition();
-      mockCm.emitStatus(ConnectionStatus(
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [serialMachine],
-        error: condition.connectionError,
-        conditions: [condition],
-      ));
+      mockCm.emitStatus(
+        ConnectionStatus(
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+          foundMachines: [serialMachine],
+          error: condition.connectionError,
+          conditions: [condition],
+        ),
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('USB Machine'), findsOneWidget);
@@ -369,23 +388,26 @@ void main() {
       expect(mockCm.selectMachineCallCount, 1);
     });
 
-    testWidgets('serial connection failure stays visible above the notice',
-        (tester) async {
+    testWidgets('serial connection failure stays visible above the notice', (
+      tester,
+    ) async {
       final condition = bluetoothOffCondition();
-      mockCm.emitStatus(ConnectionStatus(
-        activeTargetTransport: TransportType.serial,
-        error: ConnectionError(
-          kind: ConnectionErrorKind.machineConnectFailed,
-          severity: ConnectionErrorSeverity.error,
-          timestamp: DateTime.utc(2025),
-          message: 'USB machine failed to connect.',
+      mockCm.emitStatus(
+        ConnectionStatus(
+          activeTargetTransport: TransportType.serial,
+          error: ConnectionError(
+            kind: ConnectionErrorKind.machineConnectFailed,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.utc(2025),
+            message: 'USB machine failed to connect.',
+          ),
+          conditions: [condition],
         ),
-        conditions: [condition],
-      ));
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Connection Error'), findsOneWidget);
@@ -396,25 +418,28 @@ void main() {
       );
     });
 
-    testWidgets('BLE-only picker shows the blocking Bluetooth error',
-        (tester) async {
+    testWidgets('BLE-only picker shows the blocking Bluetooth error', (
+      tester,
+    ) async {
       final condition = bluetoothOffCondition();
-      mockCm.emitStatus(ConnectionStatus(
-        pendingAmbiguity: AmbiguityReason.machinePicker,
-        foundMachines: [
-          FakeDe1(
-            deviceId: 'ble-machine',
-            name: 'BLE Machine',
-            transportType: TransportType.ble,
-          ),
-        ],
-        error: condition.connectionError,
-        conditions: [condition],
-      ));
+      mockCm.emitStatus(
+        ConnectionStatus(
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+          foundMachines: [
+            FakeDe1(
+              deviceId: 'ble-machine',
+              name: 'BLE Machine',
+              transportType: TransportType.ble,
+            ),
+          ],
+          error: condition.connectionError,
+          conditions: [condition],
+        ),
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Bluetooth Unavailable'), findsOneWidget);
@@ -424,13 +449,13 @@ void main() {
 
   group('stale-scan recovery', () {
     testWidgets('triggers scanAndConnect on stale event', (tester) async {
-      mockCm.emitStatus(const ConnectionStatus(
-        phase: ConnectionPhase.scanning,
-      ));
+      mockCm.emitStatus(
+        const ConnectionStatus(phase: ConnectionPhase.scanning),
+      );
 
-      await tester.pumpWidget(buildView(
-        initialConnectionIntent: () => mockCm.scanAndConnect(),
-      ));
+      await tester.pumpWidget(
+        buildView(initialConnectionIntent: () => mockCm.scanAndConnect()),
+      );
       await tester.pump();
 
       final callsBefore = mockCm.scanAndConnectCallCount;

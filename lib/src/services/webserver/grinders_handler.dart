@@ -10,7 +10,7 @@ class GrindersHandler {
   final Logger _log = Logger('GrindersHandler');
 
   GrindersHandler({required GrinderStorageService storage})
-      : _storage = storage;
+    : _storage = storage;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/grinders', _getGrinders);
@@ -24,8 +24,9 @@ class GrindersHandler {
     try {
       final includeArchived =
           req.url.queryParameters['includeArchived'] == 'true';
-      final grinders =
-          await _storage.getAllGrinders(includeArchived: includeArchived);
+      final grinders = await _storage.getAllGrinders(
+        includeArchived: includeArchived,
+      );
       return jsonOkConditional(req, grinders.map((g) => g.toJson()).toList());
     } catch (e, st) {
       _log.severe('Error getting grinders', e, st);

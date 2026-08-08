@@ -32,8 +32,8 @@ class _EmptyDiscovery extends DeviceDiscoveryService {
 
 class _StubDe1Controller extends De1Controller {
   _StubDe1Controller()
-      : _subj = BehaviorSubject.seeded(null),
-        super(controller: DeviceController([_EmptyDiscovery()]));
+    : _subj = BehaviorSubject.seeded(null),
+      super(controller: DeviceController([_EmptyDiscovery()]));
 
   final BehaviorSubject<De1Interface?> _subj;
 
@@ -120,15 +120,24 @@ class _TestSensor implements Sensor {
       Stream.value(ConnectionState.connected);
   @override
   SensorInfo get info => SensorInfo(
-      name: name, vendor: 'test', dataChannels: const [], commands: const []);
+    name: name,
+    vendor: 'test',
+    dataChannels: const [],
+    commands: const [],
+  );
   @override
-  Future<Map<String, dynamic>> execute(String c, Map<String, dynamic>? p) async => const {};
+  Future<Map<String, dynamic>> execute(
+    String c,
+    Map<String, dynamic>? p,
+  ) async => const {};
   @override
   Future<void> onConnect() async {}
   @override
   Future<void> disconnect() async {}
-  void emit(double celsius) =>
-      _data.add({'timestamp': DateTime.now().toIso8601String(), 'temperature': celsius});
+  void emit(double celsius) => _data.add({
+    'timestamp': DateTime.now().toIso8601String(),
+    'temperature': celsius,
+  });
 }
 
 class _RecordingStorage implements StorageService {
@@ -180,8 +189,7 @@ class _RecordingStorage implements StorageService {
     String? profileTitle,
     String? search,
     bool ascending = false,
-  }) async =>
-      [];
+  }) async => [];
   @override
   Future<int> countShots({
     String? grinderId,
@@ -192,8 +200,7 @@ class _RecordingStorage implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<ShotRecord?> getLatestShot() async => null;
   @override
@@ -258,27 +265,39 @@ void main() {
     test('false on non-Bengle machines regardless of other inputs', () {
       final m = _TestMachine();
       expect(
-          sequencer.useFwAutonomousStop(
-              machine: m, probeAttached: true, stopAtTemperature: 60),
-          isFalse);
+        sequencer.useFwAutonomousStop(
+          machine: m,
+          probeAttached: true,
+          stopAtTemperature: 60,
+        ),
+        isFalse,
+      );
       m.dispose();
     });
 
     test('false when stop target is 0 (off)', () {
       final m = _BengleTestMachine();
       expect(
-          sequencer.useFwAutonomousStop(
-              machine: m, probeAttached: true, stopAtTemperature: 0),
-          isFalse);
+        sequencer.useFwAutonomousStop(
+          machine: m,
+          probeAttached: true,
+          stopAtTemperature: 0,
+        ),
+        isFalse,
+      );
       m.dispose();
     });
 
     test('false when probe is not attached', () {
       final m = _BengleTestMachine();
       expect(
-          sequencer.useFwAutonomousStop(
-              machine: m, probeAttached: false, stopAtTemperature: 60),
-          isFalse);
+        sequencer.useFwAutonomousStop(
+          machine: m,
+          probeAttached: false,
+          stopAtTemperature: 60,
+        ),
+        isFalse,
+      );
       m.dispose();
     });
 
@@ -287,39 +306,44 @@ void main() {
       // All three "real" preconditions met; predicate still false
       // because BengleSteamMmr.stopAtTemperatureTarget.address == 0.
       expect(
-          sequencer.useFwAutonomousStop(
-              machine: m, probeAttached: true, stopAtTemperature: 60),
-          isFalse,
-          reason:
-              'FW slot is still 0x00000000 — predicate must stay false');
+        sequencer.useFwAutonomousStop(
+          machine: m,
+          probeAttached: true,
+          stopAtTemperature: 60,
+        ),
+        isFalse,
+        reason: 'FW slot is still 0x00000000 — predicate must stay false',
+      );
       m.dispose();
     });
   });
 
   group('record lifecycle', () {
-    test('opens on entering steam and finalizes on returning to idle',
-        () async {
-      final m = _TestMachine();
-      de1.emit(m);
-      await settle();
+    test(
+      'opens on entering steam and finalizes on returning to idle',
+      () async {
+        final m = _TestMachine();
+        de1.emit(m);
+        await settle();
 
-      m.emit(_snap(state: MachineState.idle));
-      await settle();
-      expect(sequencer.isRecording, isFalse);
+        m.emit(_snap(state: MachineState.idle));
+        await settle();
+        expect(sequencer.isRecording, isFalse);
 
-      m.emit(_snap(state: MachineState.steam));
-      await settle();
-      expect(sequencer.isRecording, isTrue);
+        m.emit(_snap(state: MachineState.steam));
+        await settle();
+        expect(sequencer.isRecording, isTrue);
 
-      m.emit(_snap(state: MachineState.steam));
-      m.emit(_snap(state: MachineState.idle));
-      await settle();
+        m.emit(_snap(state: MachineState.steam));
+        m.emit(_snap(state: MachineState.idle));
+        await settle();
 
-      expect(sequencer.isRecording, isFalse);
-      expect(storage.persisted, hasLength(1));
-      expect(storage.persisted.first.measurements.length, greaterThan(0));
-      m.dispose();
-    });
+        expect(sequencer.isRecording, isFalse);
+        expect(storage.persisted, hasLength(1));
+        expect(storage.persisted.first.measurements.length, greaterThan(0));
+        m.dispose();
+      },
+    );
 
     test('finalizes on steam → sleep and on steam → error', () async {
       for (final exitState in [MachineState.sleeping, MachineState.error]) {
@@ -333,8 +357,11 @@ void main() {
         m.emit(_snap(state: exitState));
         await settle();
 
-        expect(storage.persisted, hasLength(1),
-            reason: 'should persist on steam → $exitState');
+        expect(
+          storage.persisted,
+          hasLength(1),
+          reason: 'should persist on steam → $exitState',
+        );
         await sequencer.dispose();
         sequencer = SteamSequencer(
           de1Controller: de1,
@@ -359,15 +386,17 @@ void main() {
       await settle();
 
       expect(sequencer.isRecording, isFalse);
-      expect(storage.persisted, isEmpty,
-          reason: 'mid-steam disconnect must not persist');
+      expect(
+        storage.persisted,
+        isEmpty,
+        reason: 'mid-steam disconnect must not persist',
+      );
       m.dispose();
     });
   });
 
   group('snapshot collection', () {
-    test('milkTemperature stays null when no sensor registered',
-        () async {
+    test('milkTemperature stays null when no sensor registered', () async {
       final m = _TestMachine();
       de1.emit(m);
       await settle();
@@ -378,9 +407,11 @@ void main() {
 
       expect(storage.persisted, hasLength(1));
       expect(
-          storage.persisted.first.measurements
-              .every((m) => m.milkTemperature == null),
-          isTrue);
+        storage.persisted.first.measurements.every(
+          (m) => m.milkTemperature == null,
+        ),
+        isTrue,
+      );
       m.dispose();
     });
 
@@ -409,8 +440,9 @@ void main() {
   group('app-side stop', () {
     test('no stop fires when no sensor registered', () async {
       workflow.updateWorkflow(
-        steamSettings: workflow.currentWorkflow.steamSettings
-            .copyWith(stopAtTemperature: 60.0),
+        steamSettings: workflow.currentWorkflow.steamSettings.copyWith(
+          stopAtTemperature: 60.0,
+        ),
       );
       final m = _TestMachine();
       de1.emit(m);
@@ -424,8 +456,9 @@ void main() {
 
     test('requests idle when first sensor crosses target', () async {
       workflow.updateWorkflow(
-        steamSettings: workflow.currentWorkflow.steamSettings
-            .copyWith(stopAtTemperature: 60.0),
+        steamSettings: workflow.currentWorkflow.steamSettings.copyWith(
+          stopAtTemperature: 60.0,
+        ),
       );
       final probe = _TestSensor();
       await sensors.register(probe);

@@ -118,9 +118,7 @@ Future<void> persistSimulatedWebViewDevice(
 const defaultDesktopWindowSize = Size(1280, 800);
 const defaultDesktopAspectRatio = 1.6;
 
-Future<Size> simulatedWebViewWindowSize(
-  SimulatedWebViewDevice device,
-) async {
+Future<Size> simulatedWebViewWindowSize(SimulatedWebViewDevice device) async {
   final titleBarHeight = Platform.isMacOS
       ? await WindowManager.instance.getTitleBarHeight()
       : 0;

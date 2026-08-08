@@ -258,7 +258,9 @@ function createPlugin(host) {
       visualizerShot.temperature.mix_goal.push(machine.targetMixTemperature);
       visualizerShot.totals.weight.push(scale?.weight ?? 0);
       visualizerShot.totals.water_dispensed.push(waterDispensed / 10);
-      visualizerShot.state_change.push(machine.profileFrame);
+      // Visualizer's stage parser ignores numeric 0, so the zero-based DE1
+      // frame index must be shifted to a 1-based marker.
+      visualizerShot.state_change.push(machine.profileFrame + 1);
     }
 
     return visualizerShot;

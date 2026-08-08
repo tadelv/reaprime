@@ -9,6 +9,7 @@ class BleTimeoutException implements Exception {
   BleTimeoutException(this.operation, [this.cause]);
 
   @override
-  String toString() => 'BleTimeoutException: $operation timed out'
+  String toString() =>
+      'BleTimeoutException: $operation timed out'
       '${cause != null ? ' (cause: $cause)' : ''}';
 }

@@ -29,8 +29,11 @@ void main() {
         final e = DisconnectExpectations();
         e.mark('id-1');
         async.elapse(DisconnectExpectations.ttl + const Duration(seconds: 1));
-        expect(e.consume('id-1'), isFalse,
-            reason: 'mark should have expired after TTL');
+        expect(
+          e.consume('id-1'),
+          isFalse,
+          reason: 'mark should have expired after TTL',
+        );
       });
     });
 
@@ -43,8 +46,11 @@ void main() {
         e.mark('id-1');
         // Original TTL would have fired by now without the re-mark.
         async.elapse(const Duration(seconds: 2));
-        expect(e.consume('id-1'), isTrue,
-            reason: 're-marked id should still be live');
+        expect(
+          e.consume('id-1'),
+          isTrue,
+          reason: 're-marked id should still be live',
+        );
       });
     });
 

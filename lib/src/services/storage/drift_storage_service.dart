@@ -47,8 +47,9 @@ class DriftStorageService implements StorageService {
 
   @override
   Future<void> storeCurrentWorkflow(domain_wf.Workflow workflow) {
-    return _db.workflowDao
-        .saveCurrentWorkflow(WorkflowMapper.toCompanion(workflow));
+    return _db.workflowDao.saveCurrentWorkflow(
+      WorkflowMapper.toCompanion(workflow),
+    );
   }
 
   @override
