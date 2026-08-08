@@ -9,18 +9,14 @@ import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
-/// Implements [TransportHandoffScale]: a USB disconnect only releases the
-/// serial port (no power-off command), so handing the active-scale role to
-/// another transport of the same physical HDS is non-destructive. Declaring the
-/// capability makes that a compile-checked property.
 class HDSSerial implements Scale, TransportHandoffScale {
   late Logger _log;
   final SerialTransport _transport;
 
   static const _enableCommand = [0x03, 0x20, 0x01];
   static const _watchdogInterval = Duration(seconds: 2);
-  static const _warningTicks = 3; // 6s with 2s interval
-  static const _disconnectTicks = 6; // 12s with 2s interval
+  static const _warningTicks = 3;
+  static const _disconnectTicks = 6;
 
   HDSSerial({required SerialTransport transport}) : _transport = transport {
     _log = Logger("Serial HDS#${_transport.name}");
@@ -84,8 +80,6 @@ class HDSSerial implements Scale, TransportHandoffScale {
   Future<void> onConnect() async {
     _log.info("on connect (id=$deviceId, transport=${_transport.name})");
     _totalFrames = 0;
-    // Announce `connecting` BEFORE opening the port so the serial reconcile's
-    // liveness pass won't release (dispose) this transport mid-connect.
     _connectionSubject.add(ConnectionState.connecting);
     await _transport.connect();
     _transportSubscription = _transport.rawStream.listen(
@@ -115,7 +109,6 @@ class HDSSerial implements Scale, TransportHandoffScale {
       _ticksSinceLastData++;
       _watchdogTotalTicks++;
 
-      // Periodic heartbeat: log every 5 min (150 ticks at 2s) at FINE level
       if (_watchdogTotalTicks % 150 == 0) {
         final uptimeMin =
             (_watchdogTotalTicks * _watchdogInterval.inSeconds) ~/ 60;
@@ -164,16 +157,12 @@ class HDSSerial implements Scale, TransportHandoffScale {
 
   Future<void> _sendOledOn() async {
     List<int> payload = [];
-    // payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
-    // await _transport.writeHexCommand(Uint8List.fromList(payload));
     payload = [0x03, 0x0A, 0x04, 0x00, 0x00, 0x01, 0x08];
     await _transport.writeHexCommand(Uint8List.fromList(payload));
   }
 
   Future<void> _sendOledOff() async {
     List<int> payload = [];
-    // payload = [0x03, 0x0A, 0x04, 0x01, 0x00, 0x01, 0x09];
-    // await _transport.writeHexCommand(Uint8List.fromList(payload));
     payload = [0x03, 0x0A, 0x00, 0x01, 0x00, 0x01, 0x09];
     await _transport.writeHexCommand(Uint8List.fromList(payload));
   }

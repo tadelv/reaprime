@@ -58,7 +58,6 @@ void main() {
   });
 
   Widget buildDiscoveryView() {
-    // Use a large surface to avoid overflow issues with the card-based views
     return MediaQuery(
       data: MediaQueryData(size: Size(1024, 768)),
       child: ShadApp(
@@ -78,14 +77,10 @@ void main() {
     );
   }
 
-  // All DeviceDiscoveryView tests use tester.runAsync because the
-  // ConnectionManager.connect() runs real async operations and relies on
-  // stream propagation through microtasks.
   group('DeviceDiscoveryView', () {
     testWidgets('shows no devices found when scan finds nothing', (
       tester,
     ) async {
-      // Suppress overflow errors for this test
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
@@ -100,7 +95,6 @@ void main() {
         await tester.pumpWidget(buildDiscoveryView());
         await tester.pump();
 
-        // Allow ConnectionManager.connect() to complete with no devices
         await Future.delayed(Duration(milliseconds: 500));
         await tester.pump();
 
@@ -127,20 +121,16 @@ void main() {
         await tester.pumpWidget(buildDiscoveryView());
         await tester.pump();
 
-        // Let scan complete with no devices
         await Future.delayed(Duration(milliseconds: 500));
         await tester.pump();
 
-        // Verify no simulated devices before tap
         expect(settingsController.simulatedDevices, isEmpty);
 
-        // Tap Try Demo Mode
         final demoButton = find.text('Try Demo Mode');
         expect(demoButton, findsOneWidget);
         await tester.tap(demoButton);
         await tester.pump();
 
-        // Simulated devices should now be enabled in memory
         expect(
           settingsController.simulatedDevices,
           contains(SimulatedDevicesTypes.machine),
@@ -150,7 +140,6 @@ void main() {
           contains(SimulatedDevicesTypes.scale),
         );
 
-        // Let ConnectionManager.connect() settle
         await Future.delayed(Duration(milliseconds: 500));
         await tester.pump();
       });
@@ -196,17 +185,14 @@ void main() {
       addTearDown(() => FlutterError.onError = origOnError);
 
       await tester.runAsync(() async {
-        // Add two machines so ConnectionManager shows picker (ambiguity)
         mockService.addDevice(MockDe1());
         mockService.addDevice(MockDe1(deviceId: 'mock-de1-2'));
 
         await tester.pumpWidget(buildDiscoveryView());
 
-        // Allow ConnectionManager.connect() to scan and resolve
         await Future.delayed(Duration(milliseconds: 500));
         await tester.pump();
 
-        // machinePicker ambiguity shows "Machines" header and device list
         expect(find.text('Machines'), findsOneWidget);
         expect(find.text('MockDe1'), findsWidgets);
       });
@@ -226,7 +212,6 @@ void main() {
       addTearDown(() => FlutterError.onError = origOnError);
 
       await tester.runAsync(() async {
-        // Add two machines to trigger picker, plus a scale
         mockService.addDevice(MockDe1());
         mockService.addDevice(MockDe1(deviceId: 'mock-de1-2'));
         mockService.addDevice(TestScale());
@@ -236,7 +221,6 @@ void main() {
         await Future.delayed(Duration(milliseconds: 500));
         await tester.pump();
 
-        // Both columns should be visible
         expect(find.text('Machines'), findsOneWidget);
         expect(find.text('Scales'), findsOneWidget);
         expect(find.text('MockDe1'), findsWidgets);
@@ -290,11 +274,7 @@ void main() {
         await tester.pump();
 
         expect(find.byType(ConnectionErrorBanner), findsOneWidget);
-        // Banner title is specific to its rendering; distinguishes it from
-        // the DeviceDiscoveryView's own inline _errorView.
         expect(find.text('Connect failed'), findsOneWidget);
-        // Banner and inline fallback may both show the message in the
-        // idle+error state, so just assert at least one renders it.
         expect(
           find.textContaining('Scale connect timed out'),
           findsAtLeastNWidgets(1),

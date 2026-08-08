@@ -35,8 +35,6 @@ void main() {
     });
 
     test('initIntegratedScale logs and no-ops when wires are unwired', () {
-      // initIntegratedScale was already called via onConnect in setUp.
-      // Confirm a log message was emitted noting the unwired endpoint.
       expect(
         logRecords.any(
           (r) =>
@@ -50,7 +48,6 @@ void main() {
 
     test('disposeIntegratedScale closes the subject', () async {
       await bengle.onDisconnect();
-      // Listening to a closed BehaviorSubject completes without emitting.
       await expectLater(bengle.weightSnapshot, emitsDone);
     });
 
@@ -82,25 +79,12 @@ void main() {
     });
 
     test('connect → disconnect → connect lifecycle is leak-free', () async {
-      // First lifecycle was set up in setUp(). Disconnect (which now
-      // routes through UnifiedDe1.disconnect → onDisconnect →
-      // disposeIntegratedScale) should close the subject.
       await bengle.disconnect();
       await expectLater(bengle.weightSnapshot, emitsDone);
 
-      // Reconnect on the same instance. The mixin must re-init the
-      // subject; otherwise a fresh listener would observe `done`
-      // immediately and the capability would be dead until the device
-      // is re-instantiated.
       transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
 
-      // Listening to weightSnapshot after the second onConnect should
-      // NOT immediately fire `done`. If the mixin failed to re-init the
-      // closed BehaviorSubject, `.first` would complete with a
-      // StateError ("No element") because the stream would be done with
-      // no values. With re-init, no values arrive within the window,
-      // so we time out — which is the success signal here.
       var streamCompletedWithoutValue = false;
       try {
         await bengle.weightSnapshot.first.timeout(

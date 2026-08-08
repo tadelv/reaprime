@@ -78,7 +78,7 @@ void main() {
       const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale),
     );
     await Future.delayed(Duration.zero);
-    scale.add(null); // disconnect
+    scale.add(null);
     await Future.delayed(Duration.zero);
 
     expect(
@@ -121,7 +121,7 @@ void main() {
   test('forget is a no-op for an unknown id', () async {
     controller = build();
     await controller.initialize();
-    await controller.forget('nope'); // must not throw
+    await controller.forget('nope');
     expect(controller.remembered, isEmpty);
   });
 
@@ -158,7 +158,6 @@ void main() {
       await Future.delayed(Duration.zero);
       final writesAfterFirst = settings.rememberedDevicesWriteCount;
 
-      // Identical reconnect (BLE drop/reconnect storm) must be a no-op.
       scale.add(device);
       await Future.delayed(Duration.zero);
 
@@ -167,40 +166,40 @@ void main() {
         writesAfterFirst,
         reason: 'an identical reconnect must not persist again',
       );
-      // seeded [] (0) + one emission for the first remember (1); no second.
       expect(emissions, [0, 1]);
       await sub.cancel();
     },
   );
 
-  test('the same physical scale on two transports yields two entries', () async {
-    // The WiFi/USB/BLE views of one physical HDS have distinct deviceIds and
-    // are intentionally NOT merged — each transport is its own remembered entry.
-    controller = build();
-    await controller.initialize();
+  test(
+    'the same physical scale on two transports yields two entries',
+    () async {
+      controller = build();
+      await controller.initialize();
 
-    scale.add(
-      const RememberedDevice(
-        id: 'wifi:hds.local',
-        name: 'HDS',
-        type: DeviceType.scale,
-      ),
-    );
-    scale.add(
-      const RememberedDevice(
-        id: 'AA:BB:CC:DD:EE:FF',
-        name: 'HDS',
-        type: DeviceType.scale,
-      ),
-    );
-    await Future.delayed(Duration.zero);
+      scale.add(
+        const RememberedDevice(
+          id: 'wifi:hds.local',
+          name: 'HDS',
+          type: DeviceType.scale,
+        ),
+      );
+      scale.add(
+        const RememberedDevice(
+          id: 'AA:BB:CC:DD:EE:FF',
+          name: 'HDS',
+          type: DeviceType.scale,
+        ),
+      );
+      await Future.delayed(Duration.zero);
 
-    expect(
-      controller.remembered.map((d) => d.id).toSet(),
-      {'wifi:hds.local', 'AA:BB:CC:DD:EE:FF'},
-      reason: 'same name, distinct ids → distinct entries',
-    );
-  });
+      expect(
+        controller.remembered.map((d) => d.id).toSet(),
+        {'wifi:hds.local', 'AA:BB:CC:DD:EE:FF'},
+        reason: 'same name, distinct ids → distinct entries',
+      );
+    },
+  );
 
   test(
     'a failed persist on the connect path is contained and rolled back',
@@ -209,10 +208,6 @@ void main() {
       await controller.initialize();
       settings.failRememberedDevicesWrite = true;
 
-      // A throwing persist on the un-awaited stream path must be caught (logged in
-      // _persist) — if it leaked as an unhandled async error the test zone would
-      // fail. The registry rolls back so memory matches disk (nothing persisted),
-      // and the device self-heals on the next connect.
       scale.add(
         const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale),
       );
@@ -248,28 +243,29 @@ void main() {
     );
   });
 
-  test('initialize is idempotent (no double-subscribe / double-load)', () async {
-    controller = build();
-    await controller.initialize();
-    await controller.initialize(); // second call must be a no-op
+  test(
+    'initialize is idempotent (no double-subscribe / double-load)',
+    () async {
+      controller = build();
+      await controller.initialize();
+      await controller.initialize();
 
-    final emissions = <int>[];
-    final sub = controller.changes.listen((l) => emissions.add(l.length));
-    scale.add(
-      const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale),
-    );
-    await Future.delayed(Duration.zero);
+      final emissions = <int>[];
+      final sub = controller.changes.listen((l) => emissions.add(l.length));
+      scale.add(
+        const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale),
+      );
+      await Future.delayed(Duration.zero);
 
-    expect(controller.remembered.map((d) => d.id), ['s']);
-    // seeded(0) + exactly ONE remember(1) — a double-subscribe would emit twice.
-    expect(emissions, [0, 1]);
-    await sub.cancel();
-  });
+      expect(controller.remembered.map((d) => d.id), ['s']);
+      expect(emissions, [0, 1]);
+      await sub.cancel();
+    },
+  );
 
   test(
     'a partially-malformed stored list loads only the valid records',
     () async {
-      // One valid record + one missing required fields (dropped).
       await settings.setRememberedDevices(
         '[{"id":"a","name":"A","type":"scale"},{"id":"b"}]',
       );
@@ -297,7 +293,6 @@ void main() {
     await controller.forget('m');
     await Future.delayed(Duration.zero);
 
-    // seeded [] (0), after remember (1), after forget (0)
     expect(emissions, containsAllInOrder([0, 1, 0]));
     await sub.cancel();
   });

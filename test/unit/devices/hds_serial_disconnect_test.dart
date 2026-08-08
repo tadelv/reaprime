@@ -58,7 +58,6 @@ class MockSerialTransport implements SerialTransport {
     writtenHexCommands.add(command);
   }
 
-  /// Push raw bytes into the rawStream (simulates data from device).
   void emitRawData(Uint8List data) {
     _rawController.add(data);
   }
@@ -86,7 +85,6 @@ void main() {
 
   group('HDSSerial.disconnect()', () {
     test('does not throw when called before onConnect', () async {
-      // disconnect() should not throw LateInitializationError
       await expectLater(hds.disconnect(), completes);
     });
 
@@ -103,7 +101,6 @@ void main() {
 
     test('is safe to call twice (re-entrant guard)', () async {
       await hds.disconnect();
-      // Second call should be a no-op, not throw
       await expectLater(hds.disconnect(), completes);
     });
 

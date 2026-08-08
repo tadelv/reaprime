@@ -11,15 +11,6 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/errors.dart';
 import '../../scale.dart';
 
-/// Varia AKU scale implementation.
-///
-/// BLE Protocol (FFF0 service, shared with Decent/Eureka/SmartChef):
-/// - Notifications: header, command, length, payload, xor
-/// - Weight notification: command=0x01, length=0x03, w1 w2 w3
-///   - Sign in highest nibble of w1 (0x10 = negative)
-///   - Weight = ((w1 & 0x0F) << 16) | (w2 << 8) | w3, in hundredths of gram
-/// - Battery notification: command=0x85, length=0x01, battery%
-/// - Tare: 0xFA 0x82 0x01 0x01 0x82
 class VariaAkuScale implements Scale {
   static final BleServiceIdentifier serviceIdentifier =
       BleServiceIdentifier.short('fff0');
@@ -108,8 +99,6 @@ class VariaAkuScale implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
-  /// Safe write — catches [DeviceNotConnectedException] so a write to a
-  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
   Future<void> _safeWrite(Uint8List data) async {
     try {
       await _transport.write(
@@ -134,9 +123,7 @@ class VariaAkuScale implements Scale {
   }
 
   @override
-  Future<void> wakeDisplay() async {
-    // Varia AKU doesn't support display wake via BLE
-  }
+  Future<void> wakeDisplay() async {}
 
   Future<void> _registerNotifications() async {
     await _transport.subscribe(
@@ -152,17 +139,13 @@ class VariaAkuScale implements Scale {
     int command = data[1];
     int length = data[2];
 
-    // Weight notification: command=0x01, length=0x03
     if (command == 0x01 && length == 0x03 && data.length >= 7) {
       int w1 = data[3];
       int w2 = data[4];
       int w3 = data[5];
 
-      // Sign is in highest nibble of w1 (0x10 means negative)
       bool isNegative = (w1 & 0x10) != 0;
 
-      // Weight is 3 bytes big-endian in hundredths of gram
-      // Strip sign nibble from w1
       int weightRaw = ((w1 & 0x0F) << 16) | (w2 << 8) | w3;
       double weight = weightRaw / 100.0;
 
@@ -177,9 +160,7 @@ class VariaAkuScale implements Scale {
           batteryLevel: _batteryLevel,
         ),
       );
-    }
-    // Battery notification: command=0x85, length=0x01
-    else if (command == 0x85 && length == 0x01 && data.length >= 5) {
+    } else if (command == 0x85 && length == 0x01 && data.length >= 5) {
       _batteryLevel = data[3];
     }
   }

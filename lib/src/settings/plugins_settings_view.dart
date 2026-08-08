@@ -8,8 +8,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 
-// LucideIcons is exported by shadcn_ui
-
 const _maxPluginSafDepth = 32;
 const _maxPluginSafEntries = 10000;
 
@@ -69,12 +67,6 @@ Future<void> _copyPluginDirectoryFromSaf(
   }
 }
 
-// Plugins list and settings
-// Shows a list of all available plugins,
-// has an icon indicating which plugin is currently loaded (on the list)
-// has an icon to edit plugin settings - which opens a new dialog for editing
-// lists permissions for each plugin, as well as other details such as author, plugin name, version
-// also has buttons for adding/installing a plugin as well as removing a specific plugin
 class PluginsSettingsView extends StatefulWidget {
   const PluginsSettingsView({
     super.key,
@@ -106,7 +98,6 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
       _isLoading = true;
     });
 
-    // Get the list of available plugins
     final plugins = widget.pluginLoaderService.availablePlugins;
 
     setState(() {
@@ -395,27 +386,22 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
     }
   }
 
-  // TODO: unify with PluginLoaderService _copyDirectoryRecursively - maybe as a Directory extension?
   Future<void> _copyDirectoryRecursively(
     Directory source,
     Directory destination,
   ) async {
-    // Create destination directory if it doesn't exist
     if (!destination.existsSync()) {
       destination.createSync(recursive: true);
     }
 
-    // List all entries in the source directory
     final entries = source.listSync(recursive: false);
 
     for (final entry in entries) {
       final newPath = '${destination.path}/${entry.path.split('/').last}';
 
       if (entry is File) {
-        // Copy file
         await entry.copy(newPath);
       } else if (entry is Directory) {
-        // Recursively copy directory
         final newDir = Directory(newPath);
         await _copyDirectoryRecursively(entry, newDir);
       }
@@ -544,13 +530,11 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                   final currentValue = newSettings[key];
                   final defaultValue = schema['default'];
 
-                  // Helper function to get display value
                   String getDisplayValue(dynamic value) {
                     if (value == null) return '';
                     return value.toString();
                   }
 
-                  // Helper function to parse value based on type
                   dynamic parseValue(String value, String type) {
                     if (type == 'number') {
                       return num.tryParse(value);

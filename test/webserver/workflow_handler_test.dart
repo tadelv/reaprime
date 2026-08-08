@@ -26,13 +26,6 @@ import '../helpers/mock_settings_service.dart';
 import '../helpers/test_scale.dart';
 import '../helpers/test_scale_controller.dart';
 
-/// Observes every call the WorkflowHandler + De1Controller make on the
-/// DE1 surface. Used to pin the contract down to the device boundary.
-///
-/// Unlike `helpers/test_de1.dart`, this spy keeps a [BehaviorSubject]
-/// for `shotSettings` (mirroring both `MockDe1` and `UnifiedDe1`), so
-/// read-modify-write races on the controller surface reproduce here
-/// exactly like they do on the running app.
 class SpyDe1 implements De1Interface {
   SpyDe1({De1ShotSettings? seed, bool readyState = true}) {
     _shotSettings = BehaviorSubject.seeded(
@@ -72,9 +65,6 @@ class SpyDe1 implements De1Interface {
   final List<double> steamFlowEntryOrder = [];
   final List<double> steamFlowCompletionOrder = [];
 
-  /// Ordered trace of every physical flow/register write this spy
-  /// received, used to prove that one request's writes stay contiguous
-  /// (no interleaving from another queue entry).
   final List<String> writeOrder = [];
 
   double? blockedSteamFlow;
@@ -86,8 +76,6 @@ class SpyDe1 implements De1Interface {
   Completer<void>? heaterPhase2FlowRelease;
   double? failHeaterPhase2Flow;
 
-  /// Every emit that crosses the `shotSettings` stream, in order. This
-  /// is the stream `/ws/v1/machine/shotSettings` subscribes to.
   final List<De1ShotSettings> emittedShotSettings = [];
 
   @override
@@ -149,14 +137,9 @@ class SpyDe1 implements De1Interface {
     writeOrder.add('flushTemp:$newTemp');
   }
 
-  /// Drive the connection-state stream; a `disconnected` emission makes
-  /// `De1Controller` run `_onDisconnect()` (generation bump, machine
-  /// cleared), which is how tests model a real disconnect gap.
   void setConnectionState(ConnectionState state) {
     _connectionState.add(state);
   }
-
-  // ---- Uninteresting plumbing ----
 
   final BehaviorSubject<ConnectionState> _connectionState =
       BehaviorSubject.seeded(ConnectionState.connected);
@@ -348,8 +331,6 @@ class SpyDe1 implements De1Interface {
 }
 
 Future<void> _settleHandler(SpyDe1 spy) async {
-  // Wait for the connect-time startup defaults (fan write) to land so
-  // writeOrder traces start from a clean slate in each test.
   while (spy.setFanThreshholdCalls.isEmpty) {
     await Future<void>.delayed(const Duration(milliseconds: 1));
   }
@@ -411,7 +392,6 @@ void main() {
 
   group('PUT /api/v1/workflow — redundant writes', () {
     test('steam-only PUT does not trigger hot-water or flush writes', () async {
-      // Clear any emits from initial seed + DE1 controller init.
       await _settleHandler(spy);
       spy.updateShotSettingsCalls.clear();
       spy.setSteamFlowCalls.clear();
@@ -506,8 +486,6 @@ void main() {
     test('invalid ExitType returns 400 instead of hanging forever', () async {
       await _settleHandler(spy);
 
-      // Send a profile step with an invalid ExitType ('weight'
-      // is not a valid member of ExitType {pressure, flow}).
       final future = put({
         'profile': {
           'steps': [
@@ -526,12 +504,8 @@ void main() {
         },
       });
 
-      // Wait for the debounce timer to fire and _applyPendingUpdate
-      // to run (or, pre-fix, to throw silently and hang).
       await _settleHandler(spy);
 
-      // With the fix, the completer is completed with a 400 response
-      // instead of never completing.
       final response = await future;
       expect(response.statusCode, equals(400));
       final body = jsonDecode(await response.readAsString());
@@ -545,7 +519,6 @@ void main() {
       () async {
         await _settleHandler(spy);
 
-        // First: an invalid PUT that will fail to parse.
         final badFuture = put({
           'profile': {
             'steps': [
@@ -567,8 +540,6 @@ void main() {
         final badResponse = await badFuture;
         expect(badResponse.statusCode, equals(400));
 
-        // Second: a valid PUT that must work because _pendingMerge
-        // was cleared after the failure.
         final goodFuture = put({
           'steamSettings': {'duration': 25},
         });
@@ -583,11 +554,6 @@ void main() {
     test(
       'empty profile title (Profile.fromJson ArgumentError) returns 400',
       () async {
-        // Tests the interaction between the new Profile.fromJson
-        // validation (throws ArgumentError on empty title) and our
-        // catch block in _applyPendingUpdate. Without the catch,
-        // this ArgumentError would escape the fire-and-forget Timer
-        // callback and hang the request.
         await _settleHandler(spy);
 
         final future = put({
@@ -807,21 +773,16 @@ void main() {
         });
         await entered.future.timeout(const Duration(seconds: 2));
 
-        // The machine disconnects while the write is still blocked: the
-        // controller now has NO machine (a real disconnected interval).
         spy.setConnectionState(ConnectionState.disconnected);
         await Future<void>.delayed(Duration.zero);
         expect(de1Controller.connectedDe1OrNull, isNull);
 
-        // Release the old write; it finishes on the old machine, but the
-        // generation has changed so the retry must wait for a replacement.
         release.complete();
         await Future<void>.delayed(const Duration(milliseconds: 50));
         var completed = false;
         unawaited(future.then((_) => completed = true));
         expect(completed, isFalse);
 
-        // Attach the replacement only after the old write finished.
         final replacement = SpyDe1(readyState: false);
         await de1Controller.connectToDe1(replacement);
         expect(completed, isFalse);
@@ -1227,23 +1188,16 @@ void main() {
           );
         }
 
-        // Block the queue with the first mutation.
         final firstFuture = expPut({
           'steamSettings': {'flow': blockedFlow},
         });
         await entered.future.timeout(const Duration(seconds: 2));
 
-        // A second request expires with 503 and must release its slot
-        // immediately even though its queue entry never reaches the
-        // front (the first write is still blocked).
         final expiredResponse = await expPut({
           'steamSettings': {'flow': blockedFlow + 1},
         });
         expect(expiredResponse.statusCode, 503);
 
-        // maxPendingRequests is 8. With the expired slot released, seven
-        // further requests are admitted (each 503 after its own wait); if
-        // the expired slot had leaked, the seventh would be rejected 429.
         for (var i = 0; i < 7; i++) {
           final response = await expPut({
             'steamSettings': {'flow': blockedFlow + 2 + i},
@@ -1296,8 +1250,6 @@ void main() {
         }();
         await entered.future.timeout(const Duration(seconds: 2));
 
-        // The machine disconnects mid-write and no replacement ever
-        // appears within the bounded wait.
         shortSpy.setConnectionState(ConnectionState.disconnected);
         release.complete();
 
@@ -1429,13 +1381,11 @@ void main() {
         spy.steamFlowRelease = release;
         spy.writeOrder.clear();
 
-        // Workflow PUT A blocks the queue.
         final firstFuture = put({
           'steamSettings': {'flow': blockedFlow},
         });
         await entered.future.timeout(const Duration(seconds: 2));
 
-        // Settings POST B arrives while A is blocked, then workflow PUT C.
         final settingsFuture = postSettings({
           'steamFlow': settingsSteamFlow,
           'hotWaterFlow': settingsHotWaterFlow,
@@ -1454,8 +1404,6 @@ void main() {
         expect(responses[0].statusCode, 200);
         expect(responses[1].statusCode, 202);
         expect(responses[2].statusCode, 200);
-        // B's two fields must be contiguous: no write from A or C may
-        // land between the hot-water and steam writes of one request.
         expect(spy.writeOrder, [
           'steam:$blockedFlow',
           'hotWater:$settingsHotWaterFlow',
@@ -1491,8 +1439,6 @@ void main() {
         expect(spy.setHotWaterFlowCalls, [hotWaterFlow]);
         expect(spy.setSteamFlowCalls, [steamFlow]);
 
-        // The machine disconnects while the settings write is blocked;
-        // the controller now has no machine.
         spy.setConnectionState(ConnectionState.disconnected);
         await Future<void>.delayed(Duration.zero);
         expect(de1Controller.connectedDe1OrNull, isNull);
@@ -1503,7 +1449,6 @@ void main() {
         unawaited(settingsFuture.then((_) => completed = true));
         expect(completed, isFalse);
 
-        // Attach the replacement only after the old write finished.
         final replacement = SpyDe1(readyState: false);
         await de1Controller.connectToDe1(replacement);
         expect(completed, isFalse);
@@ -1514,10 +1459,6 @@ void main() {
           const Duration(seconds: 3),
         );
         expect(response.statusCode, 202);
-        // The replacement receives the complete grouped write (its own
-        // startup fan write precedes it); the old machine's writes stop
-        // at the failed steam write (nothing after the disconnect
-        // reached it).
         expect(replacement.writeOrder.sublist(1), [
           'flushTemp:${flushTemp.toDouble()}',
           'hotWater:$hotWaterFlow',
@@ -1591,8 +1532,6 @@ void main() {
         final settingsFuture = postSettings({'steamFlow': steamFlow});
         await entered.future.timeout(const Duration(seconds: 2));
 
-        // The machine disconnects mid-write; the request now waits for a
-        // replacement. No stream may publish the requested value yet.
         spy.setConnectionState(ConnectionState.disconnected);
         release.complete();
         await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -1722,13 +1661,11 @@ void main() {
         spy.steamFlowRelease = release;
         spy.writeOrder.clear();
 
-        // Workflow PUT A blocks the queue.
         final firstFuture = put({
           'steamSettings': {'flow': blockedFlow},
         });
         await entered.future.timeout(const Duration(seconds: 2));
 
-        // Reset DELETE B and workflow PUT C queue behind it.
         final resetFuture = deleteReset();
         final laterFuture = put({
           'steamSettings': {'flow': laterSteamFlow},
@@ -1744,9 +1681,6 @@ void main() {
         expect(responses[0].statusCode, 200);
         expect(responses[1].statusCode, 202);
         expect(responses[2].statusCode, 200);
-        // The complete reset sequence is contiguous between the two
-        // workflow steam writes: no field of the reset may be split off
-        // by another queue entry.
         expect(spy.writeOrder, [
           'steam:$blockedFlow',
           'fan:55',
@@ -1776,12 +1710,10 @@ void main() {
 
         final resetFuture = deleteReset();
         await entered.future.timeout(const Duration(seconds: 2));
-        expect(spy.setFanThreshholdCalls, [55, 55]); // startup + reset
+        expect(spy.setFanThreshholdCalls, [55, 55]);
         expect(spy.setHeaterIdleTempCalls, [95]);
         expect(spy.setHeaterPhase1FlowCalls, [2.0]);
 
-        // The machine disconnects while the reset write is blocked; the
-        // controller now has no machine.
         spy.setConnectionState(ConnectionState.disconnected);
         await Future<void>.delayed(Duration.zero);
         expect(de1Controller.connectedDe1OrNull, isNull);
@@ -1792,7 +1724,6 @@ void main() {
         unawaited(resetFuture.then((_) => completed = true));
         expect(completed, isFalse);
 
-        // Attach the replacement only after the old write finished.
         final replacement = SpyDe1(readyState: false);
         await de1Controller.connectToDe1(replacement);
         replacement.setReady(true);
@@ -1800,10 +1731,6 @@ void main() {
 
         final response = await resetFuture.timeout(const Duration(seconds: 3));
         expect(response.statusCode, 202);
-        // The replacement receives the complete reset (its own startup
-        // fan write is the first entry, then the full reset sequence);
-        // the old machine never receives the writes after the failed
-        // heater phase-2 write.
         expect(replacement.writeOrder.sublist(1), [
           'fan:55',
           'heaterIdleTemp:95.0',

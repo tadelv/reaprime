@@ -91,12 +91,6 @@ PluginManifest _manifest() => PluginManifest.fromJson(
 String _pluginSource() =>
     File('assets/plugins/shot-upload.reaplugin/plugin.js').readAsStringSync();
 
-/// Advance the plugin's async work until [ready] is true (or the deadline
-/// passes). The plugin awaits JS-stubbed `fetch` promises (which resolve via
-/// QuickJS's pending-job queue) and the Dart proxy round-trip (which resolves
-/// via the Dart microtask queue), so a caller that only waits on a Future never
-/// makes progress: this drains QuickJS jobs and yields to the Dart loop each
-/// turn, the way the running app does continuously.
 Future<void> _pumpUntil(
   PluginManager manager,
   bool Function() ready, {
@@ -110,8 +104,6 @@ Future<void> _pumpUntil(
 }
 
 void main() {
-  /// Manager wired with a linked account + a MockClient that records the upload
-  /// request; the plugin's local REST calls (fetch) are stubbed in JS.
   Future<PluginManager> load({
     required Map<String, dynamic> settings,
     required List<http.Request> captured,
@@ -192,14 +184,10 @@ void main() {
       final body = jsonDecode(req.body) as Map<String, dynamic>;
       expect(body['id'], 'shot-1');
       expect(body['machine']['serialNumber'], '6262');
-      // firmware from /machine/info `version` (not a bogus firmwareVersion field)
       expect(body['machine']['firmwareVersion'], '1293');
       expect(body['machine'].containsKey('bleId'), isFalse);
-      // app version from /api/v1/info, not the hard-coded plugin version
       expect(body['app']['version'], '9.9.9');
 
-      // the shot record is marked uploaded: PUT /shots/<id> with
-      // annotations.extras.uploaded_to_decent = <epoch seconds>
       final puts =
           jsonDecode(
                 manager.js

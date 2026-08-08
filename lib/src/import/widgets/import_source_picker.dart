@@ -6,7 +6,6 @@ import 'package:saf_util/saf_util.dart';
 import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// Two card-style options for picking an import source, with an optional skip link.
 class ImportSourcePicker extends StatelessWidget {
   final void Function(String folderPath) onDe1appFolderSelected;
   final void Function(String filePath) onZipFileSelected;
@@ -21,8 +20,6 @@ class ImportSourcePicker extends StatelessWidget {
 
   Future<void> _pickFolder(BuildContext context) async {
     if (Platform.isAndroid) {
-      // On Android, just open the SAF picker and return the tree URI.
-      // The import step handles copying with progress.
       final picked = await SafUtil().pickDirectory(
         writePermission: false,
         persistablePermission: false,

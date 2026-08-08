@@ -20,11 +20,6 @@ import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/impl/weighmaster/weighmaster_scale.dart';
 
 class DeviceMatcher {
-  /// Service UUIDs advertised by devices of a given [type].
-  /// Used for filtered BLE scans to bypass Android background throttling.
-  ///
-  /// Returns 128-bit UUID strings. [BluePlusDiscoveryService] converts
-  /// them to platform-specific [Guid] objects at the BLE edge.
   static List<String> serviceUuidsFor(DeviceType type) => switch (type) {
     DeviceType.scale => [
       DecentScale.serviceIdentifier.long,
@@ -41,20 +36,13 @@ class DeviceMatcher {
       WeighMasterScale.serviceIdentifier.long,
       ...AcaiaScale.advertisedServiceUuids,
     ],
-    DeviceType.machine => [
-      UnifiedDe1.advertisingIdentifier.long,
-      // Bengle extends UnifiedDe1, inherits advertisingIdentifier.
-    ],
+    DeviceType.machine => [UnifiedDe1.advertisingIdentifier.long],
     DeviceType.sensor => [
       DecentTemp.serviceIdentifier.long,
       DifluidR2Sensor.serviceIdentifier.long,
     ],
   };
 
-  /// Map an advertised name to a [DeviceImplementation] without constructing
-  /// a device. Used by [RememberedDevice.migrate] to infer the implementation
-  /// for old records that predate the field. Mirrors the name-matching logic
-  /// in [match] — keep the two in sync when adding a new device.
   static DeviceImplementation? implementationForName(String advertisedName) {
     final name = advertisedName;
     final nameLower = name.toLowerCase();
@@ -127,13 +115,11 @@ class DeviceMatcher {
     final name = advertisedName;
     final nameLower = name.toLowerCase();
 
-    // Exact matches
     if (name == 'Decent Scale') return DecentScale(transport: transport);
     if (name == 'Skale2' || nameLower.startsWith("skale")) {
       return Skale2Scale(transport: transport);
     }
 
-    // DE1 family — check before generic prefix matches
     if (name == 'DE1' || nameLower == 'nrf5x' || nameLower.startsWith('de1')) {
       return UnifiedDe1(transport: transport);
     }
@@ -141,7 +127,6 @@ class DeviceMatcher {
       return Bengle(transport: transport);
     }
 
-    // Prefix matches
     if (nameLower.startsWith('felicita')) {
       return FelicitaArc(transport: transport);
     }
@@ -149,7 +134,6 @@ class DeviceMatcher {
       return BlackCoffeeScale(transport: transport);
     }
 
-    // Contains matches — check specific before generic
     if (nameLower.contains('acaia') ||
         nameLower.contains('lunar') ||
         nameLower.contains('pearl') ||

@@ -7,10 +7,6 @@ import 'package:reaprime/src/settings/settings_service.dart';
 void main() {
   test('every device SimulatedDeviceService produces implements the '
       'SimulatedDevice marker', () async {
-    // Forcing function: a mock added to the simulate service WITHOUT the marker
-    // would be wrongly eligible for the remembered registry — fromDevice only
-    // skips devices that are `is SimulatedDevice`. Driving the real service
-    // (rather than a hand-maintained list) keeps this honest as mocks are added.
     final service = SimulatedDeviceService()
       ..enabledDevices = SimulatedDevicesTypes.values.toSet();
 
@@ -21,7 +17,6 @@ void main() {
     await sub.cancel();
 
     expect(devices, isNotEmpty);
-    // machine + bengle + scale + sensor-basket + debug-port.
     expect(
       devices.length,
       greaterThanOrEqualTo(5),
@@ -35,9 +30,6 @@ void main() {
       );
     }
 
-    // Only MockScale starts a Timer in its constructor; stop it so the test
-    // zone has no pending timers. (Machines/sensors are timer-free until
-    // onConnect, which the service never calls.)
     for (final d in devices) {
       if (d.type == DeviceType.scale) await d.disconnect();
     }

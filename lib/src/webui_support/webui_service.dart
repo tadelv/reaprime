@@ -10,7 +10,6 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
-/// What source to serve a skin from — overrides the registry default.
 @immutable
 class SkinOverride {
   final SkinSource source;
@@ -23,16 +22,7 @@ class SkinOverride {
   const SkinOverride.id(String skinId) : source = SkinSource.id, value = skinId;
 }
 
-enum SkinSource {
-  /// Normal behavior: lookup from WebUIStorage registry.
-  registry,
-
-  /// Serve directly from a filesystem path (--skin-path).
-  path,
-
-  /// Serve a specific skin ID from the registry, session-only (future).
-  id,
-}
+enum SkinSource { registry, path, id }
 
 const skinApiScriptPath = '/__decent/skin-api.js';
 const skinExitDashboardPath = '/__decent/exit-dashboard';
@@ -117,18 +107,12 @@ class WebUIService {
   String _path = "";
   String? _localIP;
 
-  /// Test seam: override in tests to simulate offline/no-WiFi without
-  /// touching the real platform channel. Returns null when no WiFi IP is
-  /// available (null-collapsed by [_resolveLocalIP]).
   @visibleForTesting
   static Future<String?> Function() resolveWifiIP = NetworkInfo().getWifiIP;
 
   WebUIService({Future<List<String>> Function()? listLocalAddresses})
     : _listLocalAddresses = listLocalAddresses ?? _listDeviceAddresses;
 
-  /// Resolves the device's WiFi IP for the browser-hero card and QR code.
-  /// Must not block the critical path — falls back to "localhost" when the
-  /// platform call throws or the device is offline (gh#337).
   Future<String> _resolveLocalIP() async {
     try {
       final ip = await resolveWifiIP();
@@ -139,17 +123,10 @@ class WebUIService {
     return 'localhost';
   }
 
-  /// Overrides the skin source for the initialization step. Set from CLI flags
-  /// (--skin-path) before the onboarding flow starts. Defaults to [SkinSource.registry].
   SkinOverride skinOverride = const SkinOverride.registry();
 
-  /// Current account-proxy skin token, set from `ProxyTokenService.skinToken`.
-  /// Injected into served HTML so skins can call the proxy. Null = no injection.
   String? skinProxyToken;
 
-  // WebUI server methods
-
-  /// Accepts loopback or an address currently assigned to this device.
   Future<bool> _isLocalHost(String host) async {
     if (host == 'localhost' || host == '127.0.0.1' || host == '::1') {
       return true;
@@ -180,31 +157,6 @@ class WebUIService {
     await _server?.close(force: true);
     _localIP ??= await _resolveLocalIP();
 
-    // 1. Get system temp directory
-    // final documents = await getApplicationDocumentsDirectory();
-    // final tempDir = Directory("${documents.path}/served_folder_");
-    // if (await tempDir.exists()) {
-    //   await tempDir.delete(recursive: true);
-    // }
-    // final tempPath = tempDir.path;
-    // final srcDir = Directory(path);
-    // _log.fine("attempting copy from:");
-    // _log.fine("${srcDir.listSync(recursive: true)}");
-    // if (await srcDir.exists() == false) {
-    //     throw "No";
-    //   }
-
-    // 2. Copy folder to temp
-    // await tempDir.create(recursive: true);
-    // await _copyDirectory(Directory(path), tempDir);
-    // copyDirectorySync(srcDir, tempDir);
-
-    // _log.fine("copied data:");
-    // final list = tempDir.listSync(recursive: true);
-    // _log.fine("${list}");
-    //
-    // _log.fine("loading from $tempPath");
-
     final webUI = createStaticHandler(
       path,
       defaultDocument: 'index.html',
@@ -234,17 +186,10 @@ class WebUIService {
         _log.fine("handling request: ${request.requestedUri.path}");
         final response = await innerHandler(request);
 
-        // Option 1: Check by path if it starts with "/ws" (or any other condition)
         if (request.requestedUri.path.startsWith('/ws')) {
           return response;
         }
 
-        // Option 2: Alternatively, check if the request has an Upgrade header
-        // if ((request.headers['upgrade']?.toLowerCase() ?? '') == 'websocket') {
-        //   return response;
-        // }
-
-        // Add the header to responses that aren’t websocket-related.
         return response.change(
           headers: {
             ...response.headersAll,
@@ -291,15 +236,6 @@ class WebUIService {
       };
     }
 
-    //   final handler = (Request request) async {
-    //   return Response.ok('<html><body><h1>Hello WebView</h1></body></html>',
-    //     headers: {'Content-Type': 'text/html'});
-    // };
-    // NOTE: no CORS middleware here on purpose. The skin token is injected into
-    // served HTML, so the :3000 host must NOT send Access-Control-Allow-Origin:
-    // * — otherwise a malicious site could fetch the skin cross-origin and
-    // scrape the token. Skins read their own assets same-origin (no CORS needed)
-    // and call the :8080 API cross-origin (governed by :8080's CORS).
     final handler = const Pipeline()
         .addMiddleware(logRequests())
         .addMiddleware(expirationModifier)

@@ -17,9 +17,6 @@ import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/test_de1.dart';
 
-/// Recording BengleInterface stub. Implements only what
-/// [BengleSawBridge] touches; `noSuchMethod` swallows the rest so we
-/// don't drag in MockBengle's periodic timer.
 class _RecordingBengle implements BengleInterface {
   _RecordingBengle();
 
@@ -156,9 +153,6 @@ void main() {
         de1Controller: de1Controller,
         debounce: _debounce,
       );
-      // The connect-time re-apply runs immediately on bridge construction
-      // (de1Controller already has the BehaviorSubject seeded with the
-      // connected machine). Drain it.
       await Future<void>.delayed(Duration.zero);
       bengle.sawWrites.clear();
 
@@ -289,7 +283,6 @@ void main() {
   });
 
   test('re-applies current target on Bengle (re)connect', () async {
-    // Pre-edit the workflow before any machine is connected.
     final ctx = workflow.currentWorkflow.context ?? const WorkflowContext();
     workflow.updateWorkflow(context: ctx.copyWith(targetYield: 28.0));
 

@@ -126,16 +126,11 @@ class DifluidScale implements Scale {
 
   @override
   Future<void> sleepDisplay() async {
-    // Difluid Microbalance doesn't have documented display sleep commands
-    // Fallback to disconnect as per scale interface contract
     await disconnect();
   }
 
   @override
-  Future<void> wakeDisplay() async {
-    // Difluid Microbalance doesn't have documented wake display commands
-    // This is a no-op
-  }
+  Future<void> wakeDisplay() async {}
 
   Future<void> _registerNotifications() async {
     await _transport.subscribe(
@@ -144,7 +139,6 @@ class DifluidScale implements Scale {
       _parseNotification,
     );
 
-    // Send start weight notifications command
     await _transport.write(
       serviceIdentifier.long,
       dataCharacteristic.long,
@@ -152,7 +146,6 @@ class DifluidScale implements Scale {
       withResponse: true,
     );
 
-    // Set unit to grams
     await _transport.write(
       serviceIdentifier.long,
       dataCharacteristic.long,
@@ -166,7 +159,6 @@ class DifluidScale implements Scale {
       return;
     }
 
-    // If unit is not grams, send setUnitToGram command
     if (data[17] != 0) {
       _transport.write(
         serviceIdentifier.long,
@@ -176,7 +168,6 @@ class DifluidScale implements Scale {
       );
     }
 
-    // Extract bytes 5-8 as big-endian signed int32
     final weightRaw = _getInt32(data.sublist(5, 9));
     final weight = weightRaw / 10.0;
 
@@ -230,7 +221,6 @@ class DifluidScale implements Scale {
       Uint8List.fromList(_cmdTimerStop),
       withResponse: true,
     );
-    // DiFluid stop also resets; start command doubles as reset
     await _transport.write(
       serviceIdentifier.long,
       dataCharacteristic.long,
@@ -240,7 +230,5 @@ class DifluidScale implements Scale {
   }
 
   @override
-  Future<void> resetTimer() async {
-    // DiFluid has no standalone reset; reset is handled as part of stopTimer
-  }
+  Future<void> resetTimer() async {}
 }

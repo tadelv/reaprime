@@ -43,9 +43,6 @@ class _StubDe1Controller extends De1Controller {
   void emit(De1Interface? device) => _subj.add(device);
 }
 
-/// Bare machine surface for sequencer unit tests. Lets the test drive
-/// `currentSnapshot` directly via [emit] and records `requestState`
-/// calls.
 class _TestMachine implements De1Interface {
   _TestMachine({this.id = 'test-machine'});
 
@@ -303,8 +300,6 @@ void main() {
 
     test('false today because MMR slot is stubbed', () {
       final m = _BengleTestMachine();
-      // All three "real" preconditions met; predicate still false
-      // because BengleSteamMmr.stopAtTemperatureTarget.address == 0.
       expect(
         sequencer.useFwAutonomousStop(
           machine: m,

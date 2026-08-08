@@ -36,19 +36,18 @@ void main() {
         nightModeConfig: null,
         wasCharging: false,
       );
-      // 16 < 40 (balanced low), so shouldCharge true
       expect(result.shouldCharge, true);
       expect(result.reason, 'balanced');
     });
 
     test('emergency during night sleeping phase returns shouldCharge true', () {
       final config = NightModeConfig(
-        sleepTimeMinutes: 1320, // 22:00
-        morningTimeMinutes: 420, // 07:00
+        sleepTimeMinutes: 1320,
+        morningTimeMinutes: 420,
       );
       final result = decide(
         batteryPercent: 10,
-        currentTime: DateTime(2026, 1, 16, 3, 0), // sleeping phase
+        currentTime: DateTime(2026, 1, 16, 3, 0),
         chargingMode: ChargingMode.balanced,
         nightModeConfig: config,
         wasCharging: false,
@@ -288,8 +287,6 @@ void main() {
   });
 
   group('night mode phase determination', () {
-    // sleep=22:00 (1320), morning=07:00 (420)
-    // balanced mode at 60% with wasCharging=false
     final config = NightModeConfig(
       sleepTimeMinutes: 1320,
       morningTimeMinutes: 420,
@@ -385,7 +382,6 @@ void main() {
   });
 
   group('night mode hovering phase', () {
-    // sleep=22:00 (1320), morning=07:00 (420), time=20:30
     final config = NightModeConfig(
       sleepTimeMinutes: 1320,
       morningTimeMinutes: 420,
@@ -442,7 +438,6 @@ void main() {
   });
 
   group('night mode chargingToMax phase', () {
-    // sleep=22:00 (1320), morning=07:00 (420), time=21:45
     final config = NightModeConfig(
       sleepTimeMinutes: 1320,
       morningTimeMinutes: 420,
@@ -487,7 +482,6 @@ void main() {
   });
 
   group('night mode sleeping phase', () {
-    // sleep=22:00 (1320), morning=07:00 (420), time=03:00
     final config = NightModeConfig(
       sleepTimeMinutes: 1320,
       morningTimeMinutes: 420,
@@ -520,7 +514,6 @@ void main() {
   });
 
   group('midnight wrapping', () {
-    // sleep=01:00 (60), morning=08:00 (480)
     final config = NightModeConfig(
       sleepTimeMinutes: 60,
       morningTimeMinutes: 480,
@@ -670,7 +663,6 @@ void main() {
     });
 
     test('discharging re-asserts once the interval elapses', () {
-      // Within the interval: skip.
       expect(
         shouldWriteChargerMode(
           shouldCharge: false,
@@ -681,8 +673,6 @@ void main() {
         ),
         isFalse,
       );
-      // Interval elapsed: re-assert OFF because the firmware re-enables the
-      // charger on its own.
       expect(
         shouldWriteChargerMode(
           shouldCharge: false,

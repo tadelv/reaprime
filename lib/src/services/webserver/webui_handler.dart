@@ -1,6 +1,5 @@
 part of '../webserver_service.dart';
 
-/// REST API handler for WebUI skin management
 class WebUIHandler {
   final WebUIStorage _storage;
   final WebUIService _service;
@@ -10,50 +9,37 @@ class WebUIHandler {
       _service = service;
 
   void addRoutes(RouterPlus app) {
-    // List all installed skins
     app.get('/api/v1/webui/skins', _handleListSkins);
 
-    // Get default skin (must be before <id> to avoid route shadowing)
     app.get('/api/v1/webui/skins/default', _handleGetDefaultSkin);
 
-    // Set default skin (must be before <id> to avoid route shadowing)
     app.put('/api/v1/webui/skins/default', _handleSetDefaultSkin);
 
-    // Get specific skin details
     app.get('/api/v1/webui/skins/<id>', _handleGetSkin);
 
-    // Install skin from GitHub release
     app.post(
       '/api/v1/webui/skins/install/github-release',
       _handleInstallFromGitHubRelease,
     );
 
-    // Install skin from GitHub branch
     app.post(
       '/api/v1/webui/skins/install/github-branch',
       _handleInstallFromGitHubBranch,
     );
 
-    // Install skin from URL
     app.post('/api/v1/webui/skins/install/url', _handleInstallFromUrl);
 
-    // Remove/uninstall skin
     app.delete('/api/v1/webui/skins/<id>', _handleRemoveSkin);
 
-    // Skin updates
     app.post('/api/v1/webui/skins/update', _handleUpdateSkins);
 
-    // WebUI server lifecycle
     app.get('/api/v1/webui/server/status', _handleServerStatus);
     app.post('/api/v1/webui/server/start', _handleServerStart);
     app.post('/api/v1/webui/server/stop', _handleServerStop);
 
-    // Skin assets - support loading individual skin assets from other skins
     app.get('/api/v1/webui/skin-assets/<id>/<path|.*>', _handleGetSkinAssets);
   }
 
-  /// GET /api/v1/webui/skins
-  /// List all installed skins
   Future<Response> _handleListSkins(Request request) async {
     try {
       final skins = _storage.installedSkins;
@@ -64,8 +50,6 @@ class WebUIHandler {
     }
   }
 
-  /// GET /api/v1/webui/skins/{id}
-  /// Get specific skin details
   Future<Response> _handleGetSkin(Request request, String id) async {
     try {
       final skin = _storage.getSkin(id);
@@ -79,8 +63,6 @@ class WebUIHandler {
     }
   }
 
-  /// GET /api/v1/webui/skins/default
-  /// Get the default skin
   Future<Response> _handleGetDefaultSkin(Request request) async {
     try {
       final defaultSkin = _storage.defaultSkin;
@@ -94,13 +76,6 @@ class WebUIHandler {
     }
   }
 
-  /// PUT /api/v1/webui/skins/default
-  /// Set the default skin
-  ///
-  /// Body:
-  /// {
-  ///   "skinId": "my-skin-id"
-  /// }
   Future<Response> _handleSetDefaultSkin(Request request) async {
     try {
       final body =
@@ -128,15 +103,6 @@ class WebUIHandler {
     }
   }
 
-  /// POST /api/v1/webui/skins/install/github-release
-  /// Install skin from GitHub release
-  ///
-  /// Body:
-  /// {
-  ///   "repo": "username/repo",
-  ///   "asset": "skin.zip",       // optional
-  ///   "prerelease": false         // optional
-  /// }
   Future<Response> _handleInstallFromGitHubRelease(Request request) async {
     try {
       final body =
@@ -169,14 +135,6 @@ class WebUIHandler {
     }
   }
 
-  /// POST /api/v1/webui/skins/install/github-branch
-  /// Install skin from GitHub branch
-  ///
-  /// Body:
-  /// {
-  ///   "repo": "username/repo",
-  ///   "branch": "main"            // optional, defaults to "main"
-  /// }
   Future<Response> _handleInstallFromGitHubBranch(Request request) async {
     try {
       final body =
@@ -205,13 +163,6 @@ class WebUIHandler {
     }
   }
 
-  /// POST /api/v1/webui/skins/install/url
-  /// Install skin from direct URL
-  ///
-  /// Body:
-  /// {
-  ///   "url": "https://example.com/skin.zip"
-  /// }
   Future<Response> _handleInstallFromUrl(Request request) async {
     try {
       final body =
@@ -237,8 +188,6 @@ class WebUIHandler {
     }
   }
 
-  /// DELETE /api/v1/webui/skins/{id}
-  /// Remove/uninstall a skin
   Future<Response> _handleRemoveSkin(Request request, String id) async {
     try {
       log.info('Removing skin: $id');
@@ -259,8 +208,6 @@ class WebUIHandler {
     }
   }
 
-  /// POST /api/v1/webui/skins/update
-  /// Triggers update check for all skins from their remote sources
   Future<Response> _handleUpdateSkins(Request request) async {
     try {
       await _storage.updateAllSkins();
@@ -270,8 +217,6 @@ class WebUIHandler {
     }
   }
 
-  /// GET /api/v1/webui/server/status
-  /// Returns current WebUI server serving status
   Response _handleServerStatus(Request request) {
     return jsonOk({
       'serving': _service.isServing,
@@ -281,8 +226,6 @@ class WebUIHandler {
     });
   }
 
-  /// POST /api/v1/webui/server/start
-  /// Starts serving the default skin
   Future<Response> _handleServerStart(Request request) async {
     if (_service.isServing) {
       return jsonOk({'message': 'Already serving'});
@@ -304,8 +247,6 @@ class WebUIHandler {
     }
   }
 
-  /// POST /api/v1/webui/server/stop
-  /// Stops the WebUI server
   Future<Response> _handleServerStop(Request request) async {
     if (!_service.isServing) {
       return jsonOk({'message': 'Not serving'});
@@ -318,8 +259,6 @@ class WebUIHandler {
     }
   }
 
-  /// GET /api/v1/webui/skin-assets/{id}/{filepath}
-  /// returns a file from the skin folder
   Future<Response> _handleGetSkinAssets(
     Request request,
     String id,

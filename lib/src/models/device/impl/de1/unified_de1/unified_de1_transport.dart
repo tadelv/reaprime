@@ -19,22 +19,11 @@ class UnifiedDe1Transport {
   final TransportType transportType;
   final Logger _log;
 
-  // Only assigned on the serial transport path (`_serialConnect`).
-  // Nullable so `disconnect()` can be called safely if connect failed
-  // before the subscription was wired, or on BLE transports where the
-  // serial branch never runs.
   StreamSubscription<String>? _transportSubscription;
   StreamSubscription<device.ConnectionState>? _connectionStateSubscription;
   final _serialResponses = SerialResponseCorrelator();
   bool _cacheCleared = false;
 
-  // True while `_handleBleTimeout` is doing a deliberate disconnect→reconnect
-  // to recover from a BLE timeout. The disconnect it issues must stay
-  // invisible to upstream (De1Controller would otherwise null the machine on
-  // `disconnected` and tear down a connection that's about to come right
-  // back). Suppressing here — rather than at the transport — covers every
-  // platform: the desktop/iOS `BluePlusTransport` emits `disconnected`
-  // synchronously, and Android's native sub emits it async from the platform.
   bool _recovering = false;
 
   Stream<device.ConnectionState> get connectionState => _transport
@@ -57,7 +46,6 @@ class UnifiedDe1Transport {
   Stream<ByteData> get mmr => _mmrSubject.asBroadcastStream();
   Stream<ByteData> get fwMapRequest => _fwMapRequestSubject.asBroadcastStream();
 
-  // Serial only
   String _currentBuffer = "";
 
   UnifiedDe1Transport({required DataTransport transport})
@@ -65,31 +53,6 @@ class UnifiedDe1Transport {
       transportType = transport.transportType,
       _log = Logger("UnifiedDe1Transport-${transport.id}");
   Future<void> connect() async {
-    // A connect() while the transport already reports `connected` is a
-    // no-op reconnect: the underlying GATT link never came down (e.g. the
-    // app-level disconnect on machine sleep nulled De1Controller._de1 but
-    // the native BLE transport lingered connected — a zombie link). The
-    // prior fix (PR #246 / sb-030) made `_bleConnect()`'s per-characteristic
-    // `subscribe()` cancel-before-replace so it no longer STACKED duplicate
-    // listeners. But re-subscribing against the zombie link had an inverse
-    // failure mode seen in the field: a pure-push characteristic
-    // (stateInfo/A00E) silently stopped delivering while solicited
-    // reads/writes kept succeeding — invisible to the zombie watchdog,
-    // which only counts GATT op timeouts and own-advert probes.
-    //
-    // The load-bearing fix is to tear down the stale native link BEFORE
-    // re-connecting, so `_bleConnect()` runs against a freshly-established
-    // GATT and every CCCD is written cleanly. The transient `disconnected`
-    // the native link emits during teardown is absorbed without surfacing
-    // to upstream: De1Controller.connectToDe1 has already cancelled its
-    // `connectionState` listener (via _onDisconnect) before `onConnect()`
-    // runs this method, and only re-subscribes after `onConnect()` returns.
-    //
-    // BUT: the teardown must not fire on a live link (#431). Before
-    // disconnecting, probe the OS-level connection state. Only tear down
-    // if the OS confirms the link is dead. If the OS says `connected`,
-    // skip the teardown — the cancel-before-replace in `subscribe()`
-    // handles re-subscription safely against a live GATT.
     final wasConnected =
         transportType == TransportType.ble &&
         await _transport.connectionState.first ==
@@ -104,8 +67,6 @@ class UnifiedDe1Transport {
         );
         linkIsLive = osState == device.ConnectionState.connected;
       } catch (e) {
-        // Probe failed (timeout, platform error) — inconclusive.
-        // Safe default: proceed with teardown.
         _log.fine('Stale-link probe inconclusive: $e');
       }
 
@@ -189,12 +150,6 @@ class UnifiedDe1Transport {
     }
     await _transportSubscription?.cancel();
     await _connectionStateSubscription?.cancel();
-    // Start notifications - regular setup
-    // await _transport.writeCommand("<-N>");
-    // await _transport.writeCommand("<-M>");
-    // await _transport.writeCommand("<-Q>");
-    // await _transport.writeCommand("<-K>");
-    // await _transport.writeCommand("<-E>");
 
     _transportSubscription = _transport.readStream.listen(_processSerialInput);
     _connectionStateSubscription = _transport.connectionState.listen((state) {
@@ -211,22 +166,16 @@ class UnifiedDe1Transport {
     await _transport.writeCommand("<+${Endpoint.readFromMMR.representation}>");
     await _transport.writeCommand("<+${Endpoint.fwMapRequest.representation}>");
 
-    // needed to know which state we're at - request idle state
     await _transport.writeCommand("<B>02");
   }
 
-  /// End-of-life cleanup. Closes all subjects, cancels the serial
-  /// subscription, and disposes the underlying transport. Safe to call
-  /// more than once. Re-use after dispose is not supported.
   Future<void> dispose() async {
     _serialResponses.failAll(StateError('Serial transport disposed'));
-    // Cancel serial subscription if active
     await _transportSubscription?.cancel();
     _transportSubscription = null;
     await _connectionStateSubscription?.cancel();
     _connectionStateSubscription = null;
 
-    // Close all BehaviorSubjects so downstream listeners see onDone
     if (!_stateSubject.isClosed) _stateSubject.close();
     if (!_shotSampleSubject.isClosed) _shotSampleSubject.close();
     if (!_shotSettingsSubject.isClosed) _shotSettingsSubject.close();
@@ -249,7 +198,6 @@ class UnifiedDe1Transport {
         _transportSubscription = null;
         await _connectionStateSubscription?.cancel();
         _connectionStateSubscription = null;
-        // Start notifications - regular setup
         await _transport.writeCommand(
           "<-${Endpoint.stateInfo.representation}>",
         );
@@ -270,7 +218,6 @@ class UnifiedDe1Transport {
         );
         break;
       case TransportType.ble:
-        // BLE doesn't need special disconnect handling
         break;
       case TransportType.unknown:
         throw StateError('Unknown transport type: $transportType');
@@ -299,15 +246,8 @@ class UnifiedDe1Transport {
     _fwMapRequestSubject = BehaviorSubject();
   }
 
-  // Matches a complete message: [X] prefix + hex payload, terminated by
-  // another '[' (next message) or newline.
-  // Group 1 = the message content (e.g., "[M]0A0B0C").
   static final _messagePattern = RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n)');
 
-  // Render the first `max` characters of a buffer for a log line. Replaces
-  // non-printable and whitespace chars with their escape form so the sample
-  // stays on a single line and reveals whether the content is e.g. sensor
-  // basket text, binary noise, or something else.
   static String _sampleForLog(String s, int max) {
     final head = s.length <= max ? s : '${s.substring(0, max)}…';
     final escaped = head
@@ -325,10 +265,8 @@ class UnifiedDe1Transport {
   void _processSerialInput(String input) {
     _currentBuffer += input;
 
-    // Discard any leading junk before the first '['
     final firstBracket = _currentBuffer.indexOf('[');
     if (firstBracket < 0) {
-      // No message start in buffer at all
       _currentBuffer = '';
       return;
     }
@@ -339,13 +277,9 @@ class UnifiedDe1Transport {
       _currentBuffer = _currentBuffer.substring(firstBracket);
     }
 
-    // Extract all complete messages. A message is "complete" when followed by
-    // another '[' (next message start) or a newline. Incomplete messages at
-    // the end of the buffer won't match the lookahead and stay buffered.
     final matches = _messagePattern.allMatches(_currentBuffer).toList();
 
     if (matches.isEmpty) {
-      // Guard against unbounded buffer growth from corrupted serial streams
       if (_currentBuffer.length > 4096) {
         _log.warning(
           'Serial buffer overflow (${_currentBuffer.length} bytes), discarding. '
@@ -366,10 +300,8 @@ class UnifiedDe1Transport {
       }
     }
 
-    // Keep unprocessed portion in the buffer
     if (completeCount > 0) {
       _currentBuffer = _currentBuffer.substring(matches[completeCount - 1].end);
-      // Strip consumed newlines
       _currentBuffer = _currentBuffer.replaceAll(RegExp(r'^\n+'), '');
     }
   }
@@ -405,7 +337,7 @@ class UnifiedDe1Transport {
   }
 
   Uint8List hexToBytes(String hex) {
-    hex = hex.replaceAll(RegExp(r'\s+'), ''); // strip whitespace
+    hex = hex.replaceAll(RegExp(r'\s+'), '');
     if (hex.length.isOdd) {
       throw FormatException('Invalid input length, must be even', hex);
     }
@@ -417,10 +349,6 @@ class UnifiedDe1Transport {
     return result;
   }
 
-  // Minimum lengths required by `_parseStateAndShotSample` in
-  // `unified_de1.parsing.dart`. Shorter frames (observed in the wild on
-  // Galaxy Tab A9+ 0.5.13) cause a `RangeError` deep in rxdart and land
-  // in Crashlytics as fatal. Drop them here with a warning instead.
   static const _minShotSampleBytes = 19;
   static const _minStateBytes = 2;
 
@@ -478,16 +406,11 @@ class UnifiedDe1Transport {
           }
           return await _bleRead(endpoint, timeout: timeout);
         case TransportType.serial:
-          // _serialRead has a closed switch on Endpoint values to map to RX subjects;
-          // non-Endpoint LogicalEndpoints can't be dispatched here.
           if (endpoint is! Endpoint) {
             throw StateError(
               'UnifiedDe1Transport.read: endpoint ${endpoint.name} is not a DE1 Endpoint, serial read not supported',
             );
           }
-          // Defense-in-depth: `Endpoint.representation` is currently
-          // declared non-null, but if a future variant relaxes that we
-          // want a clear error rather than passing null downstream.
           // ignore: unnecessary_null_comparison, dead_code
           if (endpoint.representation == null) {
             // ignore: dead_code
@@ -685,10 +608,6 @@ class UnifiedDe1Transport {
           return write(endpoint, data);
         }
       }
-      // TimeoutException from the universal_ble queue is an expected
-      // failure (GATT op hung) — the caller (WorkflowDeviceSync) catches
-      // it and retries. Log at WARNING, not SEVERE, so the telemetry
-      // forwarder (PR #288 SEVERE filter) doesn't forward it to Crashlytics.
       if (e is TimeoutException) {
         _log.warning('write to ${endpoint.name} timed out', e, st);
       } else {
@@ -758,8 +677,6 @@ class UnifiedDe1Transport {
     return transportType == TransportType.ble && error is BleTimeoutException;
   }
 
-  /// Attempts to recover from a BLE timeout by reconnecting.
-  /// Returns true if reconnect succeeded, false if it failed.
   Future<bool> _handleBleTimeout(Object error, StackTrace st) async {
     _log.warning('BLE write timed out, attempting reconnect');
     _recovering = true;
@@ -771,11 +688,8 @@ class UnifiedDe1Transport {
       return true;
     } catch (reconnectError) {
       _log.severe('BLE reconnect failed, disconnecting', reconnectError);
-      // Recovery failed — this is a genuine disconnect. Clear the guard
-      // before tearing down so the `disconnected` reaches upstream.
       _recovering = false;
       try {
-        // Don't await — BLE stack may be unresponsive
         _transport.disconnect();
       } catch (e, st) {
         _log.fine('transport.disconnect() during BLE recovery failed', e, st);

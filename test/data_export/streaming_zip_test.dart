@@ -9,8 +9,6 @@ import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits
 import 'package:reaprime/src/services/webserver/data_export/streaming_zip_reader.dart';
 import 'package:reaprime/src/services/webserver/data_export/streaming_zip_writer.dart';
 
-/// Builds a ZIP with the given files using the old in-memory ZipEncoder (the
-/// previous decoder path's producer, no data descriptors).
 List<int> buildLegacyZip(Map<String, String> files) {
   final archive = Archive();
   for (final entry in files.entries) {
@@ -55,7 +53,6 @@ void main() {
       e.write(Uint8List.fromList(utf8.encode('{"formatVersion": 1}')));
       e.close();
 
-      // Large entry streamed in small chunks.
       e = w.addEntry('shots.json');
       final big = utf8.encode(
         '[${List.generate(5000, (i) => '{"id":"s$i","v":"${'x' * 64}"}').join(',')}]',
@@ -94,7 +91,7 @@ void main() {
         const DataTransferLimits(),
       );
       final e = w.addEntry('big.json');
-      final payload = utf8.encode('a' * 1024 * 1024); // 1 MiB
+      final payload = utf8.encode('a' * 1024 * 1024);
       e.write(payload);
       e.close();
       await w.close();
@@ -119,7 +116,7 @@ void main() {
         const DataTransferLimits(maxTotalUncompressedBytes: 100),
       );
       final e = w.addEntry('a.json');
-      e.write(utf8.encode('{"a":"${'x' * 90}"}')); // 98 bytes < 100
+      e.write(utf8.encode('{"a":"${'x' * 90}"}'));
       e.close();
       final second = w.addEntry('b.json');
       expect(
@@ -130,9 +127,6 @@ void main() {
     });
 
     test('bounds the completed archive by the import request limit', () async {
-      // Incompressible content: deflate output is slightly larger than the
-      // input, so the finished ZIP exceeds the tiny request limit even
-      // though the entry itself is small.
       final w = await StreamingZipWriter.create(
         tempDir,
         const DataTransferLimits(maxImportRequestBytes: 500),
@@ -221,7 +215,6 @@ void main() {
       final zipFile = File('${tempDir.path}/zip64.zip');
       await zipFile.writeAsBytes(buildLegacyZip({'a.json': '{}'}));
       final bytes = await zipFile.readAsBytes();
-      // Corrupt the EOCD entry count to 0xFFFF (Zip64 marker) at offset -22+8.
       final corrupted = Uint8List.fromList(bytes);
       final eocdPos = bytes.length - 22;
       corrupted[eocdPos + 8] = 0xFF;
@@ -240,7 +233,6 @@ void main() {
     });
 
     test('rejects duplicate entry names', () async {
-      // Build a raw ZIP with two CD entries sharing a name.
       final name = 'a.json';
       final nameBytes = utf8.encode(name);
       final content = utf8.encode('{}');
@@ -360,9 +352,6 @@ void main() {
     });
 
     test('rejects CRC mismatch', () async {
-      // Build a STORED (uncompressed) legacy zip and flip a content byte so
-      // the CRC no longer matches the central directory without breaking
-      // the deflate stream.
       final archive = Archive();
       final file = ArchiveFile.string('a.json', 'hello world');
       file.compression = CompressionType.none;
@@ -371,7 +360,7 @@ void main() {
       await zipFile.writeAsBytes(ZipEncoder().encode(archive));
       final bytes = await zipFile.readAsBytes();
       final corrupted = Uint8List.fromList(bytes);
-      corrupted[36] = corrupted[36] ^ 0xFF; // first content byte
+      corrupted[36] = corrupted[36] ^ 0xFF;
       await zipFile.writeAsBytes(corrupted);
       final reader = await StreamingZipReader.open(
         zipFile,

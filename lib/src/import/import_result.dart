@@ -1,4 +1,3 @@
-/// A single file that failed to import.
 class ImportError {
   final String filename;
   final String reason;
@@ -12,14 +11,13 @@ class ImportError {
   String toString() => '$filename: $reason';
 }
 
-/// Results of scanning a de1app folder before import.
 class ScanResult {
   final int shotCount;
   final int profileCount;
   final bool hasDyeGrinders;
   final bool hasSettings;
   final String sourcePath;
-  final String? shotSource; // 'history_v2', 'history', or null
+  final String? shotSource;
   const ScanResult({
     required this.shotCount,
     required this.profileCount,
@@ -32,7 +30,6 @@ class ScanResult {
   bool get isEmpty => totalItems == 0 && !hasDyeGrinders && !hasSettings;
 }
 
-/// Results of a completed import operation.
 class ImportResult {
   final int shotsImported;
   final int shotsSkipped;
@@ -103,11 +100,10 @@ class ImportResult {
   }
 }
 
-/// Progress callback for import operations.
 class ImportProgress {
   final int current;
   final int total;
-  final String phase; // 'shots', 'entities', 'storing shots', 'profiles'
+  final String phase;
   final int beansCreated;
   final int grindersCreated;
   const ImportProgress({

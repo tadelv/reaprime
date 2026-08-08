@@ -81,7 +81,6 @@ void main() {
           '/api/v1/devices/connect',
           body: jsonEncode({'deviceId': 'AA:BB:CC:DD:EE:FF'}),
         );
-        // Device not found (not in controller), but proves body was parsed
         expect(response.statusCode, 404);
       });
 
@@ -112,7 +111,6 @@ void main() {
           '/api/v1/devices/connect?deviceId=fallback-id',
           body: jsonEncode({'other': 'field'}),
         );
-        // 404 = deviceId was extracted (fallback-id) but device not found
         expect(response.statusCode, 404);
       });
 
@@ -120,14 +118,12 @@ void main() {
         mockDiscovery.addDevice(
           TestScale(deviceId: 'body-id', name: 'Body Scale'),
         );
-        // Wait for stream to propagate
         await Future.delayed(Duration.zero);
 
         final response = await sendPut(
           '/api/v1/devices/connect?deviceId=query-id',
           body: jsonEncode({'deviceId': 'body-id'}),
         );
-        // body-id exists, so connect succeeds
         expect(response.statusCode, 200);
       });
 
@@ -141,7 +137,6 @@ void main() {
             body: 'not json at all',
           ),
         );
-        // 404 = deviceId was extracted from query but device not found
         expect(response.statusCode, 404);
       });
     });
@@ -289,12 +284,10 @@ void main() {
           final sub = deviceController.scanningStream.listen(states.add);
 
           await deviceController.scanForDevices();
-          // Wait for the delayed callback to fire
           await Future.delayed(Duration(milliseconds: 300));
 
           sub.cancel();
 
-          // Should contain: initial false (BehaviorSubject), true, false
           expect(states, contains(true));
           expect(states.last, isFalse);
         },
@@ -381,7 +374,6 @@ void main() {
     });
 
     test('snapshot serializes structured ConnectionError', () async {
-      // Consume initial state
       await aggregator.stateStream.first;
 
       connectionManager.debugEmitError(
@@ -409,12 +401,10 @@ void main() {
     });
 
     test('emits update when device is added', () async {
-      // Consume initial state
       await aggregator.stateStream.first;
 
       mockDiscovery.addDevice(TestScale(deviceId: 'scale-1', name: 'Scale 1'));
 
-      // Wait for debounce (100ms) + margin
       final state = await aggregator.stateStream
           .where((s) => (s['devices'] as List).isNotEmpty)
           .first
@@ -428,7 +418,6 @@ void main() {
     test('emits update when device is removed', () async {
       mockDiscovery.addDevice(TestScale(deviceId: 'scale-1', name: 'Scale 1'));
 
-      // Wait for state with device
       await aggregator.stateStream
           .where((s) => (s['devices'] as List).isNotEmpty)
           .first
@@ -436,7 +425,6 @@ void main() {
 
       mockDiscovery.removeDevice('scale-1');
 
-      // Wait for state with empty list
       final state = await aggregator.stateStream
           .where((s) => (s['devices'] as List).isEmpty)
           .first
@@ -467,7 +455,6 @@ void main() {
       final scale = TestScale(deviceId: 'scale-1', name: 'Scale 1');
       mockDiscovery.addDevice(scale);
 
-      // Wait for state with connected device
       await aggregator.stateStream
           .where(
             (s) =>
@@ -477,10 +464,8 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Change connection state
       scale.setConnectionState(ConnectionState.disconnected);
 
-      // Wait for state reflecting the disconnected state
       final state = await aggregator.stateStream
           .where(
             (s) =>
@@ -502,7 +487,6 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Remove and add a NEW object with the same ID
       mockDiscovery.removeDevice('scale-1');
       await aggregator.stateStream
           .where((s) => (s['devices'] as List).isEmpty)
@@ -516,7 +500,6 @@ void main() {
       );
       mockDiscovery.addDevice(scale2);
 
-      // Should see the new device's initial state (discovered)
       final state = await aggregator.stateStream
           .where(
             (s) =>
@@ -528,7 +511,6 @@ void main() {
 
       expect((state['devices'] as List)[0]['state'], 'discovered');
 
-      // Verify new object's state changes are observed
       scale2.setConnectionState(ConnectionState.connected);
 
       final updated = await aggregator.stateStream
@@ -546,9 +528,6 @@ void main() {
     test(
       'replaces subscription when same-ID different-object appears in-place',
       () async {
-        // This tests the case where a device is replaced without being removed
-        // first (e.g., discovery service emits a new list with a new object
-        // for the same deviceId)
         final scale1 = TestScale(deviceId: 'scale-1', name: 'Scale v1');
         mockDiscovery.addDevice(scale1);
 
@@ -559,12 +538,10 @@ void main() {
 
         expect(aggregator.activeDeviceSubscriptionCount, 1);
 
-        // Replace with a new object by clearing and re-adding
         mockDiscovery.clear();
         final scale2 = TestScale(deviceId: 'scale-1', name: 'Scale v2');
         mockDiscovery.addDevice(scale2);
 
-        // Wait for state with the new device
         await aggregator.stateStream
             .where(
               (s) =>
@@ -576,16 +553,12 @@ void main() {
 
         expect(aggregator.activeDeviceSubscriptionCount, 1);
 
-        // Verify old object's state changes are NOT observed
         scale1.setConnectionState(ConnectionState.disconnected);
-        // Give time for any stale emission
         await Future.delayed(Duration(milliseconds: 200));
 
-        // Current state should still show connected (from scale2)
         final current = await aggregator.stateStream.first;
         expect((current['devices'] as List)[0]['state'], 'connected');
 
-        // Verify new object's state changes ARE observed
         scale2.setConnectionState(ConnectionState.disconnecting);
 
         final state = await aggregator.stateStream
@@ -602,38 +575,29 @@ void main() {
     );
 
     test('debounces rapid changes into single emission', () async {
-      // Consume initial state
       await aggregator.stateStream.first;
 
       final emissions = <Map<String, dynamic>>[];
       final sub = aggregator.stateStream.listen(emissions.add);
 
-      // Add multiple devices in rapid succession
       mockDiscovery.addDevice(TestScale(deviceId: 'scale-1', name: 'Scale 1'));
       mockDiscovery.addDevice(TestScale(deviceId: 'scale-2', name: 'Scale 2'));
       mockDiscovery.addDevice(TestScale(deviceId: 'scale-3', name: 'Scale 3'));
 
-      // Wait for debounce to settle
       await Future.delayed(Duration(milliseconds: 300));
 
       sub.cancel();
 
-      // Should have fewer emissions than the 3 additions due to debouncing.
-      // The final emission should show all 3 devices.
       final lastDevices = emissions.last['devices'] as List;
       expect(lastDevices, hasLength(3));
       expect(emissions.length, lessThan(3));
     });
 
     test('no new emissions after dispose', () async {
-      // Consume initial state
       await aggregator.stateStream.first;
 
       aggregator.dispose();
 
-      // Subscribe after dispose — BehaviorSubject replays its last value
-      // then closes, so we collect everything and check that no NEW emissions
-      // arrive from upstream changes.
       final emissions = <Map<String, dynamic>>[];
       final completer = Completer<void>();
       aggregator.stateStream.listen(
@@ -642,12 +606,10 @@ void main() {
         onDone: () => completer.complete(),
       );
 
-      // Wait for the stream to close (BehaviorSubject emits done on close)
       await completer.future.timeout(Duration(seconds: 1));
 
       final countAfterClose = emissions.length;
 
-      // Adding a device after dispose should NOT produce new emissions
       mockDiscovery.addDevice(TestScale(deviceId: 'scale-1', name: 'Scale 1'));
       await Future.delayed(Duration(milliseconds: 200));
 

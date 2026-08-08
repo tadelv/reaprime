@@ -18,16 +18,9 @@ class BatteryController {
   late Timer _checkTimer;
   bool _wasCharging = false;
 
-  /// Last `shouldCharge` value actually written to the DE1, and when.
-  /// Distinct from [_wasCharging] (which feeds the decision hysteresis):
-  /// these gate redundant `setUsbChargerMode` writes. Reset to null on
-  /// disconnect so the next connected tick re-asserts against a machine
-  /// that has reset to its charging-on default.
   bool? _lastAppliedCharge;
   DateTime? _lastChargeWrite;
 
-  /// While discharging, re-assert "off" at least this often — the DE1
-  /// firmware re-enables the charger on its own. See [shouldWriteChargerMode].
   static const Duration _dischargeReassertInterval = Duration(minutes: 5);
 
   final BehaviorSubject<ChargingState> _stateSubject =
@@ -44,14 +37,11 @@ class BatteryController {
        _deviceController = deviceController,
        _settingsController = settingsController {
     _checkTimer = Timer.periodic(const Duration(seconds: 60), (_) => _tick());
-    // Run immediately on construction
     _tick();
   }
 
   Future<void> _tick() async {
     try {
-      // Bail early if no machine connected — skip settings reads and
-      // charging decision computation.
       if (_deviceController.isScanning) {
         _log.fine('Skipping USB charger mode update during BLE scan');
         return;
@@ -59,8 +49,6 @@ class BatteryController {
       final de1 = _de1Controller.connectedDe1OrNull;
       if (de1 == null) {
         _log.fine('No machine connected, skipping USB charger mode update');
-        // Force a re-assert on the next connected tick: a reconnected
-        // machine resets to its charging-on default.
         _lastAppliedCharge = null;
         return;
       }
@@ -96,9 +84,6 @@ class BatteryController {
         'reason: ${decision.reason}',
       );
 
-      // Apply to DE1 — but skip redundant writes. The firmware re-enables
-      // the charger on its own, so we re-assert "off" periodically while
-      // discharging but avoid spamming an unchanged "on" every tick.
       if (shouldWriteChargerMode(
         shouldCharge: decision.shouldCharge,
         lastApplied: _lastAppliedCharge,
@@ -115,7 +100,6 @@ class BatteryController {
         }
       }
 
-      // Emit state
       _stateSubject.add(
         ChargingState(
           mode: chargingMode,

@@ -40,10 +40,6 @@ class InMemoryManualStore implements WifiManualEndpointStore {
   Future<void> save(List<String> h) async => hosts = List.of(h);
 }
 
-/// Create a service with an injected reachability probe (reachable by default,
-/// no real sockets) and an inert background timer — tests drive the liveness
-/// check deterministically via [WifiScaleDiscoveryService.scanForDevices].
-/// Registers teardown so the liveness timer never leaks.
 WifiScaleDiscoveryService makeSvc({
   WifiScaleBrowser? browser,
   WifiManualEndpointStore? manualStore,
@@ -61,7 +57,6 @@ WifiScaleDiscoveryService makeSvc({
   return svc;
 }
 
-/// Latest device list, after letting microtasks settle.
 Future<List<Device>> _latest(WifiScaleDiscoveryService svc) async {
   await Future.delayed(Duration.zero);
   return svc.devices.first;
@@ -101,7 +96,6 @@ void main() {
           browser: browser,
           manualStore: InMemoryManualStore(['192.168.1.7']),
         );
-        // Must not throw even though the browser failed to start.
         await svc.initialize();
         final devices = await _latest(svc);
         expect(devices.single.deviceId, 'wifi:192.168.1.7');
@@ -172,9 +166,9 @@ void main() {
         expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
 
         reachable = false;
-        await svc.scanForDevices(); // failure 1 of 2 — still shown
+        await svc.scanForDevices();
         expect(await _latest(svc), hasLength(1));
-        await svc.scanForDevices(); // failure 2 of 2 — hidden
+        await svc.scanForDevices();
         expect(await _latest(svc), isEmpty);
       });
 
@@ -190,11 +184,11 @@ void main() {
         browser.emit([
           const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
         ]);
-        await svc.scanForDevices(); // unreachable → hidden
+        await svc.scanForDevices();
         expect(await _latest(svc), isEmpty);
 
         reachable = true;
-        await svc.scanForDevices(); // reachable again → reappears
+        await svc.scanForDevices();
         expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
       });
 
@@ -211,10 +205,9 @@ void main() {
           browser.emit([
             const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
           ]);
-          await svc.scanForDevices(); // unreachable → hidden
+          await svc.scanForDevices();
           expect(await _latest(svc), isEmpty);
 
-          // mDNS re-announces the same host → it's back, clear the hidden mark.
           browser.emit([
             const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
           ]);
@@ -222,43 +215,43 @@ void main() {
         },
       );
 
-      test('an mDNS re-announce resets the failure counter (does not just clear '
-          'the hidden mark)', () async {
-        var reachable = true;
-        final browser = FakeWifiScaleBrowser();
-        final svc = makeSvc(
-          browser: browser,
-          probe: (_, _) async => reachable,
-          failureThreshold: 2,
-        );
-        await svc.initialize();
-        browser.emit([
-          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
-        ]);
+      test(
+        'an mDNS re-announce resets the failure counter (does not just clear '
+        'the hidden mark)',
+        () async {
+          var reachable = true;
+          final browser = FakeWifiScaleBrowser();
+          final svc = makeSvc(
+            browser: browser,
+            probe: (_, _) async => reachable,
+            failureThreshold: 2,
+          );
+          await svc.initialize();
+          browser.emit([
+            const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+          ]);
 
-        reachable = false;
-        await svc.scanForDevices(); // failure 1 of 2 — still shown
-        expect(await _latest(svc), hasLength(1));
+          reachable = false;
+          await svc.scanForDevices();
+          expect(await _latest(svc), hasLength(1));
 
-        // mDNS re-announces the same host mid-way through accumulating
-        // failures. This must RESET the counter, not just clear a (not-yet-set)
-        // hidden mark.
-        browser.emit([
-          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
-        ]);
+          browser.emit([
+            const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+          ]);
 
-        await svc.scanForDevices(); // counter was reset → failure 1 of 2 again
-        expect(
-          await _latest(svc),
-          hasLength(1),
-          reason:
-              're-announce must reset the failure count, so one more '
-              'failure is not enough to hide the scale',
-        );
+          await svc.scanForDevices();
+          expect(
+            await _latest(svc),
+            hasLength(1),
+            reason:
+                're-announce must reset the failure count, so one more '
+                'failure is not enough to hide the scale',
+          );
 
-        await svc.scanForDevices(); // now failure 2 of 2 — hidden
-        expect(await _latest(svc), isEmpty);
-      });
+          await svc.scanForDevices();
+          expect(await _latest(svc), isEmpty);
+        },
+      );
 
       test(
         'liveness probes the cached IP, not the hostname, once mDNS resolves',
@@ -301,7 +294,6 @@ void main() {
           ]);
           expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
 
-          // mDNS "service lost" (empty list) — must stay, IP still answers.
           browser.emit(const []);
           await svc.scanForDevices();
           expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');

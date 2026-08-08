@@ -22,18 +22,6 @@ class UniversalBleTransport extends BLETransport {
 
   StreamSubscription? _connectionStateSubscription;
 
-  // --- Zombie-link detection (see doc/plans/machine-connection-recovery.md).
-  // A dead link doesn't always deliver a disconnect event (observed on
-  // Android after a DE1 power outage: writes time out forever while the
-  // app believes it is connected). Two independent detectors feed
-  // [_declareLinkDead]:
-  //  1. GATT operation timeouts fault their queue generation. Recovery waits
-  //     for the unresolved native operation, then clears the queue; if it does
-  //     not settle within a grace period, the link is disconnected instead.
-  //  2. Advertisements for our own deviceId while we believe we are
-  //     connected trigger an OS-level connection-state probe (throttled) —
-  //     probe-confirmed only, because some peripherals legitimately advertise
-  //     while connected (this transport is shared by scales and sensors).
   bool _linkDeadDeclared = false;
   int _connectionGeneration = 0;
   int? _maintenanceGeneration;
@@ -47,17 +35,7 @@ class UniversalBleTransport extends BLETransport {
   static const Duration _faultRecoveryPollInterval = Duration(milliseconds: 50);
   static const Duration _notificationResetSettle = Duration(milliseconds: 100);
 
-  /// Minimum spacing between advert-triggered OS probes. A disconnected
-  /// peripheral advertises ~1/s during a scan; one probe per window is
-  /// plenty.
   static const Duration _advertProbeThrottle = Duration(seconds: 5);
-
-  // BlueZ-specific timings (Linux only). universal_ble's Linux backend is the
-  // pure-Dart `bluez` client, which needs the same handling the former
-  // LinuxBluePlusTransport applied: connecting while (or right after) a scan
-  // triggers `le-connection-abort-by-local`, so we stop scanning and let the
-  // adapter settle before connecting; GATT service resolution also needs
-  // retries because BlueZ resolves services asynchronously after connect.
 
   bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
   bool get _isLinux => _isLinuxOverride ?? Platform.isLinux;
@@ -88,12 +66,6 @@ class UniversalBleTransport extends BLETransport {
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
-  /// Scan-stop hook injected by the discovery service. Routing the
-  /// pre-connect stop through the service ends its scan-duration wait too,
-  /// so the scan cycle (and its report) reflects the actual scan window
-  /// instead of dead-waiting out the full duration after the native scan
-  /// is already stopped. Falls back to a direct platform stop for
-  /// transports constructed without a service.
   final Future<void> Function()? _stopScan;
   final bool _requestLargeMtuNonAndroid;
   final bool? _isAndroidOverride;
@@ -108,13 +80,8 @@ class UniversalBleTransport extends BLETransport {
   Future<void> _stopScanViaOwner() =>
       _stopScan?.call() ?? UniversalBle.stopScan();
 
-  // Android post-connect settle duration. The Android BLE stack needs
-  // a brief period after connectGatt reports success before service
-  // discovery works reliably (particularly on older tablet SoCs).
   static const Duration _androidPostConnectDelay = Duration(milliseconds: 200);
 
-  // Brief pause between stopScan and connectGatt so the scanner actually
-  // releases the radio before the connection attempt starts.
   static const Duration _androidPreConnectSettleDelay = Duration(
     milliseconds: 300,
   );
@@ -135,20 +102,12 @@ class UniversalBleTransport extends BLETransport {
     final generation = _connectionGeneration;
     _linkDeadDeclared = false;
     _lastAdvertProbe = null;
-    // Use connectionUpdateStream (from our universal_ble fork) to get
-    // native disconnect reason codes (GATT error, HCI status) — the
-    // standard connectionStream only emits bool.
     await _listenForConnectionUpdates(generation);
     if (_isLinux) {
       await _connectBlueZ();
       _startAdvertWatch();
       return;
     }
-    // Android: stop any active scan before connecting — connectGatt gets
-    // starved by a lowLatency scan's radio duty cycle (same problem class
-    // as the BlueZ le-connection-abort-by-local mitigation above; observed
-    // 2026-07-15 as repeated 10s connect timeouts to an advertising scale
-    // mid-scan). The ConnectionManager retry loop restarts scanning.
     if (_isAndroid) {
       try {
         _log.fine("stopping scan before connect");
@@ -159,10 +118,6 @@ class UniversalBleTransport extends BLETransport {
       await Future.delayed(_androidPreConnectSettleDelay);
     }
     try {
-      // 20s: connectGatt on a busy radio (live DE1 link, recent scan) can
-      // legitimately need more than 10s — fbp defaults to 35s. Must stay
-      // comfortably under ConnectionManager's 30s end-to-end guard so the
-      // richer transport-level error wins over the generic outer timeout.
       await UniversalBle.connect(
         _device.deviceId,
         timeout: Duration(seconds: 20),
@@ -189,10 +144,6 @@ class UniversalBleTransport extends BLETransport {
     }
   }
 
-  /// BlueZ connect with the same mitigations the Linux BLE path needs.
-  /// First attempt stops any scan and lets BlueZ settle, then connects. On
-  /// failure, run a brief refresh scan (BlueZ can drop the device from its
-  /// cache after a disconnect) and retry once.
   Future<void> _connectBlueZ() async {
     try {
       await _doConnectBlueZ();
@@ -228,8 +179,6 @@ class UniversalBleTransport extends BLETransport {
   }
 
   Future<void> _doConnectBlueZ([int? maintenanceGeneration]) async {
-    // Stop scanning and let the adapter settle — connecting while a scan is
-    // active (or immediately after) causes le-connection-abort-by-local.
     await _stopScanAndSettle(maintenanceGeneration);
     await UniversalBle.connect(
       _device.deviceId,
@@ -238,7 +187,6 @@ class UniversalBleTransport extends BLETransport {
     if (maintenanceGeneration != null) {
       _checkMaintenanceGeneration(maintenanceGeneration);
     }
-    // BlueZ finalizes GATT client setup slightly after connect reports success.
     await Future.delayed(_bluezPostConnectDelay);
     if (maintenanceGeneration != null) {
       _checkMaintenanceGeneration(maintenanceGeneration);
@@ -264,8 +212,6 @@ class UniversalBleTransport extends BLETransport {
     }
   }
 
-  /// Brief scan to repopulate BlueZ's device cache (the device can drop out of
-  /// the adapter's object tree after a disconnect), then settle before retry.
   Future<void> _refreshDeviceCache([int? maintenanceGeneration]) async {
     var ownsScan = false;
     try {
@@ -309,9 +255,6 @@ class UniversalBleTransport extends BLETransport {
     }
   }
 
-  /// Error codes that indicate the device is effectively gone — no sense
-  /// retrying, and definitely not worth a crash. Emit disconnected and throw
-  /// [DeviceNotConnectedException] so upper layers handle it gracefully.
   static const _goneDeviceCodes = {
     UniversalBleErrorCode.characteristicNotFound,
     UniversalBleErrorCode.deviceNotFound,
@@ -328,15 +271,9 @@ class UniversalBleTransport extends BLETransport {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
       _connectionStateSubject.add(device.ConnectionState.disconnected);
-      // Drain pending writes — the device is gone, queued writes will
-      // only fail with deviceNotFound and flood logs.
       _clearQueue(UniversalBleErrorCode.deviceDisconnected);
       throw const DeviceNotConnectedException.unknown();
     }
-    // GATT-133 (gattError): transient Android BLE stack error. Often
-    // retryable — clear the queue and throw BleTimeoutException so the
-    // caller (UnifiedDe1Transport) can retry via _handleBleTimeout.
-    // Do NOT declare the link dead or emit disconnected.
     if (e.code == UniversalBleErrorCode.gattError) {
       _log.warning(
         'GATT $operation($path) failed — GATT error 133 (transient): $e',
@@ -344,8 +281,6 @@ class UniversalBleTransport extends BLETransport {
       _clearQueue(UniversalBleErrorCode.operationCancelled);
       throw BleTimeoutException('GATT $operation($path)', e);
     }
-    // Also treat unknownError as likely device-gone on Bluetooth-off / macOS
-    // adapter restarts — same symptom, different error code.
     if (e.code == UniversalBleErrorCode.unknownError) {
       _log.warning(
         'GATT $operation($path) failed — unknown error (likely BT off): $e',
@@ -354,7 +289,6 @@ class UniversalBleTransport extends BLETransport {
       _clearQueue(UniversalBleErrorCode.deviceDisconnected);
       throw const DeviceNotConnectedException.unknown();
     }
-    // All other codes: throw as-is (caller's problem).
     throw e;
   }
 
@@ -561,9 +495,6 @@ class UniversalBleTransport extends BLETransport {
       );
       return value;
     } on TimeoutException {
-      // Fail fast (see write() — a read-timeout reconnect mid profile-upload
-      // would wedge the firmware the same way). Clear the stuck queue entry and
-      // let the plain timeout propagate.
       _onOperationTimeout('read', '$serviceUUID/$characteristicUUID');
       rethrow;
     } on UniversalBleException catch (e) {
@@ -571,11 +502,6 @@ class UniversalBleTransport extends BLETransport {
     }
   }
 
-  /// universal_ble faults a queue generation when its Dart timeout fires
-  /// because the underlying native Future cannot be cancelled. Keep that
-  /// barrier in place until the native operation settles. If it does not settle
-  /// within the grace period, disconnect the physical link before clearing the
-  /// generation so a replacement connection cannot overlap the old operation.
   void _onOperationTimeout(String operation, String path) {
     _log.warning('GATT $operation($path) timed out — BLE queue faulted');
     final generation = _connectionGeneration;
@@ -634,9 +560,6 @@ class UniversalBleTransport extends BLETransport {
     );
   }
 
-  /// Listen for advertisements carrying our own deviceId while we believe
-  /// the link is up. Adverts only flow while some scan runs (the scale
-  /// reconnect loop, UI scans) — this starts none itself.
   void _startAdvertWatch() {
     _advertSub?.cancel();
     _advertSub = UniversalBle.scanStream
@@ -665,9 +588,6 @@ class UniversalBleTransport extends BLETransport {
     );
   }
 
-  /// Ask the OS for the actual connection state. Declares the link dead
-  /// only on an explicit disconnected/disconnecting answer — a probe
-  /// error is inconclusive and must not tear down a possibly-live link.
   Future<void> _probeAndDeclareIfDead(String context, int generation) async {
     final BleConnectionState state;
     try {
@@ -692,9 +612,6 @@ class UniversalBleTransport extends BLETransport {
     _declareLinkDead('$context; OS reports ${state.name}');
   }
 
-  /// Emit `disconnected` so the normal recovery cascade runs (device impl →
-  /// controller reset → DisconnectSupervisor → machine auto-reconnect).
-  /// Idempotent per connection.
   void _declareLinkDead(String reason) {
     if (_linkDeadDeclared) return;
     _linkDeadDeclared = true;
@@ -727,9 +644,6 @@ class UniversalBleTransport extends BLETransport {
   ) async {
     _log.fine("subscribe to: $serviceUUID, $characteristicUUID");
     final key = "$serviceUUID--$characteristicUUID";
-    // Cancel any prior listener for this characteristic before replacing it.
-    // A re-subscribe without an intervening disconnect (no-op reconnect)
-    // would otherwise stack listeners and deliver every notification twice.
     await _subscriptions.remove(key)?.cancel();
     final sub = UniversalBle.characteristicValueStream(
       _device.deviceId,
@@ -808,14 +722,6 @@ class UniversalBleTransport extends BLETransport {
         timeout: timeout,
       );
     } on TimeoutException {
-      // Fail fast — do NOT map this to a BleTimeoutException. Doing so routes it
-      // into the DE1 transport's reconnect-and-retry-this-one-write recovery,
-      // which is catastrophic mid profile-upload: a profile is a stateful
-      // multi-write sequence (header declares N frames, then each indexed
-      // frame, then a tail), and a disconnect/reconnect resets the firmware's
-      // receive state machine — leaving the DE1 stuck "receiving" (GHC purple)
-      // until reaprime restarts. Surfacing it as a plain timeout fails the whole
-      // upload, which WorkflowDeviceSync then re-drives cleanly from the header.
       _onOperationTimeout('write', '$serviceUUID/$characteristicUUID');
       rethrow;
     } on UniversalBleException catch (e) {
@@ -825,7 +731,6 @@ class UniversalBleTransport extends BLETransport {
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {
-    // Android-only in universal_ble 2.x; throws `notSupported` elsewhere.
     if (!BleCapabilities.supportsConnectionPriorityApi) return;
     try {
       await UniversalBle.requestConnectionPriority(
@@ -835,7 +740,6 @@ class UniversalBleTransport extends BLETransport {
             : BleConnectionPriority.balanced,
       );
     } on UniversalBleException catch (e) {
-      // Best-effort hint; never fail a connection over it.
       _log.fine("requestConnectionPriority not applied: ${e.code}");
     }
   }

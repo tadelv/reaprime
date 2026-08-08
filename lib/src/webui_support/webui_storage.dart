@@ -12,7 +12,6 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/util/safe_path.dart';
 import 'package:reaprime/src/webui_support/webui_zip_support.dart';
 
-/// REA metadata for tracking WebUI skin source and version
 class WebUIReaMetadata {
   final String skinId;
   final String? sourceUrl;
@@ -90,7 +89,6 @@ class WebUIReaMetadata {
   }
 }
 
-/// Metadata for a WebUI skin
 class WebUISkin {
   final String id;
   final String name;
@@ -139,10 +137,6 @@ class WebUISkin {
   }
 }
 
-/// Class that manages storage for web skins
-/// - Can check hardcoded repo URLs for downloading skins
-/// - Can install a skin from a Directory path (copy it over to ApplicationDocuments/web-ui/)
-/// - Provides a registry of currently installed web-ui skins
 class WebUIStorage {
   final _log = Logger('WebUIStorage');
   final SettingsController _settingsController;
@@ -154,9 +148,6 @@ class WebUIStorage {
 
   WebUIStorage(this._settingsController);
 
-  /// Test seam: point storage at a specific web-ui directory and mark it
-  /// initialized, bypassing the asset/network [initialize] flow so install
-  /// behavior can be exercised against a temp directory.
   @visibleForTesting
   void debugInitWithWebUIDir(Directory dir) {
     _webUIDir = dir;
@@ -166,14 +157,8 @@ class WebUIStorage {
     _initialized = true;
   }
 
-  /// Hardcoded list of bundled asset paths
-  /// These are Flutter assets that ship with the app
-  static const List<String> _bundledAssetPaths = [
-    // 'assets/web/',
-  ];
+  static const List<String> _bundledAssetPaths = [];
 
-  /// Remote skin sources — loaded from skin_sources.json asset at runtime.
-  /// At build time, bundle_skins.sh reads the same file to pre-download skins.
   static List<Map<String, dynamic>>? _remoteWebUISourcesCache;
 
   Future<List<Map<String, dynamic>>> _getRemoteWebUISources() async {
@@ -189,69 +174,43 @@ class WebUIStorage {
     return _remoteWebUISourcesCache!;
   }
 
-  /// Set of skin IDs that were installed from remote sources (treated as bundled)
   final Set<String> _remoteBundledSkinIds = {};
 
-  /// Initialize the WebUIStorage service
-  /// - Creates web-ui directory if it doesn't exist
-  /// - Copies bundled skins from assets
-  /// - Downloads remote bundled skins
-  /// - Scans for installed skins
-  ///
-  /// When [downloadRemote] is false, the remote-skin network download is
-  /// skipped so the (local, bundled) default skin is ready fast — callers on
-  /// the cold-boot critical path pass false and run
-  /// [downloadRemoteSkinsAndRescan] in the background afterwards.
   Future<void> initialize({bool downloadRemote = true}) async {
     if (_initialized) {
       _log.fine('WebUIStorage already initialized');
       return;
     }
 
-    // Get application documents directory
     final appDocDir = await getApplicationDocumentsDirectory();
     _webUIDir = Directory('${appDocDir.path}/web-ui');
 
-    // Create web-ui directory if it doesn't exist
     if (!_webUIDir.existsSync()) {
       _webUIDir.createSync(recursive: true);
       _log.info('Created web-ui directory: ${_webUIDir.path}');
     }
 
-    // Load persisted remote bundled skin IDs
     await _loadRemoteBundledSkinIds();
 
-    // Load REA metadata for all skins
     await _loadSkinMetadata();
 
-    // Copy bundled skins from assets
     await _copyBundledSkins();
 
-    // Download and install remote bundled skins (includes version checking).
-    // Skip when downloadRemote is false (cold-boot critical path) — the caller
-    // runs downloadRemoteSkinsAndRescan() in the background instead.
     if (downloadRemote) {
       await downloadRemoteSkins();
     }
 
-    // Scan for installed skins
     await _scanInstalledSkins();
 
     _initialized = true;
     _log.info('WebUIStorage initialized with ${_installedSkins.length} skins');
   }
 
-  /// Get list of all installed WebUI skins
   List<WebUISkin> get installedSkins => _installedSkins.values.toList();
 
-  /// Get a specific skin by ID
   WebUISkin? getSkin(String id) => _installedSkins[id];
 
-  /// Get the default skin based on user preference
-  /// Falls back to 'streamline.js' if preference not found
-  /// Then falls back to first bundled skin or first available skin
   WebUISkin? get defaultSkin {
-    // Try to get skin from preference
     final preferredSkinId = _settingsController.defaultSkinId;
     _log.info(
       "selecting preferred skin: $preferredSkinId, in: $_installedSkins",
@@ -260,20 +219,17 @@ class WebUIStorage {
       return _installedSkins[preferredSkinId];
     }
 
-    // Log if preferred skin not found
     if (preferredSkinId != 'streamline.js') {
       _log.warning(
         'Preferred skin "$preferredSkinId" not found, falling back to default',
       );
     }
 
-    // Try to find streamline.js as default
     final streamlineSkin = _installedSkins['streamline.js'];
     if (streamlineSkin != null) {
       return streamlineSkin;
     }
 
-    // Try to find any bundled skin
     final bundledSkin = _installedSkins.values
         .where((skin) => skin.isBundled)
         .firstOrNull;
@@ -282,11 +238,9 @@ class WebUIStorage {
       return bundledSkin;
     }
 
-    // Otherwise return the first available skin
     return _installedSkins.values.firstOrNull;
   }
 
-  /// Set the default skin by ID and persist to preferences
   Future<void> setDefaultSkin(String skinId) async {
     if (!_installedSkins.containsKey(skinId)) {
       throw Exception('Skin not found: $skinId');
@@ -296,9 +250,6 @@ class WebUIStorage {
     _log.info('Set default skin to: $skinId');
   }
 
-  /// Install a WebUI skin from a local filesystem path
-  /// The path can be either a directory or a zip file
-  /// Returns the installed skin ID
   Future<String> installFromPath(
     String sourcePath, {
     bool overwriteIfExists = true,
@@ -308,13 +259,11 @@ class WebUIStorage {
 
     String skinId;
     if (source.existsSync() && sourcePath.endsWith('.zip')) {
-      // It's a zip file - extract it
       skinId = await _installFromZip(
         sourcePath,
         overwriteIfExists: overwriteIfExists,
       );
     } else if (sourceDir.existsSync()) {
-      // It's a directory - copy it
       skinId = await _installFromDirectory(
         sourceDir,
         overwriteIfExists: overwriteIfExists,
@@ -323,17 +272,10 @@ class WebUIStorage {
       throw Exception('Source does not exist: $sourcePath');
     }
 
-    // Rescan installed skins
     await _scanInstalledSkins();
     return skinId;
   }
 
-  /// Install a WebUI skin from a URL
-  /// The URL should point to a zip file
-  ///
-  /// [sourceIdentifier] is stored as the skin's metadata sourceUrl so that
-  /// [updateAllSkins] can find and refresh this skin later (raw URLs default
-  /// to the URL itself, ETag/Last-Modified tracked).
   Future<void> installFromUrl(
     String url, {
     String? sourceIdentifier,
@@ -343,7 +285,6 @@ class WebUIStorage {
     _log.info('Downloading WebUI from URL: $url');
 
     try {
-      // Download the zip file
       final response = await http.get(Uri.parse(url));
       if (response.statusCode != 200) {
         throw Exception('Failed to download: ${response.statusCode}');
@@ -351,23 +292,19 @@ class WebUIStorage {
       final etag = response.headers['etag'];
       final lastModified = response.headers['last-modified'];
 
-      // Create temp file for the downloaded zip
       final appDocDir = await getApplicationDocumentsDirectory();
       final tempFile = File('${appDocDir.path}/temp_webui.zip');
       await tempFile.writeAsBytes(response.bodyBytes);
 
       String installedSkinId;
       try {
-        // Install from the downloaded zip
         installedSkinId = await _installFromZip(tempFile.path);
       } finally {
-        // Clean up temp file
         if (tempFile.existsSync()) {
           await tempFile.delete();
         }
       }
 
-      // Persist source metadata so updateAllSkins() can refresh this skin.
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
         skinId: installedSkinId,
         sourceUrl: sourceIdentifier ?? url,
@@ -380,7 +317,6 @@ class WebUIStorage {
       );
       await _saveSkinMetadata();
 
-      // Rescan installed skins
       await _scanInstalledSkins();
 
       _log.info('Successfully installed WebUI from URL: $url');
@@ -390,10 +326,7 @@ class WebUIStorage {
     }
   }
 
-  /// Install a WebUI skin from a GitHub repository
-  /// Format: "owner/repo" or "owner/repo/branch"
   Future<void> installFromGitHub(String repo, {String branch = 'main'}) async {
-    // GitHub provides zip archives at: https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip
     final parts = repo.split('/');
     if (parts.length < 2) {
       throw Exception('Invalid GitHub repo format. Use: owner/repo');
@@ -414,20 +347,6 @@ class WebUIStorage {
     );
   }
 
-  /// Install a WebUI skin from a GitHub Release
-  /// Uses GitHub API to fetch the latest release and download the asset
-  ///
-  /// Parameters:
-  /// - [repo]: Repository in format "owner/repo"
-  /// - [assetName]: Optional specific asset name to download (e.g., "my-skin.zip")
-  ///   If null, downloads the first .zip asset found
-  /// - [includePrerelease]: If true, includes pre-release versions
-  ///
-  /// Example:
-  /// ```dart
-  /// await webUIStorage.installFromGitHubRelease('username/my-skin-repo');
-  /// await webUIStorage.installFromGitHubRelease('username/my-skin-repo', assetName: 'skin-v1.0.0.zip');
-  /// ```
   Future<void> installFromGitHubRelease(
     String repo, {
     String? assetName,
@@ -441,7 +360,6 @@ class WebUIStorage {
     _log.info('Installing WebUI from GitHub release: $repo');
 
     try {
-      // Fetch latest release from GitHub API
       final apiUrl = includePrerelease
           ? 'https://api.github.com/repos/$repo/releases'
           : 'https://api.github.com/repos/$repo/releases/latest';
@@ -470,7 +388,6 @@ class WebUIStorage {
 
       _log.info('Found release: $releaseName ($releaseTag)');
 
-      // Find the asset to download
       dynamic targetAsset;
       if (assetName != null) {
         targetAsset = assets.firstWhere(
@@ -488,10 +405,6 @@ class WebUIStorage {
 
       _log.info('Downloading asset: ${targetAsset['name']}');
 
-      // Download and install, tracking the release so updateAllSkins()
-      // can detect newer releases via the GitHub API. The requested asset
-      // name and prerelease flag ride along so updates keep the same
-      // selection semantics.
       await installFromUrl(
         downloadUrl,
         sourceIdentifier: 'github_release:$repo@$releaseTag',
@@ -508,8 +421,6 @@ class WebUIStorage {
     }
   }
 
-  /// Download and install all skins from the hardcoded remote sources
-  /// These skins are treated as "bundled" and cannot be removed by users
   Future<void> downloadRemoteSkins() async {
     final sources = await _getRemoteWebUISources();
     for (final sourceConfig in sources) {
@@ -556,36 +467,24 @@ class WebUIStorage {
           e,
           st,
         );
-        // Continue with other sources even if one fails
       }
     }
   }
 
-  /// Downloads remote bundled skins then rescans so newly installed skins
-  /// surface. Safe to run in the background after
-  /// `initialize(downloadRemote: false)` — [downloadRemoteSkins] does not
-  /// rescan on its own, so the explicit [_scanInstalledSkins] is required.
   Future<void> downloadRemoteSkinsAndRescan() async {
     await downloadRemoteSkins();
     await _scanInstalledSkins();
   }
 
-  /// Update all skins: remote-bundled skins and user-installed skins with source URLs.
-  ///
-  /// This method is intended to be called periodically (e.g., by UpdateCheckService)
-  /// to keep all skins up to date. Each skin update is independent — one failure
-  /// does not prevent others from updating.
   Future<void> updateAllSkins() async {
     _log.info('Starting update check for all skins');
 
-    // 1. Update remote-bundled skins
     try {
       await downloadRemoteSkins();
     } catch (e, st) {
       _log.warning('Failed to update remote-bundled skins', e, st);
     }
 
-    // 2. Update user-installed skins that have a sourceUrl
     final userSkins = _skinMetadata.entries
         .where(
           (entry) =>
@@ -600,7 +499,6 @@ class WebUIStorage {
 
       try {
         if (sourceUrl.startsWith('github_release:')) {
-          // Parse format: github_release:owner/repo@tag
           final withoutPrefix = sourceUrl.substring('github_release:'.length);
           final atIndex = withoutPrefix.indexOf('@');
           final repo = atIndex >= 0
@@ -653,8 +551,6 @@ class WebUIStorage {
     _log.info('Finished update check for all skins');
   }
 
-  /// Install from GitHub Release using GitHub API
-  /// Supports semantic versioning and proper release tracking
   Future<void> _installFromGitHubRelease(
     String repo,
     String? assetName,
@@ -662,7 +558,6 @@ class WebUIStorage {
     bool markAsRemoteBundled = true,
   }) async {
     try {
-      // Fetch latest release from GitHub API
       final apiUrl = includePrerelease
           ? 'https://api.github.com/repos/$repo/releases'
           : 'https://api.github.com/repos/$repo/releases/latest';
@@ -696,16 +591,13 @@ class WebUIStorage {
         'Found release: $releaseName ($releaseTag) published at $publishedAt',
       );
 
-      // Find the asset to download
       dynamic targetAsset;
       if (assetName != null) {
-        // Look for specific asset name
         targetAsset = assets.firstWhere(
           (asset) => asset['name'] == assetName,
           orElse: () => throw Exception('Asset not found: $assetName'),
         );
       } else {
-        // Look for first .zip asset
         targetAsset = assets.firstWhere(
           (asset) => (asset['name'] as String).endsWith('.zip'),
           orElse: () => throw Exception('No .zip asset found in release'),
@@ -719,7 +611,6 @@ class WebUIStorage {
         'Downloading asset: ${targetAsset['name']} (${(assetSize / 1024 / 1024).toStringAsFixed(2)} MB)',
       );
 
-      // Check if we already have this version installed
       final sourceIdentifier = 'github_release:$repo@$releaseTag';
       final existingMetadata = _skinMetadata.values.firstWhere(
         (meta) => meta.sourceUrl == sourceIdentifier,
@@ -729,7 +620,6 @@ class WebUIStorage {
       if (existingMetadata.skinId.isNotEmpty) {
         _log.info('Release $releaseTag already installed, skipping download');
 
-        // Update last checked time
         _skinMetadata[existingMetadata.skinId] = existingMetadata.copyWith(
           lastChecked: DateTime.now(),
         );
@@ -737,7 +627,6 @@ class WebUIStorage {
         return;
       }
 
-      // Download the asset
       final assetResponse = await http.get(Uri.parse(downloadUrl));
       if (assetResponse.statusCode != 200) {
         throw Exception(
@@ -745,38 +634,31 @@ class WebUIStorage {
         );
       }
 
-      // Create temp file for the downloaded zip
       final appDocDir = await getApplicationDocumentsDirectory();
       final tempFile = File('${appDocDir.path}/temp_webui_release.zip');
       await tempFile.writeAsBytes(assetResponse.bodyBytes);
 
       String installedSkinId;
       try {
-        // Install from the downloaded zip
         installedSkinId = await _installFromZip(tempFile.path);
       } finally {
-        // Clean up temp file
         if (tempFile.existsSync()) {
           await tempFile.delete();
         }
       }
 
-      // Mark this skin as remote bundled (skip for user-installed skins
-      // being updated, so they stay removable).
       if (markAsRemoteBundled) {
         _remoteBundledSkinIds.add(installedSkinId);
         await _saveRemoteBundledSkinIds();
       }
 
-      // Store REA metadata with release information, preserving the
-      // selection options so later updateAllSkins() runs keep them.
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
         skinId: installedSkinId,
         sourceUrl: sourceIdentifier,
         commitHash: releaseTag,
         releaseAssetName: assetName,
         includePrerelease: includePrerelease,
-        etag: null, // GitHub releases don't use ETags for versioning
+        etag: null,
         lastModified: publishedAt,
         installedAt: DateTime.now(),
         lastChecked: DateTime.now(),
@@ -787,7 +669,6 @@ class WebUIStorage {
         'Successfully installed skin from GitHub release: $installedSkinId ($releaseTag)',
       );
 
-      // Rescan installed skins
       await _scanInstalledSkins();
     } catch (e, st) {
       _log.severe('Failed to install from GitHub release: $repo', e, st);
@@ -795,30 +676,24 @@ class WebUIStorage {
     }
   }
 
-  /// Internal method to install from URL and mark as remote bundled
-  /// Includes version checking via HTTP headers (ETag, Last-Modified)
   Future<void> _installFromUrlAsRemoteBundled(
     String url, {
     bool markAsRemoteBundled = true,
     String? sourceIdentifier,
   }) async {
     try {
-      // First, do a HEAD request to check version without downloading
       final headResponse = await http.head(Uri.parse(url));
       final etag = headResponse.headers['etag'];
       final lastModified = headResponse.headers['last-modified'];
       final trackedSource = sourceIdentifier ?? url;
 
-      // Try to find existing skin with this source URL
       final existingMetadata = _skinMetadata.values.firstWhere(
         (meta) => meta.sourceUrl == trackedSource,
         orElse: () => WebUIReaMetadata(skinId: '', installedAt: DateTime.now()),
       );
 
-      // Check if we need to update
       bool needsUpdate = true;
       if (existingMetadata.skinId.isNotEmpty) {
-        // We have this skin already, check if it's up to date
         if (etag != null && etag == existingMetadata.etag) {
           needsUpdate = false;
           _log.info('Skin from $url is up to date (ETag match)');
@@ -828,7 +703,6 @@ class WebUIStorage {
           _log.info('Skin from $url is up to date (Last-Modified match)');
         }
 
-        // Update last checked time even if not updating
         _skinMetadata[existingMetadata.skinId] = existingMetadata.copyWith(
           lastChecked: DateTime.now(),
         );
@@ -841,42 +715,35 @@ class WebUIStorage {
 
       _log.info('Downloading WebUI from URL: $url');
 
-      // Download the zip file
       final response = await http.get(Uri.parse(url));
       if (response.statusCode != 200) {
         throw Exception('Failed to download: ${response.statusCode}');
       }
 
-      // Create temp file for the downloaded zip
       final appDocDir = await getApplicationDocumentsDirectory();
       final tempFile = File('${appDocDir.path}/temp_webui.zip');
       await tempFile.writeAsBytes(response.bodyBytes);
 
       String? commitHash;
 
-      // Extract commit hash if this is a GitHub URL
       if (url.contains('github.com')) {
         commitHash = _extractGitHubCommitHash(url);
       }
 
       String installedSkinId;
       try {
-        // Install from the downloaded zip
         installedSkinId = await _installFromZip(tempFile.path);
       } finally {
-        // Clean up temp file
         if (tempFile.existsSync()) {
           await tempFile.delete();
         }
       }
 
-      // Mark this skin as remote bundled (skip for user-installed skins being updated)
       if (markAsRemoteBundled) {
         _remoteBundledSkinIds.add(installedSkinId);
         await _saveRemoteBundledSkinIds();
       }
 
-      // Store REA metadata
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
         skinId: installedSkinId,
         sourceUrl: trackedSource,
@@ -890,7 +757,6 @@ class WebUIStorage {
 
       _log.info('Installed/updated remote bundled skin: $installedSkinId');
 
-      // Rescan installed skins
       await _scanInstalledSkins();
 
       _log.info('Successfully installed remote bundled WebUI from URL: $url');
@@ -900,19 +766,15 @@ class WebUIStorage {
     }
   }
 
-  /// Extract commit hash from GitHub archive URL
-  /// GitHub archive URLs contain refs/heads/{branch} but we can try to get commit from API
   String? _extractGitHubCommitHash(String url) {
     try {
-      // For now, just extract the branch name from the URL
-      // Format: https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip
       final match = RegExp(
         r'github\.com/([^/]+)/([^/]+)/archive/refs/heads/([^\.]+)\.zip',
       ).firstMatch(url);
 
       if (match != null) {
         final branch = match.group(3);
-        return 'branch:$branch'; // Simple branch tracking
+        return 'branch:$branch';
       }
 
       return null;
@@ -922,7 +784,6 @@ class WebUIStorage {
     }
   }
 
-  /// Remove/uninstall a WebUI skin
   Future<void> removeSkin(String skinId) async {
     if (!_installedSkins.containsKey(skinId)) {
       throw Exception('Skin not found: $skinId');
@@ -930,34 +791,28 @@ class WebUIStorage {
 
     final skin = _installedSkins[skinId]!;
 
-    // Don't allow removing bundled skins
     if (skin.isBundled) {
       throw Exception('Cannot remove bundled skin: $skinId');
     }
 
-    // Delete skin directory
     final skinDir = Directory(skin.path);
     if (skinDir.existsSync()) {
       await skinDir.delete(recursive: true);
       _log.info('Removed skin: $skinId');
     }
 
-    // Remove from caches
     _installedSkins.remove(skinId);
 
-    // Remove metadata
     if (_skinMetadata.containsKey(skinId)) {
       _skinMetadata.remove(skinId);
       await _saveSkinMetadata();
     }
   }
 
-  /// Check if a skin with the given ID is installed
   bool isSkinInstalled(String skinId) {
     return _installedSkins.containsKey(skinId);
   }
 
-  /// Get the full filesystem path for a skin
   String getSkinPath(String skinId) {
     final skin = _installedSkins[skinId];
     if (skin == null) {
@@ -966,9 +821,6 @@ class WebUIStorage {
     return skin.path;
   }
 
-  // Private helper methods
-
-  /// Load the persisted list of remote bundled skin IDs
   Future<void> _loadRemoteBundledSkinIds() async {
     try {
       final registryFile = File(
@@ -987,7 +839,6 @@ class WebUIStorage {
     }
   }
 
-  /// Save the list of remote bundled skin IDs to disk
   Future<void> _saveRemoteBundledSkinIds() async {
     try {
       final registryFile = File(
@@ -1004,7 +855,6 @@ class WebUIStorage {
     }
   }
 
-  /// Load REA metadata for all skins from disk
   Future<void> _loadSkinMetadata() async {
     try {
       final metadataFile = File('${_webUIDir.path}/.rea_metadata.json');
@@ -1025,7 +875,6 @@ class WebUIStorage {
     }
   }
 
-  /// Save REA metadata for all skins to disk
   Future<void> _saveSkinMetadata() async {
     try {
       final metadataFile = File('${_webUIDir.path}/.rea_metadata.json');
@@ -1044,24 +893,19 @@ class WebUIStorage {
     }
   }
 
-  /// Copy bundled skins from Flutter assets to web-ui directory
   Future<void> _copyBundledSkins() async {
     for (final assetPath in _bundledAssetPaths) {
       try {
-        // Extract skin ID from asset path (last folder name)
         final skinId = assetPath.split('/').where((s) => s.isNotEmpty).last;
         final destDir = Directory('${_webUIDir.path}/$skinId');
 
-        // Check if skin already exists
         if (destDir.existsSync() && destDir.listSync().isNotEmpty) {
           _log.fine('Bundled skin already exists: $skinId');
           continue;
         }
 
-        // Create destination directory
         destDir.createSync(recursive: true);
 
-        // Copy files from assets
         await _copyAssetFolder(assetPath, destDir.path);
 
         _log.info('Copied bundled skin: $skinId');
@@ -1070,11 +914,6 @@ class WebUIStorage {
       }
     }
 
-    // Install bundled skin zips from assets/bundled_skins/.
-    //
-    // The outer try only covers the manifest load. Each skin install runs
-    // inside installBundledSkinList, which isolates per-skin failures so one
-    // bad zip cannot silently drop every later bundled skin (issue #148).
     List<String> skinIds;
     try {
       final manifestString = await rootBundle.loadString(
@@ -1093,7 +932,6 @@ class WebUIStorage {
         return;
       }
 
-      // Load zip from assets and extract
       final zipData = await rootBundle.load('assets/bundled_skins/$skinId.zip');
       final tempFile = File('${_webUIDir.path}/$skinId.zip');
       await tempFile.writeAsBytes(zipData.buffer.asUint8List());
@@ -1107,14 +945,8 @@ class WebUIStorage {
     }, log: _log);
   }
 
-  /// Copy an entire asset folder to a destination path
   Future<void> _copyAssetFolder(String assetPath, String destPath) async {
     try {
-      // List all files in the asset folder
-      // Note: Flutter doesn't provide a way to list asset directories at runtime
-      // So we need to know the files in advance or use a manifest file
-
-      // For now, we'll try to copy common web files
       final commonFiles = [
         'index.html',
         'style.css',
@@ -1134,7 +966,6 @@ class WebUIStorage {
           await destFile.writeAsString(content);
           _log.fine('Copied asset file: $fileName');
         } catch (e) {
-          // File doesn't exist in assets, skip it
           continue;
         }
       }
@@ -1144,7 +975,6 @@ class WebUIStorage {
     }
   }
 
-  /// Scan the web-ui directory for installed skins
   Future<void> _scanInstalledSkins() async {
     _installedSkins.clear();
 
@@ -1158,11 +988,8 @@ class WebUIStorage {
       try {
         final skinId = p.basename(dir.path);
 
-        // Get REA metadata if it exists
         final reaMetadata = _skinMetadata[skinId];
 
-        // Try to load metadata from skin-manifest.json first (skin-specific),
-        // then manifest.json (may be a PWA manifest without an id field)
         final skinManifestFile = File('${dir.path}/skin-manifest.json');
         final manifestFile = File('${dir.path}/manifest.json');
         WebUISkin skin;
@@ -1189,7 +1016,6 @@ class WebUIStorage {
             reaMetadata: reaMetadata,
           );
         } else {
-          // No manifest, create basic skin info
           skin = WebUISkin(
             id: skinId,
             name: skinId,
@@ -1199,8 +1025,6 @@ class WebUIStorage {
           );
         }
 
-        // An unsafe id (e.g. from a tampered manifest) must not enter the
-        // in-memory registry, where it could later drive filesystem paths.
         if (!isSafePathComponent(skin.id)) {
           _log.warning(
             'Skipping skin with unsafe id "${skin.id}" at ${dir.path}',
@@ -1216,10 +1040,7 @@ class WebUIStorage {
     }
   }
 
-  /// Check if a skin ID corresponds to a bundled skin
-  /// Bundled skins include both asset-bundled and remote-bundled skins
   bool _isBundledSkin(String skinId) {
-    // Check if it's from asset paths
     final isAssetBundled = _bundledAssetPaths.any((path) {
       final bundledId = path.split('/').where((s) => s.isNotEmpty).last;
       return bundledId == skinId;
@@ -1227,19 +1048,15 @@ class WebUIStorage {
 
     if (isAssetBundled) return true;
 
-    // Check if it's from remote sources
     return _remoteBundledSkinIds.contains(skinId);
   }
 
-  /// Install a WebUI skin from a zip file
-  /// Returns the installed skin ID
   Future<String> _installFromZip(
     String zipPath, {
     bool overwriteIfExists = true,
   }) async {
     _log.info('Installing WebUI from zip: $zipPath');
 
-    // Create temp extraction directory
     final appDocDir = await getApplicationDocumentsDirectory();
     final tempDir = Directory('${appDocDir.path}/temp_webui_extract');
 
@@ -1249,17 +1066,10 @@ class WebUIStorage {
     tempDir.createSync(recursive: true);
 
     try {
-      // Extract zip file using archive package
       final zipFile = File(zipPath);
       final bytes = await zipFile.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
 
-      // Extract files to temp directory. On Windows we sanitise filenames
-      // to dodge the Win32-reserved chars; on macOS/Linux we leave them
-      // alone so skins that legitimately use characters like `:` in
-      // filenames keep working. Per-entry failures are isolated so a
-      // single bad entry can't abort the whole install (issue #147). The
-      // helper logs each skipped entry, so we don't repeat that here.
       extractArchiveToDirectory(
         archive,
         tempDir,
@@ -1267,48 +1077,31 @@ class WebUIStorage {
         log: _log,
       );
 
-      // Find the actual content directory
-      // (GitHub zips have a root folder like "repo-main/")
       final extractedContents = tempDir.listSync();
       Directory contentDir;
 
       if (extractedContents.length == 1 &&
           extractedContents.first is Directory) {
-        // Single root directory, use it
         contentDir = extractedContents.first as Directory;
       } else {
-        // Multiple items or files, use temp dir itself
         contentDir = tempDir;
       }
 
-      // Install from the extracted directory
       return await _installFromDirectory(
         contentDir,
         overwriteIfExists: overwriteIfExists,
       );
     } finally {
-      // Clean up temp directory
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
       }
     }
   }
 
-  /// Install a WebUI skin from a directory
-  /// Returns the installed skin ID.
-  ///
-  /// When [overwriteIfExists] is false, an existing non-empty skin directory is
-  /// left untouched and its id returned. Bundled-asset installs use this so they
-  /// never clobber a newer copy installed from a GitHub release (issue #250):
-  /// the skin's install dir is keyed by its manifest `id` (e.g. `streamline.js`),
-  /// not the bundled asset basename (e.g. `streamline_project`), so the caller's
-  /// own existence check cannot see it.
   Future<String> _installFromDirectory(
     Directory sourceDir, {
     bool overwriteIfExists = true,
   }) async {
-    // Try to load skin ID from skin-manifest.json first, then manifest.json,
-    // otherwise fall back to directory name
     String skinId;
     final skinManifestFile = File('${sourceDir.path}/skin-manifest.json');
     final manifestFile = File('${sourceDir.path}/manifest.json');
@@ -1325,16 +1118,12 @@ class WebUIStorage {
       skinId = p.basename(sourceDir.path);
     }
 
-    // The id becomes a directory name under the web-ui root; reject anything
-    // that is not exactly one safe path component before constructing or
-    // deleting the destination (issue #547 follow-up).
     if (!isSafePathComponent(skinId)) {
       throw FormatException(
         'Unsafe skin id "$skinId": must be a single safe path component',
       );
     }
 
-    // Check if skin already exists
     final destDir = Directory('${_webUIDir.path}/$skinId');
     if (destDir.existsSync() &&
         destDir.listSync().isNotEmpty &&
@@ -1349,10 +1138,8 @@ class WebUIStorage {
       await destDir.delete(recursive: true);
     }
 
-    // Create destination directory
     destDir.createSync(recursive: true);
 
-    // Copy all files from source to destination
     await _copyDirectory(sourceDir, destDir);
 
     _log.info('Installed WebUI skin: $skinId at ${destDir.path}');
@@ -1360,7 +1147,6 @@ class WebUIStorage {
     return skinId;
   }
 
-  /// Recursively copy a directory
   Future<void> _copyDirectory(Directory source, Directory destination) async {
     await for (final entity in source.list(recursive: false)) {
       final fileName = p.basename(entity.path);
@@ -1376,7 +1162,6 @@ class WebUIStorage {
     }
   }
 
-  /// Reset/clear all installed skins (useful for testing)
   Future<void> reset() async {
     for (final skin in _installedSkins.values.toList()) {
       if (!skin.isBundled) {
@@ -1388,7 +1173,6 @@ class WebUIStorage {
       }
     }
 
-    // Rescan to refresh state
     await _scanInstalledSkins();
   }
 }

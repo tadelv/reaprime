@@ -97,8 +97,6 @@ class HiroiaScale implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
-  /// Safe write — catches [DeviceNotConnectedException] so a write to a
-  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
   Future<void> _safeWrite(Uint8List data) async {
     try {
       await _transport.write(
@@ -119,16 +117,11 @@ class HiroiaScale implements Scale {
 
   @override
   Future<void> sleepDisplay() async {
-    // Hiroia Jimmy doesn't have documented display sleep commands
-    // Fallback to disconnect as per scale interface contract
     await disconnect();
   }
 
   @override
-  Future<void> wakeDisplay() async {
-    // Hiroia Jimmy doesn't have documented wake display commands
-    // This is a no-op
-  }
+  Future<void> wakeDisplay() async {}
 
   Future<void> _registerNotifications() async {
     await _transport.subscribe(
@@ -138,7 +131,6 @@ class HiroiaScale implements Scale {
     );
   }
 
-  /// Send toggle unit command to switch the scale back to grams
   Future<void> _sendToggleUnit() async {
     await _safeWrite(Uint8List.fromList([0x0b, 0x00]));
   }
@@ -148,7 +140,6 @@ class HiroiaScale implements Scale {
 
     int mode = data[0];
 
-    // If mode > 0x08, the scale is not in grams mode; toggle back to grams
     if (mode > 0x08) {
       _sendToggleUnit();
       return;

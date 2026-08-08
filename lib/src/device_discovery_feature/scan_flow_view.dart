@@ -26,38 +26,22 @@ import '../onboarding_feature/widgets/troubleshooting_wizard.dart';
 
 final _log = Logger('ScanFlow');
 
-/// Callback-driven scan flow widget.
-///
-/// Shows progress with coffee messages during scanning, a "taking too long"
-/// button after a threshold, device pickers when ambiguity arises, and invokes
-/// [onConnected] when connection is ready. Used by both onboarding (via
-/// [ScanStepView]) and the launcher scan page.
 class ScanFlowView extends StatefulWidget {
   final ConnectionManager connectionManager;
   final DeviceController deviceController;
   final SettingsController settingsController;
   final ScanStateGuardian scanStateGuardian;
 
-  /// When true, auto-connect to the first discovered machine/scale instead
-  /// of showing a picker on ambiguity.
   final bool directConnect;
 
-  /// The initial connection action. When non-null, invoked once from
-  /// [initState] instead of the default [ConnectionManager.connect].
-  /// Launcher pages should pass `connectionManager.scanAndConnect`;
-  /// onboarding uses `connect` (the default when null).
   final VoidCallback? initialConnectionIntent;
 
-  /// Invoked once when the connection phase first reaches `ready`.
   final VoidCallback onConnected;
 
-  /// Invoked when the user chooses to leave the scan without connecting.
   final VoidCallback onExit;
 
-  /// Button copy for the exit affordance (e.g. 'Dashboard', 'Cancel').
   final String exitLabel;
 
-  /// How long to wait before showing the "taking too long" button.
   static const scanTooLongThreshold = Duration(seconds: 16);
 
   const ScanFlowView({
@@ -108,15 +92,11 @@ class ScanFlowViewState extends State<ScanFlowView> {
   bool _showTakingTooLong = false;
   Timer? _tooLongTimer;
 
-  /// Prevents re-triggering auto-connect on subsequent status emissions
-  /// when --direct is active.
   bool _directAutoConnected = false;
 
-  /// Devices discovered so far during the current scan.
   List<De1Interface> _discoveredMachines = [];
   List<device_scale.Scale> _discoveredScales = [];
 
-  /// Currently selected device ID in the picker UI.
   String? _selectedMachineId;
   String? _selectedScaleId;
 
@@ -127,7 +107,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
     _statusSubscription = widget.connectionManager.status.listen((status) {
       if (!mounted) return;
 
-      // Boot-timing: record each phase transition once.
       if (status.phase != _status.phase) {
         BootTiming.mark('connect_${status.phase.name}');
       }
@@ -142,7 +121,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
         return;
       }
 
-      // --direct: auto-connect to first discovered machine/scale on ambiguity.
       if (widget.directConnect && !_directAutoConnected) {
         if (status.pendingAmbiguity == AmbiguityReason.machinePicker &&
             _discoveredMachines.isNotEmpty) {
@@ -168,7 +146,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
         }
       }
 
-      // Reset the "taking too long" timer when phase changes away from scanning
       if (status.phase != ConnectionPhase.scanning) {
         _cancelTooLongTimer();
       } else {
@@ -176,7 +153,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
         _selectedScaleId = null;
       }
 
-      // Start the timer when entering scanning phase
       if (status.phase == ConnectionPhase.scanning &&
           _status.phase != ConnectionPhase.scanning) {
         _discoveredMachines = [];
@@ -189,7 +165,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
       });
     });
 
-    // Monitor device stream during scanning for live device count
     _deviceSubscription = widget.deviceController.deviceStream.listen((
       devices,
     ) {
@@ -204,7 +179,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
       _onGuardianEvent,
     );
 
-    // Kick off the connection flow
     final intent = widget.initialConnectionIntent;
     if (intent != null) {
       intent();
@@ -264,39 +238,24 @@ class ScanFlowViewState extends State<ScanFlowView> {
 
     if (blockingCondition != null) {
       content = _adapterErrorView(context, blockingCondition.connectionError);
-    }
-    // Ambiguity picker — show even when an error coexists, with the error
-    // rendered inline so the user can continue without a new scan.
-    else if (_status.pendingAmbiguity == AmbiguityReason.machinePicker ||
+    } else if (_status.pendingAmbiguity == AmbiguityReason.machinePicker ||
         _status.pendingAmbiguity == AmbiguityReason.scalePicker) {
       content = _devicePickerView(context);
-    }
-    // Standalone error (idle with no pending ambiguity).
-    else if (_status.error != null && _status.phase == ConnectionPhase.idle) {
+    } else if (_status.error != null && _status.phase == ConnectionPhase.idle) {
       content = _errorView(context);
-    }
-    // Scanning
-    else if (_status.phase == ConnectionPhase.scanning) {
+    } else if (_status.phase == ConnectionPhase.scanning) {
       content = _scanningView(context);
-    }
-    // Connecting to machine or scale
-    else if (_status.phase == ConnectionPhase.connectingMachine ||
+    } else if (_status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale) {
       content = _connectingView(context);
-    }
-    // Idle with no machines found
-    else if (_status.phase == ConnectionPhase.idle &&
+    } else if (_status.phase == ConnectionPhase.idle &&
         _status.foundMachines.isEmpty &&
         _status.foundScales.isEmpty) {
       content = _noDevicesFoundView(context);
-    }
-    // Idle with machines but no ambiguity (fallback)
-    else if (_status.phase == ConnectionPhase.idle &&
+    } else if (_status.phase == ConnectionPhase.idle &&
         (_status.foundMachines.isNotEmpty || _status.foundScales.isNotEmpty)) {
       content = _devicePickerView(context);
-    }
-    // Default: scanning view
-    else {
+    } else {
       content = _scanningView(context);
     }
 
@@ -328,7 +287,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
     return error.message;
   }
 
-  /// Whether devices have been found but the preferred one hasn't.
   bool get _hasDevicesButNotPreferred {
     if (_discoveredMachines.isEmpty && _discoveredScales.isEmpty) return false;
     final preferredMachineId = widget.settingsController.preferredMachineId;
@@ -345,7 +303,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
 
     return Column(
       children: [
-        // Progress bar + text centered in available space
         Expanded(
           child: Center(
             child: Column(
@@ -385,7 +342,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
             ),
           ),
         ),
-        // "Taking too long" button pinned to bottom, doesn't affect center position
         ExcludeSemantics(
           excluding: !_showTakingTooLong,
           child: AnimatedOpacity(
@@ -500,7 +456,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
       );
     }
 
-    // Fallback: idle with devices but no ambiguity — show combined view.
     final preferredMachineNotFound =
         preferredMachineId != null &&
         _status.foundMachines.isNotEmpty &&
@@ -871,7 +826,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
   Widget _noDevicesFoundView(BuildContext context) {
     final report = widget.connectionManager.lastScanReport;
     if (report == null) {
-      // Fallback if no report is available yet
       return Center(
         child: AccessibleButton(
           label: 'Scan Again',
@@ -899,8 +853,6 @@ class ScanFlowViewState extends State<ScanFlowView> {
     );
   }
 
-  /// Stops the scan and forces the device picker to show with currently
-  /// discovered devices.
   void _stopScanAndShowDevices() {
     widget.deviceController.stopScan();
   }

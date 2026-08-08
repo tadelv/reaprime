@@ -103,7 +103,6 @@ void main() {
   );
 
   test('connection failure rejects the promise', () async {
-    // Port 1 is never listening on loopback.
     final result = await runFetch('http://127.0.0.1:1/nowhere');
 
     expect(result, startsWith('err:'));
@@ -235,8 +234,6 @@ void main() {
       });
       addTearDown(server.close);
 
-      // Generation 1 schedules a fetch; reload happens before the deferred
-      // fetch message is processed.
       await manager.loadPlugin(
         id: 'fetch.plugin',
         manifest: testManifest('fetch.plugin'),

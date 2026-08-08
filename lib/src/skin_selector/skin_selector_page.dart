@@ -68,7 +68,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
 
   @override
   Widget build(BuildContext context) {
-    // The storage-permission affordance only exists for Android sideload builds.
     final showStorageRow = Platform.isAndroid;
 
     return Scaffold(
@@ -86,8 +85,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                 const SizedBox(height: 16),
                 _buildSkinSelector(),
                 const SizedBox(height: 12),
-                // Primary, per-skin action: open the selected skin. Linux has no
-                // in-app WebView, so there it opens the external browser instead.
                 Align(
                   alignment: Alignment.centerLeft,
                   child: _ActionButton(
@@ -112,10 +109,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
     );
   }
 
-  /// Card header: title/subtitle on the left, plus the library-wide "Check for
-  /// updates" action on the right (it refreshes *all* installed skins, not the
-  /// selected one, so it lives at the section level rather than next to the
-  /// per-skin "Go to skin" button).
   Widget _buildHeader() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,8 +148,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
     );
   }
 
-  /// Quiet footer for the niche skin-server controls (start/stop, open in an
-  /// external browser). De-emphasised vs. the primary actions above.
   Widget _buildServerFooter() {
     final serving = widget.webUIService.isServing;
     final muted = Theme.of(
@@ -189,8 +180,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
 
     final actions = <Widget>[];
     if (serving) {
-      // On Linux the external browser is already the primary action above, so
-      // don't duplicate it here.
       if (!Platform.isLinux) {
         actions.add(
           _ActionButton.ghost(
@@ -228,7 +217,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       );
     }
 
-    // Status fills the left and pushes the niche controls flush to the right.
     return Row(
       children: [
         Expanded(child: status),
@@ -241,8 +229,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
   Widget _buildSkinSelector() {
     final installedSkins = widget.webUIStorage.installedSkins;
 
-    // Left-aligned and sized to its content (the widest item) rather than
-    // stretching across the card.
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -284,8 +270,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                       if (skin.version != null) ...[
                         const SizedBox(width: 6),
                         Padding(
-                          // The smaller version text centres ~2px high next to the
-                          // name; nudge it down onto the name's baseline.
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             'v${skin.version}',
@@ -304,7 +288,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                             tooltip: 'Remove ${skin.name}',
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () async {
-                              // Close the dropdown first
                               Navigator.of(context).pop();
 
                               final confirmed = await showDialog<bool>(
@@ -432,8 +415,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       ],
     );
   }
-
-  // MARK: - WebUI Actions
 
   Future<void> _restartServerWithSkin(String skinId) async {
     try {
@@ -627,10 +608,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
     );
   }
 
-  /// Opens the selected skin inside the app, starting the skin server first if
-  /// it isn't already running so the button works in a single tap. Linux has no
-  /// in-app WebView (the plugin is a no-op there), so it falls back to the
-  /// external browser — same policy as the home screen's "Open" button.
   Future<void> _goToSkin() async {
     if (!widget.webUIService.isServing) {
       await _startSelectedSkin();
@@ -654,8 +631,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
 
       await widget.webUIStorage.updateAllSkins();
 
-      // Rebuild so the dropdown shows newly downloaded versions without the
-      // user having to leave and re-enter the page (#370).
       if (mounted) setState(() {});
 
       if (!context.mounted) return;
@@ -677,7 +652,6 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
 
 enum _ActionButtonVariant { primary, outline, ghost }
 
-/// Small helper for consistent action buttons in the skin selector.
 class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -685,8 +659,6 @@ class _ActionButton extends StatelessWidget {
   final _ActionButtonVariant variant;
   final ShadButtonSize? size;
 
-  /// Overrides the icon/text color — used to tint a ghost button (e.g. the
-  /// destructive "Stop server") without giving it a filled destructive style.
   final Color? foregroundColor;
 
   const _ActionButton({

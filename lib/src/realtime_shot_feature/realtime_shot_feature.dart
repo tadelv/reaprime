@@ -69,7 +69,6 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
     _shotSubscription.cancel();
     _resetCommandSubscription.cancel();
     _stateSubscription.cancel();
-    // ShotSequencer is owned by De1StateManager — do not dispose here.
     super.dispose();
   }
 
@@ -212,8 +211,6 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ShadButton.destructive(
           enabled: !backEnabled,
           onPressed: () {
-            // Pre-declare intent so the stop is attributed to the app UI
-            // (stopReason: appStop) rather than the ambiguous machineEnded.
             widget.shotSequencer.de1controller.recordStopIntent(
               ShotDecisionReason.appStop,
             );

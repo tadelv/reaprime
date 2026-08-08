@@ -40,7 +40,6 @@ void main() {
         final testDe1 = TestDe1();
 
         await de1Controller.connectToDe1(testDe1);
-        // Unblock _initializeData so it does not leak into the test zone.
         testDe1.emitShotSettings(_emptyShotSettings());
         await Future<void>.delayed(Duration.zero);
 
@@ -117,28 +116,14 @@ void main() {
             final de1Controller = De1Controller(controller: deviceController);
             final testDe1 = TestDe1();
 
-            // Kick off connect: TestDe1.onConnect is a no-op, so
-            // connectToDe1 completes quickly. ready is Stream.value(true)
-            // so _initializeData fires on the next microtask.
             await de1Controller.connectToDe1(testDe1);
 
-            // Unblock _initializeData's `shotSettings.first` await +
-            // trigger the first _shotSettingsUpdate, which schedules the
-            // 100ms debounce timer.
             testDe1.emitShotSettings(_emptyShotSettings());
-            // Let the microtask chain reach the scheduled Timer.
             await Future<void>.delayed(Duration.zero);
 
-            // Force a disconnect while the debounce timer is still
-            // pending. _onDisconnect bumps _connectionGeneration,
-            // nulls _de1, cancels _shotSettingsDebounce, and cancels
-            // the shotSettings subscription.
             testDe1.setConnectionState(ConnectionState.disconnected);
             await Future<void>.delayed(Duration.zero);
 
-            // Wait past the 100ms debounce window. With the generation
-            // fix, the timer body should find a stale generation (or
-            // null _de1) and bail without touching connectedDe1().
             await Future<void>.delayed(const Duration(milliseconds: 200));
 
             testDe1.dispose();

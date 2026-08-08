@@ -9,56 +9,30 @@ import 'package:reaprime/src/models/keep_awake_occurrence.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
-/// Manages user presence detection, auto-sleep timeout, and scheduled wake.
-///
-/// Three concerns:
-/// 1. **Heartbeat** — event-driven user presence signal, forwarded to DE1 with
-///    5-second throttling. Calls during sleep are deferred and flushed
-///    immediately on wake transition, ensuring the DE1 sees a fresh
-///    `userPresent` before the refill-kit decision is made.
-/// 2. **Sleep timeout** — auto-sleep after configurable timeout with no
-///    heartbeat.
-/// 3. **Scheduled wake** — periodically checks schedules and wakes sleeping
-///    machine at matching times.
 class PresenceController {
   final De1Controller _de1Controller;
   final SettingsController _settingsController;
   final Logger _log = Logger('PresenceController');
 
-  /// Optional clock function for testing. Returns the current time.
   DateTime Function() _clock;
 
-  /// Allows tests to change the clock after construction.
   set clockOverride(DateTime Function() clock) => _clock = clock;
 
-  // --- Internal state ---
   De1Interface? _de1;
   MachineState? _currentMachineState;
   StreamSubscription<De1Interface?>? _de1Subscription;
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
 
-  /// Throttle: minimum interval between sendUserPresent() calls.
-  /// Reduced from 30s to 5s to avoid a cold `userPresent` write blocking
-  /// the wake-time signal. Further safety: calls during sleep are deferred
-  /// and flushed on wake (see [_pendingUserPresent]).
   static const Duration _presenceThrottle = Duration(seconds: 5);
   DateTime? _lastPresenceSent;
 
-  /// True when a heartbeat arrived while the machine was asleep, meaning a
-  /// `sendUserPresent()` was skipped. Flushed on the next wake transition.
-  /// Cleared after 60s of no wake to avoid a stale flag triggering a write
-  /// on a much-later wake that doesn't need it.
   bool _pendingUserPresent = false;
   Timer? _pendingUserPresentTimer;
 
-  /// Sleep timeout timer.
   Timer? _sleepTimer;
 
-  /// Schedule checker periodic timer.
   Timer? _scheduleTimer;
 
-  /// Tracks which schedule IDs have fired in the current minute to prevent
-  /// re-triggering.
   final Set<String> _firedScheduleIds = {};
   int? _lastCheckedMinute;
 
@@ -97,15 +71,12 @@ class PresenceController {
        _settingsController = settingsController,
        _clock = clock ?? (() => DateTime.now());
 
-  /// Subscribe to DE1 connection stream, start schedule checker timer,
-  /// listen to settings changes.
   void initialize() {
     _de1Subscription = _de1Controller.de1.listen(_onDe1Changed);
     _settingsController.addListener(_onSettingsChanged);
     _startScheduleChecker();
   }
 
-  /// Clean up all subscriptions and timers.
   void dispose() {
     _de1Subscription?.cancel();
     _de1Subscription = null;
@@ -122,32 +93,21 @@ class PresenceController {
     _settingsController.removeListener(_onSettingsChanged);
   }
 
-  /// Called by REST API and NavigatorObserver to signal user presence.
-  ///
-  /// Returns the number of seconds remaining on the sleep timeout, or -1 if
-  /// presence is not enabled or no DE1 is connected.
   int heartbeat() {
     if (!_settingsController.userPresenceEnabled || _de1 == null) {
       return -1;
     }
 
-    // Forward sendUserPresent to DE1 with throttling
     _sendPresenceThrottled();
 
-    // Reset the sleep timeout timer
     _resetSleepTimer();
 
     return _secondsRemaining();
   }
 
-  // ---------------------------------------------------------------------------
-  // DE1 connection handling
-  // ---------------------------------------------------------------------------
-
   void _onDe1Changed(De1Interface? de1) {
     if (de1 == _de1) return;
 
-    // Clean up previous connection
     _snapshotSubscription?.cancel();
     _snapshotSubscription = null;
     _sleepTimer?.cancel();
@@ -171,14 +131,13 @@ class PresenceController {
   void _onSnapshot(MachineSnapshot snapshot) {
     final newState = snapshot.state.state;
 
-    // Detect wake-from-sleep: send deferred userPresent immediately.
     if (_currentMachineState == MachineState.sleeping &&
         (newState == MachineState.idle || newState == MachineState.schedIdle)) {
       if (_pendingUserPresent) {
         _pendingUserPresent = false;
         _pendingUserPresentTimer?.cancel();
         _pendingUserPresentTimer = null;
-        _lastPresenceSent = null; // clear throttle so the flush fires
+        _lastPresenceSent = null;
         _de1?.sendUserPresent().catchError((Object e) {
           _log.warning('Failed to send deferred user present on wake', e);
         });
@@ -196,12 +155,6 @@ class PresenceController {
       }
     }
 
-    // An activity (espresso/steam/hot water/flush/clean) just finished: restart
-    // the idle countdown so the machine gets a full sleep-timeout window from the
-    // END of the activity. Without this, the timer keeps running from the last
-    // heartbeat straight through a hands-off pull and can fire the instant the
-    // shot ends. The [_onSleepTimeout] active-state guard only covers the timer
-    // firing *during* the activity, not the seconds right after it returns to idle.
     if (_settingsController.userPresenceEnabled &&
         _isActiveState(_currentMachineState) &&
         (newState == MachineState.idle || newState == MachineState.schedIdle)) {
@@ -214,12 +167,7 @@ class PresenceController {
     _currentMachineState = newState;
   }
 
-  // ---------------------------------------------------------------------------
-  // Settings change handling
-  // ---------------------------------------------------------------------------
-
   void _onSettingsChanged() {
-    // If sleep timeout changed, reset the timer with the new value
     if (_de1 != null &&
         _settingsController.userPresenceEnabled &&
         _settingsController.sleepTimeoutMinutes > 0) {
@@ -249,10 +197,6 @@ class PresenceController {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Presence throttling
-  // ---------------------------------------------------------------------------
-
   void _sendPresenceThrottled() {
     final now = _clock();
     if (_lastPresenceSent != null &&
@@ -263,9 +207,6 @@ class PresenceController {
 
     _lastPresenceSent = now;
 
-    // If the machine is asleep, defer the write — the BLE transport may not
-    // deliver it. The deferred flag is flushed in [_onSnapshot] when the
-    // machine transitions back to idle/schedIdle.
     if (_currentMachineState == MachineState.sleeping) {
       _pendingUserPresent = true;
       _pendingUserPresentTimer?.cancel();
@@ -281,10 +222,6 @@ class PresenceController {
       _log.warning('Failed to send user present', e);
     });
   }
-
-  // ---------------------------------------------------------------------------
-  // Sleep timeout
-  // ---------------------------------------------------------------------------
 
   void _resetSleepTimer() {
     _sleepTimer?.cancel();
@@ -310,7 +247,6 @@ class PresenceController {
       return;
     }
 
-    // If machine is in an active state, restart the timer instead of sleeping
     if (_isActiveState(_currentMachineState)) {
       _log.info(
         'Sleep timeout fired but machine is in active state ($_currentMachineState), restarting timer',
@@ -330,7 +266,6 @@ class PresenceController {
 
   static const int _kSleepOnRefillMinFwBuild = 1357;
 
-  /// Returns true for machine states where we should NOT auto-sleep.
   bool _isActiveState(MachineState? state) {
     if (state == null) return false;
     switch (state) {
@@ -367,18 +302,10 @@ class PresenceController {
     if (_sleepTimer == null || !_sleepTimer!.isActive) {
       return -1;
     }
-    // We cannot query Timer for remaining time directly, so we estimate.
-    // The timer was started with `sleepTimeoutMinutes` and we know when we
-    // last reset it. However, Timer doesn't expose remaining time.
-    // Return the configured timeout in seconds as an approximation.
     final timeoutMinutes = _settingsController.sleepTimeoutMinutes;
     if (timeoutMinutes <= 0) return -1;
     return timeoutMinutes * 60;
   }
-
-  // ---------------------------------------------------------------------------
-  // Scheduled wake
-  // ---------------------------------------------------------------------------
 
   void _startScheduleChecker() {
     _scheduleTimer = Timer.periodic(
@@ -394,7 +321,6 @@ class PresenceController {
     final now = _clock();
     final currentMinute = now.hour * 60 + now.minute;
 
-    // Reset fired IDs when the minute changes
     if (_lastCheckedMinute != null && _lastCheckedMinute != currentMinute) {
       _firedScheduleIds.clear();
     }
@@ -417,7 +343,7 @@ class PresenceController {
           _de1!.requestState(MachineState.schedIdle).catchError((Object e) {
             _log.warning('Failed to request schedIdle', e);
           });
-          break; // One wake per check cycle
+          break;
         }
       }
     } catch (e) {

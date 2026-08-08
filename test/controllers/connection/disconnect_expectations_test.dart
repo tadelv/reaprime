@@ -41,10 +41,8 @@ void main() {
       fakeAsync((async) {
         final e = DisconnectExpectations();
         e.mark('id-1');
-        // Almost at TTL, then re-mark.
         async.elapse(DisconnectExpectations.ttl - const Duration(seconds: 1));
         e.mark('id-1');
-        // Original TTL would have fired by now without the re-mark.
         async.elapse(const Duration(seconds: 2));
         expect(
           e.consume('id-1'),
@@ -60,7 +58,6 @@ void main() {
         e.mark('id-1');
         e.dispose();
         async.elapse(DisconnectExpectations.ttl + const Duration(seconds: 1));
-        // After dispose, consume should already return false (state cleared).
         expect(e.consume('id-1'), isFalse);
       });
     });

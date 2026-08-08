@@ -1,8 +1,6 @@
 import 'package:reaprime/src/models/data/bean.dart';
 
-/// Storage interface for Bean and BeanBatch entities.
 abstract class BeanStorageService {
-  // --- Beans ---
   Future<List<Bean>> getAllBeans({bool includeArchived = false});
   Stream<List<Bean>> watchAllBeans({bool includeArchived = false});
   Future<Bean?> getBeanById(String id);
@@ -10,7 +8,6 @@ abstract class BeanStorageService {
   Future<void> updateBean(Bean bean);
   Future<void> deleteBean(String id);
 
-  // --- BeanBatches ---
   Future<List<BeanBatch>> getBatchesForBean(
     String beanId, {
     bool includeArchived = false,

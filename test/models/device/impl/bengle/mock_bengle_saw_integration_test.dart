@@ -5,7 +5,6 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
-/// SAW (stop-at-weight) profile: step0 preinfusion, step1 pours until weight hits exit.
 Profile _sawProfile() {
   return Profile(
     version: '1.0',
@@ -13,7 +12,7 @@ Profile _sawProfile() {
     notes: '',
     author: 'test',
     beverageType: BeverageType.espresso,
-    targetVolumeCountStart: 1, // only step0 is preinfusion
+    targetVolumeCountStart: 1,
     tankTemperature: 94.0,
     steps: [
       ProfileStepPressure(
@@ -33,7 +32,7 @@ Profile _sawProfile() {
         sensor: TemperatureSensor.coffee,
         transition: TransitionType.fast,
         volume: 0,
-        weight: 4.0, // exit when weight >= 4g
+        weight: 4.0,
       ),
     ],
   );
@@ -56,11 +55,8 @@ void main() {
       await bengle.setProfile(_sawProfile());
       await bengle.requestState(MachineState.espresso);
 
-      // Wait past preinfusion (500ms prep + 1s step0)
       await Future.delayed(const Duration(milliseconds: 1700));
 
-      // Collect snapshots. When weight passes 4g, call skipStep (simulating
-      // what ShotSequencer does).
       final completer = Completer<void>();
       var skipped = false;
       final snapshots = <String>[];
@@ -88,10 +84,8 @@ void main() {
       await machineSub.cancel();
       await scaleSub.cancel();
 
-      // Verify weight reached 4g before skip
       expect(skipped, isTrue, reason: 'Weight should reach 4g exit condition');
 
-      // Verify we didn't crash — the shot ended cleanly.
       final finalSnapshot = await bengle.currentSnapshot.first.timeout(
         const Duration(seconds: 2),
       );
@@ -105,10 +99,6 @@ void main() {
       await bengle.setProfile(_sawProfile());
       await bengle.requestState(MachineState.espresso);
 
-      // Sample entirely within preinfusion (step0 is 1s; prep is the first
-      // ~0.5s). Weight is gated on profileFrame >= targetVolumeCountStart, so it
-      // must read ~0 for every preinfusion sample. Keep the window under 1s —
-      // sampling past the pour boundary would legitimately catch early extraction.
       await Future.delayed(const Duration(milliseconds: 400));
 
       final weights = await bengle.weightSnapshot
@@ -164,10 +154,8 @@ void main() {
 
         await Future.delayed(const Duration(milliseconds: 700));
 
-        // Skip to step1
         await bengle.requestState(MachineState.skipStep);
 
-        // Collect states until idle
         final states = await bengle.currentSnapshot
             .takeWhile((s) => s.state.state != MachineState.idle)
             .map((s) => '${s.state.state}/${s.state.substate}')

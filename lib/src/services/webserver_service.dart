@@ -83,7 +83,6 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
-import 'package:reaprime/src/services/app_update_state.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
 import 'package:reaprime/src/services/webserver/debug_handler.dart';
 import 'package:reaprime/src/services/firmware/bundled_firmware_catalog.dart';
@@ -307,11 +306,6 @@ Future<void> startWebServer(
 
   final dataSyncHandler = DataSyncHandler(
     exportHandler: dataExportHandler,
-    // The sync client needs a bounded connect timeout but must NOT time out
-    // while the target is generating/importing an archive: the target only
-    // responds after it has processed the whole body. connectionTimeout
-    // covers connection establishment only; phases are bounded by
-    // syncOverallTimeout in the handler.
     httpClient: IOClient(
       HttpClient()
         ..connectionTimeout = dataExportHandler.limits.syncHeaderTimeout,
@@ -338,7 +332,6 @@ Future<void> startWebServer(
     );
   }
 
-  // Start server
   final server = await io.serve(
     _init(
       deviceHandler,
@@ -378,8 +371,6 @@ Future<void> startWebServer(
   );
   log.info('API Web server running on ${server.address.host}:${server.port}');
 
-  // API Docs server
-  // unpack api folder from assets to temp dir and serve
   await startApiDocsServer();
 }
 
@@ -475,9 +466,6 @@ Handler _init(
       .addMiddleware(
         corsHeaders(
           headers: {
-            // Browsers gate cross-origin reads of non-safelisted response
-            // headers behind Access-Control-Expose-Headers. Keep this aligned
-            // with safe headers the account proxy can relay.
             'Access-Control-Expose-Headers': _corsExposedResponseHeaders.join(
               ', ',
             ),
@@ -487,9 +475,6 @@ Handler _init(
         ),
       )
       .addMiddleware(
-        // Scoped bearer auth — enforced only under /api/v1/account/proxy/*,
-        // the rest of the API keeps its LAN-trust model. No-op when the proxy
-        // is not configured.
         proxyTokenService == null
             ? (Handler h) => h
             : proxyAuthMiddleware(proxyTokenService),
@@ -567,30 +552,18 @@ String _appendVary(String? value, String headerName) {
 }
 
 Future<void> startApiDocsServer() async {
-  // Step 1: Create a temporary directory for the unpacked API docs
   final tempDir = await getTemporaryDirectory();
   final apiDir = Directory('${tempDir.path}/api');
   if (!apiDir.existsSync()) {
     apiDir.createSync(recursive: true);
   }
 
-  // Step 2: List of files in assets/api/ you want to unpack.
-  // Flutter doesn’t let you list asset directories dynamically,
-  // so you must declare them explicitly in pubspec.yaml.
-  // For example:
-  // assets:
-  //   - assets/api/index.html
-  //   - assets/api/openapi.json
-  //   - assets/api/style.css
-  //
-  // Then, manually list them here:
   final assetFiles = [
     'assets/api/index.html',
     'assets/api/rest_v1.yml',
     'assets/api/websocket_v1.yml',
   ];
 
-  // Step 3: Copy each asset to the temp directory
   for (final assetPath in assetFiles) {
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List();
@@ -599,14 +572,12 @@ Future<void> startApiDocsServer() async {
     await file.writeAsBytes(bytes, flush: true);
   }
 
-  // Step 4: Create a static file handler for the unpacked API docs
   final apiHandler = createStaticHandler(
     apiDir.path,
     defaultDocument: 'index.html',
     listDirectories: true,
   );
 
-  // Step 5: Serve the handler on port 4001
   final apiServer = await io.serve(apiHandler, '0.0.0.0', 4001);
   log.info(
     '✅ API Docs server running at http://${apiServer.address.host}:${apiServer.port}',

@@ -1,17 +1,10 @@
 import 'dart:convert';
 
-/// A complete JSON value emitted at a requested depth by
-/// [IncrementalJsonParser].
 class JsonValueEvent {
-  /// Container depth of the value: 0 is the whole document, 1 is an element
-  /// of the top-level array/object, etc.
   final int depth;
 
-  /// Key path of the value (object keys of ancestor objects, outermost first).
-  /// Array ancestors contribute nothing, so `keys.length <= depth`.
   final List<String> keys;
 
-  /// The decoded value.
   final Object? value;
 
   const JsonValueEvent({
@@ -21,9 +14,6 @@ class JsonValueEvent {
   });
 }
 
-/// Thrown when a JSON stream is structurally malformed: truncated input,
-/// bad escapes, invalid tokens, trailing garbage, oversize values, or
-/// excessive nesting.
 class JsonStreamFormatException implements Exception {
   final String message;
   const JsonStreamFormatException(this.message);
@@ -40,21 +30,8 @@ int utf8CodePointByteLength(int codePoint) => codePoint < 0x80
     ? 3
     : 4;
 
-/// The top-level container kind of a JSON payload.
 enum JsonContainerKind { array, object }
 
-/// A real incremental JSON parser.
-///
-/// Consumes decoded text chunks and yields complete values at a configured
-/// [eventDepth]: 0 yields the whole document, 1 yields top-level elements of
-/// the document's array/object, 3 yields values nested three containers deep
-/// (e.g. the `{"namespaces": {ns: {k: v}}}` KV payload).
-///
-/// Handles strings with escapes and `\uXXXX` (including surrogate pairs),
-/// strict JSON numbers, nesting, and UTF-8 boundaries (chunks come from
-/// `Utf8Decoder`, which rejects malformed input). Never splits on commas or
-/// braces: a value is emitted only after its full span parses, and malformed
-/// input always throws instead of yielding a prefix.
 class IncrementalJsonParser {
   final int _maxValueBytes;
   final int _maxKeyBytes;
@@ -72,7 +49,6 @@ class IncrementalJsonParser {
   bool _documentDone = false;
   JsonContainerKind? _topKind;
 
-  // Current token (string / scalar / key) raw text.
   final StringBuffer _token = StringBuffer();
   bool _inString = false;
   bool _inEscape = false;
@@ -82,10 +58,6 @@ class IncrementalJsonParser {
   bool _inScalar = false;
   int _tokenBytes = 0;
 
-  // Raw span of the value currently at [eventDepth] (may be a container,
-  // string, or scalar). Cleared when each event-candidate value starts.
-  // [_spanBytes] tracks the UTF-8 byte length incrementally so container
-  // values are capped while they are constructed, not after the fact.
   final StringBuffer _span = StringBuffer();
   bool _spanOpen = false;
   int _spanBytes = 0;
@@ -111,30 +83,43 @@ class IncrementalJsonParser {
 
   static const _ws = {0x20, 0x09, 0x0A, 0x0D};
   static const _scalarChars = {
-    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, // digits
-    0x2D, 0x2B, 0x2E, // - + .
-    0x65, 0x45, // e E
-    0x74, 0x72, 0x75, // t r u (true)
-    0x66, 0x61, 0x6C, 0x73, // f a l s (false)
-    0x6E, // n (null)
+    0x30,
+    0x31,
+    0x32,
+    0x33,
+    0x34,
+    0x35,
+    0x36,
+    0x37,
+    0x38,
+    0x39,
+    0x2D,
+    0x2B,
+    0x2E,
+    0x65,
+    0x45,
+    0x74,
+    0x72,
+    0x75,
+    0x66,
+    0x61,
+    0x6C,
+    0x73,
+    0x6E,
   };
 
-  /// Feeds a decoded text chunk. Emitted events are collected and returned by
-  /// [drain].
   void feed(String chunk) {
     for (final rune in chunk.runes) {
       _feedChar(rune);
     }
   }
 
-  /// Returns events emitted since the last call to [drain].
   List<JsonValueEvent> drain() {
     final events = _pendingEvents.toList(growable: false);
     _pendingEvents.clear();
     return events;
   }
 
-  /// The top-level container kind, valid after the document started.
   JsonContainerKind get topKind {
     final kind = _topKind;
     if (kind == null) {
@@ -143,8 +128,6 @@ class IncrementalJsonParser {
     return kind;
   }
 
-  /// Must be called after the final chunk. Throws if the stream ended in the
-  /// middle of a value or if the payload is empty.
   void finish() {
     if (_inString) {
       throw const JsonStreamFormatException(
@@ -152,7 +135,6 @@ class IncrementalJsonParser {
       );
     }
     if (_inScalar) {
-      // Scalars may legally end at EOF; complete the token now.
       _completeScalar();
     }
     if (_spanOpen) {
@@ -189,14 +171,10 @@ class IncrementalJsonParser {
     }
 
     if (_ws.contains(c)) {
-      // Whitespace between values is not part of any span; inside an open
-      // event span it is harmless and tolerated by the decoder.
       if (_spanOpen) _spanWriteCharCode(c);
       return;
     }
 
-    // Structural characters ( `{ [ " , : } ]` and scalar starts) are part of
-    // the enclosing event span when one is open.
     if (_spanOpen) _spanWriteCharCode(c);
 
     if (_stack.isEmpty) {
@@ -286,17 +264,17 @@ class IncrementalJsonParser {
     );
 
     switch (c) {
-      case 0x7B: // {
+      case 0x7B:
         final depth = _stack.length;
         _pushFrame(isObject: true);
         _openSpanIfEvent(c, depth);
         return;
-      case 0x5B: // [
+      case 0x5B:
         final depth = _stack.length;
         _pushFrame(isObject: false);
         _openSpanIfEvent(c, depth);
         return;
-      case 0x22: // "
+      case 0x22:
         _startString(isKey: false);
         return;
       default:
@@ -327,15 +305,12 @@ class IncrementalJsonParser {
     }
   }
 
-  /// Opens a fresh event span (raw text of the value at [_eventDepth]).
   void _openSpan() {
     _span.clear();
     _spanBytes = 0;
     _spanOpen = true;
   }
 
-  /// Appends one character to the open event span, tracking its UTF-8 byte
-  /// length so an oversized container is rejected while it is constructed.
   void _spanWriteCharCode(int c) {
     _span.writeCharCode(c);
     _spanBytes += utf8CodePointByteLength(c);
@@ -364,7 +339,7 @@ class IncrementalJsonParser {
     }
     if (_ws.contains(c) || c == 0x2C || c == 0x7D || c == 0x5D) {
       _completeScalar();
-      _feedChar(c); // re-dispatch the delimiter through the state machine
+      _feedChar(c);
       return;
     }
     throw _unexpected(c);
@@ -397,7 +372,6 @@ class IncrementalJsonParser {
       _appendToken(c);
       if (_spanOpen) _spanWriteCharCode(c);
       if (c == 0x75) {
-        // \u
         _inUnicode = true;
         _unicodeRemaining = 4;
       } else if (!const {
@@ -459,9 +433,6 @@ class IncrementalJsonParser {
     _completeValue(token);
   }
 
-  /// Completes a value whose raw text is [token]. For containers the caller
-  /// passes the accumulated span; for strings/scalars the token buffer. Size
-  /// limits were already enforced while the text was constructed.
   void _completeValue(String token) {
     final isEvent = _stack.length == _eventDepth;
     if (isEvent) {
@@ -506,10 +477,7 @@ class IncrementalJsonParser {
   void _closeContainer() {
     _stack.removeLast();
     final closedDepth = _stack.length;
-    // The closing char was already written into the span (if open) by
-    // `_feedChar` before this container closed.
     if (closedDepth == _eventDepth) {
-      // The container itself is the event value.
       if (!_spanOpen) {
         throw const JsonStreamFormatException('Internal parser error.');
       }

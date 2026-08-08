@@ -23,11 +23,6 @@ import 'package:rxdart/subjects.dart';
 
 import '../helpers/mock_settings_service.dart';
 
-// ---------------------------------------------------------------------------
-// Test-local mocks
-// ---------------------------------------------------------------------------
-
-/// Minimal DeviceDiscoveryService for constructing DeviceController.
 class _FakeDiscoveryService implements DeviceDiscoveryService {
   @override
   Stream<List<Device>> get devices => const Stream.empty();
@@ -42,8 +37,6 @@ class _FakeDiscoveryService implements DeviceDiscoveryService {
   Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
-/// A De1Interface test double that records calls to sendUserPresent and
-/// requestState, and exposes a controllable snapshot stream.
 class _TestDe1 implements De1Interface {
   final BehaviorSubject<MachineSnapshot> _snapshotSubject =
       BehaviorSubject.seeded(
@@ -95,7 +88,6 @@ class _TestDe1 implements De1Interface {
     emitState(newState);
   }
 
-  // --- Below: stubs for the rest of De1Interface ---
   @override
   String get deviceId => 'test-de1';
   @override
@@ -225,7 +217,6 @@ class _TestDe1 implements De1Interface {
   Future<void> dispose() async {}
 }
 
-/// A De1Controller subclass that exposes a settable de1 subject.
 class _TestDe1Controller extends De1Controller {
   final BehaviorSubject<De1Interface?> _de1Subject = BehaviorSubject.seeded(
     null,
@@ -269,7 +260,6 @@ void main() {
         controller.initialize();
         de1Controller.setDe1(testDe1);
 
-        // Flush microtasks for stream subscriptions
         async.flushMicrotasks();
 
         controller.heartbeat();
@@ -311,7 +301,6 @@ void main() {
       'heartbeat resets sleep timer - no sleep if heartbeat before timeout',
       () {
         fakeAsync((async) {
-          // Set 5-minute timeout for faster test
           settingsController.setSleepTimeoutMinutes(5);
           async.flushMicrotasks();
 
@@ -327,15 +316,12 @@ void main() {
           controller.heartbeat();
           async.flushMicrotasks();
 
-          // Advance to just before timeout (4 min 50 sec)
           async.elapse(const Duration(minutes: 4, seconds: 50));
           expect(testDe1.requestedStates, isEmpty);
 
-          // Heartbeat resets the timer
           controller.heartbeat();
           async.flushMicrotasks();
 
-          // Advance past original timeout (another 20 sec — total 5 min 10 sec from start)
           async.elapse(const Duration(seconds: 20));
           expect(
             testDe1.requestedStates.contains(MachineState.sleeping),
@@ -418,25 +404,20 @@ void main() {
         controller.heartbeat();
         async.flushMicrotasks();
 
-        // Put machine in espresso state before timeout
         testDe1.emitState(MachineState.espresso);
         async.flushMicrotasks();
 
-        // Advance past timeout
         async.elapse(const Duration(minutes: 5, seconds: 1));
 
-        // Should NOT have slept — should have restarted timer
         expect(
           testDe1.requestedStates.where((s) => s == MachineState.sleeping),
           isEmpty,
           reason: 'Machine in espresso should not be put to sleep',
         );
 
-        // Return to idle
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
 
-        // Now advance past the restarted timeout
         async.elapse(const Duration(minutes: 5, seconds: 1));
 
         expect(testDe1.requestedStates, contains(MachineState.sleeping));
@@ -464,8 +445,6 @@ void main() {
           controller.heartbeat();
           async.flushMicrotasks();
 
-          // A hands-off pull that begins and ends well within the timeout window,
-          // with no further heartbeats (the user never touches the screen).
           async.elapse(const Duration(minutes: 1));
           testDe1.emitState(MachineState.espresso);
           async.flushMicrotasks();
@@ -473,8 +452,6 @@ void main() {
           testDe1.emitState(MachineState.idle);
           async.flushMicrotasks();
 
-          // Past the ORIGINAL heartbeat-anchored timeout (5m after the heartbeat):
-          // must NOT sleep, because the shot ending restarted the countdown.
           async.elapse(const Duration(minutes: 3, seconds: 30));
           expect(
             testDe1.requestedStates.where((s) => s == MachineState.sleeping),
@@ -482,7 +459,6 @@ void main() {
             reason: 'Shot end should have restarted the sleep countdown',
           );
 
-          // A full timeout after the shot ended: now it sleeps.
           async.elapse(const Duration(minutes: 2));
           expect(testDe1.requestedStates, contains(MachineState.sleeping));
 
@@ -509,11 +485,9 @@ void main() {
         controller.heartbeat();
         async.flushMicrotasks();
 
-        // Machine runs dry while idle.
         testDe1.emitState(MachineState.needsWater);
         async.flushMicrotasks();
 
-        // Advance past the timeout while in needsWater.
         async.elapse(const Duration(minutes: 5, seconds: 1));
 
         expect(
@@ -531,7 +505,6 @@ void main() {
         settingsController.setSleepTimeoutMinutes(5);
         async.flushMicrotasks();
 
-        // Default fwBuild is '1' (< 1357).
         final controller = PresenceController(
           de1Controller: de1Controller,
           settingsController: settingsController,
@@ -547,7 +520,6 @@ void main() {
         testDe1.emitState(MachineState.needsWater);
         async.flushMicrotasks();
 
-        // Advance well past the timeout while in needsWater.
         async.elapse(const Duration(minutes: 5, seconds: 1));
 
         expect(
@@ -557,8 +529,6 @@ void main() {
               'FW < 1357 latches the request; must not send sleep from needsWater',
         );
 
-        // User refills the tank (heartbeat re-arms the timer) and the machine
-        // returns to idle: sleep works there as before.
         controller.heartbeat();
         async.flushMicrotasks();
         testDe1.emitState(MachineState.idle);
@@ -592,7 +562,6 @@ void main() {
         testDe1.emitState(MachineState.needsWater);
         async.flushMicrotasks();
 
-        // Advance well past the timeout while in needsWater.
         async.elapse(const Duration(minutes: 5, seconds: 1));
 
         expect(
@@ -609,7 +578,6 @@ void main() {
   group('scheduled wake', () {
     test('wakes sleeping machine at matching schedule time', () {
       fakeAsync((async) {
-        // Create a schedule for 07:00 every day
         final schedule = WakeSchedule(
           id: 'test-1',
           hour: 7,
@@ -631,11 +599,9 @@ void main() {
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Set machine to sleeping
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 
-        // Move clock to 07:00, advance time for schedule checker to fire
         controller.clockOverride = () => DateTime(2026, 1, 15, 7, 0);
         async.elapse(const Duration(seconds: 31));
 
@@ -668,7 +634,6 @@ void main() {
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Machine is idle (not sleeping)
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
 
@@ -697,7 +662,6 @@ void main() {
         controller.initialize();
         async.flushMicrotasks();
 
-        // No DE1 connected
         final result = controller.heartbeat();
         expect(result, -1);
 
@@ -745,15 +709,12 @@ void main() {
         controller.heartbeat();
         async.flushMicrotasks();
 
-        // Advance 4 minutes
         async.elapse(const Duration(minutes: 4));
         expect(testDe1.requestedStates, isEmpty);
 
-        // Change timeout to 10 minutes — this should reset the timer
         settingsController.setSleepTimeoutMinutes(10);
         async.flushMicrotasks();
 
-        // Advance 6 more minutes (total 10 from start, but only 6 since reset)
         async.elapse(const Duration(minutes: 6));
         expect(
           testDe1.requestedStates.contains(MachineState.sleeping),
@@ -762,7 +723,6 @@ void main() {
               'Timer should have been reset to 10 min when settings changed',
         );
 
-        // Advance to full 10 minutes from the settings change
         async.elapse(const Duration(minutes: 4, seconds: 1));
         expect(testDe1.requestedStates, contains(MachineState.sleeping));
 
@@ -904,7 +864,6 @@ void main() {
 
         expect(controller.keepAwakeUntil, isNotNull);
 
-        // User manually puts machine to sleep
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 

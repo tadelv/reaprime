@@ -14,7 +14,6 @@ import '../helpers/mock_device_scanner.dart';
 import '../helpers/mock_scale_controller.dart';
 import '../helpers/mock_settings_service.dart';
 
-/// DeviceController that records stopScan calls.
 class _SpyDeviceController extends DeviceController {
   int stopScanCalls = 0;
   _SpyDeviceController() : super([]);
@@ -97,8 +96,6 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // Drive to the device-picker state, which exposes the exit ('Cancel')
-    // affordance, then tap it.
     connectionManager.emitStatus(
       const ConnectionStatus(
         phase: ConnectionPhase.idle,

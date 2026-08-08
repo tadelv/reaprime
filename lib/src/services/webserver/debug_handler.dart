@@ -9,8 +9,6 @@ import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// Debug endpoints for controlling simulated devices.
-/// Only registered when running in simulate mode.
 class DebugHandler {
   final ScaleController _scaleController;
   final De1Controller _de1Controller;
@@ -31,10 +29,6 @@ class DebugHandler {
   };
 
   void addRoutes(RouterPlus app) {
-    // Force a fake "update available" so the update API/UI can be tested
-    // without a real newer release. `version`/`downloadUrl` query params
-    // override the defaults (default downloadUrl is a real APK so the
-    // download/install path runs end-to-end).
     app.post('/api/v1/debug/update/force', (request) {
       final svc = _updateCheckService;
       if (svc == null) {
@@ -106,8 +100,6 @@ class DebugHandler {
     });
 
     app.post('/api/v1/debug/machine/<command>', (request, command) async {
-      // Validate the command before touching the machine so an unknown
-      // command always returns 404 regardless of connection state.
       if (command != 'disconnect') {
         return jsonNotFound({'error': 'Unknown command: $command'});
       }

@@ -5,15 +5,6 @@ extension UnifiedDe1Profile on UnifiedDe1 {
     await _writeHeader(profile);
     await _writeSteps(profile);
     await _writeTail(profile);
-    // The tank temperature threshold is a separate MMR (MMRItem.tankTemp), not
-    // part of the profile frames — frames go via frameWrite, and there is no
-    // MMR for steps. The DE1 expects the tank threshold to be written
-    // alongside a profile load; mirror de1app's `de1_send_shot_frames`, which
-    // writes the frames then `set_tank_temperature_threshold`
-    // (de1_comms.tcl:1505-1514). Writing it on every profile load means the
-    // next brew re-sets it from its own tankTemperature, so the cold-maintenance
-    // workaround (which loads a tankTemperature:0 profile) needs no separate
-    // set-to-0 or restore.
     await _writeMMRInt(MMRItem.tankTemp, profile.tankTemperature.round());
   }
 
@@ -24,16 +15,15 @@ extension UnifiedDe1Profile on UnifiedDe1 {
     Uint8List data = Uint8List(5);
 
     int index = 0;
-    data[index] = isBengle ? 2 : 1; // Header version
+    data[index] = isBengle ? 2 : 1;
     index++;
     data[index] = profile.steps.length;
     index++;
     data[index] = profile.targetVolumeCountStart;
     index++;
-    data[index] = 0; // min pressure
+    data[index] = 0;
     index++;
-    data[index] = (0.5 + 12.0 * scale)
-        .toInt(); // max flow - most likely ignored by FW
+    data[index] = (0.5 + 12.0 * scale).toInt();
 
     await _transport.writeWithResponse(Endpoint.headerWrite, data);
   }
@@ -42,7 +32,6 @@ extension UnifiedDe1Profile on UnifiedDe1 {
     final isBengle = implementation == DeviceImplementation.bengle;
     final scale = isBengle ? 10.0 : 16.0;
 
-    // write frames
     for (var i = 0; i < profile.steps.length; i++) {
       var step = profile.steps[i];
       _log.fine("encoding step ${step.name}");
@@ -56,7 +45,7 @@ extension UnifiedDe1Profile on UnifiedDe1 {
       data[index] = Helper.convertProfileFlags(step);
       index++;
       data[index] = (0.5 + step.getTarget() * scale).toInt();
-      index++; // note to add 0.5, as "round" is used, not truncate
+      index++;
       data[index] = (0.5 + step.temperature * 2.0).toInt();
       index++;
       data[index] = Helper.convert_float_to_F8_1_7(step.seconds);
@@ -68,7 +57,6 @@ extension UnifiedDe1Profile on UnifiedDe1 {
       await _transport.writeWithResponse(Endpoint.frameWrite, data);
     }
 
-    // write available extension frames
     for (var i = 0; i < profile.steps.length; i++) {
       var step = profile.steps[i];
       int stepIndex = 32 + i;
@@ -77,7 +65,6 @@ extension UnifiedDe1Profile on UnifiedDe1 {
       data[0] = stepIndex;
 
       if (step.limiter == null || step.limiter?.value == 0) {
-        // await _transport.writeWithResponse(Endpoint.frameWrite, data);
         continue;
       }
       double limiterValue = step.limiter!.value;
@@ -100,9 +87,6 @@ extension UnifiedDe1Profile on UnifiedDe1 {
     Uint8List data = Uint8List(8);
 
     data[0] = profile.steps.length;
-
-    // Ignore writing shot vol limit, it's not compatible with active scale and breaks with high PI flows.
-    // Helper.convert_float_to_U10P0_for_tail(profile.targetVolume ?? 0, data, 1);
 
     data[3] = 0;
     data[4] = 0;
@@ -129,8 +113,7 @@ class Helper {
       return 0;
     }
     var ret = 0;
-    if (x >= 12.75) // need to set the high bit on (0x80);
-    {
+    if (x >= 12.75) {
       if (x > 127) {
         ret = (127 | 0x80);
       } else {
@@ -154,12 +137,9 @@ class Helper {
     int ix = maxTotalVolume.toInt();
 
     if (ix > 1023) {
-      // clamp to 1 liter, should be enough for a tasty brew
       ix = 1023;
     }
-    // there is a mismatch between docs and actual implementation in the firmware
-    // instead 0f 0x8000 for ignorePI, 0x400 sets PI counting to enabled.
-    data[index] = ix >> 8; // Ignore preinfusion, only measure volume afterwards
+    data[index] = ix >> 8;
     data[index + 1] = (ix & 0xff);
   }
 
@@ -175,34 +155,25 @@ class Helper {
     int ix = x.toInt() | 1024;
     d.buffer.asByteData().setInt16(0, ix);
 
-    // if (ix > 255) {
-    //   ix = 255;
-    // }
-
     data[index] = d.buffer.asByteData().getUint8(0);
     data[index + 1] = d.buffer.asByteData().getUint8(1);
   }
 
-  static int ctrlF = 0x01; // Are we in Pressure or Flow priority mode?
+  static int ctrlF = 0x01;
   // ignore: constant_identifier_names
-  static int doCompare =
-      0x02; // Do a compare, early exit current frame if compare true
+  static int doCompare = 0x02;
   // ignore: constant_identifier_names
-  static int dcGT =
-      0x04; // If we are doing a compare, then 0 = less than, 1 = greater than
+  static int dcGT = 0x04;
   // ignore: constant_identifier_names
-  static int dcCompF = 0x08; // Compare Pressure or Flow?
+  static int dcCompF = 0x08;
   // ignore: constant_identifier_names
-  static int tMixTemp =
-      0x10; // Disable shower head temperature compensation. Target Mix Temp instead.
+  static int tMixTemp = 0x10;
   // ignore: constant_identifier_names
-  static int interpolate = 0x20; // Hard jump to target value, or ramp?
+  static int interpolate = 0x20;
   // ignore: constant_identifier_names
-  static int ignoreLimit =
-      0x40; // Ignore minimum pressure and max flow settings
+  static int ignoreLimit = 0x40;
 
   static int convertProfileFlags(ProfileStep step) {
-    // TODO: maybe don't ignore this if we need to reach high flow values?
     int flag = ignoreLimit;
 
     if (step is ProfileStepFlow) flag |= ctrlF;

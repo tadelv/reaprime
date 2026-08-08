@@ -23,11 +23,6 @@ import 'package:rxdart/rxdart.dart';
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
 
-// ---------------------------------------------------------------------------
-// Test-local helpers
-// ---------------------------------------------------------------------------
-
-/// Minimal DeviceDiscoveryService that does nothing.
 class _FakeDiscoveryService extends DeviceDiscoveryService {
   @override
   Stream<List<Device>> get devices => const Stream.empty();
@@ -39,7 +34,6 @@ class _FakeDiscoveryService extends DeviceDiscoveryService {
   Future<void> scanForDevices({ScanFilter? filter}) async {}
 }
 
-/// De1Controller subclass whose `connectedDe1()` returns our TestDe1.
 class _TestDe1Controller extends De1Controller {
   final TestDe1 testDe1;
 
@@ -53,8 +47,6 @@ class _TestDe1Controller extends De1Controller {
   Stream<De1Interface?> get de1 => BehaviorSubject.seeded(testDe1).stream;
 }
 
-/// ScaleController subclass with controllable connection state and weight
-/// emission.
 class _TestScaleController extends ScaleController {
   final TestScale testScale;
   final BehaviorSubject<ConnectionState> _connectionState;
@@ -107,7 +99,6 @@ class _TestScaleController extends ScaleController {
   }
 }
 
-/// Minimal StorageService that stores nothing.
 class _NullStorageService implements StorageService {
   @override
   Future<void> storeShot(ShotRecord record) async {}
@@ -174,7 +165,6 @@ class _NullStorageService implements StorageService {
   Future<SteamRecord?> getLatestSteamMeta() async => null;
 }
 
-/// Creates a minimal Profile with one pressure step and targetWeight of 36g.
 Profile _simpleProfile() {
   return Profile(
     version: '2',
@@ -276,18 +266,12 @@ void main() {
       persistenceController.dispose();
     });
 
-    /// Drive the ShotSequencer state machine from idle → pouring.
-    ///
-    /// Emits: preparingForShot → preinfusion, which transitions through
-    /// idle → preheating → pouring.
     void driveToPouring(ShotSequencer shotSequencer) {
-      // idle → preheating (preparingForShot)
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
         MachineSubstate.preparingForShot,
       );
 
-      // preheating → pouring (preinfusion)
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
         MachineSubstate.pouring,
@@ -337,7 +321,6 @@ void main() {
 
     test('disables SAW when scale disconnects during pouring', () {
       fakeAsync((async) {
-        // Emit initial weight so withLatestFrom has a value to combine with
         scaleController.emitWeight(0.0);
 
         final shotSequencer = ShotSequencer(
@@ -357,25 +340,17 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Disconnect the scale mid-shot
         scaleController.simulateDisconnect();
         async.elapse(Duration(milliseconds: 10));
 
-        // Emit weight that exceeds target (40g > 36g target).
-        // With the bug, SAW fires on this stale data.
-        // With the fix, SAW should be disabled because scale is disconnected.
         scaleController.emitWeight(40.0);
 
-        // Emit a machine snapshot to trigger processing of the combined stream
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
           MachineSubstate.pouring,
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW should NOT have fired because scale is disconnected.
-        // The bug: requestedStates will contain MachineState.idle because
-        // withLatestFrom still combines with the stale weight.
         expect(
           testDe1.requestedStates,
           isEmpty,
@@ -426,7 +401,6 @@ void main() {
       'does not crash when scale disconnects and timer stop is attempted',
       () {
         fakeAsync((async) {
-          // Emit initial weight so withLatestFrom has a value
           scaleController.emitWeight(0.0);
 
           final shotSequencer = ShotSequencer(
@@ -446,20 +420,15 @@ void main() {
           driveToPouring(shotSequencer);
           async.elapse(Duration(milliseconds: 10));
 
-          // Disconnect the scale
           scaleController.simulateDisconnect();
           async.elapse(Duration(milliseconds: 10));
 
-          // Machine ends the shot — this transitions to stopping state.
           testDe1.emitStateAndSubstate(
             MachineState.espresso,
             MachineSubstate.pouringDone,
           );
           async.elapse(Duration(milliseconds: 10));
 
-          // Now emit another snapshot. The ShotSequencer is in the stopping
-          // state, which calls scaleController.connectedScale().stopTimer().
-          // With the bug, connectedScale() throws because scale is disconnected.
           expect(
             () {
               testDe1.emitStateAndSubstate(
@@ -481,7 +450,6 @@ void main() {
 
     test('SAW still works normally when scale stays connected', () {
       fakeAsync((async) {
-        // Emit initial weight so withLatestFrom has a value
         scaleController.emitWeight(0.0);
 
         final shotSequencer = ShotSequencer(
@@ -501,17 +469,14 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Scale stays connected; emit weight above target
         scaleController.emitWeight(40.0);
 
-        // Emit a machine snapshot to trigger combined stream processing
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
           MachineSubstate.pouring,
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW SHOULD fire because scale is still connected and weight > target
         expect(
           testDe1.requestedStates,
           contains(MachineState.idle),
@@ -525,8 +490,6 @@ void main() {
 
     test('mixed step fires skipStep when firmware exit is far', () {
       fakeAsync((async) {
-        // Pressure exit at 9 bar, default snapshot pressure is 0 →
-        // distance 9.0 >> 1.5 bar proximity → arbiter says fire.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'mixed-far',
@@ -575,8 +538,6 @@ void main() {
 
     test('mixed step defers skipStep when firmware exit is near', () {
       fakeAsync((async) {
-        // Pressure exit at 5 bar. We'll emit snapshots with pressure 4.0
-        // (distance 1.0 < 1.5 proximity) → arbiter defers.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'mixed-near',
@@ -607,7 +568,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Emit weight above step threshold with pressure near firmware exit.
         scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.0);
         async.elapse(Duration(milliseconds: 10));
@@ -620,7 +580,6 @@ void main() {
               'should defer to avoid racing firmware.',
         );
 
-        // After max deferral frames (3), fires regardless.
         scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.2);
         async.elapse(Duration(milliseconds: 10));
@@ -642,7 +601,6 @@ void main() {
 
     test('mixed step skips deferral when firmware exit has value 0', () {
       fakeAsync((async) {
-        // Exit value 0 is a no-op — arbiter treats it as weight-only.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'noop-exit',
@@ -723,8 +681,6 @@ void main() {
 
     test('mixed-exit deferral is frame-local', () {
       fakeAsync((async) {
-        // Frame 0: mixed step with near firmware exit → defers.
-        // Frame 1: pure weight step → fires immediately.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'near-exit',
@@ -756,14 +712,12 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Frame 0: near firmware exit → defers
         scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(testDe1.requestedStates, isNot(contains(MachineState.skipStep)));
 
-        // Frame 1: pure weight step → fires
         scaleController.emitWeight(22.0);
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
@@ -776,7 +730,6 @@ void main() {
 
     test('firmware frame advance cancels pending deferral', () {
       fakeAsync((async) {
-        // Two-step profile: frame 0 has mixed exit (near), frame 1 weight-only.
         profile = _profileWithSteps([
           _pressureStep(
             name: 'near-exit',
@@ -808,7 +761,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Frame 0: weight reached, near firmware exit → defers
         scaleController.emitWeight(12.0);
         emitPouringFrameWithPressure(0, 4.0);
         async.elapse(Duration(milliseconds: 10));
@@ -819,8 +771,6 @@ void main() {
           reason: 'Deferred on frame 0',
         );
 
-        // Firmware advances to frame 1 (firmware handled the exit itself).
-        // Weight 12.0 is below frame 1's weight threshold (50), so no skip.
         scaleController.emitWeight(12.0);
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
@@ -839,8 +789,6 @@ void main() {
 
     test('mixed flow-under step defers when near threshold', () {
       fakeAsync((async) {
-        // Flow exit under 2.0 ml/s. Emit flow 2.5 → distance 0.5, proximity =
-        // 2.0 * 0.25 = 0.5 → boundary (not > 0.5) → near → defer.
         profile = _profileWithSteps([
           _flowStep(
             name: 'flow-near',
@@ -871,7 +819,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Weight above threshold, flow near firmware exit.
         scaleController.emitWeight(12.0);
         emitPouringFrameWithFlow(0, 2.5);
         async.elapse(Duration(milliseconds: 10));
@@ -882,7 +829,6 @@ void main() {
           reason: 'Flow near under-2.0 exit → defer to avoid racing firmware.',
         );
 
-        // After max deferral frames (3), fires regardless.
         scaleController.emitWeight(12.0);
         emitPouringFrameWithFlow(0, 2.3);
         async.elapse(Duration(milliseconds: 10));
@@ -974,8 +920,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW stops the shot, then one real settling drip establishes the
-        // decaying-flow baseline.
         scaleController.emitWeight(36.0, weightFlow: 0.4);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -990,7 +934,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // A finger touch spikes the flow up against the decay — locked out.
         scaleController.emitWeight(45.0, weightFlow: 12.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1025,7 +968,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW stops at the 30 g target while flow is still high (turbo).
         scaleController.emitWeight(30.0, weightFlow: 8.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1033,8 +975,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // In-flight water keeps landing at high (but decaying) flow — an 8 g
-        // rise the old >5 g / flow>3 caps would have rejected.
         for (final s in [
           [34.0, 6.0],
           [37.0, 4.0],
@@ -1048,7 +988,6 @@ void main() {
           async.elapse(Duration(milliseconds: 10));
         }
 
-        // Then it settles.
         for (var i = 0; i < 3; i++) {
           scaleController.emitWeight(38.1, weightFlow: 0.1);
           testDe1.emitStateAndSubstate(
@@ -1073,7 +1012,7 @@ void main() {
           de1controller: de1Controller,
           persistenceController: persistenceController,
           targetProfile: profile,
-          targetYield: 100.0, // no SAW; machine reports the end
+          targetYield: 100.0,
           bypassSAW: false,
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
@@ -1095,8 +1034,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Ten near-still samples settle the yield (raised from 3 for
-        // Kalman smoothness — avoids locking before trailing drips).
         for (var i = 0; i < 10; i++) {
           scaleController.emitWeight(36.1, weightFlow: 0.1);
           testDe1.emitStateAndSubstate(
@@ -1128,8 +1065,6 @@ void main() {
           de1controller: de1Controller,
           persistenceController: persistenceController,
           targetProfile: profile,
-          // High target so app-side SAW never fires — the machine itself
-          // reports the shot end via the pouringDone substate.
           targetYield: 100.0,
           bypassSAW: false,
           blockOnNoScale: false,
@@ -1145,7 +1080,6 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Two real pour samples climb toward the final weight.
         scaleController.emitWeight(30.0, weightFlow: 1.5);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1160,8 +1094,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Machine reports the shot is done — this is the boundary. Recording
-        // must stop here; this sample and the drips after it are excluded.
         scaleController.emitWeight(36.0, weightFlow: 0.3);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1169,7 +1101,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Post-stop drip refines the yield but stays out of the trace.
         scaleController.emitWeight(36.4, weightFlow: 0.2);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1177,8 +1108,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // The two driveToPouring frames carry the seeded 0.0 weight, then the
-        // two pour samples. Nothing from the stopping window is recorded.
         expect(recorded.map((s) => s.scale?.weight).toList(), [
           0.0,
           0.0,
@@ -1190,7 +1119,6 @@ void main() {
           MachineSubstate.pouring,
           reason: 'trace ends on the last actively-pouring sample',
         );
-        // The yield, however, follows the last drip.
         expect(shotSequencer.trustedFinalYield, 36.4);
 
         shotSequencer.dispose();
@@ -1199,9 +1127,6 @@ void main() {
 
     test('suppresses weight and flow to 0 until the pour-time tare', () {
       fakeAsync((async) {
-        // A cup is already sitting on the scale when the shot begins — its
-        // weight (and the noise-flow off it) must not leak into the trace
-        // before the scale is tared for the pour.
         scaleController.emitWeight(80.0, weightFlow: 1.2);
 
         final shotSequencer = ShotSequencer(
@@ -1222,15 +1147,12 @@ void main() {
 
         async.elapse(Duration(milliseconds: 10));
 
-        // idle → preheating: the preparing-for-shot frame is recorded but
-        // pre-tare, so it must read 0 despite the 80g cup on the platter.
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
           MachineSubstate.preparingForShot,
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Still preheating, scale still shows the cup — still suppressed.
         scaleController.emitWeight(80.1, weightFlow: 0.4);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1238,8 +1160,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // preheating → pouring: the pour-time tare fires here. This frame is
-        // gated before the transition, so it is still 0...
         scaleController.emitWeight(0.0, weightFlow: 0.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1247,7 +1167,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // ...and subsequent pour samples flow through for real.
         scaleController.emitWeight(18.0, weightFlow: 2.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1272,8 +1191,6 @@ void main() {
 
     test('non-scale shot finishes immediately, with no settling window', () {
       fakeAsync((async) {
-        // No scale: the settling window only exists to catch scale drips, so
-        // the shot must end the moment the machine reports it — no 4s wait.
         scaleController.simulateDisconnect();
 
         final shotSequencer = ShotSequencer(
@@ -1296,12 +1213,10 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Machine reports the shot end.
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
           MachineSubstate.pouringDone,
         );
-        // Only a tiny tick elapses — far less than the 4s scale settling window.
         async.elapse(Duration(milliseconds: 50));
 
         expect(
@@ -1351,7 +1266,6 @@ void main() {
       'aborts shot and emits noScale decision when no scale connected at start',
       () {
         fakeAsync((async) {
-          // No scale at shot start.
           scaleController.simulateDisconnect();
 
           final shotSequencer = ShotSequencer(
@@ -1374,8 +1288,6 @@ void main() {
 
           async.elapse(Duration(milliseconds: 10));
 
-          // Machine entered espresso (e.g. via GHC) — drive snapshots that would
-          // normally be tracked.
           testDe1.emitStateAndSubstate(
             MachineState.espresso,
             MachineSubstate.pouring,
@@ -1469,7 +1381,6 @@ void main() {
       persistenceController.dispose();
     });
 
-    /// Drive the ShotSequencer state machine from idle → pouring.
     void driveToPouring(ShotSequencer shotSequencer) {
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
@@ -1497,10 +1408,6 @@ void main() {
 
     test('fires skipStep immediately even when firmware exit is near', () {
       fakeAsync((async) {
-        // Same scenario as the arbiter-enabled 'defer' test:
-        // pressure exit at 5 bar, emitting pressure 4.0 (near threshold).
-        // With the arbiter disabled, the weight exit should fire immediately
-        // without deferral — pre-fix behavior.
         scaleController.emitWeight(0.0);
 
         final shotSequencer = ShotSequencer(
@@ -1520,14 +1427,10 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
-        // Weight exceeds step threshold (12 > 10)
         scaleController.emitWeight(12.0);
-        // Pressure near threshold (4.0, exit at 5.0)
         emitPouringFrameWithPressure(0, 4.0);
         async.elapse(Duration(milliseconds: 10));
 
-        // With arbiter disabled, skipStep fires immediately despite
-        // being near the firmware exit threshold.
         expect(
           testDe1.requestedStates,
           contains(MachineState.skipStep),
@@ -1677,8 +1580,6 @@ void main() {
         driveToPouring();
         async.elapse(Duration(milliseconds: 10));
 
-        // Projected volume = accumulated (0) + flow (60) * multiplier (1.0)
-        // = 60ml > 50ml target.
         emitPouringFrame(0, flow: 60);
         async.elapse(Duration(milliseconds: 10));
 
@@ -1835,8 +1736,6 @@ void main() {
         expect(skip.data?['frame'], 0);
         expect(testDe1.requestedStates, contains(MachineState.skipStep));
 
-        // Firmware acknowledges the skip by advancing to frame 1 — the vacated
-        // frame was app-skipped, so no firmware-natural advance is reported.
         scaleController.emitWeight(12.0);
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
@@ -1912,7 +1811,6 @@ void main() {
         expect(advances[0].data?['fromFrame'], 0);
         expect(advances[1].data?['fromFrame'], 1);
 
-        // A frame regression (out-of-order sample) must be ignored.
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
         expect(
@@ -1971,7 +1869,6 @@ void main() {
         driveToPouring();
         async.elapse(Duration(milliseconds: 10));
 
-        // SAW stop — yield latched, shot enters the stopping window.
         scaleController.emitWeight(40.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -1979,8 +1876,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // A noisy scale never settles (flow stays above the settle
-        // threshold and decays, so no spike or removal either).
         scaleController.emitWeight(40.0, weightFlow: 1.0);
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
@@ -2024,7 +1919,6 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Machine aborts back to idle before first drops.
         testDe1.emitStateAndSubstate(MachineState.idle, MachineSubstate.idle);
         async.elapse(Duration(milliseconds: 10));
 
@@ -2088,7 +1982,6 @@ void main() {
         driveToPouring();
         async.elapse(Duration(milliseconds: 10));
 
-        // frames 0 -> 1 -> (glitch) 0 -> 1
         for (final frame in [0, 1, 0, 1]) {
           emitPouringFrame(frame);
           async.elapse(Duration(milliseconds: 10));

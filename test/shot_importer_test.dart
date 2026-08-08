@@ -7,7 +7,6 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 
-/// Mock implementation of StorageService for testing
 class MockStorageService implements StorageService {
   final List<ShotRecord> storedShots = [];
 
@@ -36,24 +35,19 @@ class MockStorageService implements StorageService {
   }
 
   @override
-  Future<void> storeCurrentWorkflow(Workflow workflow) async {
-    // Not needed for shot import tests
-  }
+  Future<void> storeCurrentWorkflow(Workflow workflow) async {}
 
   @override
   Future<Workflow?> loadCurrentWorkflow() async {
-    // Not needed for shot import tests
     return null;
   }
 
-  // Test helper
   void reset() {
     storedShots.clear();
   }
 
   @override
   Future<void> deleteShot(String id) {
-    // TODO: implement deleteShot
     throw UnimplementedError();
   }
 
@@ -226,18 +220,11 @@ void main() {
       }
       ''';
 
-      expect(
-        () => importer.importShotJson(invalidJson),
-        throwsA(
-          anything,
-        ), // Will throw TypeError or other error for missing fields
-      );
+      expect(() => importer.importShotJson(invalidJson), throwsA(anything));
     });
   });
 
   group('ShotImporter - Multiple Shots Import', () {
-    // Shot 1 uses legacy doseData (no context) to verify migration-on-read.
-    // Shot 2 uses the modern context field.
     test('should import multiple valid shots from JSON array', () async {
       const validShotsJson = '''
       [
@@ -401,7 +388,6 @@ void main() {
       },
     );
 
-    // Uses legacy doseData format to exercise migration-on-read path.
     test(
       'should throw FormatException when array contains mixed valid and invalid items',
       () async {
@@ -485,7 +471,6 @@ void main() {
       );
     });
 
-    // Uses legacy doseData format to exercise migration-on-read path.
     test('should handle null values in optional fields', () async {
       const jsonWithNulls = '''
       {
@@ -594,7 +579,6 @@ void main() {
               "changes_since_last_espresso": "",
               "version": "2",
             },
-            // Uses legacy doseData format to exercise migration-on-read path.
             "doseData": {"doseIn": 18.0, "doseOut": 36.0},
             "steamSettings": {
               "targetTemperature": 150,

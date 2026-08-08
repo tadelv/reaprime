@@ -8,21 +8,16 @@ import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Test double for [BLETransport] that records the order of all operations
-/// (writes, subscribes, reads) so tests can assert on the exact sequence.
 class _RecordableBleTransport extends BLETransport {
   final List<String> serviceUUIDs = const [
     '0000ff08-0000-1000-8000-00805f9b34fb',
   ];
 
-  /// Ordered log of every operation. Each entry is a string like
-  /// `write:EF80:[0xED]`, `subscribe:EF81`, or `read:2A19`.
   final List<String> operations = [];
 
   final BehaviorSubject<ConnectionState> _connectionState =
       BehaviorSubject.seeded(ConnectionState.disconnected);
 
-  /// Callbacks set by the last subscribe call, keyed by characteristic UUID.
   final Map<String, void Function(Uint8List)> _notifyCallbacks = {};
 
   _RecordableBleTransport();
@@ -76,7 +71,7 @@ class _RecordableBleTransport extends BLETransport {
     final shortUuid = characteristicUUID.substring(4, 8).toLowerCase();
     operations.add('read:$shortUuid');
     if (shortUuid == '2a19') {
-      return Uint8List.fromList([80]); // 80% battery
+      return Uint8List.fromList([80]);
     }
     return Uint8List(0);
   }
@@ -104,22 +99,17 @@ class _RecordableBleTransport extends BLETransport {
     _connectionState.close();
   }
 
-  /// Simulate a weight notification arriving from the scale.
   void simulateWeightNotification(List<int> data) {
     _notifyCallbacks['ef81']?.call(Uint8List.fromList(data));
   }
 
-  /// Simulate a button notification arriving from the scale.
   void simulateButtonNotification(List<int> data) {
     _notifyCallbacks['ef82']?.call(Uint8List.fromList(data));
   }
 
-  /// Whether a notification subscription is currently active for the given
-  /// characteristic (by short UUID, e.g. `ef81` or `ef82`).
   bool isSubscribed(String shortUuid) =>
       _notifyCallbacks.containsKey(shortUuid.toLowerCase());
 
-  /// Clear all subscriptions (simulates what happens when the BLE link drops).
   void clearSubscriptions() {
     _notifyCallbacks.clear();
   }
@@ -221,7 +211,6 @@ void main() {
       () async {
         await scale.onConnect();
 
-        // Count occurrences of 0xED writes
         final lcdOnCount = transport.operations
             .where((op) => op.contains('write:ef80:[0xED]'))
             .length;
@@ -241,7 +230,6 @@ void main() {
       final gramsIndex = transport.operations.indexWhere(
         (op) => op.contains('write:ef80:[0x3]'),
       );
-      // Find the second occurrence of 0xED
       final lcdOnIndices = transport.operations
           .asMap()
           .entries
@@ -290,7 +278,6 @@ void main() {
       scale = Skale2Scale(transport: transport);
       await transport.emitConnectionState(ConnectionState.discovered);
       await scale.onConnect();
-      // Clear operations log so we only see wake-time ops
       transport.operations.clear();
     });
 
@@ -302,9 +289,6 @@ void main() {
     });
 
     test('wakeDisplay re-subscribes to weight notifications', () async {
-      // Simulate BLE link dropping: disconnect event resets subscription
-      // flags, then clearSubscriptions simulates the transport losing
-      // its CCCD entries.
       await transport.emitConnectionState(ConnectionState.disconnected);
       transport.clearSubscriptions();
 
@@ -323,7 +307,6 @@ void main() {
     });
 
     test('wakeDisplay re-subscribes to button notifications', () async {
-      // Simulate BLE link dropping.
       await transport.emitConnectionState(ConnectionState.disconnected);
       transport.clearSubscriptions();
 
@@ -344,7 +327,6 @@ void main() {
     test(
       'wakeDisplay does NOT re-subscribe if subscriptions are still active',
       () async {
-        // Subscriptions are still active from onConnect
         await scale.wakeDisplay();
 
         expect(
@@ -409,9 +391,6 @@ void main() {
         if (!completer.isCompleted) completer.complete(snapshot);
       });
 
-      // Simulate a weight of 100.0g
-      // rawValue = 100.0 * 2560 = 256000 = 0x0003E800
-      // little-endian: [0x00, 0xE8, 0x03, 0x00]
       transport.simulateWeightNotification([0x00, 0xE8, 0x03, 0x00]);
 
       final snapshot = await completer.future.timeout(

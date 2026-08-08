@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:collection/collection.dart';
-// import 'package:flutter/scheduler.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -93,15 +92,12 @@ import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
-/// Set system information as custom keys in telemetry service.
-/// This provides critical context for diagnosing platform-specific issues.
 Future<void> _setSystemInfoKeys(TelemetryService telemetryService) async {
   try {
     final deviceInfoPlugin = DeviceInfoPlugin();
     final deviceInfo = await deviceInfoPlugin.deviceInfo;
     final deviceData = deviceInfo.data;
 
-    // Set platform info
     await telemetryService.setCustomKey('os_name', Platform.operatingSystem);
     await telemetryService.setCustomKey(
       'os_version',
@@ -109,25 +105,19 @@ Future<void> _setSystemInfoKeys(TelemetryService telemetryService) async {
     );
     await telemetryService.setCustomKey('app_version', BuildInfo.commitShort);
 
-    // Set device model (platform-adaptive field names)
     final deviceModel =
         deviceData['model'] ?? deviceData['computerName'] ?? 'unknown';
     await telemetryService.setCustomKey('device_model', deviceModel);
 
-    // Set device brand (platform-adaptive field names)
     final deviceBrand =
         deviceData['brand'] ?? deviceData['hostName'] ?? 'unknown';
     await telemetryService.setCustomKey('device_brand', deviceBrand);
   } catch (e, st) {
     final log = Logger('Main');
     log.warning('Failed to set system info custom keys', e, st);
-    // Non-blocking - continue app startup even if this fails
   }
 }
 
-/// Parses the `--dart-define=simulate=` flag value.
-/// Accepts "1" for all device types, or a comma-delimited list
-/// like "machine,scale" for selective simulation.
 Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
   if (value == '1') {
     return SimulatedDevicesTypes.values.toSet();
@@ -144,12 +134,10 @@ Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   final cliArgs = parseCliArgs(args);
-  // Force the semantics tree to always be active so assistive technologies
-  // (TalkBack, VoiceOver, Accessibility Inspector) can read Flutter elements.
   SemanticsBinding.instance.ensureSemantics();
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.manual,
-    overlays: [SystemUiOverlay.top], // Only keep the top bar
+    overlays: [SystemUiOverlay.top],
   );
   Logger.root.level = Level.FINE;
   Logger.root.clearListeners();
@@ -159,9 +147,6 @@ void main(List<String> args) async {
 
   if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     await WindowManager.instance.ensureInitialized();
-    // Windows/macOS lock to the default kiosk window size at startup. Linux is
-    // left free-form (its default windowing is unchanged); WindowManager is
-    // still initialized so a simulated WebView can resize the window on demand.
     if (!Platform.isLinux) {
       WindowManager.instance.setMinimumSize(defaultDesktopWindowSize);
       await WindowManager.instance.setAspectRatio(defaultDesktopAspectRatio);
@@ -185,7 +170,6 @@ void main(List<String> args) async {
     baseFilePath: '$appDocsPath/log.txt',
   ).attachToLogger(Logger.root);
 
-  // Initialize WebView console log service (separate from app logs)
   final webViewLogDir = appDocsPath;
   final webViewLogService = WebViewLogService(logDirectoryPath: webViewLogDir);
   await webViewLogService.initialize();
@@ -193,10 +177,6 @@ void main(List<String> args) async {
   Logger.root.info("==== Decent starting ====");
   BootTiming.start();
 
-  // Keep the Wi-Fi firmware from dropping inbound broadcast/multicast (incl.
-  // ARP) once the radio idles, so the gateway's REST/WebSocket server stays
-  // reachable on the LAN. Android-only; no-op elsewhere. Fire-and-forget — the
-  // lock is held for the process lifetime and never blocks startup.
   unawaited(MulticastLockService().acquire());
 
   Logger.root.info(
@@ -206,7 +186,6 @@ void main(List<String> args) async {
     "version: ${BuildInfo.version}, platform: ${Platform.operatingSystem}",
   );
 
-  // Initialize Firebase on supported platforms (not Linux/Windows, not debug, not simulate)
   final isDebugOrSimulate =
       kDebugMode || const String.fromEnvironment("simulate").isNotEmpty;
   if (!Platform.isLinux && !Platform.isWindows && !isDebugOrSimulate) {
@@ -220,24 +199,19 @@ void main(List<String> args) async {
   }
   BootTiming.mark('firebase_done');
 
-  // Create log buffer, error report throttle, and telemetry service
   final logBuffer = LogBuffer();
   final errorReportThrottle = ErrorReportThrottle();
   final telemetryService = TelemetryService.create(logBuffer: logBuffer);
   BootTiming.telemetry = telemetryService;
 
-  // Initialize telemetry (disables collection by default, sets up error handlers)
   try {
     await telemetryService.initialize();
   } catch (e, st) {
     log.warning('Telemetry initialization failed', e, st);
   }
 
-  // Set system information custom keys for error reports
   await _setSystemInfoKeys(telemetryService);
 
-  // Hook Logger.root to capture WARNING+ in log buffer with PII scrubbing
-  // and trigger non-fatal error reports with rate limiting
   Logger.root.onRecord.listen((record) {
     if (record.level >= Level.WARNING) {
       final scrubbed = Anonymization.scrubString(
@@ -247,7 +221,6 @@ void main(List<String> args) async {
 
       if (!shouldForwardToTelemetry(record)) return;
 
-      // Trigger telemetry error report if rate limit allows
       if (errorReportThrottle.shouldReport(scrubbed)) {
         final error = record.error ?? scrubbed;
         telemetryService.recordError(error, record.stackTrace);
@@ -268,10 +241,6 @@ void main(List<String> args) async {
 
   services.add(createSerialService());
 
-  // WiFi Half Decent Scale discovery (DNS-SD + manual-IP fallback). Native
-  // mDNS on every platform via bonsoir; discovered scales flow into the same
-  // device stream as BLE/USB. DeviceController.initialize() calls its
-  // initialize() and wires its device stream like any other service.
   final wifiScaleDiscoveryService = WifiScaleDiscoveryService();
   services.add(wifiScaleDiscoveryService);
 
@@ -283,14 +252,12 @@ void main(List<String> args) async {
     simulatedDevicesService.enabledDevices = dartDefineDevices;
     log.info("enabling simulated devices from dart-define: $dartDefineDevices");
   }
-  // Initialize Drift database
   final appDatabase = AppDatabase.defaults();
 
   final persistenceController = PersistenceController(
     storageService: DriftStorageService(appDatabase),
   );
 
-  // Entity storage services
   final beanStorage = DriftBeanStorageService(appDatabase);
   final grinderStorage = DriftGrinderStorageService(appDatabase);
   final profileStorage = DriftProfileStorageService(appDatabase);
@@ -310,7 +277,6 @@ void main(List<String> args) async {
   );
   settingsController.telemetryService = telemetryService;
 
-  // Initialize profile storage and controller
   final profileController = ProfileController(storage: profileStorage);
   await profileController.initialize();
 
@@ -321,11 +287,6 @@ void main(List<String> args) async {
   final scaleController = ScaleController();
   final sensorController = SensorController(controller: deviceController);
 
-  // Remembers devices the user connects to (machine + scale), shown as
-  // unavailable when absent. The stream mappers (which read {id,name,type} off
-  // the connected device and skip simulated devices) live in
-  // `remembered_device_sources.dart` so they're unit-testable; the controller
-  // itself stays interface-agnostic.
   final rememberedDevicesController = RememberedDevicesController(
     machineConnections: de1Controller.de1.map(rememberedFromMachine),
     scaleConnections: scaleController.connectionState.map(
@@ -358,13 +319,6 @@ void main(List<String> args) async {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
   });
-  // Single writer of DE1 setProfile for the workflow paths (REST
-  // PUT /api/v1/workflow + UI picker) AND the machine (re)connect push
-  // (the old defaults-path upload was single-shot with
-  // swallowed errors). Only POST /api/v1/machine/profile bypasses it —
-  // UnifiedDe1.setProfile serializes uploads across all callers at the
-  // device level. Persistent upload failures surface on the connection
-  // status stream and retract once a retry lands.
   // ignore: unused_local_variable
   final workflowDeviceSync = WorkflowDeviceSync(
     workflowController: workflowController,
@@ -374,38 +328,24 @@ void main(List<String> args) async {
       ConnectionErrorKind.profileUploadFailed,
     ),
   );
-  // Reflects WorkflowContext.targetYield into Bengle's autonomous SAW
-  // MMR. Single writer for both REST and UI yield-edits; re-applies on
-  // every Bengle (re)connect.
   // ignore: unused_local_variable
   final bengleSawBridge = BengleSawBridge(
     workflowController: workflowController,
     de1Controller: de1Controller,
   );
 
-  // Reflects SteamSettings.stopAtTemperature into Bengle's stop-at-
-  // temperature MMR (currently stubbed FW slot — bridge keeps the
-  // cache consistent so the day FW publishes, writes hit the wire
-  // automatically). See [[bengle_steam_stop_bridge]].
   // ignore: unused_local_variable
   final bengleSteamStopBridge = BengleSteamStopBridge(
     workflowController: workflowController,
     de1Controller: de1Controller,
   );
 
-  // Registers a BengleMilkProbe sensor adapter with SensorController
-  // when a Bengle's probe-attached signal flips true. Inert today —
-  // real `Bengle.probeAttached` never emits true until FW publishes
-  // a presence signal.
   // ignore: unused_local_variable
   final bengleProbeBridge = BengleProbeBridge(
     de1Controller: de1Controller,
     sensorController: sensorController,
   );
 
-  // Records steaming sessions + scaffolding for stop-at-temperature.
-  // See [[steam_sequencer]] for the predicate truth table and
-  // record lifecycle.
   // ignore: unused_local_variable
   final steamSequencer = SteamSequencer(
     de1Controller: de1Controller,
@@ -414,9 +354,6 @@ void main(List<String> args) async {
     persistenceController: persistenceController,
   );
 
-  // Tares the scale and stops hot-water dispensing at the configured volume
-  // target (treated as grams) when a scale is connected — the hot-water
-  // counterpart of the espresso stop-at-weight. See [[hot_water_sequencer]].
   // ignore: unused_local_variable
   final hotWaterSequencer = HotWaterSequencer(
     de1Controller: de1Controller,
@@ -426,8 +363,6 @@ void main(List<String> args) async {
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
-  // Credential store + account service — skip on headless Linux where
-  // libsecret blocks on the XDG secrets portal (no desktop session).
   DecentAccountService? decentAccountService;
   DecentProxyService? decentProxyService;
   AccountTokensController? accountTokensController;
@@ -438,8 +373,6 @@ void main(List<String> args) async {
     decentProxyService = null;
   } else {
     final decentCredentialStore = await createCredentialStore();
-    // Override with --dart-define=DECENT_BASE_URL=http://localhost:8000 for
-    // local server development; defaults to production.
     const decentBaseUrl = String.fromEnvironment(
       'DECENT_BASE_URL',
       defaultValue: 'https://decentespresso.com',
@@ -449,33 +382,24 @@ void main(List<String> args) async {
       credentialStore: decentCredentialStore,
       baseUrl: decentBaseUrl,
     );
-    // Same credential store as the account service: the proxy reads the
-    // credentials that account login wrote, and never exposes them to callers.
     decentProxyService = DecentProxyService(
       httpClient: http.Client(),
       credentialStore: decentCredentialStore,
       baseUrl: decentBaseUrl,
     );
-    // User-managed API-client tokens: persisted in the same secure store and
-    // loaded into the validator alongside the per-process skin token.
     accountTokensController = AccountTokensController(
       tokenService: proxyTokenService,
       store: ProxyTokenStore(credentialStore: decentCredentialStore),
     );
     await accountTokensController.initialize();
   }
-  // Serve the skin token into :3000 HTML so skins can call the account proxy.
   webUIService.skinProxyToken = proxyTokenService.skinToken;
 
   final PluginLoaderService pluginService = PluginLoaderService(
     kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
     decentProxyService: decentProxyService,
   );
-  // Don't initialize plugins yet - wait for permissions to be granted
-  // pluginService.initialize() will be called from PermissionsView after permissions are granted
   pluginService.pluginManager.de1Controller = de1Controller;
-  // Broadcast a `shotStored` plugin event once a shot is persisted, so plugins
-  // can react to the exact newly-stored shot (no timer/latest-lookup race).
   persistenceController.onShotStored = (shotId) =>
       pluginService.pluginManager.broadcastEvent('shotStored', {'id': shotId});
 
@@ -495,9 +419,6 @@ void main(List<String> args) async {
   );
   displayController.initialize();
 
-  // Update check service — constructed before the web server so the update
-  // API (/api/v1/update, /ws/v1/update) shares its state. initialize() is
-  // still deferred below.
   final updateCheckService = UpdateCheckService(
     settingsService: SharedPreferencesSettingsService(),
     webUIStorage: webUIStorage,
@@ -571,10 +492,7 @@ void main(List<String> args) async {
     log.severe('failed to start web server', e, st);
   }
   BootTiming.mark('webserver_up');
-  // Load the user's preferred theme while the splash screen is displayed.
-  // This prevents a sudden theme change when the app is first displayed.
   settingsController.addListener(() {
-    // Merge dart-define devices with user-selected devices from settings
     const simEnv = String.fromEnvironment("simulate");
     final dartDefineDevices = simEnv.isNotEmpty
         ? _parseSimulateFlag(simEnv)
@@ -602,8 +520,6 @@ void main(List<String> args) async {
   bleDiscoveryService.requestLargeMtuNonAndroid = () =>
       settingsController.isFeatureFlagEnabled(.largeBleMtuNonAndroid);
 
-  // CLI overrides — apply after loadSettings so they overwrite any persisted
-  // values and persist themselves.
   if (cliArgs.bypassOnboarding) {
     log.info('--bypass-onboarding: skipping onboarding screens');
     await settingsController.setOnboardingCompleted(true);
@@ -619,8 +535,6 @@ void main(List<String> args) async {
     webUIService.skinOverride = SkinOverride.path(cliArgs.skinPath!);
   }
 
-  // Dart-define overrides for preferred devices — allows headless/MCP launches
-  // to bypass the device selection screen by seeding the direct-connect path.
   const envMachineId = String.fromEnvironment("preferredMachineId");
   const envScaleId = String.fromEnvironment("preferredScaleId");
   if (envMachineId.isNotEmpty) {
@@ -638,12 +552,10 @@ void main(List<String> args) async {
       ) ??
       Level.FINE;
 
-  // Defer the first update check / skin sync (service constructed above).
   Future.delayed(Duration(minutes: 10), () async {
     await updateCheckService.initialize();
   });
 
-  // Add lifecycle observer for all platforms (for update notifications)
   WidgetsBinding.instance.addObserver(
     AppLifecycleObserver(
       updateCheckService: updateCheckService,
@@ -709,24 +621,20 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
     });
 
-    // Show initial update notification once the widget tree is fully built
     if (updateCheckService?.hasAvailableUpdate == true) {
       Future.delayed(const Duration(seconds: 3), () {
         _showUpdateNotification();
       });
     }
 
-    // Monitor machine state changes for sleep-to-idle transitions
     _machineStateSubscription = de1Controller?.de1.listen((machine) {
       _stateStreamSubscription?.cancel();
 
       if (machine == null) return;
 
-      // Check if machine transitioned from sleep to idle
       _stateStreamSubscription = machine.currentSnapshot.listen((snapshot) {
         final currentState = snapshot.state.state.index;
 
-        // Detect transition from sleep (0) to idle (2)
         if (_lastMachineState == 0 &&
             currentState == 2 &&
             updateCheckService?.hasAvailableUpdate == true) {
@@ -745,20 +653,14 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      // STOP charts, timers, streams
       _log.info("state: $state");
       _wasBackgrounded = true;
     }
     if (state == AppLifecycleState.resumed) {
-      // Resume if needed
       _log.info("state: resumed");
 
-      // Re-assert screen brightness: a write issued while the window was paused
-      // (e.g. the wake restore firing as the screen turned back on) may not have
-      // stuck, leaving the screen dark with no other trigger to recover.
       unawaited(displayController?.onAppResumed() ?? Future<void>.value());
 
-      // Check for updates when app comes to foreground
       if (_wasBackgrounded && updateCheckService?.hasAvailableUpdate == true) {
         _showUpdateNotification();
       }
@@ -775,7 +677,6 @@ class AppLifecycleObserver with WidgetsBindingObserver {
 
     final messenger = ScaffoldMessenger.of(context);
 
-    // Clear any existing snackbars to prevent stacking
     messenger.clearSnackBars();
 
     final controller = messenger.showSnackBar(
@@ -811,7 +712,6 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       ),
     );
 
-    // When user taps the close icon, skip this version permanently
     controller.closed.then((reason) {
       if (reason == SnackBarClosedReason.dismiss) {
         updateCheckService?.skipCurrentUpdate();
@@ -819,7 +719,6 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     });
   }
 
-  /// Show a download+install dialog that starts downloading immediately.
   void _showAndroidDownloadDialog(BuildContext context, UpdateInfo updateInfo) {
     final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
     showDialog(
@@ -903,17 +802,8 @@ class _AppRootState extends State<AppRoot> {
   final Logger _log = Logger("AppRoot");
   Key _key = UniqueKey();
 
-  // NOTE: No dispose() override here — _AppRootState is torn down and
-  // recreated on every app restart (WebView crash, reinit), which must
-  // NOT tear down the DE1/scale connection. ConnectionManager.dispose()
-  // is wired but intentionally not called from here. The OS reclaims
-  // BLE handles and serial ports on process death; the subjects are
-  // harmless at exit.
-
   Future<void> restart() async {
     _log.info("recreating App Root");
-    // TODO: need better app base logic for recreate activity
-    // await recreateActivity();
     setState(() {
       _key = UniqueKey();
     });
@@ -925,7 +815,6 @@ class _AppRootState extends State<AppRoot> {
     try {
       await _channel.invokeMethod('recreateActivity');
     } catch (e) {
-      // Log but never crash
       _log.severe('[ActivityControl] recreate failed: $e');
     }
   }
@@ -960,16 +849,9 @@ class _AppRootState extends State<AppRoot> {
       ),
     );
 
-    // PlatformMenuBar must live ABOVE KeyedSubtree so it survives app restarts
-    // (which change the key). Otherwise, the new PlatformMenuBar tries to
-    // acquire the static _lockedContext lock before the old one is disposed.
     if (Platform.isMacOS) {
       return PlatformMenuBar(menus: _buildPlatformMenus(), child: child);
     }
-    // Windows/Linux have no native menu bar, so mirror the macOS simulated-
-    // WebView menu shortcuts with Ctrl+Alt+<digit> bindings (Cmd→Ctrl) when the
-    // feature is enabled. The Advanced-settings picker is the discoverable path;
-    // these match the muscle memory of the macOS menu accelerators.
     if ((Platform.isWindows || Platform.isLinux) &&
         widget.settingsController.enableSimulatedWebViews) {
       return CallbackShortcuts(
@@ -980,9 +862,6 @@ class _AppRootState extends State<AppRoot> {
     return child;
   }
 
-  /// `Ctrl+Alt+<digit>` accelerators for switching the simulated WebView on
-  /// Windows/Linux, mirroring the macOS Cmd+Alt menu shortcuts in
-  /// [_buildPlatformMenus]: 0 → native, 8 → T50 Mini, 7 → P80X, 6 → P85 Pro.
   Map<ShortcutActivator, VoidCallback> _simulatedWebViewShortcuts() {
     return {
       const SingleActivator(

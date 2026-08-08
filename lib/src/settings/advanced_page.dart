@@ -29,7 +29,6 @@ class AdvancedPage extends StatelessWidget {
         builder: (context, _) {
           return ListView(
             children: [
-              // Log Level
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -67,7 +66,6 @@ class AdvancedPage extends StatelessWidget {
               ),
               const SettingsDivider(),
 
-              // Experimental Features
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -136,7 +134,6 @@ class AdvancedPage extends StatelessWidget {
                 const SettingsDivider(),
               },
 
-              // Simulated devices
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -184,8 +181,6 @@ class AdvancedPage extends StatelessWidget {
                     value: controller.enableSimulatedWebViews,
                     onChanged: (v) async {
                       await controller.setEnableSimulatedWebViews(v);
-                      // Disabling returns to the native WebView so the window
-                      // snaps back to its normal size and no device shims linger.
                       if (!v) {
                         await setSimulatedWebViewDevice(null);
                       }
@@ -209,7 +204,6 @@ class AdvancedPage extends StatelessWidget {
               ],
               const SettingsDivider(),
 
-              // Debug view
               ListTile(
                 leading: const Icon(LucideIcons.bug),
                 title: const Text('Debug view'),
@@ -219,7 +213,6 @@ class AdvancedPage extends StatelessWidget {
               ),
               const SettingsDivider(),
 
-              // Exit
               if (!BuildInfo.appStore)
                 ListTile(
                   leading: Icon(

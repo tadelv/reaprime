@@ -10,7 +10,7 @@ Profile _profileWithPreinfusion() {
     notes: '',
     author: 'test',
     beverageType: BeverageType.espresso,
-    targetVolumeCountStart: 2, // first 2 steps are preinfusion
+    targetVolumeCountStart: 2,
     tankTemperature: 94.0,
     steps: [
       ProfileStepPressure(
@@ -61,15 +61,12 @@ void main() {
       await bengle.setProfile(_profileWithPreinfusion());
       await bengle.requestState(MachineState.espresso);
 
-      // Wait through preparingForShot (500ms) + collect during preinfusion
       await Future.delayed(const Duration(milliseconds: 600));
       final snapshots = await bengle.weightSnapshot
           .take(15)
           .toList()
           .timeout(const Duration(seconds: 3));
 
-      // 15 ticks @ 100ms = 1.5s. Preinfusion steps are 2+2=4s long.
-      // Weight should be near zero throughout.
       for (final s in snapshots) {
         expect(
           s.weight.abs(),
@@ -113,10 +110,8 @@ void main() {
       await bengle.setProfile(profile);
       await bengle.requestState(MachineState.espresso);
 
-      // Wait past preinfusion (500ms prep + 1s step0 = 1.5s)
       await Future.delayed(const Duration(milliseconds: 1700));
 
-      // Collect weight snapshots during pouring
       final snapshots = await bengle.weightSnapshot
           .take(20)
           .toList()

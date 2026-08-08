@@ -11,17 +11,6 @@ import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 
 import '../helpers/mock_device_discovery_service.dart';
 
-/// Counts every event that crosses `MockDe1.shotSettings` — the same
-/// stream `/ws/v1/machine/shotSettings` delivers to clients. These
-/// tests pin the emit-count contract per De1Controller write op so we
-/// catch regressions in the number of WS messages per workflow change.
-///
-/// Context: the original redundant-writes report observed 5 WS emits
-/// per single steam-duration PUT. After adding value equality on the
-/// workflow data classes, awaiting individual settings writes in
-/// WorkflowHandler, dropping the `setXFlow` nudge re-emit in
-/// MockDe1/UnifiedDe1, and applying `.distinct()` on the shotSettings
-/// getter, the count is 1 per changed field.
 void main() {
   late MockDe1 mockDe1;
   late DeviceController deviceController;
@@ -39,8 +28,6 @@ void main() {
     observedEmits = [];
     sub = mockDe1.shotSettings.listen(observedEmits.add);
 
-    // Let the De1Controller initialization + its internal 100 ms
-    // shot-settings debounce settle before the test body runs.
     await Future<void>.delayed(const Duration(milliseconds: 200));
     observedEmits.clear();
   });
@@ -75,11 +62,6 @@ void main() {
     test(
       'multi-field De1Controller sequence: one emit per updateShotSettings',
       () async {
-        // Mirrors what WorkflowHandler does for a multi-field PUT that
-        // touches steam + hot-water + rinse (the original 5-emit
-        // report). With value equality + sequential awaits + nudge
-        // removal + distinct, the expected output is one emit per
-        // path that actually performs an updateShotSettings write.
         await de1Controller.updateFlushSettings(
           RinseData(targetTemperature: 91, duration: 11, flow: 6.5),
         );
@@ -101,9 +83,6 @@ void main() {
         );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        // rinse  : no updateShotSettings call (only MMR writes).
-        // steam  : 1 updateShotSettings with new steam fields.
-        // hw     : 1 updateShotSettings with new hw fields.
         expect(
           observedEmits.length,
           equals(2),
@@ -121,7 +100,6 @@ void main() {
         'shotSettings event but does broadcast steamData', () async {
       final steamDataEmits = <SteamSettings>[];
       final steamSub = de1Controller.steamData.listen(steamDataEmits.add);
-      // Let the seed value replay.
       await Future<void>.delayed(const Duration(milliseconds: 20));
       steamDataEmits.clear();
 

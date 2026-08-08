@@ -17,7 +17,6 @@ void main() {
 
     group('timestamp', () {
       test('parses correct timestamp from clock', () {
-        // clock = 1710510622 = 2024-03-15T13:30:22Z (UTC)
         final expected = DateTime.fromMillisecondsSinceEpoch(
           1710510622 * 1000,
           isUtc: true,
@@ -28,7 +27,6 @@ void main() {
 
     group('time-series measurements', () {
       test('produces one snapshot per elapsed entry', () {
-        // fixture has 9 elapsed values
         expect(result.shot.measurements.length, equals(9));
       });
 
@@ -260,7 +258,6 @@ void main() {
         final totals = Map<String, dynamic>.from(
           fixtureJson['totals'] as Map<String, dynamic>,
         );
-        // Shorten weight to 6 entries (elapsed has 9)
         totals['weight'] = [0.0, 0.1, 0.4, 1.0, 2.0, 3.5];
         totals['water_dispensed'] = [0.0, 0.2, 0.5, 1.2, 2.2, 3.8];
         truncated['totals'] = totals;
@@ -293,7 +290,7 @@ void main() {
     group('string-typed clock field', () {
       test('parses clock when stored as string (real de1app behavior)', () {
         final stringClock = Map<String, dynamic>.from(fixtureJson);
-        stringClock['clock'] = '1710510622'; // string, not int
+        stringClock['clock'] = '1710510622';
         final parsed = ShotV2JsonParser.parse(stringClock);
         final expected = DateTime.fromMillisecondsSinceEpoch(
           1710510622 * 1000,
@@ -325,14 +322,11 @@ void main() {
         noTotals.remove('totals');
         final parsed = ShotV2JsonParser.parse(noTotals);
         expect(parsed.shot.measurements, isNotEmpty);
-        // Scale should be null since no weight data
         expect(parsed.shot.measurements.first.scale, isNull);
       });
     });
 
     group('frame reconstruction', () {
-      // Fixture profile: Best Practice — 2 steps (preinfusion 10s, hold 30s)
-      // Elapsed range: 0..2 seconds → all within frame 0
       test('all snapshots in frame 0 for short shot', () {
         for (final snap in result.shot.measurements) {
           expect(snap.machine.profileFrame, equals(0));
@@ -340,7 +334,6 @@ void main() {
       });
 
       test('crosses frame boundary with multi-step profile', () {
-        // Build a shot with a longer elapsed array
         final shot = Map<String, dynamic>.from(fixtureJson);
         shot['elapsed'] = [0.0, 5.0, 10.5, 15.0, 30.0, 50.0];
         shot['profile'] = {
@@ -389,7 +382,6 @@ void main() {
           'target_volume_count_start': '1',
           'tank_temperature': 0,
         };
-        // Also need matching array lengths
         shot['pressure'] = {
           'pressure': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
           'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
@@ -414,9 +406,6 @@ void main() {
             .map((s) => s.machine.profileFrame)
             .toList();
 
-        // Step 0 (preinfusion): 0–10s → frames at t=0, 5 are in step 0
-        // Step 1 (hold): 10–40s → frames at t=10.5, 15, 30 are in step 1
-        // Step 2 (decline): 40+s → frame at t=50 is in step 2
         expect(frames, equals([0, 0, 1, 1, 1, 2]));
       });
 

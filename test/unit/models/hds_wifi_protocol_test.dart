@@ -80,8 +80,6 @@ void main() {
     });
 
     test('wrong-typed fields yield null fields, never throw', () {
-      // A field of the wrong JSON type must not throw (a stray frame can't drop
-      // the connection) — the bad field is treated as absent.
       final f = HdsWifiFrame.parse(
         '{"type":5,"charging":1,"timer_running":"yes","grams":12.0}',
       );
@@ -89,7 +87,7 @@ void main() {
       expect(f!.type, isNull);
       expect(f.charging, isNull);
       expect(f.timerRunning, isNull);
-      expect(f.grams, 12.0); // valid fields still parse
+      expect(f.grams, 12.0);
     });
   });
 }

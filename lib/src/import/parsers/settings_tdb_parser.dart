@@ -1,41 +1,30 @@
 import 'package:reaprime/src/import/parsers/tcl_parser.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 
-/// Parsed result from a de1app `settings.tdb` file.
-///
-/// All fields are nullable — only present if the key existed in the file
-/// and had a meaningful value.
 class SettingsTdbResult {
-  // Wake schedule
   final bool? wakeScheduleEnabled;
   final int? wakeHour;
   final int? wakeMinute;
   final int? keepAwakeForMinutes;
 
-  // Settings
   final bool? keepScaleOn;
   final int? sleepTimeoutMinutes;
   final ChargingMode? chargingMode;
 
-  // Workflow context
   final double? doseWeight;
   final String? grinderSetting;
   final String? grinderModel;
   final double? targetYield;
 
-  // Steam
   final int? steamTemperature;
   final int? steamDuration;
 
-  // Hot water
   final int? hotWaterTemperature;
   final int? hotWaterVolume;
 
-  // Rinse
   final double? rinseFlow;
   final int? rinseDuration;
 
-  // Device BLE addresses (Android only — MAC format)
   final String? machineBluetoothAddress;
   final String? scaleBluetoothAddress;
 
@@ -61,10 +50,6 @@ class SettingsTdbResult {
     this.scaleBluetoothAddress,
   });
 
-  /// True when no meaningful settings were extracted.
-  ///
-  /// [wakeScheduleEnabled] alone doesn't count if [wakeHour]/[wakeMinute]
-  /// are null, since a bare enable flag without times is not actionable.
   bool get isEmpty =>
       wakeHour == null &&
       wakeMinute == null &&
@@ -84,16 +69,10 @@ class SettingsTdbResult {
       rinseDuration == null;
 }
 
-/// Parses a de1app `settings.tdb` file into a [SettingsTdbResult].
-///
-/// The settings.tdb file is written by de1app's `save_array_to_file` —
-/// each line is `{key} {value}\n`. We delegate the low-level parsing to
-/// [TclParser.parse] which returns a flat `Map<String, dynamic>`.
 class SettingsTdbParser {
   static SettingsTdbResult parse(String content) {
     final data = TclParser.parse(content);
 
-    // Wake schedule
     final wakeSeconds = _parseInt(data['scheduler_wake']);
     final sleepSeconds = _parseInt(data['scheduler_sleep']);
 
@@ -111,30 +90,24 @@ class SettingsTdbParser {
       keepAwakeFor = diff ~/ 60;
     }
 
-    // Screen saver delay: value is already in minutes in de1app,
-    // snapped to the nearest valid Bridge option (0=disabled, 15, 30, 45, 60, 90, 120, 180).
     int? sleepTimeoutMinutes;
     final screenSaverMinutes = _parseInt(data['screen_saver_delay']);
     if (screenSaverMinutes != null) {
       sleepTimeoutMinutes = _snapToSleepOption(screenSaverMinutes);
     }
 
-    // Dose weight: null if 0 or missing
     final doseRaw = _parseDouble(data['grinder_dose_weight']);
     final doseWeight = (doseRaw != null && doseRaw != 0) ? doseRaw : null;
 
-    // Target yield: null if 0 or missing
     final yieldRaw = _parseDouble(data['final_desired_shot_weight_advanced']);
     final targetYield = (yieldRaw != null && yieldRaw != 0) ? yieldRaw : null;
 
-    // Grinder setting: null if "0" or empty
     final grinderSettingRaw = _nonEmpty(data['grinder_setting']?.toString());
     final grinderSetting =
         (grinderSettingRaw != null && grinderSettingRaw != '0')
         ? grinderSettingRaw
         : null;
 
-    // Grinder model: null if empty
     final grinderModel = _nonEmpty(data['grinder_model']?.toString());
 
     return SettingsTdbResult(
@@ -167,16 +140,6 @@ class SettingsTdbParser {
     return value.toString() == '1';
   }
 
-  /// Maps de1app's `smart_battery_charging` integer enum to Bridge's
-  /// [ChargingMode]. Unknown values return null so the caller leaves the
-  /// existing Bridge setting untouched.
-  ///
-  /// de1app values:
-  /// - `0` → off (USB charger always on) → [ChargingMode.disabled]
-  /// - `1` → longevity (55-65%) → [ChargingMode.longevity]
-  /// - `2` → high availability (90-95%) → [ChargingMode.highAvailability]
-  ///
-  /// de1app has no analog for [ChargingMode.balanced].
   static ChargingMode? _parseChargingMode(dynamic value) {
     if (value == null) return null;
     switch (value.toString()) {
@@ -201,16 +164,13 @@ class SettingsTdbParser {
     return double.tryParse(value.toString());
   }
 
-  /// Returns [value] if non-null and non-empty, otherwise null.
   static String? _nonEmpty(String? value) {
     if (value == null || value.isEmpty) return null;
     return value;
   }
 
-  /// Valid sleep timeout options in Bridge's UI.
   static const _sleepOptions = [0, 15, 30, 45, 60, 90, 120, 180];
 
-  /// Snap [minutes] to the nearest valid Bridge sleep timeout option.
   static int _snapToSleepOption(int minutes) {
     int closest = _sleepOptions.first;
     int bestDiff = (minutes - closest).abs();

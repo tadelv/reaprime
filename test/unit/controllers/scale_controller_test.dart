@@ -10,7 +10,6 @@ import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
-/// Minimal Scale that connects on [onConnect] and records [disconnect] calls.
 class _TrackingScale implements Scale {
   @override
   final String deviceId;
@@ -63,9 +62,6 @@ class _TrackingScale implements Scale {
       _snap.add(ScaleSnapshot(timestamp: t, weight: weight, batteryLevel: 50));
 }
 
-/// A handoff-capable scale (like the BLE Decent Scale) that records whether it
-/// was released via the destructive [disconnect] (power-off) or the
-/// non-destructive [disconnectForHandoff].
 class _HandoffTrackingScale extends _TrackingScale
     implements TransportHandoffScale {
   _HandoffTrackingScale(super.deviceId);
@@ -78,8 +74,6 @@ class _HandoffTrackingScale extends _TrackingScale
   }
 }
 
-/// A scale whose [onConnect] completes with an error — the WiFi HDS's expected
-/// failure mode (bad manual IP / recognition timeout).
 class _FailingScale extends _TrackingScale {
   _FailingScale(super.deviceId);
 
@@ -139,15 +133,12 @@ void main() {
       throwsA(isA<StateError>()),
     );
 
-    // The controller did not retain the scale and reports disconnected.
     expect(
       () => controller.connectedScale(),
       throwsA(isA<DeviceNotConnectedException>()),
     );
     expect(controller.currentConnectionState, ConnectionState.disconnected);
 
-    // The snapshot subscription opened before onConnect must have been
-    // cancelled — a late frame must not reach the weight stream.
     final frames = <WeightSnapshot>[];
     final sub = controller.weightSnapshot.listen(frames.add);
     scale.emitSnapshot();
@@ -167,8 +158,8 @@ void main() {
   test('switching away from a handoff-capable scale releases it WITHOUT '
       'power-off (uses disconnectForHandoff)', () async {
     final controller = ScaleController();
-    final a = _HandoffTrackingScale('A'); // e.g. BLE Decent Scale
-    final b = _TrackingScale('B'); // e.g. WiFi HDS
+    final a = _HandoffTrackingScale('A');
+    final b = _TrackingScale('B');
 
     await controller.connectToScale(a);
     await controller.connectToScale(b);
@@ -218,7 +209,7 @@ void main() {
     final a = _TrackingScale('A');
 
     await controller.connectToScale(a);
-    await controller.connectToScale(a); // same device id
+    await controller.connectToScale(a);
     expect(
       a.disconnected,
       isFalse,
@@ -329,8 +320,6 @@ void main() {
     final sub = controller.weightSnapshot.listen(frames.add);
 
     final t0 = DateTime(2026, 1, 1, 12, 0, 0);
-    // Pre-tare samples build up weight (and therefore a real flow reading) and
-    // establish the latest scale-clock timestamp.
     scale.emitAt(t0, 10.0);
     scale.emitAt(t0.add(const Duration(milliseconds: 100)), 14.0);
     await Future.delayed(Duration.zero);
@@ -342,9 +331,6 @@ void main() {
 
     await controller.tare();
 
-    // Within one smoothing window (600ms) of the last pre-tare sample the scale
-    // drops to ~0 — the spike that would otherwise appear must be suppressed,
-    // but the (truthful) weight still passes through.
     scale.emitAt(t0.add(const Duration(milliseconds: 200)), 0.0);
     scale.emitAt(t0.add(const Duration(milliseconds: 500)), 0.0);
     await Future.delayed(Duration.zero);
@@ -365,7 +351,6 @@ void main() {
       reason: 'weight itself is never suppressed by tare',
     );
 
-    // Past the smoothing window, real flow resumes from a clean baseline.
     scale.emitAt(t0.add(const Duration(milliseconds: 800)), 4.0);
     scale.emitAt(t0.add(const Duration(milliseconds: 900)), 8.0);
     await Future.delayed(Duration.zero);

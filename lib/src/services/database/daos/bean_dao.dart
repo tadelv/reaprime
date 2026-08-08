@@ -8,8 +8,6 @@ part 'bean_dao.g.dart';
 class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
   BeanDao(super.db);
 
-  // --- Beans ---
-
   Future<List<Bean>> getAllBeans({bool includeArchived = false}) {
     final query = select(beans);
     if (!includeArchived) {
@@ -19,8 +17,6 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
     return query.get();
   }
 
-  /// Keyset-paged beans for streaming export: ordered by (createdAt, id)
-  /// ascending; returns up to [limit] rows strictly after the cursor.
   Future<List<Bean>> getBeansForExport({
     int limit = 200,
     DateTime? cursorCreatedAt,
@@ -70,8 +66,6 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
     return (delete(beans)..where((b) => b.id.equals(id))).go();
   }
 
-  // --- BeanBatches ---
-
   Future<List<BeanBatche>> getBatchesForBean(
     String beanId, {
     bool includeArchived = false,
@@ -116,7 +110,6 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
     return (delete(beanBatches)..where((b) => b.id.equals(id))).go();
   }
 
-  /// Decrement the remaining weight of a batch after a shot.
   Future<void> decrementBatchWeight(String batchId, double amount) async {
     final batch = await getBatchById(batchId);
     if (batch == null) return;

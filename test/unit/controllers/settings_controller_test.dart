@@ -6,7 +6,6 @@ import 'package:reaprime/src/settings/settings_service.dart';
 
 import '../../helpers/mock_settings_service.dart';
 
-/// Spy settings service that tracks calls to setSimulatedDevices.
 class _SpySettingsService implements SettingsService {
   int setSimulatedDevicesCallCount = 0;
   int setEnableSimulatedWebViewsCallCount = 0;
@@ -54,7 +53,6 @@ class _SpySettingsService implements SettingsService {
     _updateChannel = channel;
   }
 
-  // Feature flags
   @override
   Future<bool?> featureFlag(FeatureFlag flag) async => _featureFlags[flag.name];
   @override
@@ -74,8 +72,6 @@ class _SpySettingsService implements SettingsService {
   Future<void> setPreferredScaleId(String? scaleId) async =>
       _preferredScaleId = scaleId;
 
-  // Unimplemented stubs. These methods aren't exercised by simulate-device
-  // tests but are required by the SettingsService interface.
   @override
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.isMethod) return Future.value();
@@ -247,7 +243,6 @@ void main() {
       var notified = false;
       controller.addListener(() => notified = true);
 
-      // Default is false; setting false again should neither persist nor notify.
       await controller.setEnableSimulatedWebViews(false);
 
       expect(spy.setEnableSimulatedWebViewsCallCount, 0);
@@ -332,11 +327,9 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      // Without calling loadSettings, the in-memory map is empty.
-      // isFeatureFlagEnabled falls back to defaultFeatureFlagValues.
       expect(
         controller.isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
-        isTrue, // default is true
+        isTrue,
       );
     });
 
@@ -368,13 +361,11 @@ void main() {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
-      // Set to false first so the in-memory map has a value.
       await controller.setFeatureFlag(FeatureFlag.stepExitArbiter, false);
-      spy.setFeatureFlagCallCount = 0; // reset counter
+      spy.setFeatureFlagCallCount = 0;
       var notified = false;
       controller.addListener(() => notified = true);
 
-      // Setting false again should be a no-op.
       await controller.setFeatureFlag(FeatureFlag.stepExitArbiter, false);
 
       expect(spy.setFeatureFlagCallCount, 0);

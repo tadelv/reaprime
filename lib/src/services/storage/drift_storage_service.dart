@@ -7,7 +7,6 @@ import 'package:reaprime/src/services/database/mappers/steam_mapper.dart';
 import 'package:reaprime/src/services/database/mappers/workflow_mapper.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 
-/// Drift/SQLite implementation of [StorageService] for shots and workflow.
 class DriftStorageService implements StorageService {
   final AppDatabase _db;
 
@@ -122,8 +121,6 @@ class DriftStorageService implements StorageService {
     final row = await _db.shotDao.getLatestShotMeta();
     return row == null ? null : ShotMapper.fromRow(row);
   }
-
-  // Steam records ------------------------------------------------------------
 
   @override
   Future<void> storeSteam(domain_steam.SteamRecord record) {

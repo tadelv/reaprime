@@ -24,11 +24,6 @@ import 'package:rxdart/subjects.dart';
 
 import '../helpers/mock_settings_service.dart';
 
-// ---------------------------------------------------------------------------
-// Test-local mocks
-// ---------------------------------------------------------------------------
-
-/// Minimal DeviceDiscoveryService for constructing DeviceController.
 class _FakeDiscoveryService implements DeviceDiscoveryService {
   @override
   Stream<List<Device>> get devices => const Stream.empty();
@@ -43,7 +38,6 @@ class _FakeDiscoveryService implements DeviceDiscoveryService {
   Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
-/// A De1Interface test double with a controllable snapshot stream.
 class _TestDe1 implements De1Interface {
   final BehaviorSubject<MachineSnapshot> _snapshotSubject =
       BehaviorSubject.seeded(
@@ -92,7 +86,6 @@ class _TestDe1 implements De1Interface {
     emitState(newState);
   }
 
-  // --- Below: stubs for the rest of De1Interface ---
   @override
   String get deviceId => 'test-de1';
   @override
@@ -218,7 +211,6 @@ class _TestDe1 implements De1Interface {
   Future<void> dispose() async {}
 }
 
-/// A De1Controller subclass that exposes a settable de1 subject.
 class _TestDe1Controller extends De1Controller {
   final BehaviorSubject<De1Interface?> _de1Subject = BehaviorSubject.seeded(
     null,
@@ -234,7 +226,6 @@ class _TestDe1Controller extends De1Controller {
   }
 }
 
-/// Controllable battery state emitter for testing.
 class _TestBatteryController {
   final BehaviorSubject<ChargingState> _stateSubject =
       BehaviorSubject<ChargingState>();
@@ -260,13 +251,6 @@ class _TestBatteryController {
   }
 }
 
-/// Creates a DisplayController with no-op platform operations for testing.
-/// This allows tests to verify actual state transitions without platform deps.
-///
-/// Defaults [platformSupport] to brightness+wakeLock enabled so tests focused
-/// on brightness/battery-cap behavior don't depend on the host CI platform
-/// (DisplayController's auto-detection treats Linux as brightness-unsupported,
-/// which would otherwise short-circuit those tests on a Linux runner).
 DisplayController _createController(
   _TestDe1Controller de1Controller, {
   required SettingsController settingsController,
@@ -329,10 +313,6 @@ void main() {
 
     test('platformSupported reports correct values', () {
       fakeAsync((async) {
-        // Construct DisplayController directly so the auto-detected
-        // platformSupport is exercised (the _createController helper
-        // injects a brightness-enabled default for the brightness/cap
-        // tests, which would hide the auto-detection logic here).
         final controller = DisplayController(
           de1Controller: de1Controller,
           settingsController: settingsCtrl,
@@ -345,9 +325,7 @@ void main() {
         async.flushMicrotasks();
 
         final state = controller.currentState;
-        // wakeLock is always true (wakelock_plus supports all platforms).
         expect(state.platformSupported.wakeLock, isTrue);
-        // brightness is gated to Android/iOS/macOS/Windows; Linux is excluded.
         final expectedBrightness =
             Platform.isAndroid ||
             Platform.isIOS ||
@@ -737,13 +715,11 @@ void main() {
         controller.initialize();
         async.flushMicrotasks();
 
-        // First set to something else
         controller.setBrightness(50);
         async.flushMicrotasks();
         resetCalled = false;
         setBrightnessCalled = false;
 
-        // Now set to 100
         controller.setBrightness(100);
         async.flushMicrotasks();
 
@@ -766,16 +742,13 @@ void main() {
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Set a custom brightness
         controller.setBrightness(60);
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 60);
 
-        // Machine goes to sleep — brightness is saved
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 
-        // Machine wakes — brightness restored to pre-sleep value
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 60);
@@ -784,40 +757,37 @@ void main() {
       });
     });
 
-    test('restores brightness on wake even when the sleep->idle edge is missed', () {
-      fakeAsync((async) {
-        final controller = _createController(
-          de1Controller,
-          settingsController: settingsCtrl,
-        );
-        controller.initialize();
-        async.flushMicrotasks();
+    test(
+      'restores brightness on wake even when the sleep->idle edge is missed',
+      () {
+        fakeAsync((async) {
+          final controller = _createController(
+            de1Controller,
+            settingsController: settingsCtrl,
+          );
+          controller.initialize();
+          async.flushMicrotasks();
 
-        de1Controller.setDe1(testDe1);
-        async.flushMicrotasks();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
 
-        // Awake at full brightness, then the skin blacks the screen for sleep.
-        controller.setBrightness(100);
-        testDe1.emitState(MachineState.sleeping);
-        async.flushMicrotasks();
-        controller.setBrightness(0);
-        async.flushMicrotasks();
-        expect(controller.currentState.brightness, 0);
+          controller.setBrightness(100);
+          testDe1.emitState(MachineState.sleeping);
+          async.flushMicrotasks();
+          controller.setBrightness(0);
+          async.flushMicrotasks();
+          expect(controller.currentState.brightness, 0);
 
-        // A BLE reconnect during sleep swaps in a fresh De1Interface, resetting
-        // the controller's last-seen machine state to null. The reconnected
-        // stream is already awake (idle), so the sleeping->idle transition is
-        // never observed: an edge-triggered restore misses it and leaves the
-        // screen stuck dark. The restore must instead fire off the awake state.
-        final reconnected = _TestDe1();
-        de1Controller.setDe1(reconnected);
-        async.flushMicrotasks();
+          final reconnected = _TestDe1();
+          de1Controller.setDe1(reconnected);
+          async.flushMicrotasks();
 
-        expect(controller.currentState.brightness, 100);
+          expect(controller.currentState.brightness, 100);
 
-        controller.dispose();
-      });
-    });
+          controller.dispose();
+        });
+      },
+    );
 
     test(
       'restores brightness when a dim-0 lands after the machine is already awake',
@@ -830,29 +800,22 @@ void main() {
           controller.initialize();
           async.flushMicrotasks();
 
-          de1Controller.setDe1(testDe1); // seeds idle (awake)
+          de1Controller.setDe1(testDe1);
           async.flushMicrotasks();
 
           controller.setBrightness(100);
           async.flushMicrotasks();
 
-          // A normal sleep then wake. The skin's sleep-dim write is still in
-          // flight when the wake transition is processed.
-          testDe1.emitState(MachineState.sleeping); // captures preSleep = 100
+          testDe1.emitState(MachineState.sleeping);
           async.flushMicrotasks();
-          testDe1.emitState(MachineState.idle); // wake; brightness still 100
+          testDe1.emitState(MachineState.idle);
           async.flushMicrotasks();
           expect(controller.currentState.brightness, 100);
 
-          // The deferred sleep-dim finally lands — but the machine is already
-          // awake and will emit no further state transition.
           controller.setBrightness(0);
           async.flushMicrotasks();
           expect(controller.currentState.brightness, 0);
 
-          // The next telemetry frame is the same awake state (no transition). The
-          // old edge-gated logic ignored it and left the screen stuck at 0; the
-          // per-snapshot restore heals it.
           testDe1.emitState(MachineState.idle);
           async.flushMicrotasks();
           expect(controller.currentState.brightness, 100);
@@ -871,10 +834,9 @@ void main() {
         controller.initialize();
         async.flushMicrotasks();
 
-        de1Controller.setDe1(testDe1); // idle (awake), preSleep defaults to 100
+        de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Screen dark while awake (e.g. a stray dim with no follow-up snapshot).
         controller.setBrightness(0);
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 0);
@@ -882,7 +844,6 @@ void main() {
         controller.onAppResumed();
         async.flushMicrotasks();
 
-        // Resume heals it back to the saved pre-sleep value.
         expect(controller.currentState.brightness, 100);
 
         controller.dispose();
@@ -914,12 +875,10 @@ void main() {
           de1Controller.setDe1(testDe1);
           async.flushMicrotasks();
 
-          controller.setBrightness(100); // 100 == OS auto -> resetBrightness
+          controller.setBrightness(100);
           async.flushMicrotasks();
           final before = resetCount;
 
-          // Even though our state already believes brightness is 100, the write
-          // issued at wake may not have stuck, so resume must re-assert it.
           controller.onAppResumed();
           async.flushMicrotasks();
 
@@ -946,12 +905,10 @@ void main() {
         controller.initialize();
         async.flushMicrotasks();
 
-        // Set brightness to 80
         controller.setBrightness(80);
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 80);
 
-        // Battery drops below 30%
         batteryCtrl.emitBattery(20);
         async.flushMicrotasks();
 
@@ -967,7 +924,6 @@ void main() {
     test('does not cap when setting is off', () {
       fakeAsync((async) {
         final batteryCtrl = _TestBatteryController();
-        // lowBatteryBrightnessLimit defaults to false
 
         final controller = _createController(
           de1Controller,
@@ -1005,14 +961,12 @@ void main() {
         controller.initialize();
         async.flushMicrotasks();
 
-        // Set brightness to 10, below the cap of 20
         controller.setBrightness(10);
         async.flushMicrotasks();
 
         batteryCtrl.emitBattery(20);
         async.flushMicrotasks();
 
-        // 10 < 20, so no capping needed — effective == requested
         expect(controller.currentState.brightness, 10);
         expect(controller.currentState.requestedBrightness, 10);
         expect(controller.currentState.lowBatteryBrightnessActive, isFalse);
@@ -1039,12 +993,10 @@ void main() {
         controller.setBrightness(80);
         async.flushMicrotasks();
 
-        // Battery low — capped
         batteryCtrl.emitBattery(20);
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 20);
 
-        // Battery recovers above threshold
         batteryCtrl.emitBattery(50);
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 80);
@@ -1076,7 +1028,6 @@ void main() {
         async.flushMicrotasks();
         expect(controller.currentState.brightness, 20);
 
-        // Turn off the setting
         settingsCtrl.setLowBatteryBrightnessLimit(false);
         async.flushMicrotasks();
 
@@ -1091,7 +1042,6 @@ void main() {
     test('toggling setting on applies cap immediately when battery low', () {
       fakeAsync((async) {
         final batteryCtrl = _TestBatteryController();
-        // Setting starts off (default)
 
         final controller = _createController(
           de1Controller,
@@ -1106,10 +1056,8 @@ void main() {
 
         batteryCtrl.emitBattery(20);
         async.flushMicrotasks();
-        // No cap yet — setting is off
         expect(controller.currentState.brightness, 80);
 
-        // Turn on the setting
         settingsCtrl.setLowBatteryBrightnessLimit(true);
         async.flushMicrotasks();
 
@@ -1126,7 +1074,6 @@ void main() {
         settingsCtrl.setLowBatteryBrightnessLimit(true);
         async.flushMicrotasks();
 
-        // No batteryController — simulates desktop
         final controller = _createController(
           de1Controller,
           settingsController: settingsCtrl,
@@ -1161,7 +1108,6 @@ void main() {
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Set brightness to 80, battery capped to 20
         controller.setBrightness(80);
         async.flushMicrotasks();
         batteryCtrl.emitBattery(20);
@@ -1169,11 +1115,9 @@ void main() {
         expect(controller.currentState.brightness, 20);
         expect(controller.currentState.requestedBrightness, 80);
 
-        // Machine sleeps — saves requested brightness (80)
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 
-        // Machine wakes — restores to 80, but still capped to 20
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
         expect(controller.currentState.requestedBrightness, 80);
@@ -1200,7 +1144,6 @@ void main() {
         final sub = controller.state.listen(emissions.add);
         async.flushMicrotasks();
 
-        // BehaviorSubject immediately emits current value
         expect(emissions, isNotEmpty);
         expect(emissions.first.wakeLockEnabled, isFalse);
         expect(emissions.first.brightness, 100);
@@ -1319,7 +1262,6 @@ void main() {
 
           final countAfterConnect = emissions.length;
 
-          // Emit same state multiple times — guard should skip re-evaluation
           testDe1.emitState(MachineState.idle);
           async.flushMicrotasks();
           testDe1.emitState(MachineState.idle);
@@ -1327,7 +1269,6 @@ void main() {
           testDe1.emitState(MachineState.idle);
           async.flushMicrotasks();
 
-          // No new emissions since machine state didn't change
           expect(emissions.length, countAfterConnect);
 
           sub.cancel();
@@ -1377,10 +1318,10 @@ void main() {
 
       final copied = original.copyWith(wakeLockEnabled: false);
       expect(copied.wakeLockEnabled, isFalse);
-      expect(copied.wakeLockOverride, isTrue); // preserved
-      expect(copied.brightness, 50); // preserved
-      expect(copied.requestedBrightness, 80); // preserved
-      expect(copied.lowBatteryBrightnessActive, isTrue); // preserved
+      expect(copied.wakeLockOverride, isTrue);
+      expect(copied.brightness, 50);
+      expect(copied.requestedBrightness, 80);
+      expect(copied.lowBatteryBrightnessActive, isTrue);
     });
 
     test('copyWith can change all fields', () {

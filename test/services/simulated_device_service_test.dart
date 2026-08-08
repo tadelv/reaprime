@@ -65,8 +65,6 @@ void main() {
       await service.scanForDevices();
       final devices = await emission;
 
-      // MockBengle extends MockDe1, so the type filter matches both —
-      // count by deviceId instead.
       final ids = devices.map((d) => d.deviceId).toSet();
       expect(ids, containsAll(['MockDe1', 'MockBengle']));
     });
@@ -114,8 +112,6 @@ void main() {
       await scale.onConnect();
       expect(await scale.connectionState.first, ConnectionState.connected);
 
-      // A subsequent scan (e.g. the preferred-scale reconnect retry) must
-      // not clobber the connected instance with a fresh `discovered` one.
       final secondEmission = service.devices.first;
       await service.scanForDevices();
       final second = await secondEmission;
@@ -131,11 +127,9 @@ void main() {
         'machine is enabled after the scale', () async {
       final service = SimulatedDeviceService();
 
-      // Scale first — no machine to follow yet.
       service.enabledDevices = {SimulatedDevicesTypes.scale};
       await service.scanForDevices();
 
-      // Machine enabled later; the rescan must attach the existing scale.
       service.enabledDevices = {
         SimulatedDevicesTypes.machine,
         SimulatedDevicesTypes.scale,
@@ -152,7 +146,6 @@ void main() {
       await scale.onConnect();
       await de1.setProfile(_pourProfile());
 
-      // Idle machine: the scale must read ~0, not drift upward on its own.
       final idle = await scale.currentSnapshot.first.timeout(
         const Duration(seconds: 2),
       );
@@ -205,8 +198,6 @@ void main() {
       service.enabledDevices = {SimulatedDevicesTypes.bengle};
       await service.scanForDevices();
 
-      // Switching to a different non-empty set so the next scan still
-      // emits (empty enabledDevices early-returns without emission).
       service.enabledDevices = {SimulatedDevicesTypes.machine};
       final emission = service.devices.first;
       await service.scanForDevices();

@@ -10,14 +10,6 @@ import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Simulated Bengle. Reuses [MockDe1]'s state machine — Bengle's behavior
-/// today is functionally identical to a DE1 plus the FW-prelude hook
-/// (which mocks bypass entirely, since `MockDe1.updateFirmware` is faked
-/// at the public level rather than going through the `_updateFirmware`
-/// template that calls `beforeFirmwareUpload`).
-///
-/// Capability surfaces (cup warmer, integrated scale, LED) are
-/// mirrored here.
 class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   MockBengle({super.deviceId = 'MockBengle', bool probeAttached = true}) {
     _probeAttachedSubject = BehaviorSubject<bool>.seeded(probeAttached);
@@ -29,7 +21,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   @override
   DeviceImplementation get implementation => DeviceImplementation.bengle;
 
-  // --- cup warmer ---
   double _cupWarmerTemp = 0.0;
 
   @override
@@ -40,12 +31,9 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   @override
   Future<double> getCupWarmerTemperature() async => _cupWarmerTemp;
 
-  // --- LED strip ---
-  /// Cache of the last-set config (not necessarily committed to NVM).
   final BehaviorSubject<LedStripState> _ledState =
       BehaviorSubject<LedStripState>.seeded(const LedStripState());
 
-  /// Simulated "FW NVM" — written by commit, read by reset.
   LedStripState _committedLedState = const LedStripState();
 
   @override
@@ -62,7 +50,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   @override
   Future<void> commitLedStrip() async {
     _committedLedState = _ledState.value;
-    // In mock: no actual FW NVM write.
   }
 
   @override
@@ -70,25 +57,14 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     _ledState.add(_committedLedState);
   }
 
-  // --- integrated scale ---
-  // Weight synthesis lives in the shared SimulatedShotWeightModel (also used
-  // by the standalone MockScale): preinfusion absorbed, first-drops holdback,
-  // saturation ramp-in, then weight tracking flow 1:1. BehaviorSubject so a
-  // late subscriber (e.g. WS client connecting mid-shot) immediately gets the
-  // current weight without waiting for the next flow sample. Closed on
-  // onDisconnect; existing subscribers receive `done`.
   final SimulatedShotWeightModel _weightModel = SimulatedShotWeightModel();
   final BehaviorSubject<ScaleSnapshot> _weight = BehaviorSubject();
   StreamSubscription<MachineSnapshot>? _flowSub;
 
-  // --- SAW ---
-  /// `0.0` = SAW disabled.
   double _sawTarget = 0.0;
   final BehaviorSubject<double> _sawTargetSubject =
       BehaviorSubject<double>.seeded(0.0);
 
-  // --- milk probe / stop-at-temperature ---
-  /// `0.0` = stop disabled.
   double _stopAtTempTarget = 0.0;
   final BehaviorSubject<double> _stopAtTempTargetSubject =
       BehaviorSubject<double>.seeded(0.0);
@@ -96,8 +72,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   final PublishSubject<double> _probeTemperatureSubject =
       PublishSubject<double>();
 
-  /// Simulated probe temperature in °C. Rises during `MachineState.steam`
-  /// starting from [_probeStartTemp] at [_probeRiseRate] °C per second.
   static const double _probeStartTemp = 4.0;
   static const double _probeRiseRate = 5.0;
   double _probeTemp = _probeStartTemp;
@@ -120,8 +94,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   @override
   Future<double> getStopAtWeightTarget() async => _sawTarget;
 
-  // --- milk probe surface ---
-
   @override
   Stream<double> get stopAtTemperatureTarget => _stopAtTempTargetSubject.stream;
 
@@ -142,7 +114,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   @override
   Future<double> getStopAtTemperatureTarget() async => _stopAtTempTarget;
 
-  /// Test hook: toggle the simulated probe-attached state.
   void setProbeAttached(bool attached) {
     if (!_probeAttachedSubject.isClosed) {
       _probeAttachedSubject.add(attached);
@@ -186,11 +157,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     _tickProbeTemperature(s, s.timestamp);
   }
 
-  /// Synthesises milk-probe temperature during `MachineState.steam`.
-  /// Rises linearly from [_probeStartTemp]; resets when steam exits.
-  /// If [_stopAtTempTarget] is set and reached, requests `idle` — the
-  /// FW-autonomous stop behaviour the real Bengle will perform once
-  /// the MMR slot is published.
   void _tickProbeTemperature(MachineSnapshot s, DateTime now) {
     if (!(_probeAttachedSubject.hasValue && _probeAttachedSubject.value)) {
       _lastProbeTickAt = null;
@@ -217,10 +183,6 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     }
   }
 
-  /// Simulated autonomous SAW. Once the post-tare weight reaches the
-  /// active target and the machine is mid-shot (`espresso`/`pouring`),
-  /// requests `MachineState.idle` to halt the shot — same effect as the
-  /// real Bengle FW would have on its own integrated scale.
   void _maybeTriggerSaw(MachineSnapshot s) {
     if (_sawTarget <= 0.0) return;
     if (s.state.state != MachineState.espresso) return;

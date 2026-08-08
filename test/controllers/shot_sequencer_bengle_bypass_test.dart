@@ -24,10 +24,6 @@ import 'package:rxdart/rxdart.dart';
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
 
-/// Bengle-flavoured TestDe1: reuses every DE1-side behavior but also
-/// implements [BengleInterface] so `machine is BengleInterface` returns
-/// `true`. The SAW methods record calls; `noSuchMethod` is unused here
-/// because TestDe1 already covers the full De1Interface surface.
 class _TestBengle extends TestDe1 implements BengleInterface {
   final List<double> sawWrites = [];
 
@@ -273,19 +269,16 @@ void main() {
 
             async.elapse(const Duration(milliseconds: 10));
 
-            // idle → preheating
             bengle.emitStateAndSubstate(
               MachineState.espresso,
               MachineSubstate.preparingForShot,
             );
-            // preheating → pouring
             bengle.emitStateAndSubstate(
               MachineState.espresso,
               MachineSubstate.pouring,
             );
             async.elapse(const Duration(milliseconds: 10));
 
-            // Weight blows past the target. App SAW would normally fire.
             scaleController.emitWeight(40.0);
             bengle.emitStateAndSubstate(
               MachineState.espresso,

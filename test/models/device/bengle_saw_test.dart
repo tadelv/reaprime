@@ -5,15 +5,6 @@ import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart
 
 import '../../helpers/fake_ble_transport.dart';
 
-/// Wires the `BengleInterface` SAW surface (implemented in
-/// `IntegratedScaleCapability`) through `FakeBleTransport`. The FW
-/// slot for SAW is still stubbed
-/// (`BengleScaleMmr.stopAtWeightTarget.address == 0x00000000`), so
-/// the write does NOT hit the MMR endpoint — instead the value is
-/// cached locally on the mixin's BehaviorSubject. These tests pin
-/// that contract so the day FW publishes the real slot, the test
-/// flips into the "MMR write asserted" branch and forces the
-/// reviewer to confirm the wire spec.
 void main() {
   group('Bengle SAW wiring (FW slot stubbed)', () {
     late FakeBleTransport transport;
@@ -22,7 +13,7 @@ void main() {
     setUp(() async {
       transport = FakeBleTransport();
       bengle = Bengle(transport: transport);
-      transport.queueOnConnectResponses(v13Model: 128); // Bengle marker
+      transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
     });
 
@@ -31,9 +22,6 @@ void main() {
     });
 
     test('FW slot address is still TBD', () {
-      // Pin the precondition for the local-cache branch. When this
-      // breaks, the production wire is real and the rest of this
-      // group needs the assertions inverted.
       expect(BengleScaleMmr.stopAtWeightTarget.address, 0x00000000);
     });
 

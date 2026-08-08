@@ -24,8 +24,7 @@ class ForegroundTaskService {
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        // Set up recurring event to keep service alive (interval in milliseconds)
-        eventAction: ForegroundTaskEventAction.repeat(60000), // 1 minute
+        eventAction: ForegroundTaskEventAction.repeat(60000),
         autoRunOnBoot: false,
         autoRunOnMyPackageReplaced: false,
         allowWakeLock: true,
@@ -59,9 +58,6 @@ class ForegroundTaskService {
     }
   }
 
-  /// Stops only the native foreground service without tearing down
-  /// the machine subscription or grace timer. Used by the grace timer's
-  /// auto-stop so that reconnection can still be detected.
   static Future<void> _stopServiceOnly() async {
     try {
       final isRunning = await FlutterForegroundTask.isRunningService;
@@ -82,8 +78,6 @@ class ForegroundTaskService {
     }
   }
 
-  /// Full stop: tears down subscription, grace timer, and native service.
-  /// Use for explicit exit (e.g., user presses Exit button).
   static Future<void> stop() async {
     _machineSubscription?.cancel();
     _machineSubscription = null;
@@ -92,8 +86,6 @@ class ForegroundTaskService {
     await _stopServiceOnly();
   }
 
-  /// Call once after start() to wire auto-stop to machine connection state.
-  /// Safe to call multiple times (e.g., on hot restart) — cancels previous subscription.
   static void watchMachineConnection(Stream<dynamic> machineStream) {
     _machineSubscription?.cancel();
     _graceTimer?.dispose();
@@ -102,8 +94,6 @@ class ForegroundTaskService {
       onStart: () => start(),
     );
 
-    // Skip initial null emission from BehaviorSubject to avoid
-    // immediately starting the grace period at startup.
     bool isFirstEmission = true;
     _machineSubscription = machineStream.listen((machine) {
       if (isFirstEmission && machine == null) {
@@ -120,9 +110,7 @@ class ForegroundTaskService {
   }
 }
 
-@pragma(
-  'vm:entry-point',
-) // This decorator means that this function calls native code
+@pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(FirstTaskHandler());
 }
@@ -131,7 +119,6 @@ class FirstTaskHandler extends TaskHandler {
   final _log = Logger("ForegroundTaskHandler");
   int _eventCount = 0;
 
-  // Called when the task is started.
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter sendPort) async {
     _log.info("Foreground service started at $timestamp");
@@ -142,13 +129,10 @@ class FirstTaskHandler extends TaskHandler {
     _log.info("Foreground service destroyed. Timeout: $isTimeout");
   }
 
-  // This method is called periodically based on the interval set in ForegroundTaskOptions
-  // It's critical to keep the service alive - if this doesn't run, Android will kill the service
   @override
   void onRepeatEvent(DateTime timestamp) {
     _eventCount++;
 
-    // Log periodically to confirm service is running
     if (_eventCount % 5 == 0) {
       _log.fine(
         'Foreground service heartbeat: $_eventCount events, uptime: ${_formatUptime()}',
@@ -159,8 +143,6 @@ class FirstTaskHandler extends TaskHandler {
   @override
   void onNotificationPressed() {
     _log.info('Notification tapped - bringing app to foreground');
-    // flutter_foreground_task handles launching the activity automatically
-    // singleTask launch mode ensures existing activity is surfaced
   }
 
   String _formatUptime() {

@@ -2,9 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/impl/simulated_shot_weight_model.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
-// Synthetic machine snapshots at a fixed 100ms cadence, mirroring MockDe1's
-// tick rate. Only the fields the weight model reads matter (timestamp, state,
-// flow, profileFrame); the rest are filler.
 MachineSnapshot _snap(
   DateTime t, {
   double flow = 0.0,
@@ -36,7 +33,6 @@ void main() {
       clock = DateTime(2026, 1, 1, 8, 0, 0);
     });
 
-    /// Feed [seconds] of snapshots at 100ms cadence.
     void run(
       double seconds, {
       double flow = 0.0,
@@ -85,9 +81,6 @@ void main() {
     });
 
     test('late-shot weight gain tracks flow 1:1', () {
-      // Real DE1 shots show dW/dt of 0.85-1.1x reported flow once the puck is
-      // saturated (visualizer.coffee sample set) — the absorbed volume is a
-      // fixed early cost, not a permanent 20% tax.
       run(10.0, flow: 2.0);
       final at10 = model.weight;
       run(5.0, flow: 2.0);
@@ -103,7 +96,6 @@ void main() {
       var prev = model.weight;
       for (var i = 0; i < 100; i++) {
         clock = clock.add(const Duration(milliseconds: 100));
-        // Frame advances mid-run, flow varies like a real pull.
         final frame = i < 30 ? 0 : 1;
         final flow = i < 30 ? 6.0 : (i < 60 ? 2.0 : 3.5);
         model.ingest(_snap(clock, flow: flow, frame: frame));
@@ -126,12 +118,9 @@ void main() {
     });
 
     test('a new shot re-applies the first-drops lag', () {
-      // Shot 1 saturates the model.
       run(6.0, flow: 2.0);
-      // Shot ends; scale is tared for the next cup.
       run(1.0, flow: 0.0, state: MachineState.idle);
       model.tare();
-      // Shot 2 must lag again instead of tracking flow instantly.
       run(0.5, flow: 2.0);
       expect(
         model.weight,
@@ -146,7 +135,6 @@ void main() {
       run(6.0, flow: 2.0);
       final endOfShot1 = model.weight;
       run(1.0, flow: 0.0, state: MachineState.idle);
-      // New shot with no tare (cup left on the scale).
       run(0.2, flow: 1.0);
       expect(
         model.weight,
@@ -156,8 +144,6 @@ void main() {
     });
 
     test('hot water dispenses straight into the cup', () {
-      // No puck in the path: no first-drops holdback, no saturation ramp —
-      // weight tracks the dispense flow 1:1 from the start.
       run(3.0, flow: 2.0, state: MachineState.hotWater);
       expect(
         model.weight,

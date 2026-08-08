@@ -24,7 +24,6 @@ class _FakeUpdater extends AndroidUpdater {
   int downloadCalls = 0;
   int installCalls = 0;
 
-  /// Gate to hold a download open for coalesce tests.
   Completer<void>? downloadGate;
 
   @override
@@ -205,7 +204,6 @@ void main() {
     test('throttles fine-grained progress to ~1% steps', () async {
       final svc = build();
       updater.nextCheck = _update();
-      // 1000 tiny increments, as a per-chunk callback would produce.
       updater.progressToEmit = List.generate(1000, (i) => (i + 1) / 1000);
 
       final downloadingProgress = <double>[];
@@ -219,8 +217,6 @@ void main() {
       await Future.delayed(Duration.zero);
       await sub.cancel();
 
-      // Far fewer than 1000 frames; ~1% steps -> on the order of 100, plus
-      // the initial 0.0 and the terminal 1.0.
       expect(downloadingProgress.length, lessThan(110));
       expect(downloadingProgress.first, 0.0);
       expect(downloadingProgress.last, closeTo(1.0, 1e-9));
@@ -257,8 +253,8 @@ void main() {
       updater.downloadGate = Completer<void>();
 
       final first = svc.downloadAndInstall();
-      await Future.delayed(Duration.zero); // let first reach the gated download
-      await svc.downloadAndInstall(); // should be a no-op
+      await Future.delayed(Duration.zero);
+      await svc.downloadAndInstall();
       updater.downloadGate!.complete();
       await first;
 
@@ -284,15 +280,13 @@ void main() {
       updater.nextCheck = _update();
       updater.downloadGate = Completer<void>();
 
-      // Start a download to occupy the state machine.
       final op = svc.downloadAndInstall();
       await Future.delayed(Duration.zero);
-      await svc.requestCheck(); // in-progress -> no-op
+      await svc.requestCheck();
       final checksDuring = updater.checkCalls;
       updater.downloadGate!.complete();
       await op;
 
-      // Only the auto-check from downloadAndInstall ran.
       expect(checksDuring, 1);
       svc.dispose();
     });
@@ -325,9 +319,6 @@ void main() {
     test('initialize schedules skin refresh without an APK check', () async {
       final svc = build(isMacOS: true);
 
-      // Automatic checks default on; the periodic path must skip the APK
-      // check while still refreshing skins. The network attempt is swallowed
-      // by _updateSkins, so this only asserts the scheduling choice.
       await svc.initialize();
 
       expect(updater.checkCalls, 0);

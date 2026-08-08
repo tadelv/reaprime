@@ -22,7 +22,6 @@ void main() {
     await controller.loadSettings();
   });
 
-  /// Returns the text inside the sleep-timeout [TextFormField].
   String sleepTimeoutFieldText(WidgetTester tester) {
     final field = find.byType(TextFormField).first;
     return tester.widget<TextFormField>(field).controller!.text;
@@ -115,12 +114,11 @@ void main() {
       await tester.pump();
 
       await tester.enterText(find.byType(TextFormField).first, '37');
-      // do not commit — rebuild by changing an unrelated setting
       controller.setShowSkinExitInstructions(true);
       await tester.pump();
 
       expect(sleepTimeoutFieldText(tester), '37');
-      expect(controller.sleepTimeoutMinutes, 30); // still the default
+      expect(controller.sleepTimeoutMinutes, 30);
     });
 
     testWidgets('external change syncs field when unfocused', (tester) async {
@@ -142,7 +140,6 @@ void main() {
       final field = find.byType(TextFormField).first;
       await tester.enterText(field, '42');
 
-      // external change while field has focus
       await controller.setSleepTimeoutMinutes(90);
       await tester.pump();
 

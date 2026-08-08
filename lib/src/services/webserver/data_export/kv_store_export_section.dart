@@ -20,8 +20,6 @@ class KvStoreExportSection implements DataExportSection {
 
   @override
   Future<void> exportJson(JsonSink output) async {
-    // Shape: {"namespaces": {ns: {k: v}}} written incrementally so only one
-    // key/value pair is encoded at a time.
     output.writeRaw('{"namespaces":{');
     var firstNamespace = true;
     for (final namespace in _store.namespaces) {
@@ -29,7 +27,6 @@ class KvStoreExportSection implements DataExportSection {
       _writeKey(output, namespace);
       output.writeRaw(':{');
       var firstKey = true;
-      // ponytail: key list is materialized once; add storage cursors if measured key counts make this too large
       final keys = await _store.keys(namespace: namespace);
       for (final key in keys) {
         final value = await _store.get(namespace: namespace, key: key);
@@ -78,7 +75,6 @@ class KvStoreExportSection implements DataExportSection {
     int skipped = 0;
     final errors = SectionImportErrors();
 
-    // Depth-3 events: keys = [namespaces, <ns>, <key>], value = the KV value.
     await for (final event in input.valuesAtDepth(3)) {
       if (event.keys.length != 3 || event.keys[0] != 'namespaces') {
         errors.add('Unexpected store entry structure in store.json');

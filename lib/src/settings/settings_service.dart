@@ -7,10 +7,6 @@ import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Abstract interface for storing and retrieving user settings.
-///
-/// Concrete implementations can use SharedPreferences, in-memory storage,
-/// or any other persistence mechanism.
 abstract class SettingsService {
   Future<ThemeMode> themeMode();
   Future<void> updateThemeMode(ThemeMode theme);
@@ -68,8 +64,6 @@ abstract class SettingsService {
   Future<void> setSleepTimeoutMinutes(int value);
   Future<String> wakeSchedules();
   Future<void> setWakeSchedules(String json);
-  // Remembered devices, as a JSON array string of {id, name, type}. The
-  // RememberedDevicesController owns encode/decode (RememberedDevice).
   Future<String> rememberedDevices();
   Future<void> setRememberedDevices(String json);
   Future<bool> lowBatteryBrightnessLimit();
@@ -87,12 +81,10 @@ abstract class SettingsService {
   Future<bool> enableSimulatedWebViews();
   Future<void> setEnableSimulatedWebViews(bool value);
 
-  // Feature flags
   Future<bool?> featureFlag(FeatureFlag flag);
   Future<void> setFeatureFlag(FeatureFlag flag, bool value);
 }
 
-/// SharedPreferences-backed implementation of [SettingsService].
 class SharedPreferencesSettingsService extends SettingsService {
   final prefs = SharedPreferencesAsync();
 
@@ -262,9 +254,6 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<String> defaultSkinId() async {
     final stored = await prefs.getString(SettingsKeys.defaultSkinId.name);
-    // One-shot migration: old bundled-skin id (github_branch dir-name fallback)
-    // → new release id (declared in skin-manifest.json inside the release zip).
-    // Runs on every call, but rewrites pref only once per user.
     if (stored == 'streamline_project-main') {
       await prefs.setString(SettingsKeys.defaultSkinId.name, 'streamline.js');
       return 'streamline.js';
@@ -520,7 +509,6 @@ class SharedPreferencesSettingsService extends SettingsService {
     await prefs.setBool(SettingsKeys.enableSimulatedWebViews.name, value);
   }
 
-  // Feature flags
   static const _featureFlagPrefix = 'featureFlag';
 
   @override

@@ -5,8 +5,6 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/main.dart';
-// import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-// import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/account_tokens_controller.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_state_manager.dart';
@@ -74,7 +72,6 @@ class NavigationService {
   static String? get currentRoute => ModalRoute.of(context!)?.settings.name;
 }
 
-/// The Widget that configures your application.
 class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
@@ -135,8 +132,6 @@ class _MyAppState extends State<MyApp> {
   Timer? _restartTimer;
   late final OnboardingController _onboardingController;
 
-  /// Android SDK < 31 — these devices get the browser hero card instead of the
-  /// in-app skin (reduced WebView/BLE reliability). Resolved once at startup.
   bool _degradedAndroid = false;
 
   @override
@@ -199,8 +194,6 @@ class _MyAppState extends State<MyApp> {
     _resolveDegradedAndroid();
   }
 
-  /// Resolves whether this is a degraded Android device (SDK < 31). Runs once;
-  /// the launcher reads the resolved value synchronously.
   Future<void> _resolveDegradedAndroid() async {
     if (!Platform.isAndroid) return;
     try {
@@ -216,7 +209,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void didUpdateWidget(MyApp oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Recreate De1StateManager if any of the required controllers change
     if (oldWidget.settingsController != widget.settingsController ||
         oldWidget.de1Controller != widget.de1Controller ||
         oldWidget.connectionManager != widget.connectionManager ||
@@ -242,21 +234,12 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  /// Navigates to the launcher after onboarding completes, then opens the skin
-  /// on top when the platform supports an in-app WebView and the skin server is
-  /// running. Degraded Android and unsupported platforms stay on the launcher
-  /// (which shows the browser hero card).
   Future<void> _navigateAfterOnboarding() async {
     final navigator = NavigationService.navigatorKey.currentState;
     if (navigator == null) return;
 
-    // The launcher is always the base of the stack. Its conditional content
-    // (browser hero / return-to-skin / skin-unavailable) covers every case
-    // that used to route to the now-removed LandingFeature.
     navigator.pushNamedAndRemoveUntil(LauncherView.routeName, (_) => false);
 
-    // WebView supported on iOS, Android, macOS, Windows. Degraded Android
-    // (SDK < 31) is steered to the browser, so don't auto-open the skin there.
     final supportedPlatforms =
         Platform.isIOS ||
         Platform.isAndroid ||
@@ -270,7 +253,6 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    // Ensure WebUI is serving before pushing SkinView on top of the launcher.
     if (!widget.webUIService.isServing) {
       _log.info('WebUI not serving, attempting to start...');
       final defaultSkin = widget.webUIStorage.defaultSkin;
@@ -287,9 +269,6 @@ class _MyAppState extends State<MyApp> {
       }
     }
 
-    // No artificial delay needed: serveFolderAtPath awaits shelf_io.serve()
-    // (port bound before isServing flips true) and the REST server is already
-    // up from main(), so both are ready by the time we navigate.
     _log.info('Navigating to SkinView');
     navigator.pushNamed(SkinView.routeName);
   }
@@ -306,46 +285,22 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     _restartTimer?.cancel();
     _restartTimer = Timer.periodic(Duration(hours: 1), (_) {
-      // _restartTimer = Timer.periodic(Duration(seconds: 40), (_) {
       final now = DateTime.now();
       if (now.hour == 1) {
         AppRoot.restart(context);
       }
     });
-    // Foreground service is now started in main.dart for Android
 
     final body = ScaffoldMessenger(
       child: ListenableBuilder(
         listenable: widget.settingsController,
         builder: (BuildContext context, Widget? child) {
           return ShadApp(
-            // Providing a restorationScopeId allows the Navigator built by the
-            // MaterialApp to restore the navigation stack when a user leaves and
-            // returns to the app after it has been killed while running in the
-            // background.
             restorationScopeId: null,
 
-            // Provide the generated AppLocalizations to the MaterialApp. This
-            // allows descendant Widgets to display the correct translations
-            // depending on the user's locale.
-            // localizationsDelegates: const [
-            //   GlobalMaterialLocalizations.delegate,
-            //   GlobalWidgetsLocalizations.delegate,
-            //   GlobalCupertinoLocalizations.delegate,
-            // ],
-            supportedLocales: const [
-              Locale('en', ''), // English, no country code
-            ],
+            supportedLocales: const [Locale('en', '')],
 
-            // Use AppLocalizations to configure the correct application title
-            // depending on the user's locale.
-            //
-            // The appTitle is defined in .arb files found in the localization
-            // directory.
             onGenerateTitle: (BuildContext context) => "Decaid",
-            // Define a light and dark color theme. Then, read the user's
-            // preferred ThemeMode (light, dark, or system default) from the
-            // SettingsController to display the correct theme.
             theme: ShadThemeData(
               colorScheme: DecentColorScheme.light(),
               brightness: Brightness.light,
@@ -362,8 +317,6 @@ class _MyAppState extends State<MyApp> {
                 presenceController: widget.presenceController,
               ),
             ],
-            // Define a function to handle named routes in order to support
-            // Flutter web url navigation and deep linking.
             onGenerateRoute: (RouteSettings routeSettings) {
               return MaterialPageRoute<void>(
                 settings: routeSettings,
@@ -383,7 +336,6 @@ class _MyAppState extends State<MyApp> {
                       if (args is Map<String, dynamic>) {
                         deviceId = args['deviceId'] as String;
                       } else {
-                        // Legacy: plain string deviceId
                         deviceId = args as String;
                       }
                       var device = widget.deviceController.devices.firstWhere(

@@ -25,20 +25,12 @@ class MainActivity: FlutterFragmentActivity() {
     companion object {
         private const val MULTICAST_LOCK_TAG = "reaprime-multicast"
 
-        // Process-level lock held in a static field so it survives Activity
-        // recreation (WebView crash reinit, config changes). The OS releases it
-        // automatically when the process dies.
         private var multicastLock: WifiManager.MulticastLock? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // super.onCreate() MUST be called before any early return (incl. finish()).
-        // ActivityThread.performLaunchActivity throws SuperNotCalledException if
-        // onCreate() returns without the superclass having run — the early-return
-        // guards below would otherwise crash the app on launch.
         super.onCreate(savedInstanceState)
 
-        // FIRST: Check for cloned environment (Parallel Space, Island, etc.)
         if (isRunningInClonedEnvironment()) {
             Log.w(TAG, "App running in cloned environment - not supported")
             Toast.makeText(this, "App cloning is not supported for security reasons", 
@@ -47,7 +39,6 @@ class MainActivity: FlutterFragmentActivity() {
             return
         }
         
-        // SECOND: Prevent duplicate instances from launcher
         if (!isTaskRoot && intent.hasCategory(Intent.CATEGORY_LAUNCHER) && 
             intent.action == Intent.ACTION_MAIN) {
             Log.w(TAG, "Duplicate launcher instance detected - finishing")
@@ -55,8 +46,6 @@ class MainActivity: FlutterFragmentActivity() {
             return
         }
         
-        // Enable software rendering for WebView on devices with GPU issues
-        // This is a workaround for MediaTek chipsets with broken hardware acceleration
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             try {
                 WebView.setWebContentsDebuggingEnabled(true)
@@ -75,8 +64,6 @@ class MainActivity: FlutterFragmentActivity() {
         
         Log.d(TAG, "onNewIntent - action: ${intent.action}, categories: ${intent.categories}")
         
-        // App was relaunched - already handled by bringing existing instance to front
-        // Could notify Flutter layer here if needed via MethodChannel
     }
 
     /**
@@ -119,7 +106,7 @@ class MainActivity: FlutterFragmentActivity() {
                     val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         packageManager.canRequestPackageInstalls()
                     } else {
-                        true // Pre-Oreo doesn't need special permission
+                        true
                     }
                     result.success(canInstall)
                 }
@@ -198,8 +185,6 @@ class MainActivity: FlutterFragmentActivity() {
         }
 
         val lock = multicastLock ?: wifi.createMulticastLock(MULTICAST_LOCK_TAG).apply {
-            // Not reference-counted: a single release() always frees it, no
-            // matter how many acquire() calls happened.
             setReferenceCounted(false)
         }
         lock.acquire()
@@ -228,7 +213,6 @@ class MainActivity: FlutterFragmentActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // Use FileProvider for Android 7.0+
                 val apkUri = FileProvider.getUriForFile(
                     this@MainActivity,
                     "$packageName.fileprovider",
@@ -236,7 +220,6 @@ class MainActivity: FlutterFragmentActivity() {
                 )
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
             } else {
-                // Direct file URI for older versions
                 setDataAndType(Uri.fromFile(apkFile), "application/vnd.android.package-archive")
             }
         }
@@ -247,12 +230,10 @@ class MainActivity: FlutterFragmentActivity() {
     private fun recreateSafely() {
         val activity: Activity = this
 
-        // Ensure this runs on UI thread
         activity.runOnUiThread {
             try {
                 activity.recreate()
             } catch (e: Exception) {
-                // Never crash here — just log
                 e.printStackTrace()
             }
         }

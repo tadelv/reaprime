@@ -81,8 +81,6 @@ void main() {
     'M2: a stale prior version of a changed default is hidden, current stays visible',
     () async {
       final storage = InMemoryProfileStorage();
-      // Simulate the pre-curation milky: same filename, different content (bump a
-      // step) so it gets a different content-hash id.
       final json = await _bundledJson(_milkyFile);
       (json['steps'] as List).first['seconds'] = '999';
       final stale = ProfileRecord.create(
@@ -110,7 +108,6 @@ void main() {
     'M1: an existing default with stale metadata gets its title refreshed',
     () async {
       final storage = InMemoryProfileStorage();
-      // Same content as current milky (same id) but a stale title.
       final json = await _bundledJson(_milkyFile);
       json['title'] = 'OLD STALE TITLE';
       final staleMeta = ProfileRecord.create(
@@ -168,7 +165,6 @@ void main() {
     'M3: a hidden default still gets curated metadata refreshed but stays hidden',
     () async {
       final storage = InMemoryProfileStorage();
-      // Same content as current milky (same id) but a stale title, and hidden.
       final json = await _bundledJson(_milkyFile);
       json['title'] = 'OLD STALE TITLE';
       final hiddenStale = ProfileRecord.create(

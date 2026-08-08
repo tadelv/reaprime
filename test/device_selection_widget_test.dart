@@ -9,7 +9,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'helpers/mock_device_discovery_service.dart';
 import 'helpers/test_scale.dart';
 
-/// Helper to wrap a widget in MaterialApp + ShadApp for rendering.
 Widget buildTestApp(Widget child) {
   return ShadApp(home: Scaffold(body: child));
 }
@@ -61,9 +60,8 @@ void main() {
     });
 
     testWidgets('displays discovered machines', (tester) async {
-      // Add device before building so initState picks it up
       mockService.addDevice(MockDe1());
-      await tester.pump(); // flush stream microtasks to DeviceController
+      await tester.pump();
 
       await tester.pumpWidget(
         buildTestApp(
@@ -81,9 +79,8 @@ void main() {
     });
 
     testWidgets('displays discovered scales', (tester) async {
-      // Add device before building so initState picks it up
       mockService.addDevice(TestScale());
-      await tester.pump(); // flush stream microtasks to DeviceController
+      await tester.pump();
 
       await tester.pumpWidget(
         buildTestApp(
@@ -101,7 +98,6 @@ void main() {
     });
 
     testWidgets('filters: machine widget only shows machines', (tester) async {
-      // Add both a machine and a scale
       mockService.addDevice(MockDe1());
       mockService.addDevice(TestScale());
       await tester.pump();
@@ -161,7 +157,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap the device tile (tap on the name text)
       await tester.tap(find.text('MockDe1'));
       await tester.pumpAndSettle();
 
@@ -186,11 +181,8 @@ void main() {
           ),
         ),
       );
-      // Use pump() instead of pumpAndSettle() — CircularProgressIndicator
-      // has an ongoing animation that prevents settling
       await tester.pump();
 
-      // Should show CircularProgressIndicator for the connecting device
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 

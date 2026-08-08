@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// Shown when the "Return to Skin" button is hidden — explains why and gives
-/// the user actionable options (pick a skin, export logs, send feedback).
 class SkinUnavailableCard extends StatelessWidget {
   const SkinUnavailableCard({
     super.key,
@@ -85,8 +83,6 @@ class SkinUnavailableCard extends StatelessWidget {
 }
 
 enum SkinUnavailableReason { notServing, noWebView, skinError }
-
-// -- Widget Previews --
 
 @Preview(name: 'Skin Unavailable - Not Serving', group: 'Launcher')
 Widget skinUnavailableNotServingPreview() {

@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Pure appcast helpers for the Sparkle publish job. Sourced by
-# publish_appcast.sh and exercised by test_appcast_helpers.sh. All functions
-# exit non-zero on failure so callers can fail fast.
 
-# Largest sparkle:version (CFBundleVersion) among all appcast items.
-# Empty string when the feed has no items.
 appcast_max_build() {
   local appcast="$1"
   xmllint --xpath \
@@ -12,7 +7,6 @@ appcast_max_build() {
     "$appcast" 2>/dev/null | tr ' ' '\n' | sort -n | tail -1
 }
 
-# Refuse publishing an update Sparkle can never select (equal/lower build).
 assert_build_increasing() {
   local new="$1" existing="$2"
   if [ -n "$existing" ] && [ "$new" -le "$existing" ]; then
@@ -21,14 +15,12 @@ assert_build_increasing() {
   fi
 }
 
-# Read CFBundleVersion out of a Decaid macOS release ZIP.
 zip_read_build() {
   local zip="$1"
   unzip -p "$zip" "Decaid.app/Contents/Info.plist" \
     | plutil -extract CFBundleVersion raw -
 }
 
-# "total default-channel-count" pair for the feed.
 appcast_item_counts() {
   local appcast="$1"
   local total default_count
@@ -38,9 +30,6 @@ appcast_item_counts() {
   echo "$total $default_count"
 }
 
-# Every non-bootstrap publication adds exactly one strictly newer item, so
-# assert the exact deltas: one more item total, and one more default-channel
-# item for a stable publication (a beta item leaves the default count alone).
 assert_feed_grew() {
   local old_pair="$1" appcast="$2" channel="$3"
   local old_total old_default new_total new_default
@@ -58,9 +47,6 @@ assert_feed_grew() {
     echo "FAIL: default-channel items expected $expected_default, got $new_default"; return 1; }
 }
 
-# The old (version, channel) set must be a subset of the new feed: a beta
-# publication can never erase stable or historical items, and an existing
-# item's channel must not change.
 assert_old_items_preserved() {
   local old_feed="$1" new_feed="$2"
   local old_versions new_versions v old_ch new_ch
@@ -84,8 +70,6 @@ assert_old_items_preserved() {
   done
 }
 
-# Assert the item for $build carries the expected enclosure URL, an EdDSA
-# signature, and the expected channel ("" for the default/stable channel).
 appcast_assert_item() {
   local appcast="$1" build="$2" expected_url="$3" expected_channel="$4"
 

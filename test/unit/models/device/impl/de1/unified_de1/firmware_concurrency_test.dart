@@ -26,19 +26,16 @@ void main() {
     test(
       'throws FirmwareUpdateInProgressException when update is active',
       () async {
-        // Start the first upload — it will wait for an erase response.
         final first = de1.updateFirmware(Uint8List(0), onProgress: (_) {})
-          ..catchError((_) {}); // suppress unhandled; explicitly awaited below
+          ..catchError((_) {});
 
         expect(de1.firmwareUpdateState, isNot(FirmwareUpdateState.idle));
 
-        // Second call must throw synchronously.
         expect(
           () => de1.updateFirmware(Uint8List(0), onProgress: (_) {}),
           throwsA(isA<FirmwareUpdateInProgressException>()),
         );
 
-        // Cancel to clean up.
         await de1.cancelFirmwareUpload();
         try {
           await first;
@@ -47,14 +44,9 @@ void main() {
     );
 
     test('state returns to idle after successful completion', () async {
-      // The existing FakeBleTransport doesn't support the full firmware
-      // protocol, but the concurrency model is what we're testing here.
-      // We'll test the state lifecycle by cancelling and verifying cleanup.
-
       final future = de1.updateFirmware(Uint8List(0), onProgress: (_) {})
-        ..catchError((_) {}); // suppress unhandled; explicitly awaited below
+        ..catchError((_) {});
 
-      // State moved away from idle synchronously.
       expect(de1.firmwareUpdateState, isNot(FirmwareUpdateState.idle));
 
       await de1.cancelFirmwareUpload();
@@ -62,7 +54,6 @@ void main() {
         await future;
       } catch (_) {}
 
-      // After cancellation, state should return to idle.
       expect(de1.firmwareUpdateState, FirmwareUpdateState.idle);
     });
 
@@ -70,7 +61,6 @@ void main() {
       expect(de1.firmwareUpdateState, FirmwareUpdateState.idle);
       await de1.cancelFirmwareUpload();
       expect(de1.firmwareUpdateState, FirmwareUpdateState.idle);
-      // Must not write to the transport when idle (sets machine to sleep).
       final writesAfter = transport.writes.length;
       expect(writesAfter, 0);
     });
@@ -79,7 +69,7 @@ void main() {
       'state is not idle during active update and returns to idle after cancellation',
       () async {
         final future = de1.updateFirmware(Uint8List(0), onProgress: (_) {})
-          ..catchError((_) {}); // suppress unhandled; explicitly awaited below
+          ..catchError((_) {});
 
         expect(de1.firmwareUpdateState, isNot(FirmwareUpdateState.idle));
 
@@ -96,13 +86,11 @@ void main() {
       'second cancelFirmwareUpload after first cancel completes does not throw',
       () async {
         final future = de1.updateFirmware(Uint8List(0), onProgress: (_) {})
-          ..catchError((_) {}); // suppress unhandled; explicitly awaited below
+          ..catchError((_) {});
 
         await de1.cancelFirmwareUpload();
-        // WhenComplete may have already fired, so state could be idle.
 
         await de1.cancelFirmwareUpload();
-        // Second cancel is safe regardless of state.
 
         try {
           await future;

@@ -91,14 +91,6 @@ class DataExportHandler {
     app.post('/api/v1/data/import', _handleImport);
   }
 
-  // ---------------------------------------------------------------------
-  // Export
-  // ---------------------------------------------------------------------
-
-  /// Exports selected sections into a uniquely owned temporary ZIP inside
-  /// [tempDir]. The ZIP is complete and valid only when this returns; on any
-  /// section or archive failure a [DataExportException] is thrown and no ZIP
-  /// is left behind (the caller still owns [tempDir] cleanup).
   Future<File> exportToZipFile(
     Directory tempDir, {
     List<String>? sections,
@@ -190,10 +182,6 @@ class DataExportHandler {
     }
   }
 
-  /// Streams [file] to the response, deleting the owning temp directory when
-  /// the stream completes, errors, or the consumer cancels. An async*
-  /// generator propagates pause/resume/cancel to the source file stream, so
-  /// a slow HTTP consumer cannot make the ZIP accumulate in memory.
   Stream<List<int>> _fileStream(
     File file, {
     required Future<void> Function() onDone,
@@ -205,11 +193,6 @@ class DataExportHandler {
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Import
-  // ---------------------------------------------------------------------
-
-  /// Imports from a staged ZIP file. The caller owns [zipFile]'s lifecycle.
   Future<DataImportOutcome> importFromZipFile(
     File zipFile,
     ConflictStrategy strategy, {
@@ -295,16 +278,12 @@ class DataExportHandler {
           if (result.errors.isNotEmpty &&
               result.imported == 0 &&
               result.skipped == 0) {
-            // Preserve the legacy failed-section shape (errors only, no
-            // zero counts) for structurally rejected sections.
             results[key] = {'errors': result.errors};
           } else {
             results[key] = result.toJson();
           }
         } catch (e, st) {
           if (e is InvalidBackupException) {
-            // ZIP integrity failures abort the whole import as 400; only
-            // section-local (JSON-level) failures stay isolated here.
             rethrow;
           }
           _log.severe('Error importing ${section.filename}', e, st);
@@ -415,8 +394,6 @@ class DataExportHandler {
 
     final tempDir = await TempArchiveDir.create('reaprime-import-');
     try {
-      // Stream the request body into a temp ZIP with a hard byte cap; never
-      // buffer the full body.
       final zipFile = File(tempDir.filePath('import.zip'));
       final raf = await zipFile.open(mode: FileMode.write);
       var received = 0;
@@ -452,10 +429,6 @@ class DataExportHandler {
       await tempDir.dispose();
     }
   }
-
-  // ---------------------------------------------------------------------
-  // Metadata and section resolution
-  // ---------------------------------------------------------------------
 
   Future<String?> _readMetadata(
     StreamingZipReader reader,
@@ -556,9 +529,6 @@ class DataExportHandler {
       section.filename.replaceAll('.json', '');
 }
 
-/// JSON fragment sink writing into one ZIP entry. Each fragment is capped at
-/// the maximum record size so a section cannot smuggle a whole-collection
-/// value through a single write.
 class _EntryJsonSink implements JsonSink {
   final ZipEntrySink _entry;
   final DataTransferLimits _limits;
@@ -567,8 +537,6 @@ class _EntryJsonSink implements JsonSink {
 
   @override
   void writeRaw(String fragment) {
-    // Encode once and check the encoded byte length: the record limit is
-    // documented in bytes, and UTF-8 can be up to 3x the UTF-16 length.
     final encoded = utf8.encode(fragment);
     if (encoded.length > _limits.maxRecordBytes) {
       throw DataExportException(
@@ -659,9 +627,6 @@ class _FileJsonInput implements SectionJsonInput {
   }
 }
 
-/// Extension point: the depth at which each section streams its payload.
-/// Array sections use 1 (elements), the KV section uses 3 (namespace-key
-/// pairs), singleton sections use 0 (whole value).
 extension DataExportSectionJsonDepth on DataExportSection {
   int get jsonEventDepth => switch (filename) {
     'store.json' => 3,

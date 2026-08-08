@@ -28,12 +28,6 @@ import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:uuid/uuid.dart';
 
-/// Manages DE1 state changes and handles navigation or shot tracking
-/// based on the current gateway mode.
-///
-/// This class separates the concern of handling DE1 state changes from
-/// the main app widget, providing better memory management and cleaner code.
-///
 class De1StateManager with WidgetsBindingObserver {
   final Logger _logger = Logger('De1StateManager');
 
@@ -54,37 +48,24 @@ class De1StateManager with WidgetsBindingObserver {
   StreamSubscription<ShotSnapshot>? _shotSnapshotsSubscription;
   StreamSubscription<ShotDecision>? _shotDecisionSubscription;
 
-  /// Stable id for the tracked shot, minted when the sequencer is created so
-  /// the live `/ws/v1/machine/shotState` frames and the eventually persisted
-  /// ShotRecord.id match — clients can correlate the stream to the saved shot.
   String? _currentShotId;
 
-  /// Latest machine snapshot, kept so shotState frames carry machine context.
   MachineSnapshot? _latestSnapshot;
 
   bool _isRealtimeFeatureActive = false;
   final List<ShotSnapshot> _currentShotSnapshots = [];
 
-  // Track previous machine state for scale power management
   MachineState? _previousMachineState;
 
-  /// Cancellable timer for deferred scale reconnect after machine wake.
-  /// Prevents BLE radio starvation that causes LINK_SUPERVISION_TIMEOUT
-  /// on the DE1 when scale service discovery monopolizes the shared radio.
   Timer? _deferredScaleScan;
 
-  /// Delay before the post-wake scale reconnect fires. Overridable in
-  /// tests to avoid a real 3s wait.
   @visibleForTesting
   Duration deferredScaleScanDelay = const Duration(seconds: 3);
 
-  // Platform-specific background states
   final Set<AppLifecycleState> _backgroundStates;
 
-  // Track current app lifecycle state
   AppLifecycleState _currentAppState = AppLifecycleState.resumed;
 
-  // App foreground/background tracking
   bool _appIsInForeground = true;
   bool _navigationContextReady = false;
 
@@ -109,11 +90,8 @@ class De1StateManager with WidgetsBindingObserver {
     _initialize();
   }
 
-  /// Returns the set of AppLifecycleState values that should be considered
-  /// "background" states for the current platform.
   static Set<AppLifecycleState> _getPlatformBackgroundStates() {
     if (Platform.isAndroid || Platform.isIOS) {
-      // Mobile platforms: treat paused, inactive, hidden, and detached as background
       return {
         AppLifecycleState.paused,
         AppLifecycleState.inactive,
@@ -121,40 +99,30 @@ class De1StateManager with WidgetsBindingObserver {
         AppLifecycleState.detached,
       };
     } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-      // Desktop platforms: only treat detached as background
-      // Some desktop platforms may not have all lifecycle states
       return {AppLifecycleState.detached};
     } else {
-      // Web or other platforms: use conservative defaults
       return {AppLifecycleState.paused, AppLifecycleState.detached};
     }
   }
 
-  /// Initializes the state manager and starts listening to DE1 state changes.
   void _initialize() {
-    // Start observing app lifecycle
     WidgetsBinding.instance.addObserver(this);
 
-    // Check if navigation context is available
     _checkNavigationContext();
 
     _de1Subscription = _de1Controller.de1.listen(_handleDe1Change);
 
-    // Schedule a delayed check for navigation context
-    // This handles cases where the navigator key isn't ready immediately
     Future.delayed(const Duration(milliseconds: 500), () {
       _checkNavigationContext();
     });
   }
 
-  /// Checks if navigation context is available and ready
   void _checkNavigationContext() {
     final context = _navigatorKey.currentContext;
     _navigationContextReady = context != null && context.mounted;
     _logger.fine('Navigation context ready: $_navigationContextReady');
   }
 
-  /// Returns true if the launcher is the current top-level route.
   bool get _isLauncherActive {
     final context = _navigatorKey.currentContext;
     if (context == null || !context.mounted) return false;
@@ -164,15 +132,13 @@ class De1StateManager with WidgetsBindingObserver {
       result = route;
       return true;
     });
-    final route = result; //ModalRoute.of(context);
+    final route = result;
 
     return route?.settings.name == LauncherView.routeName && route!.isCurrent;
   }
 
-  /// Returns true if the current app state is considered "background" for the platform.
   bool get _isAppInBackground => _backgroundStates.contains(_currentAppState);
 
-  /// Returns true if the current app state is considered "foreground" for the platform.
   bool get _isAppInForeground => !_isAppInBackground;
 
   @override
@@ -183,7 +149,6 @@ class De1StateManager with WidgetsBindingObserver {
 
     _currentAppState = state;
 
-    // Update foreground tracking based on platform-specific background states
     final bool wasInForeground = _appIsInForeground;
     _appIsInForeground = _isAppInForeground;
 
@@ -191,11 +156,9 @@ class De1StateManager with WidgetsBindingObserver {
       _logger.info('App foreground state changed: $_appIsInForeground');
     }
 
-    // When app comes to foreground, check navigation context
     if (state == AppLifecycleState.resumed) {
       _checkNavigationContext();
     }
-    // For desktop platforms, also check on other foreground transitions if needed
     if (!Platform.isAndroid && !Platform.isIOS) {
       _logger.fine(
         'Desktop platform state change: ${state.name}, ensuring navigation context',
@@ -204,9 +167,7 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Handles changes to the connected DE1 machine.
   void _handleDe1Change(Machine? machine) {
-    // Cancel any existing snapshot subscription
     _snapshotSubscription?.cancel();
     _snapshotSubscription = null;
 
@@ -214,9 +175,6 @@ class De1StateManager with WidgetsBindingObserver {
       _logger.info('DE1 connected, starting to listen for state changes');
       _snapshotSubscription = machine.currentSnapshot.listen(_handleSnapshot);
 
-      // Trigger serial-number ownership check against the Decent account.
-      // Mirrors de1app's fetch_decent_de1_serial_numbers_for_current_login
-      // triggered after connecting to a machine.
       final sn = machine.machineInfo.serialNumber;
       if (sn != '0' &&
           sn.isNotEmpty &&
@@ -225,14 +183,10 @@ class De1StateManager with WidgetsBindingObserver {
       }
     } else {
       _logger.info('DE1 disconnected');
-      // Clean up any active shot controller
       _cleanupShotSequencer();
     }
   }
 
-  /// Verifies that [serial] belongs to the logged-in Decent account.
-  /// If not, emails tech support - matching the
-  /// de1app behavior in `fetch_decent_de1_serial_numbers_for_current_login`.
   Future<void> _checkSerialOwnership(String serial) async {
     if (!DecentAccountService.kEnableSerialVerification) return;
     final account = _accountService;
@@ -245,7 +199,6 @@ class De1StateManager with WidgetsBindingObserver {
       final owns = await account.verifyMachineSerial(serial);
       if (owns) return;
 
-      // Serial not associated with this account — email support.
       _logger.warning(
         'Machine serial $serial not in account — emailing support',
       );
@@ -257,22 +210,18 @@ class De1StateManager with WidgetsBindingObserver {
       } catch (e) {
         _emailedSerials.remove(serial);
         _logger.warning('Failed to email serial mismatch: $e');
-        // Don't block the dialog — user should still see the message.
       }
     } catch (e) {
       _logger.warning('Serial ownership check failed: $e');
     }
   }
 
-  /// Handles machine snapshot updates and triggers appropriate actions
-  /// based on the machine state and gateway mode.
   void _handleSnapshot(MachineSnapshot snapshot) {
     _latestSnapshot = snapshot;
     final gatewayMode = _settingsController.gatewayMode;
     final currentState = snapshot.state.state;
     final currentSubstate = snapshot.state.substate;
 
-    // Skip if state hasn't changed
     if (_previousMachineState == currentState) {
       return;
     }
@@ -281,11 +230,8 @@ class De1StateManager with WidgetsBindingObserver {
       'Handling state: $currentState, substate: $currentSubstate in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground, platform: ${Platform.operatingSystem})',
     );
 
-    // Handle scale power management based on state transitions
-    // ALWAYS RUNS - regardless of app state
     _handleScalePowerManagement(currentState);
 
-    // Check navigation context before attempting any navigation
     if (!_navigationContextReady) {
       _checkNavigationContext();
     }
@@ -301,26 +247,20 @@ class De1StateManager with WidgetsBindingObserver {
         break;
     }
 
-    // Update previous state for next transition
     _previousMachineState = currentState;
   }
 
-  /// Handles scale power management and auto-reconnect based on machine
-  /// state transitions.
   void _handleScalePowerManagement(MachineState currentState) {
-    // Skip if no previous state (first snapshot)
     if (_previousMachineState == null) {
       return;
     }
 
-    // Skip if state hasn't changed
     if (_previousMachineState == currentState) {
       return;
     }
 
     final scalePowerMode = _settingsController.scalePowerMode;
 
-    // Transition from idle to sleeping -> put scale to sleep (power mgmt only)
     if (scalePowerMode != ScalePowerMode.disabled &&
         _previousMachineState == MachineState.idle &&
         currentState == MachineState.sleeping) {
@@ -342,19 +282,14 @@ class De1StateManager with WidgetsBindingObserver {
           });
         }
       } catch (e) {
-        // Scale not connected, skip
         _logger.finest('Scale not connected, skipping power management: $e');
       }
     }
 
-    // Transition out of sleeping -> wake scale or trigger reconnect scan.
-    // Catches sleeping → idle, sleeping → schedIdle, sleeping → heating,
-    // and any other transitional state the DE1 firmware may emit during wake.
     if (_previousMachineState == MachineState.sleeping &&
         currentState != MachineState.sleeping) {
       _logger.info('Machine waking up from sleep');
 
-      // Check if scale is connected
       bool scaleConnected = false;
       try {
         _scaleController.connectedScale();
@@ -363,7 +298,6 @@ class De1StateManager with WidgetsBindingObserver {
         scaleConnected = false;
       }
 
-      // If scale is connected and mode is displayOff, wake the display
       if (scaleConnected && scalePowerMode == ScalePowerMode.displayOff) {
         try {
           final scale = _scaleController.connectedScale();
@@ -375,10 +309,6 @@ class De1StateManager with WidgetsBindingObserver {
         }
       }
 
-      // Trigger device scan if no scale connected.
-      // Defer by 3s to let DE1 BLE connection stabilize after wake.
-      // Immediate scale connect/service-discovery starves the shared
-      // Android BLE radio and causes LINK_SUPERVISION_TIMEOUT on the DE1.
       if (!scaleConnected) {
         _logger.info(
           'Scale disconnected after sleep, deferring scan 3s '
@@ -387,14 +317,6 @@ class De1StateManager with WidgetsBindingObserver {
         _deferredScaleScan?.cancel();
         _deferredScaleScan = Timer(deferredScaleScanDelay, () {
           _deferredScaleScan = null;
-          // With a preferred scale and background-watch support, the
-          // ConnectionManager's persistent scale watch (re-armed by its
-          // own machine-state listener on this same wake transition)
-          // covers reacquisition — a lowLatency burst here would only
-          // starve the freshly woken DE1 link. The burst stays for the
-          // no-preferred-scale case (feeds discovery/picker) and for
-          // platforms without watch support. Gate evaluated at fire
-          // time, not arm time.
           if (_connectionManager.supportsBackgroundScaleWatch &&
               _settingsController.preferredScaleId != null) {
             _logger.fine(
@@ -409,19 +331,12 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Triggers a scale-only scan via ConnectionManager.
   void _triggerScaleScan() {
     _logger.info('Delegating scale reconnect to ConnectionManager');
-    _connectionManager.connect(scaleOnly: true); // fire-and-forget
+    _connectionManager.connect(scaleOnly: true);
   }
 
-  /// Handles espresso state based on the current gateway mode.
-  ///
-  /// If the home screen is active and the app is in the foreground, navigates
-  /// to the realtime shot feature regardless of gateway mode. Otherwise, falls
-  /// back to gateway-mode-specific behavior.
   void _handleEspressoState(MachineSnapshot snapshot, GatewayMode gatewayMode) {
-    // Navigate to realtime feature if launcher is showing, regardless of mode
     if (_appIsInForeground && _isLauncherActive) {
       _handleDisabledModeForEspresso();
       return;
@@ -429,7 +344,6 @@ class De1StateManager with WidgetsBindingObserver {
 
     switch (gatewayMode) {
       case GatewayMode.full:
-        // Full gateway mode, not touching anything
         return;
       case GatewayMode.tracking:
         _handleTrackingModeForEspresso();
@@ -440,13 +354,7 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Handles steam state based on the current gateway mode.
-  ///
-  /// If the launcher is active and the app is in the foreground, navigates
-  /// to the realtime steam feature regardless of gateway mode. Otherwise, falls
-  /// back to gateway-mode-specific behavior.
   void _handleSteamState(MachineSnapshot snapshot, GatewayMode gatewayMode) {
-    // Navigate to realtime feature if launcher is showing, regardless of mode
     if (_appIsInForeground && _isLauncherActive) {
       _handleDisabledModeForSteam();
       return;
@@ -455,7 +363,6 @@ class De1StateManager with WidgetsBindingObserver {
     switch (gatewayMode) {
       case GatewayMode.full:
       case GatewayMode.tracking:
-        // In full or tracking mode, do nothing for steam
         return;
       case GatewayMode.disabled:
         _handleDisabledModeForSteam();
@@ -463,10 +370,8 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Handles espresso state when in tracking mode.
   void _handleTrackingModeForEspresso() {
     if (_currentShotSequencer != null) {
-      // Already tracking a shot
       return;
     }
 
@@ -476,32 +381,22 @@ class De1StateManager with WidgetsBindingObserver {
     _startShotSequencer();
   }
 
-  /// Handles espresso state when in disabled mode.
   void _handleDisabledModeForEspresso() {
     if (_isRealtimeFeatureActive) {
-      // Already showing realtime feature
       return;
     }
 
-    // If we're already tracking a shot (maybe from a previous fallback)
     if (_currentShotSequencer != null) {
       return;
     }
 
-    // Always create a single ShotSequencer owned by De1StateManager.
-    // This controller handles persistence; RealtimeShotFeature only displays.
     _startShotSequencer();
 
-    // For mobile platforms, only attempt navigation if app is in foreground
-    // For desktop platforms, we can attempt navigation more liberally
     bool canNavigate = _navigationContextReady;
 
     if (Platform.isAndroid || Platform.isIOS) {
-      // Mobile: require app to be in foreground
       canNavigate = canNavigate && _appIsInForeground;
     }
-    // Desktop platforms can attempt navigation even if app is "inactive"
-    // but we still need a valid context
 
     if (canNavigate) {
       final context = _navigatorKey.currentContext;
@@ -536,18 +431,14 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Handles steam state when in disabled mode.
   void _handleDisabledModeForSteam() {
     if (_isRealtimeFeatureActive) {
-      // Already showing realtime feature
       return;
     }
 
-    // Platform-specific navigation logic
     bool canNavigate = _navigationContextReady;
 
     if (Platform.isAndroid || Platform.isIOS) {
-      // Mobile: require app to be in foreground
       canNavigate = canNavigate && _appIsInForeground;
     }
 
@@ -563,7 +454,6 @@ class De1StateManager with WidgetsBindingObserver {
       _logger.info('Navigating to RealtimeSteamFeature in disabled mode');
       _isRealtimeFeatureActive = true;
 
-      // Use a try-catch to handle any async issues
       try {
         _de1Controller.steamData.first
             .then((steamData) {
@@ -594,12 +484,9 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Starts a new ShotSequencer for tracking a shot in tracking mode.
   void _startShotSequencer() {
     _logger.fine('Creating new ShotSequencer for tracking');
 
-    // Cleaning/calibration pulls have no yield to weigh, so the no-scale guard
-    // must not abort them — same carve-out the persistence path already makes.
     final beverageType =
         _workflowController.currentWorkflow.profile.beverageType;
     final scalelessBeverage =
@@ -625,21 +512,13 @@ class De1StateManager with WidgetsBindingObserver {
     _currentShotSnapshots.clear();
     _currentShotId = Uuid().v4();
 
-    // Listen to shot snapshots
     _shotSnapshotsSubscription = _currentShotSequencer!.shotData.listen((
       snapshot,
     ) {
       _currentShotSnapshots.add(snapshot);
     });
 
-    // Listen to shot state changes. Every transition is forwarded onto the
-    // long-lived De1Controller.shotState feed (the sequencer itself is
-    // per-shot; its streams close on dispose).
     _shotStateSubscription = _currentShotSequencer!.state.listen((state) {
-      // The sequencer's state stream is seeded `idle` and replays it on
-      // subscribe (pre-start). The wire contract is "idle ⇒ between shots,
-      // shotId null", and the between-shots idle frame is published by
-      // _cleanupShotSequencer with a null shotId — so skip idle here.
       if (state != ShotState.idle) {
         _publishShotStateFrame(state);
       }
@@ -650,11 +529,6 @@ class De1StateManager with WidgetsBindingObserver {
       }
     });
 
-    // Forward every decision to the shotState feed. An abort decision
-    // (blockOnNoScale, or a stop before the pour began) means no real shot
-    // ran — tear down without persisting so the next shot can start tracking.
-    // The abort decision is itself the terminal signal, so suppress the
-    // teardown terminal frame to avoid a duplicate.
     _shotDecisionSubscription = _currentShotSequencer!.decisions.listen((
       decision,
     ) {
@@ -673,13 +547,6 @@ class De1StateManager with WidgetsBindingObserver {
       _scaleController.currentConnectionState ==
       device.ConnectionState.connected;
 
-  /// Publishes a state frame for the tracked shot onto
-  /// De1Controller.shotState.
-  ///
-  /// Frames are stamped with the triggering machine snapshot's timestamp (not
-  /// publish time) so clients can align them with `/ws/v1/machine/snapshot`
-  /// telemetry — the event describes that snapshot's moment, and publish time
-  /// lags it by a variable processing delay.
   void _publishShotStateFrame(ShotState state) {
     final sequencer = _currentShotSequencer;
     _de1Controller.publishShotEvent(
@@ -698,9 +565,6 @@ class De1StateManager with WidgetsBindingObserver {
     );
   }
 
-  /// Publishes a decision (or terminal) frame for the tracked shot onto
-  /// De1Controller.shotState. Stamped with the triggering snapshot's
-  /// timestamp — see [_publishShotStateFrame].
   void _publishShotDecisionFrame(ShotDecision decision) {
     final sequencer = _currentShotSequencer;
     _de1Controller.publishShotEvent(
@@ -722,7 +586,6 @@ class De1StateManager with WidgetsBindingObserver {
     );
   }
 
-  /// Persists the shot if it's not a cleaning or calibration shot.
   void _persistShotIfNeeded() {
     final beverageType =
         _workflowController.currentWorkflow.profile.beverageType;
@@ -736,10 +599,6 @@ class De1StateManager with WidgetsBindingObserver {
     final baseWorkflow = _workflowController.currentWorkflow;
     final startTime = _currentShotSequencer!.shotStartTime;
 
-    // The flow calibration active for this shot, snapshotted onto the workflow's
-    // machine settings (it describes the machine-side of the setup, like the
-    // profile/grind describe the rest). Read from the device cache (warmed on
-    // connect, updated on write) so there's no BLE round-trip on the save path.
     double? flowCalibration;
     try {
       flowCalibration = _de1Controller.connectedDe1().cachedFlowEstimation;
@@ -755,15 +614,11 @@ class De1StateManager with WidgetsBindingObserver {
 
     _persistenceController.persistShot(
       ShotRecord(
-        // Same id the live shotState frames carried, so clients can correlate
-        // the stream they watched to the saved record.
         id: _currentShotId ?? Uuid().v4(),
         timestamp: startTime,
         measurements: measurements,
         workflow: workflow,
         stopReason: _currentShotSequencer!.finalStopReason?.name,
-        // Pre-fill what a fresh shot can know: actual yield from the scale
-        // trace and actual dose defaulted to the planned dose (de1app parity).
         annotations: ShotAnnotations.deriveForFinishedShot(
           measurements: measurements,
           targetDoseWeight: baseWorkflow.context?.targetDoseWeight,
@@ -773,16 +628,6 @@ class De1StateManager with WidgetsBindingObserver {
     );
   }
 
-  /// Cleans up the current ShotSequencer and all associated subscriptions.
-  ///
-  /// Terminal-frame contract: when the sequencer is torn down mid-shot with no
-  /// decision of its own (machine disconnect, manager dispose) and
-  /// [emitTerminal] is true, a `terminal/disconnected` frame is published
-  /// first — the sequencer's own streams close silently on dispose, and
-  /// without this shotState clients would hang on a stale `pouring` frame.
-  /// The abort path passes `emitTerminal: false` because the abort decision it
-  /// already emitted is the terminal signal. The feed is re-seeded with an
-  /// idle frame either way.
   void _cleanupShotSequencer({bool emitTerminal = true}) {
     _logger.fine('Cleaning up ShotSequencer');
 
@@ -826,10 +671,6 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Re-seeds the shotState feed with an idle (between-shots) frame carrying
-  /// the real resting scale/machine context, so a client attaching between
-  /// shots sees accurate `scaleConnected`/`machineHasAutonomousSAW` rather
-  /// than the bare `ShotStateEvent.idle()` defaults.
   void _publishIdleFrame() {
     _de1Controller.publishShotEvent(
       ShotStateEvent(
@@ -844,8 +685,6 @@ class De1StateManager with WidgetsBindingObserver {
     );
   }
 
-  /// Whether the connected machine runs its own stop-at-weight (Bengle).
-  /// Static capability, so it holds between shots too.
   bool get _machineHasAutonomousSAW {
     try {
       return _de1Controller.connectedDe1() is BengleInterface;
@@ -854,11 +693,9 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Disposes all subscriptions and cleans up resources.
   void dispose() {
     _logger.fine('Disposing De1StateManager');
 
-    // Remove app lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
 
     _cleanupShotSequencer();

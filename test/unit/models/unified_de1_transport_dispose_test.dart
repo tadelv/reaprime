@@ -7,7 +7,6 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 
-/// Fake BLE transport that tracks whether dispose was called.
 class _Fake extends BLETransport {
   _Fake()
     : _connState = BehaviorSubject<ConnectionState>.seeded(
@@ -66,7 +65,6 @@ void main() {
       final fake = _Fake();
       final transport = UnifiedDe1Transport(transport: fake);
 
-      // Access subjects via public getters to confirm they're open
       expect(transport.state, isA<Stream>());
       expect(transport.shotSample, isA<Stream>());
       expect(transport.waterLevels, isA<Stream>());
@@ -76,11 +74,8 @@ void main() {
 
       await transport.dispose();
 
-      // Underlying transport should have been disposed
       expect(fake.disposeCalled, isTrue);
 
-      // After dispose, subjects are closed and complete without emitting
-      // placeholder values.
       for (final stream in [
         transport.state,
         transport.shotSample,
@@ -102,7 +97,6 @@ void main() {
     await transport.dispose();
     expect(fake.disposeCalled, isTrue);
 
-    // Second call should not throw
     fake.disposeCalled = false;
     await transport.dispose();
     expect(fake.disposeCalled, isTrue);

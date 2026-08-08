@@ -13,9 +13,6 @@ class Workflow {
   final HotWaterData hotWaterData;
   final RinseData rinseData;
 
-  /// Snapshot of the machine settings active when this shot/steam was pulled —
-  /// the part of "your setup" that lives on the machine, not in the recipe.
-  /// Recorded onto the shot; not part of the apply contract.
   final WorkflowMachine? machine;
 
   Workflow({
@@ -36,8 +33,6 @@ class Workflow {
       ctx = WorkflowContext.fromJson(json['context'] as Map<String, dynamic>);
     }
 
-    // Migration-on-read: synthesize WorkflowContext from legacy fields present
-    // in workflow JSON serialized before v0.5.2. These fields are no longer written by toJson.
     final dose = json['doseData'] as Map<String, dynamic>?;
     final grinder = json['grinderData'] as Map<String, dynamic>?;
     final coffee = json['coffeeData'] as Map<String, dynamic>?;
@@ -113,8 +108,6 @@ class Workflow {
     WorkflowMachine? machine,
   }) {
     return Workflow(
-      // copyWith mints a fresh id by default (applying a workflow makes a new
-      // one); pass `id` to preserve it, e.g. when snapshotting onto a shot.
       id: id ?? Uuid().v4(),
       name: name ?? this.name,
       description: description ?? this.description,
@@ -128,14 +121,7 @@ class Workflow {
   }
 }
 
-/// Machine-side settings snapshotted onto a shot/steam record. Starts with the
-/// flow-estimation calibration (`calibration_flow_multiplier`); other machine
-/// settings (e.g. heater phase-2 timeout) can be added here as needed. All
-/// fields optional — `toJson` omits the empty ones.
 class WorkflowMachine {
-  /// The DE1's flow-estimation calibration active when the shot was pulled.
-  /// The recorded flow is already calibrated by this; storing the value lets
-  /// clients show "pulled at 1.05×" and reproduce the scaling.
   final double? flowCalibration;
 
   const WorkflowMachine({this.flowCalibration});
@@ -164,8 +150,6 @@ class SteamSettings {
   int targetTemperature;
   int duration;
   double flow;
-  // 0.0 = off. Set/get target only; FW autonomous stop gated on a
-  // future MMR address (see [[bengle_steam_mmr]]).
   double stopAtTemperature;
 
   SteamSettings({

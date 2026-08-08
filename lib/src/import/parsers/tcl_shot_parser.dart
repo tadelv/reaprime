@@ -12,11 +12,9 @@ import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:uuid/uuid.dart';
 
-/// Parses de1app `history/*.shot` (TCL format) into [ParsedShot] instances.
 class TclShotParser {
   TclShotParser._();
 
-  /// Parses a de1app `.shot` file [content] into a [ParsedShot].
   static ParsedShot parse(String content) {
     final map = TclParser.parse(content);
 
@@ -28,18 +26,15 @@ class TclShotParser {
 
     final settings = map['settings'] as Map<String, dynamic>? ?? {};
 
-    // --- Bean metadata ---
     final beanBrand = _str(settings['bean_brand']);
     final beanType = _str(settings['bean_type']);
     final beanNotes = _str(settings['bean_notes']);
     final roastLevel = _str(settings['roast_level']);
     final roastDate = _str(settings['roast_date']);
 
-    // --- Grinder metadata ---
     final grinderModel = _str(settings['grinder_model']);
     final grinderSetting = _str(settings['grinder_setting']);
 
-    // --- Minimal profile ---
     final profileTitle = _str(settings['profile_title']) ?? '';
     final profileTargetWeight = _parseOptDouble(
       settings['final_desired_shot_weight'],
@@ -56,10 +51,8 @@ class TclShotParser {
       tankTemperature: 0,
     );
 
-    // --- Shot annotations ---
     final doseWeight = _parseOptDouble(settings['grinder_dose_weight']);
     final actualYield = _parseOptDouble(settings['drink_weight']);
-    // Target yield: DYE's target_drink_weight → profile's target_weight → actual
     final targetYield =
         _parseOptDouble(settings['target_drink_weight']) ??
         profileTargetWeight ??
@@ -78,7 +71,6 @@ class TclShotParser {
       espressoNotes: espressoNotes,
     );
 
-    // --- Workflow context ---
     final context = WorkflowContext(
       targetDoseWeight: doseWeight,
       targetYield: targetYield,
@@ -90,7 +82,6 @@ class TclShotParser {
       drinkerName: _str(settings['drinker_name']),
     );
 
-    // --- Workflow ---
     final workflow = Workflow(
       id: const Uuid().v4(),
       name: profileTitle,
@@ -101,10 +92,8 @@ class TclShotParser {
       rinseData: RinseData.defaults(),
     );
 
-    // --- Time-series snapshots ---
     final measurements = _parseSnapshots(map, baseTimestamp, profile);
 
-    // --- ShotRecord ---
     final shot = ShotRecord(
       id: 'de1app-$clock',
       timestamp: baseTimestamp,
@@ -124,10 +113,6 @@ class TclShotParser {
       grinderSetting: grinderSetting,
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // Internal helpers
-  // ---------------------------------------------------------------------------
 
   static List<ShotSnapshot> _parseSnapshots(
     Map<String, dynamic> map,
@@ -198,7 +183,6 @@ class TclShotParser {
     return snapshots;
   }
 
-  /// Pre-computes cumulative step end-times from profile step durations.
   static List<double> _stepBoundaries(Profile profile) {
     final boundaries = <double>[];
     var cumulative = 0.0;
@@ -209,7 +193,6 @@ class TclShotParser {
     return boundaries;
   }
 
-  /// Returns the profile step index for [elapsedSeconds] given step [boundaries].
   static int _frameForElapsed(double elapsedSeconds, List<double> boundaries) {
     for (var i = 0; i < boundaries.length; i++) {
       if (elapsedSeconds < boundaries[i]) return i;
@@ -217,25 +200,21 @@ class TclShotParser {
     return boundaries.isEmpty ? 0 : boundaries.length - 1;
   }
 
-  /// Parses a TCL list value ([List] of strings from [TclParser]) into a list of doubles.
   static List<double> _parseDoubleList(dynamic value) {
     if (value == null) return [];
     if (value is List) {
       return value.map((e) => double.parse(e.toString())).toList();
     }
-    // Single string value (shouldn't happen for time-series but handle gracefully)
     final d = double.tryParse(value.toString());
     return d != null ? [d] : [];
   }
 
-  /// Returns a non-null, non-empty string or null.
   static String? _str(dynamic value) {
     if (value == null) return null;
     final s = value.toString().trim();
     return s.isEmpty ? null : s;
   }
 
-  /// Parses a string-encoded double.
   static double? _parseOptDouble(dynamic value) {
     if (value == null) return null;
     if (value is num) return value.toDouble();

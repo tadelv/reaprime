@@ -9,12 +9,6 @@ import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart'
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Fake BLE transport that models the post-#243 behaviour: `disconnect()`
-/// emits `ConnectionState.disconnected` onto the connection-state stream
-/// (as `BluePlusTransport` does synchronously and `AndroidBluePlusTransport`
-/// does via its native sub). The first `write()` times out to trigger
-/// `UnifiedDe1Transport._handleBleTimeout`; reconnect success/failure is
-/// controlled by [reconnectSucceeds].
 class _RecoveryFakeTransport extends BLETransport {
   _RecoveryFakeTransport({required this.reconnectSucceeds});
 
@@ -82,7 +76,6 @@ class _RecoveryFakeTransport extends BLETransport {
     Duration? timeout,
   }) async {
     writeCount++;
-    // First write times out -> triggers recovery. The retry succeeds.
     if (writeCount == 1) {
       throw BleTimeoutException('write');
     }
@@ -107,15 +100,10 @@ void main() {
       await unified.write(Endpoint.requestedState, Uint8List.fromList([0x02]));
       await Future<void>.delayed(Duration.zero);
 
-      // Recovery happened (disconnect + reconnect under the hood) and the
-      // write was retried successfully.
       expect(fake.disconnectCount, 1);
       expect(fake.connectCount, 1);
       expect(fake.writeCount, 2);
 
-      // The deliberate recovery disconnect must stay invisible — otherwise
-      // De1Controller would null the machine and tear down a connection
-      // that's about to come right back.
       expect(seen, isNot(contains(ConnectionState.disconnected)));
     });
 
@@ -130,14 +118,12 @@ void main() {
         final sub = unified.connectionState.listen(seen.add);
         addTearDown(sub.cancel);
 
-        // Recovery fails -> the original timeout propagates.
         await expectLater(
           unified.write(Endpoint.requestedState, Uint8List.fromList([0x02])),
           throwsA(isA<BleTimeoutException>()),
         );
         await Future<void>.delayed(Duration.zero);
 
-        // The genuine disconnect (recovery gave up) reaches upstream.
         expect(seen, contains(ConnectionState.disconnected));
       },
     );

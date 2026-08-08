@@ -22,12 +22,10 @@ void main() {
     });
 
     test('simulateDataStall stops weight emission', () async {
-      // Verify data flowing first
       await scale.currentSnapshot.first.timeout(Duration(seconds: 2));
 
       scale.simulateDataStall();
 
-      // Should get no snapshots for 600ms (3x the normal 200ms interval)
       final completer = Completer<bool>();
       final sub = scale.currentSnapshot.listen((_) {
         if (!completer.isCompleted) completer.complete(false);
@@ -81,8 +79,6 @@ void main() {
     test(
       'connectionState starts as discovered, connects via onConnect',
       () async {
-        // A simulated scale, like a real one, is not "connected" until it is
-        // actually connected through the controller.
         expect(await scale.connectionState.first, ConnectionState.discovered);
         await scale.onConnect();
         expect(await scale.connectionState.first, ConnectionState.connected);

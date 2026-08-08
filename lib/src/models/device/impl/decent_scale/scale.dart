@@ -36,8 +36,6 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   Timer? _heartbeatTimer;
 
-  // Watchdog: heartbeat fires every 4s; warn after 3 missed (12s), disconnect after 5 (20s).
-  // BLE is slower than USB so thresholds are more generous than HDSSerial.
   static const _watchdogWarningTicks = 3;
   static const _watchdogDisconnectTicks = 5;
   int _ticksSinceLastNotification = 0;
@@ -45,11 +43,6 @@ class DecentScale implements Scale, TransportHandoffScale {
   int _totalNotifications = 0;
   int _heartbeatTotalTicks = 0;
 
-  // Notification-level watchdog: scale fires at ~10 Hz (every ~100ms).
-  // If no notification arrives for 1s, re-subscribe immediately — the
-  // notification stream may have silently broken without the BLE link
-  // dropping (GATT busy-window, Android radio starvation, etc).
-  // Resets on every notification (_parseNotification).
   Timer? _notificationWatchdog;
   Future<void>? _notificationRecovery;
   Future<void>? _displayOperation;
@@ -63,12 +56,6 @@ class DecentScale implements Scale, TransportHandoffScale {
     : _deviceId = transport.id,
       _device = transport;
 
-  // --- Protocol: 7-byte frame helper -----------------------------------
-
-  /// Build a 7-byte Decent Scale BLE command frame.
-  /// Prepends [0x03] header and appends XOR checksum over bytes 0-5.
-  /// Matches canonical `calculateChecksum` in openscale: XOR all bytes
-  /// (including header), starting from 0.
   static Uint8List _buildCommand(List<int> commandBytes) {
     final bytes = <int>[0x03, ...commandBytes];
     int xor = 0;
@@ -95,12 +82,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       return true;
     } on DeviceNotConnectedException {
       _log.info('Write failed: device not connected');
-      // Don't call disconnect() here — the transport already emitted
-      // disconnected (in _handleGattError), which triggers the
-      // connectionState listener that calls disconnect(). Re-entering
-      // disconnect from a write path risks a re-entrant teardown.
-      // The _isDisconnecting guard would catch it, but the extra
-      // log noise is confusing.
       return false;
     }
   }
@@ -110,8 +91,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       throw const DeviceNotConnectedException.scale();
     }
   }
-
-  // --- Scale interface -------------------------------------------------
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -142,10 +121,6 @@ class DecentScale implements Scale, TransportHandoffScale {
   @override
   Future<void> onConnect() async {
     _log.info("on connect (id=$deviceId)");
-    // Check actual BLE link state via the fork API. The local
-    // BehaviorSubject is freshly seeded (discovered) on each new
-    // DecentScale instance — it cannot detect an already-live
-    // connection created by a prior transport instance.
     if (_connectionStateController.value == ConnectionState.connected &&
         await _device.getConnectionState() == ConnectionState.connected) {
       _log.info('Already connected, skipping');
@@ -341,10 +316,6 @@ class DecentScale implements Scale, TransportHandoffScale {
   @override
   disconnect() async => _disconnect(powerOff: true);
 
-  /// [TransportHandoffScale]: release the BLE link WITHOUT powering the
-  /// physical scale off, so the controller can hand the active-scale role to
-  /// another transport (USB/WiFi) of the SAME physical Half Decent Scale.
-  /// Powering off here would turn the shared device off mid-switch.
   @override
   Future<void> disconnectForHandoff() => _disconnect(powerOff: false);
 
@@ -364,19 +335,11 @@ class DecentScale implements Scale, TransportHandoffScale {
     _stopMaintenance();
     if (powerOff) {
       try {
-        // Best-effort: `disconnect()` often fires *on* a transport-state
-        // disconnected event, in which case the write throws `device is
-        // disconnected` immediately. On the happy path the scale powers
-        // off after acking and severs BLE — neither outcome should block
-        // or escalate. The 2 s timeout caps the wait so a flaky link
-        // can't stall the rest of the disconnect sequence.
         await _sendPowerOff().timeout(const Duration(seconds: 2));
       } catch (e) {
         _log.fine('power-off write skipped (device likely already off): $e');
       }
     }
-    // `BluePlusTransport.disconnect` swallows its own errors internally,
-    // so no extra try/catch needed here.
     try {
       await _device.disconnect();
       _connectionStateController.add(ConnectionState.disconnected);
@@ -384,8 +347,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       _isDisconnecting = false;
     }
   }
-
-  // --- Commands --------------------------------------------------------
 
   @override
   Future<void> tare() async {
@@ -397,9 +358,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       return true;
     }
     _log.finest("send hb");
-    // Heartbeat ping: tells the scale the app is still alive so it won't
-    // auto-sleep or disconnect. Send even when _isSleeping — without it
-    // HDS firmware times out and disconnects BLE, which wakes the display.
     try {
       final sent = await _writeCommand(
         [0x0A, 0x03, 0xFF, 0xFF, 0x00],
@@ -416,8 +374,6 @@ class DecentScale implements Scale, TransportHandoffScale {
     }
   }
 
-  /// Causes the scale to respond with battery level, while the actual request
-  /// is to turn on the display (OledOn)
   Future<bool> _requestBatteryData() async {
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
     return _writeCommand([0x0A, 0x01, 0x01, 0x00, heartbeatByte]);
@@ -532,8 +488,6 @@ class DecentScale implements Scale, TransportHandoffScale {
       _timerCommandInFlight = false;
     }
   }
-
-  // --- BLE notifications -----------------------------------------------
 
   Future<void> _registerNotifications() async {
     await _waitForNotificationRecovery();

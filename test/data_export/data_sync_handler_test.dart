@@ -47,7 +47,6 @@ class MockExportSection implements DataExportSection {
   ) async {
     _calls++;
     lastStrategy = strategy;
-    // Fully consume the input (mirrors handler two-pass consumption).
     await for (final _ in input.valuesAtDepth(1)) {}
     return importResult;
   }
@@ -55,7 +54,6 @@ class MockExportSection implements DataExportSection {
   int get calls => _calls;
 }
 
-/// A [MockExportSection] whose import takes [delay], for deadline tests.
 class SlowImportSection extends MockExportSection {
   final Duration delay;
 
@@ -71,13 +69,10 @@ class SlowImportSection extends MockExportSection {
   }
 }
 
-/// Builds a ZIP with [files] using the old in-memory encoder (backward
-/// compatibility surface for remote pulls).
 List<int> buildZip(Map<String, dynamic> files) {
   return ZipEncoderLegacy.encode(files);
 }
 
-/// Minimal legacy ZipEncoder helper (avoids importing archive directly).
 class ZipEncoderLegacy {
   static List<int> encode(Map<String, dynamic> files) {
     final archive = <String, String>{};
@@ -89,7 +84,6 @@ class ZipEncoderLegacy {
 }
 
 List<int> buildRawZip(Map<String, String> files) {
-  // Hand-rolled ZIP (stored entries) so we control the bytes exactly.
   final entries = <Map<String, Object>>[];
   final body = BytesBuilder();
   for (final entry in files.entries) {
@@ -179,7 +173,6 @@ void _u32(BytesBuilder b, int value) {
 }
 
 int _crc32(List<int> bytes) {
-  // Standard CRC-32.
   var crc = 0xFFFFFFFF;
   for (final byte in bytes) {
     crc ^= byte;
@@ -271,9 +264,6 @@ void main() {
 
       test('pull succeeds when the target takes longer than a connect '
           'timeout to generate its export', () async {
-        // The target only responds after generating its export archive;
-        // that processing time must not be counted against a short
-        // connection timeout (issue #555 review).
         final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
         final client = http_testing.MockClient((request) async {
           await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -338,8 +328,6 @@ void main() {
           expect(response.statusCode, 502);
           expect(body['complete'], isFalse);
           expect(body['pull']['reason'], 'timeout');
-          // The phase must not import anything after the caller was told the
-          // phase timed out.
           expect(freshShots.calls, 0);
         },
       );
@@ -365,13 +353,7 @@ void main() {
           final body = jsonDecode(await response.readAsString());
           expect(response.statusCode, 502);
           expect(body['complete'], isFalse);
-          // The mock consumed the (small) body well before the deadline, so
-          // the remote may have started importing; the outcome must be
-          // reported as unknown rather than claiming the push did not
-          // happen.
           expect(body['push']['reason'], 'timeout_unknown');
-          // The phase must fail at the deadline, not after the target's own
-          // delay (300 ms); the loose bound guards against slow CI.
           stopwatch.stop();
           expect(
             stopwatch.elapsed,
@@ -383,11 +365,6 @@ void main() {
       test(
         'pull lets the local import finish past the phase deadline',
         () async {
-          // The download completes within the deadline, but the local import
-          // takes longer than the deadline. It must run to completion and
-          // report its actual result (not a timeout): abandoning an import
-          // mid-write would leave the database mutating after the caller was
-          // told the phase failed.
           final targetZip = buildZip({'profiles.json': [], 'shots.json': []});
           final client = http_testing.MockClient((request) async {
             await Future<void>.delayed(const Duration(milliseconds: 40));
@@ -417,10 +394,6 @@ void main() {
 
       test('pull timeout aborts the connection while the target is '
           'generating its export', () async {
-        // The target accepts the connection but never responds. The phase
-        // deadline must abort the request at the transport level, not just
-        // stop waiting (which would leave the connection and the target's
-        // export running until they finish on their own).
         final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
         final socketClosed = Completer<void>();
         server.listen((socket) {
@@ -452,9 +425,6 @@ void main() {
           final body = jsonDecode(await response.readAsString());
           expect(response.statusCode, 502);
           expect(body['pull']['reason'], 'timeout');
-          // The abort must have closed the connection promptly after the
-          // deadline; without the transport abort this future never
-          // completes.
           await socketClosed.future.timeout(const Duration(seconds: 2));
         } finally {
           await server.close();
@@ -465,11 +435,6 @@ void main() {
       test(
         'push timeout closes the body stream before temporary cleanup',
         () async {
-          // A server socket that never reads the request body: the kernel
-          // buffer fills, the transport backpressures, and the file read must
-          // pause rather than draining the whole archive into memory. At the
-          // deadline the upload is still in flight, so the outcome is an
-          // interrupted upload ('timeout'), never 'timeout_unknown'.
           final server = await ServerSocket.bind(
             InternetAddress.loopbackIPv4,
             0,
@@ -606,7 +571,6 @@ void main() {
           'mode': 'pull',
           'padding': 'x' * 2048,
         });
-        // Wrap the shared handler in a small-limits export handler.
         final smallExport = DataExportHandler(
           sections: sections,
           limits: const DataTransferLimits(maxSyncRequestBytes: 256),
@@ -870,7 +834,7 @@ void main() {
           requestBody(mode: 'two_way', continueOnPullFailure: true),
         );
         expect(pushCalled, isTrue);
-        expect(response.statusCode, 207); // pull failed, push complete
+        expect(response.statusCode, 207);
         final body = jsonDecode(await response.readAsString());
         expect(body['phases']['pull']['status'], 'failed');
         expect(body['phases']['push']['status'], 'complete');

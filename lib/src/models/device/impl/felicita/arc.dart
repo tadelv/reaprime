@@ -97,8 +97,6 @@ class FelicitaArc implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
-  /// Safe write — catches [DeviceNotConnectedException] so a write to a
-  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
   Future<void> _safeWrite(Uint8List data) async {
     try {
       await _transport.write(
@@ -120,17 +118,11 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> sleepDisplay() async {
-    // Felicita Arc doesn't have documented display sleep commands
-    // Fallback to disconnect as per scale interface contract
     await disconnect();
   }
 
   @override
-  Future<void> wakeDisplay() async {
-    // Felicita Arc doesn't have documented wake display commands
-    // The scale wakes on weight change or button press
-    // This is a no-op
-  }
+  Future<void> wakeDisplay() async {}
 
   StreamSubscription<Uint8List>? _notificationsSubscription;
 

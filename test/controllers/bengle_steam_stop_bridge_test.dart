@@ -16,8 +16,6 @@ import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/test_de1.dart';
 
-/// Recording stub of BengleInterface — only the steam-stop surface is
-/// exercised; everything else routes through `noSuchMethod`.
 class _RecordingBengle implements BengleInterface {
   @override
   String get deviceId => 'rec-bengle';
@@ -70,7 +68,6 @@ class _RecordingBengle implements BengleInterface {
   @override
   Stream<double> get probeTemperature => const Stream.empty();
 
-  // Minimal Device + DE1 surface.
   @override
   Stream<ConnectionState> get connectionState =>
       Stream.value(ConnectionState.connected);
@@ -278,8 +275,6 @@ void main() {
     setStopAtTemp(60.0);
     await pumpDebounce();
 
-    // TestDe1 has no stop-at-temperature surface; bridge should
-    // short-circuit and not throw.
     expect(de1.requestedStates, isEmpty);
     de1.dispose();
     await bridge.dispose();

@@ -1,10 +1,6 @@
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 
-/// No-op implementation of TelemetryService
-///
-/// Used on Linux or when in debug/simulation mode.
-/// All methods are no-ops - no data is collected or sent.
 class NoOpTelemetryService implements TelemetryService {
   static final _logger = Logger('NoOpTelemetryService');
 
@@ -18,29 +14,19 @@ class NoOpTelemetryService implements TelemetryService {
     Object error,
     StackTrace? stackTrace, {
     bool fatal = false,
-  }) async {
-    // No-op
-  }
+  }) async {}
 
   @override
-  Future<void> log(String message) async {
-    // No-op
-  }
+  Future<void> log(String message) async {}
 
   @override
-  Future<void> setCustomKey(String key, Object value) async {
-    // No-op
-  }
+  Future<void> setCustomKey(String key, Object value) async {}
 
   @override
-  Future<void> recordTrace(String name, Map<String, int> metrics) async {
-    // No-op
-  }
+  Future<void> recordTrace(String name, Map<String, int> metrics) async {}
 
   @override
-  Future<void> setConsentEnabled(bool enabled) async {
-    // No-op
-  }
+  Future<void> setConsentEnabled(bool enabled) async {}
 
   @override
   String getLogBuffer() {

@@ -61,20 +61,16 @@ void main() {
       await machine.setProfile(_testProfile());
       await machine.requestState(MachineState.espresso);
 
-      // Wait for pouring (past preparingForShot)
       await machine.currentSnapshot
           .firstWhere((s) => s.state.substate == MachineSubstate.pouring)
           .timeout(const Duration(seconds: 2));
 
-      // Record current frame
       final before = await machine.currentSnapshot.first.timeout(
         const Duration(seconds: 1),
       );
 
-      // Request skipStep
       await machine.requestState(MachineState.skipStep);
 
-      // Wait a tick for next snapshot
       await Future.delayed(const Duration(milliseconds: 200));
 
       final after = await machine.currentSnapshot.first.timeout(
@@ -92,15 +88,12 @@ void main() {
       await machine.setProfile(_testProfile());
       await machine.requestState(MachineState.espresso);
 
-      // Wait for pouring
       await machine.currentSnapshot
           .firstWhere((s) => s.state.substate == MachineSubstate.pouring)
           .timeout(const Duration(seconds: 2));
 
-      // Skip a step
       await machine.requestState(MachineState.skipStep);
 
-      // Wait and verify we're still in espresso
       await Future.delayed(const Duration(milliseconds: 300));
       final snapshot = await machine.currentSnapshot.first.timeout(
         const Duration(seconds: 1),
@@ -117,33 +110,21 @@ void main() {
       await machine.setProfile(_testProfile());
       await machine.requestState(MachineState.espresso);
 
-      // Wait for pouring
       await machine.currentSnapshot
           .firstWhere((s) => s.state.substate == MachineSubstate.pouring)
           .timeout(const Duration(seconds: 2));
 
-      // Skip a step
       await machine.requestState(MachineState.skipStep);
 
-      // Collect snapshots after skip — profileFrame shouldn't change
-      // for at least the new step's duration
       await Future.delayed(const Duration(milliseconds: 500));
       final snapshot = await machine.currentSnapshot.first.timeout(
         const Duration(seconds: 1),
       );
 
-      // After skipping to step2, pressure target should be 6.0 (step2's target),
-      // not 9.0 (step1's target that was skipped) or 3.0 (step0).
-      // We verify this indirectly: the snapshot has a targetPressure.
-      // In the current mock, targetPressure is set to the step's pressure target.
-      // After skipStep from step0 to step1, we expect step1's target (9.0).
-      // Actually we can't easily verify the target without knowing which step.
-      // Just verify the shot is still running and frame advanced.
       expect(snapshot.state.state, MachineState.espresso);
     });
 
     test('skipStep at last step triggers pouringDone → idle', () async {
-      // Two-step profile, skip from step0 to step1 (last step)
       final profile = Profile(
         version: '1.0',
         title: 'test',
@@ -181,10 +162,8 @@ void main() {
           .firstWhere((s) => s.state.substate == MachineSubstate.pouring)
           .timeout(const Duration(seconds: 2));
 
-      // Skip to last step (step1, 1 second)
       await machine.requestState(MachineState.skipStep);
 
-      // Wait long enough for step1 to complete (1s) + pouringDone (300ms)
       final snapshots = await machine.currentSnapshot
           .takeWhile((s) => s.state.state != MachineState.idle)
           .toList()

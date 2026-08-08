@@ -30,8 +30,6 @@ void main() {
   setUp(() {
     store = FakeCredentialStore();
     final service = DecentAccountService(
-      // No request should ever reach the network: status is store-only and
-      // credential ops are not exposed over HTTP.
       httpClient: http_testing.MockClient((request) async {
         fail('AccountHandler must not make network requests: ${request.url}');
       }),
@@ -76,7 +74,6 @@ void main() {
     expect(response.statusCode, 200);
     final body = jsonDecode(await response.readAsString()) as Map;
     expect(body['loggedIn'], true);
-    // Email is PII and the endpoint is unauthenticated — never include it.
     expect(body.containsKey('email'), isFalse);
   });
 
@@ -94,7 +91,6 @@ void main() {
 
     final response = await sendDelete('/api/v1/account/decent');
     expect(response.statusCode, 404);
-    // Account remains linked — unlinking is native-only.
     expect(await store.read(key: 'email'), 'user@example.com');
   });
 }

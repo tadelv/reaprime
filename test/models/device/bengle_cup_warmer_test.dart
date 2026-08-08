@@ -7,15 +7,6 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 
 import '../../helpers/fake_ble_transport.dart';
 
-/// Wires the real `Bengle` class through `FakeBleTransport` to confirm the
-/// public cup-warmer API (setCupWarmerTemperature / getCupWarmerTemperature)
-/// rides the scaledFloat MMR helpers and the `BengleMmr.matSetPoint` address.
-///
-/// This is the integration point between `BengleInterface`,
-/// `Bengle`'s extension on `UnifiedDe1`'s `@protected` MMR helpers, and the
-/// `MmrValueKind.scaledFloat` plumbing. The unit-level mechanics
-/// (clamping, packing, kind-mismatch errors) live in
-/// `test/unit/models/device/impl/de1/unified_de1/protected_surface_test.dart`.
 void main() {
   group('Bengle cup warmer wiring', () {
     late FakeBleTransport transport;
@@ -24,7 +15,7 @@ void main() {
     setUp(() async {
       transport = FakeBleTransport();
       bengle = Bengle(transport: transport);
-      transport.queueOnConnectResponses(v13Model: 128); // Bengle marker
+      transport.queueOnConnectResponses(v13Model: 128);
       await bengle.onConnect();
     });
 
@@ -42,14 +33,12 @@ void main() {
           (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
         );
 
-        // Address bytes [1..3] match BengleMmr.matSetPoint (0x00803874).
         final addr = ByteData(4)
           ..setInt32(0, BengleMmr.matSetPoint.address, Endian.big);
         expect(frame.data[1], addr.getUint8(1));
         expect(frame.data[2], addr.getUint8(2));
         expect(frame.data[3], addr.getUint8(3));
 
-        // Payload bytes [4..7] = uint32 scaled 60.0.
         final payload = ByteData.sublistView(frame.data, 4, 8);
         expect(payload.getUint32(0, Endian.little), equals(600));
       },
@@ -58,7 +47,6 @@ void main() {
     test(
       'getCupWarmerTemperature reads a scaled uint32 back from the wire',
       () async {
-        // Pre-queue a 50.0 °C scaled uint32 response at the matSetPoint address.
         final bytes = ByteData(4)..setUint32(0, 500, Endian.little);
         transport.queueMmrResponseRaw(
           BengleMmr.matSetPoint,
@@ -72,7 +60,7 @@ void main() {
 
     test('setCupWarmerTemperature clamps over-range writes', () async {
       transport.writes.clear();
-      await bengle.setCupWarmerTemperature(120.0); // FW max is 80.0
+      await bengle.setCupWarmerTemperature(120.0);
 
       final frame = transport.writes.firstWhere(
         (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,

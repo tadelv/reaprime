@@ -211,7 +211,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Select candidate1, simulate failure.
         await tester.tap(find.text('DE1 #1'));
         await tester.pump();
 
@@ -219,15 +218,12 @@ void main() {
         await tester.tap(find.text('Connect'));
         await tester.pumpAndSettle();
 
-        // Picker must still be visible with both candidates.
         expect(find.text('DE1 #1'), findsOneWidget);
         expect(find.text('DE1 #2'), findsOneWidget);
         expect(find.text('Connect'), findsOneWidget);
 
-        // Failure text must be visible.
         expect(find.text('Machine DE1 #1 failed to connect.'), findsOneWidget);
 
-        // The user can select the alternative without a new scan.
         await tester.tap(find.text('DE1 #2'));
         await tester.pump();
 
@@ -266,14 +262,11 @@ void main() {
         await tester.tap(find.text('Connect'));
         await tester.pumpAndSettle();
 
-        // Both candidates still present in the picker.
         expect(find.text('DE1 #1'), findsOneWidget);
         expect(find.text('Alt Machine'), findsOneWidget);
 
-        // Error message visible.
         expect(find.text('Machine DE1 #1 failed to connect.'), findsOneWidget);
 
-        // No uncaught exception — the widget is still rendering.
         expect(tester.takeException(), isNull);
       },
     );
@@ -302,7 +295,6 @@ void main() {
         await tester.tap(find.text('Connect'));
         await tester.pump();
 
-        // Now emit scalePicker from the session with retained scale candidates.
         mockCm.emitStatus(
           ConnectionStatus(
             phase: ConnectionPhase.idle,
@@ -320,14 +312,11 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // Scale picker is visible.
         expect(find.text('My Scale'), findsOneWidget);
         expect(find.text('Scales'), findsOneWidget);
 
-        // Machine error is visible inline.
         expect(find.text('Machine My DE1 failed to connect.'), findsOneWidget);
 
-        // Select the scale — call selectScale, not a new scan.
         await tester.tap(find.text('My Scale'));
         await tester.pump();
         await tester.tap(find.text('Connect'));
@@ -460,12 +449,9 @@ void main() {
 
       final callsBefore = mockCm.scanAndConnectCallCount;
 
-      // Simulate stale scan via the public onAppResumed test hook.
       scanStateGuardian.onAppResumed();
       await tester.pump();
 
-      // scanAndConnect was called again, which triggers the superseding
-      // logic (stop scan + queue replacement) when an active scan exists.
       expect(mockCm.scanAndConnectCallCount, greaterThan(callsBefore));
     });
   });

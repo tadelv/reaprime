@@ -18,8 +18,6 @@ import '../helpers/mock_scale_controller.dart';
 import '../helpers/mock_settings_service.dart';
 import '../helpers/test_scale.dart';
 
-/// Minimal BengleInterface stub. Implements only what ConnectionManager
-/// touches during connect — `noSuchMethod` swallows the rest.
 class _FakeBengle implements BengleInterface {
   @override
   final String deviceId;
@@ -49,7 +47,6 @@ class _FakeBengle implements BengleInterface {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-/// Minimal De1Interface stub for the regression-guard test.
 class _FakeDe1 implements De1Interface {
   @override
   final String deviceId;
@@ -113,8 +110,6 @@ void main() {
     test(
       'auto-attaches BengleVirtualScale on Bengle machine connect',
       () async {
-        // Bengle is the preferred machine, no external scale advertised, no
-        // preferredScaleId set.
         await settingsController.setPreferredMachineId('bengle-1');
         final bengle = _FakeBengle(deviceId: 'bengle-1');
         mockScanner.addDevice(bengle);
@@ -126,8 +121,6 @@ void main() {
         expect(mockDe1Controller.connectCalls, hasLength(1));
         expect(mockDe1Controller.connectCalls.first, same(bengle));
 
-        // The scale slot is taken by the virtual scale, not anything from
-        // the scan.
         expect(mockScaleController.connectCalls, hasLength(1));
         expect(
           mockScaleController.connectCalls.first.deviceId,
@@ -140,11 +133,6 @@ void main() {
       'skips external scale phase when Bengle is the machine '
       '(even with preferredScaleId set + external scale discoverable)',
       () async {
-        // Synchronous co-discovery case: both Bengle and external scale
-        // are visible to the scanner before connect() begins, so a single
-        // _onDevicesUpdate sees both and the Bengle-inference arm of the
-        // gate fires. The interleaved-discovery race (external scale
-        // visible before Bengle) is covered by the next test.
         await settingsController.setPreferredMachineId('bengle-1');
         await settingsController.setPreferredScaleId('external-scale');
 
@@ -157,8 +145,6 @@ void main() {
         await connectionManager.connect();
         await Future.delayed(Duration.zero);
 
-        // Exactly one scale was attached, and it's the virtual one — the
-        // external scale was never even attempted.
         expect(mockScaleController.connectCalls, hasLength(1));
         expect(
           mockScaleController.connectCalls.first.deviceId,
@@ -178,10 +164,6 @@ void main() {
 
     test('background scale watch ignores external scale sightings while a '
         'Bengle is the machine', () async {
-      // Watch-path variant of the Bengle rule: watch-driven connects
-      // bypass _runScalePhase, so ConnectionManager must re-apply
-      // "integrated scale owns the slot" before connecting a sighted
-      // external scale.
       await connectionManager.dispose();
       mockScanner.supportsWatch = true;
       connectionManager = ConnectionManager(
@@ -192,8 +174,6 @@ void main() {
       );
       await settingsController.setPreferredScaleId('external-scale');
 
-      // Bengle connects (pushed directly — virtual attach hasn't run,
-      // so the scale slot is still open and the watch gate holds).
       mockDe1Controller.de1Subject.add(_FakeBengle(deviceId: 'bengle-1'));
       await Future<void>.delayed(Duration.zero);
 
@@ -219,10 +199,6 @@ void main() {
 
     test('a late Bengle transition disarms the watch instead of restarting '
         'it forever', () async {
-      // The watch arms legitimately while a DE1 is the machine; a Bengle
-      // then takes over. A sighting of the (still-preferred) external
-      // scale is refused — and the refusal must END the watch cycle, not
-      // restart the scan indefinitely.
       await connectionManager.dispose();
       mockScanner.supportsWatch = true;
       connectionManager = ConnectionManager(
@@ -265,38 +241,18 @@ void main() {
 
     test('external scale visible BEFORE Bengle still loses the slot to the '
         'virtual scale', () async {
-      // Regression for the interleaved-discovery race the synchronous
-      // co-discovery test cannot exercise: the external scale appears
-      // in scan results FIRST, then the Bengle joins mid-scan. Without
-      // the conservative-skip gate, the external scale would
-      // early-connect (Bengle-inference returns false because Bengle
-      // isn't yet visible to the scanner and `latestMachine` is still
-      // null), and the post-scan virtual-attach would short-circuit
-      // because the slot is taken.
       await settingsController.setPreferredMachineId('bengle-1');
       await settingsController.setPreferredScaleId('external-scale');
 
       final bengle = _FakeBengle(deviceId: 'bengle-1');
       final externalScale = TestScale(deviceId: 'external-scale');
 
-      // Only the external scale is visible at scan-start.
       mockScanner.addDevice(externalScale);
 
-      // Hold the scan open so we can add the Bengle mid-scan. Without
-      // this, scanForDevices() completes synchronously and the
-      // EarlyConnectWatcher never sees the second device emission.
       final scanCompleter = Completer<void>();
       mockScanner.scanCompleter = scanCompleter;
 
-      // Stage the Bengle to arrive after connect() begins. Using
-      // Future.microtask keeps timing deterministic — the microtask
-      // runs after scanForDevices() has emitted its initial
-      // `scanning: true` + replayed devices, so the watcher sees the
-      // external scale first, then the Bengle as a separate update.
-      // The completeScan() call ends the hold-open.
       Future.microtask(() async {
-        // Yield once so the watcher processes the external-scale-only
-        // emission before the Bengle arrives.
         await Future.delayed(Duration.zero);
         mockScanner.addDevice(bengle);
         await Future.delayed(Duration.zero);
@@ -306,11 +262,9 @@ void main() {
       await connectionManager.connect();
       await Future.delayed(Duration.zero);
 
-      // The Bengle is the connected machine.
       expect(mockDe1Controller.connectCalls, hasLength(1));
       expect(mockDe1Controller.connectCalls.first, same(bengle));
 
-      // Exactly one scale was attached, and it's the virtual one.
       expect(mockScaleController.connectCalls, hasLength(1));
       expect(
         mockScaleController.connectCalls.first.deviceId,

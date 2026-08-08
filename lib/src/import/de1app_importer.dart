@@ -25,8 +25,6 @@ import 'dart:convert';
 
 final _log = Logger('De1appImporter');
 
-/// Orchestrates the full de1app import pipeline:
-/// scan → parse shots → extract entities → store everything.
 class De1appImporter {
   final StorageService storageService;
   final ProfileStorageService profileStorageService;
@@ -59,7 +57,6 @@ class De1appImporter {
     var grindersSkipped = 0;
     var settingsApplied = false;
 
-    // --- Phase 1: Parse shot files ---
     final parsedShots = <ParsedShot>[];
     if (scanResult.shotSource != null) {
       final shotDir = Directory(
@@ -110,19 +107,14 @@ class De1appImporter {
       }
     }
 
-    // --- Phase 2: Extract and store entities ---
     final extractor = EntityExtractor();
     final extraction = extractor.extract(parsedShots);
 
-    // Total entity count for progress reporting (beans + grinders; batches
-    // are sub-items of beans so we don't count them separately).
     final entityTotal = extraction.beans.length + extraction.grinders.length;
     var entityIndex = 0;
 
-    // Load existing beans and grinders to avoid duplicates on re-import.
-    // Build lookup maps keyed the same way EntityExtractor deduplicates.
     final existingBeans = await beanStorageService.getAllBeans();
-    final existingBeanMap = <String, String>{}; // normalized key → bean ID
+    final existingBeanMap = <String, String>{};
     for (final bean in existingBeans) {
       final key = '${bean.roaster.toLowerCase()}\x00${bean.name.toLowerCase()}';
       existingBeanMap[key] = bean.id;
@@ -135,19 +127,15 @@ class De1appImporter {
     }
 
     final existingGrinders = await grinderStorageService.getAllGrinders();
-    final existingGrinderMap =
-        <String, String>{}; // normalized model → grinder ID
+    final existingGrinderMap = <String, String>{};
     for (final grinder in existingGrinders) {
       existingGrinderMap[grinder.model.toLowerCase()] = grinder.id;
     }
 
-    // Remap extracted entity IDs → existing IDs where matches are found.
-    // This ensures shots link to existing entities rather than new duplicates.
-    final beanIdRemap = <String, String>{}; // extracted ID → actual ID
+    final beanIdRemap = <String, String>{};
     final batchIdRemap = <String, String>{};
     final grinderIdRemap = <String, String>{};
 
-    // Store or remap beans
     for (final bean in extraction.beans) {
       final key = '${bean.roaster.toLowerCase()}\x00${bean.name.toLowerCase()}';
       final existingId = existingBeanMap[key];
@@ -174,12 +162,10 @@ class De1appImporter {
       );
     }
 
-    // Store or remap batches
     for (final batch in extraction.batches) {
       final actualBeanId = beanIdRemap[batch.beanId] ?? batch.beanId;
       final existingBeanBatches = existingBatches[actualBeanId] ?? [];
 
-      // Match by roast date (or both null)
       final existingBatch = existingBeanBatches.firstWhereOrNull(
         (b) =>
             b.roastDate == batch.roastDate ||
@@ -209,7 +195,6 @@ class De1appImporter {
       }
     }
 
-    // Merge DYE grinder specs if available
     var grinders = extraction.grinders;
     if (scanResult.hasDyeGrinders) {
       final tdbFile = File('${scanResult.sourcePath}/plugins/DYE/grinders.tdb');
@@ -222,7 +207,6 @@ class De1appImporter {
       }
     }
 
-    // Store or remap grinders
     for (final grinder in grinders) {
       final existingId = existingGrinderMap[grinder.model.toLowerCase()];
       if (existingId != null) {
@@ -248,7 +232,6 @@ class De1appImporter {
       );
     }
 
-    // --- Phase 3: Store shots with entity linkage ---
     final existingIds = (await storageService.getShotIds()).toSet();
 
     for (var i = 0; i < parsedShots.length; i++) {
@@ -278,7 +261,6 @@ class De1appImporter {
           ? (grinderIdRemap[rawGrinderId] ?? rawGrinderId)
           : null;
 
-      // Update WorkflowContext with resolved entity IDs
       final updatedShot = (batchId != null || grinderId != null)
           ? _linkShotToEntities(shot, batchId: batchId, grinderId: grinderId)
           : shot;
@@ -308,7 +290,6 @@ class De1appImporter {
       );
     }
 
-    // --- Phase 4: Import standalone profiles ---
     final profilesDir = Directory('${scanResult.sourcePath}/profiles_v2');
     if (await profilesDir.exists()) {
       final profileFiles = <File>[];
@@ -354,7 +335,6 @@ class De1appImporter {
       }
     }
 
-    // --- Phase 5: Import settings ---
     if (scanResult.hasSettings && settingsController != null) {
       try {
         final settingsFile = File('${scanResult.sourcePath}/settings.tdb');
@@ -362,7 +342,6 @@ class De1appImporter {
         final settings = SettingsTdbParser.parse(content);
 
         if (!settings.isEmpty) {
-          // Wake schedule
           if (settings.wakeHour != null && settings.wakeMinute != null) {
             final schedule = WakeSchedule.create(
               hour: settings.wakeHour!,
@@ -375,10 +354,6 @@ class De1appImporter {
             );
           }
 
-          // Scale power mode: de1app's keep_scale_on=1 means "don't auto-manage
-          // scale power" which maps to Bridge's ScalePowerMode.disabled (no
-          // automatic power management). keep_scale_on=0 means the scale should
-          // disconnect when the machine sleeps.
           if (settings.keepScaleOn != null) {
             await settingsController!.setScalePowerMode(
               settings.keepScaleOn!
@@ -387,21 +362,16 @@ class De1appImporter {
             );
           }
 
-          // Sleep timeout
           if (settings.sleepTimeoutMinutes != null) {
             await settingsController!.setSleepTimeoutMinutes(
               settings.sleepTimeoutMinutes!,
             );
           }
 
-          // Charging mode — map from de1app's smart_battery_charging enum.
-          // Unknown values leave the current Bridge setting untouched (see
-          // SettingsTdbParser._parseChargingMode).
           if (settings.chargingMode != null) {
             await settingsController!.setChargingMode(settings.chargingMode!);
           }
 
-          // Preferred device IDs (Android only — BLE IDs are MAC addresses)
           if (Platform.isAndroid) {
             if (settings.machineBluetoothAddress != null) {
               await settingsController!.setPreferredMachineId(
@@ -415,9 +385,6 @@ class De1appImporter {
             }
           }
 
-          // Workflow context + steam/water/rinse
-          // Use existing workflow or create a default one (common during
-          // onboarding when no workflow has been persisted yet).
           final baseWorkflow =
               await storageService.loadCurrentWorkflow() ??
               WorkflowController().newWorkflow();
@@ -478,8 +445,6 @@ class De1appImporter {
     );
   }
 
-  /// Returns a copy of [shot] with [batchId] and/or [grinderId] set in the
-  /// workflow's context.
   static ShotRecord _linkShotToEntities(
     ShotRecord shot, {
     String? batchId,
@@ -493,7 +458,6 @@ class De1appImporter {
 
     if (updatedContext == null) return shot;
 
-    // Workflow.copyWith generates a new UUID — that's intentional for imported shots
     final updatedWorkflow = shot.workflow.copyWith(context: updatedContext);
     return shot.copyWith(workflow: updatedWorkflow);
   }

@@ -1,18 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * DYE2 Plugin Dev Server
- *
- * Loads the built plugin.js in a Node.js VM, serves its pages via HTTP,
- * and proxies /api/v1/* requests to a running Decent instance.
- *
- * Usage:
- *   npm run serve                          # defaults: port 3000, bridge at localhost:8080
- *   PORT=4000 BRIDGE_URL=http://192.168.1.5:8080 npm run serve
- *
- * Pair with `npm run dev` in another terminal for watch builds — the server
- * auto-reloads plugin.js when it changes on disk.
- */
 
 import { createServer, request as httpRequest } from "node:http";
 import { readFileSync, watch } from "node:fs";
@@ -30,7 +17,6 @@ const PORT = parseInt(process.env.PORT || "4444", 10);
 const BRIDGE_URL = process.env.BRIDGE_URL || "http://localhost:8080";
 const bridgeUrl = new URL(BRIDGE_URL);
 
-// ── Plugin loading ──────────────────────────────────────────────────
 
 let plugin = null;
 
@@ -53,14 +39,12 @@ function loadPlugin() {
   console.log(`Loaded plugin ${plugin.id} v${plugin.version}`);
 }
 
-// ── File watching ───────────────────────────────────────────────────
 
 let reloadTimer = null;
 
 function watchPlugin() {
   try {
     watch(PLUGIN_PATH, () => {
-      // Debounce: Vite may write the file in multiple passes
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => {
         console.log("\nPlugin file changed — reloading...");
@@ -78,7 +62,6 @@ function watchPlugin() {
   }
 }
 
-// ── API proxy ───────────────────────────────────────────────────────
 
 function proxyRequest(req, res) {
   const options = {
@@ -103,7 +86,6 @@ function proxyRequest(req, res) {
   req.pipe(proxyReq, { end: true });
 }
 
-// ── Plugin page handler ─────────────────────────────────────────────
 
 function handlePluginPage(endpoint, req, res) {
   if (!plugin) {
@@ -126,7 +108,6 @@ function handlePluginPage(endpoint, req, res) {
 
   try {
     const response = plugin.__httpRequestHandler(request);
-    // Handle both sync and async responses
     Promise.resolve(response).then((resp) => {
       res.writeHead(resp.status, resp.headers);
       res.end(resp.body);
@@ -138,7 +119,6 @@ function handlePluginPage(endpoint, req, res) {
   }
 }
 
-// ── HTTP server ─────────────────────────────────────────────────────
 
 const PLUGIN_ROUTES = ["beans", "grinders", "bean-picker", "grinder-picker"];
 
@@ -146,7 +126,6 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
 
-  // Plugin page routes
   for (const route of PLUGIN_ROUTES) {
     if (pathname === `/${route}`) {
       handlePluginPage(route, req, res);
@@ -154,13 +133,11 @@ const server = createServer((req, res) => {
     }
   }
 
-  // Proxy API calls to Decent
   if (pathname.startsWith("/api/")) {
     proxyRequest(req, res);
     return;
   }
 
-  // Index page — list available routes
   if (pathname === "/") {
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(`<!DOCTYPE html>
@@ -183,7 +160,6 @@ ${PLUGIN_ROUTES.map((r) => `<a href="/${r}">/${r}</a>`).join("\n")}
   res.end("Not found");
 });
 
-// ── Start ───────────────────────────────────────────────────────────
 
 try {
   loadPlugin();

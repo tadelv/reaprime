@@ -86,15 +86,8 @@ class PluginManager {
       decentProxyService: decentProxyService,
       log: _log,
     );
-    // js.enableHandlePromises();
-    // js.enableXhr();
-    // js.enableFetch();
     _bootstrapJs();
   }
-
-  // ─────────────────────────────────────────────
-  // JS bootstrap (ONCE)
-  // ─────────────────────────────────────────────
 
   void _bootstrapJs() {
     js.evaluate(r'''
@@ -439,7 +432,6 @@ class PluginManager {
         if (type == 'log') {
           _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
         } else if (type == 'httpResponse') {
-          // Handle HTTP responses from plugin
           _handlePluginApiResponse(pluginId, msg);
         } else {
           unawaited(_handleMessageSafely(pluginId, msg));
@@ -463,9 +455,6 @@ class PluginManager {
     String pluginId,
     Map<String, dynamic> msg,
   ) async {
-    // Yield before processing: channel callbacks run inside the JS evaluate
-    // that sent the message, and a nested evaluate + job drain does not
-    // settle promises on QuickJS (unhandled-rejection hang).
     await Future<void>.delayed(Duration.zero);
     try {
       await _handleMessage(pluginId, msg);
@@ -482,10 +471,6 @@ class PluginManager {
       _log.warning("Invalid fetch message", e, st);
     }
   }
-
-  // ─────────────────────────────────────────────
-  // Plugin lifecycle
-  // ─────────────────────────────────────────────
 
   Future<void> loadPlugin({
     required String id,
@@ -504,7 +489,6 @@ class PluginManager {
     _decentProxyBridgeTokens[id] = decentProxyBridgeToken;
 
     try {
-      // Direct injection approach with standard factory name
       final wrapperCode =
           '''
       (function () {
@@ -580,8 +564,6 @@ class PluginManager {
       if (result.isError) {
         throw Exception("JS evaluation error: ${result.stringResult}");
       }
-      // Settle promise chains created synchronously during onLoad (e.g. a
-      // rejected fetch or an already-resolved promise) regardless of engine.
       while (js.executePendingJob() > 0) {}
 
       runtime.markRunning();
@@ -593,12 +575,6 @@ class PluginManager {
       delete globalThis.__plugins__["$id"];
     ''');
       _cleanupPluginResources(id);
-      // WARNING, not SEVERE: a plugin failing to load is almost always a
-      // user-installed third-party plugin with a bad manifest id or a JS
-      // syntax error, not an app defect. The caller (e.g. PluginsSettingsView)
-      // surfaces the failure to the user. Keeping this at SEVERE escalated
-      // every broken user plugin into Crashlytics crash signal (issue
-      // e396ab1d — a catch-all cluster of unrelated plugin-load failures).
       _log.warning("Failed to load plugin $id", e, st);
       rethrow;
     }
@@ -631,16 +607,9 @@ class PluginManager {
   }
 
   void _cleanupPluginResources(String pluginId) {
-    // Reject operations first: settling promises drains pending jobs, which
-    // can run plugin rejection handlers that schedule new timers. The timer
-    // sweep after must be the last word.
     _rejectOpsForPlugin(pluginId);
     _cancelTimersForPlugin(pluginId);
   }
-
-  // ─────────────────────────────────────────────
-  // Dart → JS events
-  // ─────────────────────────────────────────────
 
   void broadcastEvent(String name, dynamic payload) {
     for (final plugin in _plugins.values) {
@@ -709,10 +678,6 @@ class PluginManager {
     while (js.executePendingJob() > 0) {}
   }
 
-  // ─────────────────────────────────────────────
-  // JS → Dart messages
-  // ─────────────────────────────────────────────
-
   Future<void> _handleMessage(String pluginId, Map<String, dynamic> msg) async {
     _log.finest("handle message: $msg");
     final type = msg['type'];
@@ -753,10 +718,6 @@ class PluginManager {
     }
   }
 
-  // ─────────────────────────────────────────────
-  // Timers (JS callbacks, Dart-owned Timers)
-  // ─────────────────────────────────────────────
-
   final Map<int, ({String pluginId, Timer timer})> _timers = {};
 
   int get activeTimerCount => _timers.length;
@@ -771,8 +732,6 @@ class PluginManager {
 
   void _setTimer(String pluginId, int generation, int id, int delayMs) {
     if (!_plugins.containsKey(pluginId)) return;
-    // Deferred bridge messages can arrive after a reload; a timer from an
-    // older generation must not register against the current plugin.
     if (generation != (_pluginGenerations[pluginId] ?? 0)) return;
     _timers[id] = (
       pluginId: pluginId,
@@ -818,10 +777,6 @@ class PluginManager {
     js.evaluate('globalThis.__cancelAllTimers();');
     while (js.executePendingJob() > 0) {}
   }
-
-  // ─────────────────────────────────────────────
-  // Pending operations (fetch, plugin HTTP, Decent proxy)
-  // ─────────────────────────────────────────────
 
   final Map<String, _PendingOp> _pendingOps = {};
   final Map<String, int> _pluginGenerations = {};
@@ -990,7 +945,6 @@ class PluginManager {
     String pluginId,
     PluginStorageCommand cmd,
   ) async {
-    // Use pluginId as namespace for storage isolation
     final namespace = pluginId;
 
     switch (cmd.type) {
@@ -1047,10 +1001,6 @@ class PluginManager {
     return completer.future;
   }
 
-  // ─────────────────────────────────────────────
-  // External API (UNCHANGED)
-  // ─────────────────────────────────────────────
-
   List<PluginRuntime> get loadedPlugins => _plugins.values.toList();
 
   set de1Controller(De1Controller? controller) {
@@ -1088,8 +1038,6 @@ class PluginManager {
     final generation = msg['generation'] is num
         ? (msg['generation'] as num).toInt()
         : 0;
-    // Deferred bridge messages can arrive after a reload; a fetch from an
-    // older generation must not start network work against the new plugin.
     if (generation != (_pluginGenerations[pluginId] ?? 0)) {
       js.evaluate(
         'globalThis.__handleFetchResponse('

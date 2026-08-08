@@ -11,10 +11,6 @@ const _serviceUuid = '0000a000-0000-1000-8000-00805f9b34fb';
 const _charUuid = '0000a00e-0000-1000-8000-00805f9b34fb';
 const _writeTimeout = Duration(milliseconds: 50);
 
-/// Fake [UniversalBlePlatform] driving [UniversalBleTransport] recovery
-/// tests. `hangWrites` makes writeValue never complete (so the facade's
-/// command queue times out, the same path a dead link produces);
-/// `connectionStateResult` is what the OS-level probe reports.
 class _FakeBlePlatform extends UniversalBlePlatform {
   BleConnectionState connectionStateResult = BleConnectionState.connected;
   Completer<BleConnectionState>? connectionStateBlocker;
@@ -38,9 +34,6 @@ class _FakeBlePlatform extends UniversalBlePlatform {
   final List<String> disconnectCalls = [];
   final List<BleInputProperty> notificationProperties = [];
 
-  /// When true, the second `setNotifiable` call (per device+characteristic)
-  /// throws a [UniversalBleException] — used to prove `subscribe()`
-  /// surfaces the error instead of swallowing it.
   bool throwOnSecondSetNotifiable = false;
   final Map<String, int> _setNotifiableCounts = {};
 
@@ -210,11 +203,8 @@ void main() {
   setUp(() async {
     platform = _FakeBlePlatform();
     UniversalBle.setInstance(platform);
-    // Drop any queues left over from a previous test (a hung write keeps
-    // its per-device queue slot busy forever otherwise).
     UniversalBle.clearQueue();
     UniversalBle.queueType = QueueType.perDevice;
-    // Unique id per test so per-device queue state can't bleed over.
     deviceId = 'AA:BB:CC:DD:EE:${(deviceCounter++).toString().padLeft(2, '0')}';
     transport = UniversalBleTransport(
       device: bleDevice(deviceId),
@@ -499,7 +489,6 @@ void main() {
     });
 
     test('advert while transport already disconnected is ignored', () async {
-      // Deliver a real disconnect event first.
       platform.updateConnection(deviceId, false);
       await pump(10);
       expect(observedStates, contains(device.ConnectionState.disconnected));
@@ -571,25 +560,15 @@ void main() {
     });
   });
 
-  // Characterization tests for the universal_ble shared broadcast
-  // controller (the `_valueStreamController` with `onCancel: close`). The
-  // 2026-07-07 field incident showed A00E push notifications dying while
-  // A005 solicited reads kept working. These tests prove the Dart-side
-  // broadcast controller does NOT silently drop pushes on a no-op
-  // reconnect — so the silent A00E-only death is a native-layer behavior
-  // (CCCD write succeeds locally but is lost on the zombie GATT link),
-  // confirmable only on real Android hardware. They pin that boundary so
-  // a future regression in the Dart layer is caught.
   group('re-subscribe push channel (universal_ble broadcast controller)', () {
     const service = '0000a000-0000-1000-8000-00805f9b34fb';
-    // The six DE1 characteristics _bleConnect re-subscribes on reconnect.
     const chars = [
-      '0000a00e-0000-1000-8000-00805f9b34fb', // stateInfo (A00E)
-      '0000a005-0000-1000-8000-00805f9b34fb', // readFromMMR (A005)
-      '0000a00b-0000-1000-8000-00805f9b34fb', // shotSettings (A00B)
-      '0000a00d-0000-1000-8000-00805f9b34fb', // shotSample (A00D)
-      '0000a011-0000-1000-8000-00805f9b34fb', // waterLevels (A011)
-      '0000a009-0000-1000-8000-00805f9b34fb', // fwMapRequest (A009)
+      '0000a00e-0000-1000-8000-00805f9b34fb',
+      '0000a005-0000-1000-8000-00805f9b34fb',
+      '0000a00b-0000-1000-8000-00805f9b34fb',
+      '0000a00d-0000-1000-8000-00805f9b34fb',
+      '0000a011-0000-1000-8000-00805f9b34fb',
+      '0000a009-0000-1000-8000-00805f9b34fb',
     ];
 
     void push(String char, int byte) => platform.updateCharacteristicValue(
@@ -612,7 +591,6 @@ void main() {
         await pump();
         expect(oldReceived, [1]);
 
-        // No-op reconnect path: cancel old, listen new.
         final newReceived = <int>[];
         await transport.subscribe(
           service,
@@ -644,7 +622,6 @@ void main() {
           (d) => oldReceived[i]!.add(d[0]),
         );
       }
-      // Initial pushes land on the old callbacks.
       for (var i = 0; i < chars.length; i++) {
         push(chars[i], i + 1);
       }
@@ -653,9 +630,6 @@ void main() {
         expect(oldReceived[i], [i + 1]);
       }
 
-      // Re-subscribe all six sequentially — the shared broadcast controller
-      // always has ≥5 listeners during each swap, so onCancel:close never
-      // fires mid-sequence.
       for (var i = 0; i < chars.length; i++) {
         await transport.subscribe(
           service,
@@ -687,11 +661,8 @@ void main() {
       () async {
         platform.throwOnSecondSetNotifiable = true;
 
-        // First subscribe succeeds (first setNotifiable).
         await transport.subscribe(service, chars[0], (_) {});
 
-        // Second subscribe (second setNotifiable for the same char) must
-        // throw — not swallow — so the caller learns the CCCD write failed.
         await expectLater(
           transport.subscribe(service, chars[0], (_) {}),
           throwsA(isA<UniversalBleException>()),

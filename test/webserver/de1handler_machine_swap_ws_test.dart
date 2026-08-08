@@ -21,18 +21,6 @@ import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/mock_settings_service.dart';
 import '../helpers/test_de1.dart';
 
-/// Bench bug i14 — "the app never reconnects after a power-cycle".
-///
-/// A machine power-cycle drops the De1 object and builds a NEW one under the
-/// SAME device id (the USB stable id is derived from the SAMD21 factory
-/// serial, so it is byte-identical across a power-cycle). The machine sockets
-/// used to bind to one De1 *instance* at open and never re-bind, so a client
-/// that connected before the power-cycle sat on an open-but-silent socket
-/// forever.
-///
-/// These lock the server-side contract: a client that connected BEFORE the
-/// swap receives frames from the NEW machine after it, with no client-side
-/// action — and exactly one copy of each frame.
 void main() {
   late De1Controller de1Controller;
   late HttpServer server;
@@ -70,22 +58,16 @@ void main() {
     final messages = channel.stream
         .map((msg) => jsonDecode(msg.toString()) as Map<String, dynamic>)
         .asBroadcastStream();
-    // Drain into a broadcast stream eagerly so frames sent before a
-    // `.first`/`.take()` is awaited are not dropped.
     messages.listen((_) {});
     return (channel, messages);
   }
 
-  /// Let the WebSocket + rx plumbing settle.
   Future<void> settle([int turns = 6]) async {
     for (var i = 0; i < turns; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
   }
 
-  /// The power-cycle, exactly as De1Controller sees it on the bench: the
-  /// transport reports `disconnected` (→ `_onDisconnect()` nulls the de1),
-  /// then the next scan builds a brand-new instance under the same id.
   Future<TestDe1> powerCycle(TestDe1 old) async {
     old.setConnectionState(ConnectionState.disconnected);
     await settle();
@@ -125,7 +107,6 @@ void main() {
       await settle();
       expect(received, isNotEmpty, reason: 'the old machine streams');
 
-      // The machine is power-cycled: same device id, brand-new De1 object.
       final second = await powerCycle(first);
       expect(identical(first, second), isFalse);
 
@@ -154,7 +135,6 @@ void main() {
         await settle();
 
         final second = await powerCycle(first);
-        // A second power-cycle: three instances have now passed under one socket.
         final third = await powerCycle(second);
 
         received.clear();
@@ -168,7 +148,6 @@ void main() {
               'a leaked subscription per swap would multiply the frame rate',
         );
 
-        // The dead instances must have no listener left on them.
         expect(first.snapshotSubject.hasListener, isFalse);
         expect(second.snapshotSubject.hasListener, isFalse);
 
@@ -188,7 +167,7 @@ void main() {
       await powerCycle(first);
 
       received.clear();
-      first.emitSnapshot(snapshotAt(11.1)); // zombie instance still alive
+      first.emitSnapshot(snapshotAt(11.1));
       await settle();
 
       expect(received, isEmpty);
@@ -400,7 +379,6 @@ void main() {
         reason: 'a leaked subscription per swap would multiply the frame rate',
       );
 
-      // The dead instances must have no listener left on their raw stream.
       expect(first.rawOutSubject.hasListener, isFalse);
       expect(second.rawOutSubject.hasListener, isFalse);
 
@@ -413,8 +391,6 @@ void main() {
       await de1Controller.connectToDe1(first);
 
       final (channel, messages) = connectWs('/ws/v1/machine/raw');
-      // Drain server-to-client frames (including the initial replay) so we
-      // can focus on the inbound command.
       messages.listen((_) {});
       await settle();
 
@@ -429,7 +405,6 @@ void main() {
       channel.sink.add(jsonEncode(command.toJson()));
       await settle();
 
-      // The command must reach only the new machine.
       expect(
         second.sentRawMessages,
         hasLength(1),
@@ -437,7 +412,6 @@ void main() {
       );
       expect(second.sentRawMessages.first.characteristicUUID, '0x2a');
 
-      // The old machine must not receive the command.
       expect(
         first.sentRawMessages,
         isEmpty,
@@ -455,7 +429,6 @@ void main() {
       messages.listen((_) {});
       await settle();
 
-      // Send a command to the first machine before the swap.
       final cmd1 = rawCommand(
         type: De1RawMessageType.request,
         operation: De1RawOperationType.read,
@@ -474,7 +447,6 @@ void main() {
 
       await powerCycle(first);
 
-      // Send a second command after the swap.
       final cmd2 = rawCommand(
         type: De1RawMessageType.request,
         operation: De1RawOperationType.read,
@@ -484,7 +456,6 @@ void main() {
       channel.sink.add(jsonEncode(cmd2.toJson()));
       await settle();
 
-      // First machine must not receive the second command.
       expect(
         first.sentRawMessages,
         isEmpty,
@@ -501,13 +472,11 @@ void main() {
       final (channel, _) = connectWs('/ws/v1/machine/raw');
       await settle();
 
-      // Verify there is at least one listener on the raw subject.
       expect(machine.rawOutSubject.hasListener, isTrue);
 
       await channel.sink.close();
       await settle();
 
-      // After close, no listener should remain.
       expect(machine.rawOutSubject.hasListener, isFalse);
     });
 
@@ -519,7 +488,6 @@ void main() {
       final (channel, messages) = connectWs('/ws/v1/machine/raw');
       messages.listen((_) {});
 
-      // Send a command immediately — no settle() before it.
       final command = rawCommand(
         type: De1RawMessageType.request,
         operation: De1RawOperationType.read,
@@ -589,11 +557,9 @@ void main() {
         messages.listen(received.add);
         await settle();
 
-        // Disconnect the machine without a replacement.
         first.setConnectionState(ConnectionState.disconnected);
         await settle();
 
-        // The socket is still open (no machine = hold the socket).
         final command = rawCommand(
           type: De1RawMessageType.request,
           operation: De1RawOperationType.read,
@@ -603,7 +569,6 @@ void main() {
         channel.sink.add(jsonEncode(command.toJson()));
         await settle();
 
-        // Must see an error frame, not silence.
         final errors = received.where((f) => f['error'] != null);
         expect(
           errors,
@@ -612,7 +577,6 @@ void main() {
         );
         expect(errors.last['error'], 'No machine connected');
 
-        // Reconnect and verify the socket is still functional.
         final second = TestDe1(deviceId: first.deviceId, name: first.name);
         await de1Controller.connectToDe1(second);
         await settle();

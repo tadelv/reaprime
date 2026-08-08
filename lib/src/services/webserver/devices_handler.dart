@@ -1,9 +1,5 @@
 part of '../webserver_service.dart';
 
-/// Aggregates device, scanning, and charging state into a single broadcast
-/// stream. One instance is shared across all WebSocket connections, avoiding
-/// duplicate subscriptions and ensuring correct cleanup when devices
-/// appear/disappear.
 class DevicesStateAggregator {
   final DeviceController _controller;
   final BatteryController? _batteryController;
@@ -14,9 +10,6 @@ class DevicesStateAggregator {
 
   final List<StreamSubscription> _subscriptions = [];
 
-  /// Per-device connectionState subscriptions keyed by deviceId.
-  /// Stores both the Device reference (for identity comparison) and the
-  /// subscription so we can detect same-ID-different-object replacements.
   final Map<String, (Device, StreamSubscription)> _deviceStateSubs = {};
 
   final BehaviorSubject<Map<String, dynamic>> _stateStream =
@@ -24,10 +17,8 @@ class DevicesStateAggregator {
 
   Timer? _debounceTimer;
 
-  /// Broadcast stream of unified state snapshots.
   Stream<Map<String, dynamic>> get stateStream => _stateStream.stream;
 
-  /// Number of active per-device connectionState subscriptions (for testing).
   int get activeDeviceSubscriptionCount => _deviceStateSubs.length;
 
   DevicesStateAggregator({
@@ -45,8 +36,6 @@ class DevicesStateAggregator {
   }
 
   void _start() {
-    // Subscribe to device list changes (skip initial BehaviorSubject replay;
-    // initial state is sent via the seeded emitState below)
     _subscriptions.add(
       _controller.deviceStream.skip(1).listen((devices) {
         _updateDeviceSubscriptions(devices);
@@ -54,25 +43,20 @@ class DevicesStateAggregator {
       }),
     );
 
-    // Subscribe to scanning state changes (skip initial replay)
     _subscriptions.add(
       _controller.scanningStream.skip(1).listen((_) => _emitState()),
     );
 
-    // Subscribe to charging state changes (skip initial replay)
     if (_batteryController != null) {
       _subscriptions.add(
         _batteryController.chargingState.skip(1).listen((_) => _emitState()),
       );
     }
 
-    // Subscribe to connection status changes (skip initial replay)
     _subscriptions.add(
       _connectionManager.status.skip(1).listen((_) => _emitState()),
     );
 
-    // Re-emit when the remembered set changes (a device remembered/forgotten),
-    // so available/unavailable entries appear/disappear promptly (skip replay).
     final remembered = _rememberedController;
     if (remembered != null) {
       _subscriptions.add(
@@ -80,17 +64,14 @@ class DevicesStateAggregator {
       );
     }
 
-    // Set up initial per-device subscriptions
     _updateDeviceSubscriptions(_controller.devices);
 
-    // Emit initial state immediately (no debounce)
     _emitState(immediate: true);
   }
 
   void _updateDeviceSubscriptions(List<Device> devices) {
     final currentIds = devices.map((d) => d.deviceId).toSet();
 
-    // Remove subscriptions for devices no longer in the list
     final staleIds = _deviceStateSubs.keys
         .where((id) => !currentIds.contains(id))
         .toList();
@@ -98,19 +79,14 @@ class DevicesStateAggregator {
       _deviceStateSubs.remove(id)?.$2.cancel();
     }
 
-    // Add or replace subscriptions for devices in the list
     for (final device in devices) {
       final existing = _deviceStateSubs[device.deviceId];
       if (existing != null) {
-        // Same ID exists — check if it's the same object instance
         if (identical(existing.$1, device)) {
-          continue; // Same object, subscription is still valid
+          continue;
         }
-        // Different object with same ID (BLE reconnect) — replace subscription
         existing.$2.cancel();
       }
-      // New device or replacement: subscribe (skip initial replay — the
-      // current state is already captured by _buildSnapshot)
       final sub = device.connectionState.skip(1).listen((_) => _emitState());
       _deviceStateSubs[device.deviceId] = (device, sub);
     }
@@ -264,10 +240,6 @@ class DevicesHandler {
     app.put('/api/v1/devices/connect', _handleConnect);
     app.put('/api/v1/devices/disconnect', _handleDisconnect);
 
-    // Forget a remembered device: drop it from the persistent registry. If the
-    // device isn't currently present it then no longer appears in the list.
-    // deviceId comes from the body/query (not the path) since serial ids are
-    // paths like /dev/cu.* and WiFi ids contain ':', neither URL-path-safe.
     app.put('/api/v1/devices/forget', _handleForget);
 
     app.get('/ws/v1/devices', sws.webSocketHandler(_handleDevicesSocket));
@@ -281,8 +253,6 @@ class DevicesHandler {
     );
   }
 
-  /// Extract deviceId from JSON body or query parameter.
-  /// Body takes precedence; query param is kept for backward compatibility.
   Future<String?> _extractDeviceId(Request req) async {
     String body;
     try {
@@ -294,8 +264,6 @@ class DevicesHandler {
     if (body.isNotEmpty) {
       try {
         final decoded = jsonDecode(body);
-        // Tolerate a wrong-shape body (e.g. an array) by falling through to the
-        // query param, rather than letting a cast throw.
         if (decoded is Map<String, dynamic> && decoded['deviceId'] is String) {
           return decoded['deviceId'] as String;
         }
@@ -309,9 +277,6 @@ class DevicesHandler {
   Future<Response> _handleForget(Request req) async {
     final remembered = _rememberedController;
     if (remembered == null) {
-      // The feature is wired in normal operation; a null controller means it's
-      // unavailable, not that the server broke — 503, not 500, so it doesn't
-      // pollute error monitoring.
       return jsonServiceUnavailable({
         'error': 'remembered devices not available',
       });
@@ -354,14 +319,9 @@ class DevicesHandler {
     return jsonOk(null);
   }
 
-  // -- WebSocket handler --
-
   void _handleDevicesSocket(WebSocketChannel socket, String? protocol) {
     _log.fine("devices websocket connected");
 
-    // Subscribe to the shared aggregator stream — each WebSocket connection
-    // gets a lightweight listener on the single broadcast output instead of
-    // creating its own set of upstream subscriptions.
     final sub = _aggregator.stateStream.listen((snapshot) {
       try {
         socket.sink.add(jsonEncode(snapshot));
@@ -370,7 +330,6 @@ class DevicesHandler {
       }
     });
 
-    // Listen for incoming commands
     socket.stream.listen(
       (message) {
         try {
@@ -492,13 +451,6 @@ class DevicesHandler {
   }
 }
 
-/// One entry in the API device list. `available` (is the device currently
-/// present) is a SEPARATE axis from `state` (a live device can be
-/// discovered-but-disconnected while still available), so it gets its own field.
-/// The two factories make the illegal pairings unrepresentable: a remembered
-/// entry is always unavailable + `disconnected`; a live entry carries its real
-/// state. Both REST and WebSocket surfaces serialize via [toJson], so the wire
-/// shape can't drift between them.
 class DeviceListEntry {
   final String id;
   final String name;
@@ -514,7 +466,6 @@ class DeviceListEntry {
     required this.available,
   });
 
-  /// A currently-present device, with its real connection state.
   DeviceListEntry.live(Device device, ConnectionState state)
     : this._(
         id: device.deviceId,
@@ -524,7 +475,6 @@ class DeviceListEntry {
         available: true,
       );
 
-  /// A remembered device that isn't currently present.
   DeviceListEntry.remembered(RememberedDevice r)
     : this._(
         id: r.id,
@@ -543,11 +493,6 @@ class DeviceListEntry {
   };
 }
 
-/// Builds the API device list: currently-present devices (`available: true`)
-/// merged with remembered devices that aren't present (`available: false`,
-/// reported as `disconnected`). A remembered device that IS present is listed
-/// once, as available. Shared by the REST `_deviceList` and the WebSocket
-/// `_buildSnapshot` so both surfaces agree.
 Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
   List<Device> liveDevices,
   List<RememberedDevice> remembered, {
@@ -564,10 +509,6 @@ Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
     if (liveIds.contains(r.id)) continue;
     entries.add(DeviceListEntry.remembered(r));
   }
-  // Stable order: the preferred scale first, then a deterministic order that
-  // does NOT depend on connection state — so entries don't shift around as
-  // devices connect/disconnect (the underlying live list reorders on every
-  // scan/state change). Key by (type, id); both are stable per device.
   entries.sort((a, b) {
     final aPref = preferredScaleId != null && a.id == preferredScaleId;
     final bPref = preferredScaleId != null && b.id == preferredScaleId;

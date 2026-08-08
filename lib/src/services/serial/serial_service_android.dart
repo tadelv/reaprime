@@ -24,7 +24,6 @@ import 'usb_ids.dart';
 import 'utils.dart';
 import 'package:rxdart/subjects.dart';
 
-// usb_serial is pulled in transitively via flutter_libserialport's git source.
 // ignore: depend_on_referenced_packages
 import 'package:usb_serial/usb_serial.dart';
 
@@ -47,14 +46,8 @@ class SerialServiceAndroid
        _usbEventStream = usbEventStream ?? (() => UsbSerial.usbEventStream),
        _detectOverride = detectDevice;
 
-  /// Tracks transports created by [_detectDevice] so quick-connect cleanup
-  /// can dispose them. Keyed by [Device.deviceId] (== [AndroidSerialPort.id]).
-  /// The scan path does not dispose from here — pre-existing behavior —
-  /// but the QC path uses it to avoid leaking port handles + stream
-  /// controllers on mismatch / failure / disconnect.
   final Map<String, AndroidSerialPort> _transportForDeviceId = {};
 
-  // Guard against concurrent scans
   bool _isScanning = false;
   Future<void>? _currentScan;
 
@@ -96,9 +89,6 @@ class SerialServiceAndroid
           "raw=${data.device?.deviceId}",
         );
         if (data.device != null) {
-          // Match by stable ID, falling back to vid:pid prefix match.
-          // Android detach events often have null serial, so exact stable ID
-          // won't match. Use vid:pid prefix to find the orphaned device.
           final vid = data.device!.vid;
           final pid = data.device!.pid;
           final detachedStableId = computeUsbStableId(
@@ -129,7 +119,6 @@ class SerialServiceAndroid
             _log.warning("USB_DETACHED: no matching device in $_devices");
           }
         } else {
-          // No device info — disconnect all serial devices as a fallback
           _log.warning(
             "USB_DETACHED: device is null, disconnecting "
             "${_devices.length} serial device(s)",
@@ -360,7 +349,6 @@ class SerialServiceAndroid
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) async {
-    // If already scanning, wait for that scan to complete
     if (_isScanning) {
       _log.info("Scan already in progress, waiting for completion");
       await _currentScan;
@@ -380,7 +368,6 @@ class SerialServiceAndroid
 
   Future<void> _performScan() async {
     List<Device> connected = [];
-    // Create a copy to avoid concurrent modification during iteration
     final devicesCopy = List<Device>.from(_devices);
     for (var d in devicesCopy) {
       final state = await d.connectionState.first;
@@ -410,7 +397,6 @@ class SerialServiceAndroid
       "(${devices.map((d) => '${d.productName ?? d.deviceName}[${computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? d.deviceId}]').join(', ')})",
     );
 
-    // Orphan GC: force-disconnect connected devices whose port vanished from USB enumeration
     final enumeratedIds = devices
         .map(
           (d) =>
@@ -430,7 +416,6 @@ class SerialServiceAndroid
       _devices.remove(orphan);
     }
 
-    // Filter out USB devices whose stable ID matches an already-known device.
     devices.removeWhere((d) {
       final usbStableId = computeUsbStableId(
         vid: d.vid,
@@ -477,7 +462,6 @@ class SerialServiceAndroid
     } catch (e) {
       port = await device.create(UsbSerial.CH34x);
     }
-    // final port = await device.create(UsbSerial.CDC);
     if (port == null) {
       _log.warning("failed to add $device, port is null");
       return null;
@@ -485,26 +469,21 @@ class SerialServiceAndroid
     final transport = AndroidSerialPort(device: device, port: port);
     _transportForDeviceId[transport.id] = transport;
 
-    // yay, shortcuts
     if (device.productName == "DE1") {
       _log.info("short circuit to de1");
       return UnifiedDe1(transport: transport);
     }
 
-    // Bengle shortcut (productName likely lands as "Bengle" once FW
-    // exposes it; trivial future-proofing).
     if (device.productName == "Bengle") {
       _log.info("short circuit to bengle");
       return Bengle(transport: transport);
     }
 
-    // Half Decent Scale shortcut
     if (device.productName == "Half Decent Scale") {
       _log.info("short circuit to Half Decent Scale");
       return HDSSerial(transport: transport);
     }
 
-    // VID:PID shortcut.
     final usbModel = matchUsbDevice(
       usbDeviceTable,
       vid: device.vid,
@@ -521,7 +500,6 @@ class SerialServiceAndroid
     try {
       await transport.connect().timeout(Duration(milliseconds: 300));
 
-      // Start listening to the stream
       final subscription = transport.rawStream.listen(
         (chunk) {
           rawData.add(chunk);
@@ -530,11 +508,9 @@ class SerialServiceAndroid
         cancelOnError: false,
       );
 
-      // Collect for the desired duration
       await Future.delayed(duration);
       await subscription.cancel();
 
-      // Combine all chunks into one buffer
       final combined = rawData.expand((e) => e).toList();
       List<String> strings = [];
       try {
@@ -545,7 +521,6 @@ class SerialServiceAndroid
       );
       _log.info("parsed into strings: $strings");
 
-      // Heuristic checks for device type
       if (strings.any((s) => s.startsWith('R '))) {
         return DebugPort(transport: transport);
       } else if (isDecentScale(strings, rawData)) {
@@ -555,9 +530,6 @@ class SerialServiceAndroid
         _log.info("Detected: Sensor Basket");
         return SensorBasket(transport: transport);
       } else {
-        // try and check if we get some replies when subscribing to state.
-        // Also fire a v13Model MMR-read request so we can disambiguate
-        // DE1 vs Bengle inline.
         final List<String> messages = [];
         final sub = transport.readStream.listen((line) {
           messages.add(line);

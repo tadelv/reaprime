@@ -6,11 +6,6 @@ import 'package:reaprime/src/home_feature/widgets/device_connecting_indicator.da
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// Reusable widget for displaying a list of discovered devices of a given type.
-///
-/// This is a pure display widget — it does not own connection state.
-/// The parent is responsible for managing connection logic and passing
-/// [connectingDeviceId] and [errorMessage] as props.
 class DeviceSelectionWidget extends StatefulWidget {
   final DeviceController deviceController;
   final dev.DeviceType deviceType;
@@ -49,12 +44,10 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
   void initState() {
     super.initState();
 
-    // Get initial devices
     _discoveredDevices = widget.deviceController.devices
         .where((device) => device.type == widget.deviceType)
         .toList();
 
-    // Listen for additional devices discovered
     _discoverySubscription = widget.deviceController.deviceStream.listen((
       data,
     ) {
@@ -115,13 +108,6 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ShadCard wraps its children in a DecoratedBox with a
-                // background colour. Flutter's `ListTile` paints onto
-                // the nearest `Material` ancestor and asserts when a
-                // bg-coloured DecoratedBox sits between them. Wrap the
-                // ListTile in a transparent Material so the tile has
-                // its own paint surface; ShadCard's visuals are
-                // unaffected.
                 Material(
                   type: MaterialType.transparency,
                   child: ListTile(

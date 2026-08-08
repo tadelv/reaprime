@@ -10,12 +10,8 @@ import 'package:reaprime/src/services/feedback_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Maximum number of screenshots that can be attached.
 const _maxScreenshots = 2;
 
-/// Shows the feedback dialog for submitting user feedback.
-///
-/// The [githubToken] is injected at build time via --dart-define.
 void showFeedbackDialog(BuildContext context, {required String githubToken}) {
   showShadDialog(
     context: context,
@@ -23,7 +19,6 @@ void showFeedbackDialog(BuildContext context, {required String githubToken}) {
   );
 }
 
-/// Dialog for collecting and submitting user feedback as a GitHub issue.
 class FeedbackDialog extends StatefulWidget {
   final String githubToken;
 
@@ -175,7 +170,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        // Validation / info message
         if (_validationMessage != null) ...[
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -196,7 +190,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
           ),
           const SizedBox(height: 8),
         ],
-        // Feedback type selector
         Text(
           'Type',
           style: Theme.of(
@@ -222,7 +215,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
           placeholder: const Text('Select type...'),
         ),
         const SizedBox(height: 12),
-        // Description
         Text(
           'Description',
           style: Theme.of(
@@ -238,7 +230,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
           enabled: !_controller.isSubmitting,
         ),
         const SizedBox(height: 12),
-        // Options
         ShadSwitch(
           value: _includeLogs,
           onChanged: _controller.isSubmitting
@@ -257,7 +248,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
           sublabel: const Text('App version, platform, and OS version'),
         ),
         const SizedBox(height: 12),
-        // Screenshots section
         Row(
           children: [
             Expanded(
@@ -320,7 +310,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
             ],
           ),
         ],
-        // Error message with export option
         if (_controller.state == FeedbackState.error &&
             _controller.lastResult?.errorMessage != null) ...[
           const SizedBox(height: 12),

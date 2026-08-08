@@ -137,7 +137,6 @@ void main() {
         expect(res.statusCode, 202);
 
         expect(await de1.getHeaterPhase2Timeout(), 7.0);
-        // An ordinary MMR write must not drop the machine connection.
         expect(controller.connectedDe1OrNull, same(de1));
       },
     );
@@ -213,7 +212,6 @@ void main() {
       'allows espresso when blockOnNoScale=false and scale disconnected',
       () async {
         await wireWith(MockDe1());
-        // default: blockOnNoScale is false
         scaleController.simulateDisconnect();
 
         final res = await putNoBody('/api/v1/machine/state/espresso');

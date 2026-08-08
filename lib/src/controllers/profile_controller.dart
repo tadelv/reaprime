@@ -7,19 +7,16 @@ import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Controller for managing profile operations and business logic
 class ProfileController {
   final ProfileStorageService _storage;
   final Logger _log = Logger('ProfileController');
 
-  /// Stream of profile count updates
   final BehaviorSubject<int> _profileCountStream = BehaviorSubject.seeded(0);
   Stream<int> get profileCount => _profileCountStream.stream;
 
   ProfileController({required ProfileStorageService storage})
     : _storage = storage;
 
-  /// Initialize the controller and load default profiles if needed
   Future<void> initialize() async {
     _log.info('Initializing ProfileController');
     await _storage.initialize();
@@ -28,13 +25,8 @@ class ProfileController {
     _log.info('ProfileController initialized');
   }
 
-  /// Load bundled default profiles from assets if they don't exist
-  ///
-  /// Uses content-based hashing: if a profile with the same hash already exists,
-  /// it won't be loaded again. This automatically handles deduplication.
   Future<void> _loadDefaultProfilesIfNeeded() async {
     try {
-      // Load the manifest to get list of profile files
       final manifestData = await rootBundle.loadString(
         'assets/defaultProfiles/manifest.json',
       );
@@ -45,8 +37,6 @@ class ProfileController {
       int skipped = 0;
       int refreshed = 0;
 
-      // Maps each bundled filename to the id (content hash) of its *current*
-      // version, so stale prior copies can be retired afterwards (issue #242).
       final currentFilenames = profileFiles.cast<String>().toSet();
       final currentIdByFilename = <String, String>{};
 
@@ -58,7 +48,6 @@ class ProfileController {
           final profileJson = jsonDecode(profileData) as Map<String, dynamic>;
           final profile = Profile.fromJson(profileJson);
 
-          // Create a ProfileRecord - ID will be calculated from content
           final record = ProfileRecord.create(
             profile: profile,
             isDefault: true,
@@ -66,20 +55,8 @@ class ProfileController {
           );
           currentIdByFilename[filename] = record.id;
 
-          // Check if this profile already exists (by hash)
           final existing = await _storage.get(record.id);
           if (existing != null) {
-            // Same execution content. Re-assert `isDefault` (a user may have
-            // imported this profile before it became a bundled default) and
-            // refresh presentation fields (title/author/notes) when the bundled
-            // metadata changed — that's what lets curation edits (issue #242)
-            // reach existing installs, since metadata-only changes leave the
-            // content hash (id) unchanged.
-            //
-            // Visibility is deliberately PRESERVED (omitted from copyWith): a
-            // default the user hid must stay hidden across restarts. Previously
-            // this forced Visibility.visible, silently un-hiding it on every
-            // launch. Use POST /profiles/restore/{filename} to un-hide.
             final needsMetadataRefresh =
                 existing.metadataHash != record.metadataHash;
             if (!existing.isDefault || needsMetadataRefresh) {
@@ -123,14 +100,6 @@ class ProfileController {
     }
   }
 
-  /// Hide bundled defaults that no longer match the current manifest, so curation
-  /// (issue #242) doesn't leave duplicate/stale defaults on existing installs.
-  ///
-  /// A stored default is retired when either its source `filename` was dropped
-  /// from the manifest (profile removed), or its content changed so the stored
-  /// copy's id no longer equals the current bundled id for that filename.
-  /// Records are *hidden*, never deleted, so the change stays recoverable.
-  /// Identified via the seeded `metadata.filename`; idempotent across launches.
   Future<void> _retireStaleDefaults(
     Set<String> currentFilenames,
     Map<String, String> currentIdByFilename,
@@ -141,7 +110,7 @@ class ProfileController {
         continue;
       }
       final filename = record.metadata?['filename'];
-      if (filename is! String) continue; // unclassifiable — leave untouched
+      if (filename is! String) continue;
       final removed = !currentFilenames.contains(filename);
       final staleVersion =
           !removed && currentIdByFilename[filename] != record.id;
@@ -157,14 +126,6 @@ class ProfileController {
     if (retired > 0) _log.info('Retired $retired stale default profile(s)');
   }
 
-  /// List bundled default profiles from the manifest
-  ///
-  /// Returns one entry per profile file referenced by `assets/defaultProfiles/manifest.json`,
-  /// each carrying `filename`, `title`, `author`, `notes`, `beverageType`. Clients use
-  /// `filename` to call `POST /api/v1/profiles/restore/{filename}`.
-  ///
-  /// Returns an empty list when the manifest is missing or unreadable.
-  /// Per-file parse failures are logged and skipped.
   Future<List<Map<String, dynamic>>> listDefaults() async {
     try {
       final manifestData = await rootBundle.loadString(
@@ -199,13 +160,11 @@ class ProfileController {
     }
   }
 
-  /// Update the profile count stream
   Future<void> _updateProfileCount() async {
     final count = await _storage.count(visibility: Visibility.visible);
     _profileCountStream.add(count);
   }
 
-  /// Get all profiles, optionally filtered by visibility
   Future<List<ProfileRecord>> getAll({
     Visibility? visibility,
     bool includeHidden = false,
@@ -216,22 +175,15 @@ class ProfileController {
     return await _storage.getAll(visibility: visibility ?? Visibility.visible);
   }
 
-  /// Get a single profile by ID (hash)
   Future<ProfileRecord?> get(String id) async {
     return await _storage.get(id);
   }
 
-  /// Create a new profile
-  ///
-  /// The profile ID will be automatically calculated from its content.
-  /// If a profile with the same execution-relevant fields already exists,
-  /// it will have the same hash.
   Future<ProfileRecord> create({
     required Profile profile,
     String? parentId,
     Map<String, dynamic>? metadata,
   }) async {
-    // Validate that parent exists if parentId is provided
     if (parentId != null) {
       final parent = await _storage.get(parentId);
       if (parent == null) {
@@ -245,7 +197,6 @@ class ProfileController {
       metadata: metadata,
     );
 
-    // Check if this exact profile already exists
     final existing = await _storage.get(record.id);
     if (existing != null) {
       _log.info(
@@ -261,10 +212,6 @@ class ProfileController {
     return record;
   }
 
-  /// Update an existing profile
-  ///
-  /// Note: If execution-relevant fields change, the profile hash (ID) will change,
-  /// creating effectively a new profile. Consider using parentId to track lineage.
   Future<ProfileRecord> update(
     String id, {
     Profile? profile,
@@ -275,21 +222,18 @@ class ProfileController {
       throw ArgumentError('Profile not found: $id');
     }
 
-    // Can't modify default profiles' execution fields
     if (existing.isDefault && profile != null) {
       throw ArgumentError('Cannot modify default profile content');
     }
 
     final updated = existing.copyWith(profile: profile, metadata: metadata);
 
-    // If the profile content changed, the hash will be different
     if (updated.id != existing.id) {
       _log.warning(
         'Profile hash changed from ${existing.id} to ${updated.id}. '
         'This creates a new profile. Consider using parentId for versioning.',
       );
 
-      // Delete old, store new
       await _storage.delete(existing.id);
       await _storage.store(updated);
     } else {
@@ -300,9 +244,6 @@ class ProfileController {
     return updated;
   }
 
-  /// Delete a profile
-  ///
-  /// Default profiles are hidden, user profiles are soft-deleted.
   Future<void> delete(String id) async {
     final existing = await _storage.get(id);
     if (existing == null) {
@@ -310,12 +251,10 @@ class ProfileController {
     }
 
     if (existing.isDefault) {
-      // Default profiles can't be deleted, only hidden
       final hidden = existing.copyWith(visibility: Visibility.hidden);
       await _storage.update(hidden);
       _log.info('Hid default profile: $id');
     } else {
-      // User profiles are soft-deleted
       final deleted = existing.copyWith(visibility: Visibility.deleted);
       await _storage.update(deleted);
       _log.info('Soft-deleted user profile: $id');
@@ -324,9 +263,6 @@ class ProfileController {
     await _updateProfileCount();
   }
 
-  /// Permanently delete a profile (purge)
-  ///
-  /// Cannot purge default profiles.
   Future<void> purge(String id) async {
     final existing = await _storage.get(id);
     if (existing == null) {
@@ -342,14 +278,12 @@ class ProfileController {
     _log.info('Purged profile: $id');
   }
 
-  /// Change profile visibility
   Future<ProfileRecord> setVisibility(String id, Visibility visibility) async {
     final existing = await _storage.get(id);
     if (existing == null) {
       throw ArgumentError('Profile not found: $id');
     }
 
-    // Can't set default profiles to deleted
     if (existing.isDefault && visibility == Visibility.deleted) {
       throw ArgumentError('Cannot delete default profiles, only hide them');
     }
@@ -362,7 +296,6 @@ class ProfileController {
     return updated;
   }
 
-  /// Get profile lineage (all parents and children)
   Future<List<ProfileRecord>> getLineage(String id) async {
     final profile = await _storage.get(id);
     if (profile == null) {
@@ -371,7 +304,6 @@ class ProfileController {
 
     final lineage = <ProfileRecord>[];
 
-    // Get all parents
     var current = profile;
     lineage.add(current);
     while (current.parentId != null) {
@@ -381,7 +313,6 @@ class ProfileController {
       current = parent;
     }
 
-    // Get all children recursively
     Future<void> addChildren(String parentId) async {
       final children = await _storage.getByParentId(parentId);
       for (final child in children) {
@@ -395,10 +326,8 @@ class ProfileController {
     return lineage;
   }
 
-  /// Get all profile IDs (content hashes; used for streaming export paging).
   Future<List<String>> getAllIds() => _storage.getAllIds();
 
-  /// Import profiles from JSON
   Future<Map<String, dynamic>> importProfiles(
     List<Map<String, dynamic>> profilesJson,
   ) async {
@@ -411,7 +340,6 @@ class ProfileController {
       try {
         final record = ProfileRecord.fromJson(json);
 
-        // Check if profile already exists (by hash)
         final existing = await _storage.get(record.id);
         if (existing != null) {
           skipped++;
@@ -439,7 +367,6 @@ class ProfileController {
     };
   }
 
-  /// Export profiles to JSON
   Future<List<Map<String, dynamic>>> exportProfiles({
     bool includeHidden = false,
     bool includeDeleted = false,
@@ -460,9 +387,6 @@ class ProfileController {
     return profiles.map((p) => p.toJson()).toList();
   }
 
-  /// Restore a default profile from assets
-  ///
-  /// Loads the profile from assets and stores it, making it visible again.
   Future<ProfileRecord> restoreDefault(String filename) async {
     try {
       final profileData = await rootBundle.loadString(
@@ -471,24 +395,20 @@ class ProfileController {
       final profileJson = jsonDecode(profileData) as Map<String, dynamic>;
       final profile = Profile.fromJson(profileJson);
 
-      // Create record with hash-based ID
       final record = ProfileRecord.create(
         profile: profile,
         isDefault: true,
         metadata: {'source': 'bundled', 'filename': filename},
       );
 
-      // Check if it exists
       final existing = await _storage.get(record.id);
       if (existing != null) {
-        // Just restore visibility
         final restored = existing.copyWith(visibility: Visibility.visible);
         await _storage.update(restored);
         _log.info('Restored visibility of default profile: ${record.id}');
         return restored;
       }
 
-      // Doesn't exist, store it
       await _storage.store(record);
       await _updateProfileCount();
       _log.info('Restored default profile from assets: ${record.id}');
@@ -500,7 +420,6 @@ class ProfileController {
     }
   }
 
-  /// Dispose resources
   void dispose() {
     _profileCountStream.close();
   }

@@ -65,7 +65,6 @@ void main() {
     deviceController.dispose();
   });
 
-  /// Connect and return the channel + a broadcast stream of decoded messages.
   (IOWebSocketChannel, Stream<Map<String, dynamic>>) connectWs() {
     final channel = IOWebSocketChannel.connect(wsUri);
     final messages = channel.stream
@@ -74,7 +73,6 @@ void main() {
     return (channel, messages);
   }
 
-  /// Wait for and return the first message that contains an 'error' key.
   Future<Map<String, dynamic>> waitForError(
     Stream<Map<String, dynamic>> messages,
   ) {
@@ -84,7 +82,6 @@ void main() {
         .timeout(Duration(seconds: 2));
   }
 
-  /// Wait for and return the first state message (has 'devices' key).
   Future<Map<String, dynamic>> waitForState(
     Stream<Map<String, dynamic>> messages,
   ) {
@@ -114,7 +111,6 @@ void main() {
 
       final (channel, messages) = connectWs();
 
-      // Wait for a state message that includes our device
       final state = await messages
           .where(
             (msg) =>
@@ -137,15 +133,12 @@ void main() {
     test('emits update when device is added', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state (empty)
       await waitForState(messages);
 
-      // Add a device
       mockDiscovery.addDevice(
         TestScale(deviceId: 'new-scale', name: 'New Scale'),
       );
 
-      // Wait for a state message with the new device
       final update = await messages
           .where(
             (msg) =>
@@ -168,7 +161,6 @@ void main() {
 
       final (channel, messages) = connectWs();
 
-      // Wait for initial state with one device
       await messages
           .where(
             (msg) =>
@@ -178,10 +170,8 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Remove the device
       mockDiscovery.removeDevice('scale-1');
 
-      // Wait for update with empty list
       final update = await messages
           .where(
             (msg) =>
@@ -198,10 +188,8 @@ void main() {
     test('responds with error for unknown command', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state
       await waitForState(messages);
 
-      // Send unknown command
       channel.sink.add(jsonEncode({'command': 'reboot'}));
 
       final response = await waitForError(messages);
@@ -213,10 +201,8 @@ void main() {
     test('responds with error for missing command field', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state
       await waitForState(messages);
 
-      // Send message without command
       channel.sink.add(jsonEncode({'action': 'scan'}));
 
       final response = await waitForError(messages);
@@ -228,10 +214,8 @@ void main() {
     test('responds with error for invalid JSON', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state
       await waitForState(messages);
 
-      // Send invalid JSON
       channel.sink.add('not json');
 
       final response = await waitForError(messages);
@@ -243,7 +227,6 @@ void main() {
     test('connect command with missing deviceId returns error', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state
       await waitForState(messages);
 
       channel.sink.add(jsonEncode({'command': 'connect'}));
@@ -257,7 +240,6 @@ void main() {
     test('disconnect command with unknown device returns error', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state
       await waitForState(messages);
 
       channel.sink.add(
@@ -276,7 +258,6 @@ void main() {
 
       final (channel, messages) = connectWs();
 
-      // Wait for initial state with device
       await messages
           .where(
             (msg) =>
@@ -286,12 +267,10 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Disconnect — should not produce an error
       channel.sink.add(
         jsonEncode({'command': 'disconnect', 'deviceId': 'scale-1'}),
       );
 
-      // Give time for the command to process — no error expected
       await Future.delayed(Duration(milliseconds: 100));
 
       await channel.sink.close();
@@ -327,15 +306,12 @@ void main() {
     test('scan command triggers scanForDevices', () async {
       final (channel, messages) = connectWs();
 
-      // Wait for initial state
       await waitForState(messages);
 
-      // Send scan command (quick mode to avoid blocking)
       channel.sink.add(
         jsonEncode({'command': 'scan', 'connect': false, 'quick': true}),
       );
 
-      // Should get a scanning state update
       final update = await waitForState(messages);
       expect(update, containsPair('scanning', isA<bool>()));
 
@@ -348,7 +324,6 @@ void main() {
 
       final (channel, messages) = connectWs();
 
-      // Wait for initial state with device
       await messages
           .where(
             (msg) =>
@@ -358,12 +333,10 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Send connect command
       channel.sink.add(
         jsonEncode({'command': 'connect', 'deviceId': 'scale-1'}),
       );
 
-      // Should not receive an error — give time for processing
       await Future.delayed(Duration(milliseconds: 100));
 
       await channel.sink.close();
@@ -376,7 +349,6 @@ void main() {
 
       final (channel, messages) = connectWs();
 
-      // Wait for initial state showing connected
       await messages
           .where(
             (msg) =>
@@ -387,10 +359,8 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Change connection state on the device
       scale.setConnectionState(ConnectionState.disconnected);
 
-      // WebSocket should receive an update with the new state
       final update = await messages
           .where(
             (msg) =>
@@ -413,7 +383,6 @@ void main() {
 
       final (channel, messages) = connectWs();
 
-      // Wait for initial state with device
       await messages
           .where(
             (msg) =>
@@ -423,7 +392,6 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Remove device
       mockDiscovery.removeDevice('scale-1');
       await messages
           .where(
@@ -433,7 +401,6 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Re-add with same ID but in discovered state
       final scale2 = TestScale(
         deviceId: 'scale-1',
         name: 'Scale',
@@ -441,7 +408,6 @@ void main() {
       );
       mockDiscovery.addDevice(scale2);
 
-      // Should see the new device with discovered state
       final update = await messages
           .where(
             (msg) =>
@@ -454,7 +420,6 @@ void main() {
 
       expect((update['devices'] as List)[0]['state'], 'discovered');
 
-      // New object's state changes should be observed
       scale2.setConnectionState(ConnectionState.connected);
 
       final connected = await messages
@@ -476,11 +441,9 @@ void main() {
       final (channel1, messages1) = connectWs();
       final (channel2, messages2) = connectWs();
 
-      // Both should receive initial state
       await waitForState(messages1);
       await waitForState(messages2);
 
-      // Set up futures BEFORE triggering the action to avoid missing events
       final deviceAdded1 = messages1
           .where(
             (msg) =>
@@ -499,18 +462,15 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Add a device
       final scale = TestScale(deviceId: 'scale-1', name: 'Scale');
       mockDiscovery.addDevice(scale);
 
-      // Both clients should receive the update
       final update1 = await deviceAdded1;
       final update2 = await deviceAdded2;
 
       expect((update1['devices'] as List)[0]['id'], 'scale-1');
       expect((update2['devices'] as List)[0]['id'], 'scale-1');
 
-      // Set up futures for the state change BEFORE triggering it
       final stateChanged1 = messages1
           .where(
             (msg) =>
@@ -531,7 +491,6 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Connection state change should reach both clients
       scale.setConnectionState(ConnectionState.disconnected);
 
       final stateUpdate1 = await stateChanged1;

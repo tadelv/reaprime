@@ -1,22 +1,9 @@
 part of 'unified_de1.dart';
 
-/// Bounded wait for an MMR notification matching the read request.
-/// Without this, a single dropped notify during `onConnect` hangs the
-/// entire connect call chain forever. See comms-harden #2.
 const _mmrReadTimeout = Duration(seconds: 4);
 
-/// Extra read attempts before giving up (total attempts = retries + 1).
-/// On Android the notify subscription can report success during the
-/// post-connect GATT-busy window yet drop the first response — the same
-/// init-timing fragility flutter_blue_plus documents for `setNotifyValue`
-/// (#656 ERROR_GATT_WRITE_REQUEST_BUSY, #771 writeDescriptor returned
-/// false). A single dropped notify on the first `onConnect` read
-/// (`v13Model`) used to abort the entire connect; re-issuing the read a
-/// few times naturally defers past the busy window. The upstream 30s
-/// connect timeout still caps a genuinely unresponsive device.
 const _mmrReadRetries = 2;
 
-/// Settle between MMR read attempts so the GATT stack can quiesce.
 const _mmrReadRetrySettle = Duration(milliseconds: 300);
 
 extension UnifiedDe1MMR on UnifiedDe1 {
@@ -26,9 +13,6 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   Future<void> _mmrWrite(MMRItem item, List<int> bufferData) =>
       _mmrWriteRaw(item.address, bufferData, label: item.name);
 
-  /// Address-only MMR read for capability mixins whose addresses aren't
-  /// in the [MMRItem] enum. Same wire behavior as [_mmrRead]; uses the
-  /// hex address as the log/timeout label when no enum name is given.
   Future<List<int>> _mmrReadRaw(int address, {int length = 0, String? label}) =>
       _firmwareMmrGate.runMmr(
         () => _mmrReadRawPermitted(address, length: length, label: label),
@@ -51,11 +35,6 @@ extension UnifiedDe1MMR on UnifiedDe1 {
         'sending read req ${buffer.map((e) => e.toRadixString(16)).toList()}',
       );
 
-      // Subscribe BEFORE writing to avoid race where the response arrives
-      // between writeWithResponse completing and firstWhere subscribing.
-      // A timeout (or a closed stream) yields an empty list so the loop can
-      // retry; only the final attempt throws MmrTimeoutException — keeping
-      // the exception type that `shouldForwardToTelemetry` filters on.
       final responseFuture = _mmr
           .map((d) => d.buffer.asUint8List().toList())
           .firstWhere(
@@ -91,7 +70,6 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     }
   }
 
-  /// Address-only MMR write for capability mixins; see [_mmrReadRaw].
   Future<void> _mmrWriteRaw(
     int address,
     List<int> bufferData, {
@@ -124,10 +102,6 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   }
 
   int _unpackMMRInt(List<int> buffer) {
-    // Defensive guard: `_mmrRead` now throws `MmrTimeoutException` on
-    // missing responses and shouldn't reach here with a short buffer,
-    // but an explicit error beats a downstream `RangeError` if the
-    // upstream contract ever changes. The loop below reads 20 bytes.
     if (buffer.length < 20) {
       throw StateError(
         'MMR response buffer too short (got ${buffer.length} bytes, '
@@ -149,7 +123,6 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     return bytes.buffer.asUint8List();
   }
 
-  // MMR helper methods
   Future<int> _readMMRInt(MMRItem item) async {
     final result = await _mmrRead(item);
     return _unpackMMRInt(result);

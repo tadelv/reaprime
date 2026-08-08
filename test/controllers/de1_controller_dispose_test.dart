@@ -7,14 +7,6 @@ import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 
 import '../helpers/mock_device_discovery_service.dart';
 
-/// Regression tests for De1Controller.dispose().
-///
-/// dispose() must cancel the listeners it registered in connectToDe1()
-/// (`ready` + `connectionState`) and the pending shot-settings debounce
-/// timer. It cannot rely on `_onDisconnect()` to do that: _de1.dispose()
-/// closes the transport subjects, which delivers `onDone` to the
-/// connectionState listener rather than a `disconnected` event, so
-/// `_onDisconnect()` never runs.
 void main() {
   late MockDe1 mockDe1;
   late DeviceController deviceController;
@@ -27,8 +19,6 @@ void main() {
     de1Controller = De1Controller(controller: deviceController);
     await de1Controller.connectToDe1(mockDe1);
 
-    // Let init + the 100 ms shot-settings debounce settle so the
-    // listeners are live before we dispose.
     await Future<void>.delayed(const Duration(milliseconds: 200));
   });
 
@@ -37,13 +27,9 @@ void main() {
     () async {
       await de1Controller.dispose();
 
-      // If the connectionState listener leaked, this disconnected emit
-      // would fire _onDisconnect() → _de1Controller.add() on a now-closed
-      // subject → uncaught StateError. Capture any uncaught async error.
       Object? uncaught;
       await runZonedGuarded(
         () async {
-          // Debug-only disconnect simulation on MockDe1.
           mockDe1.simulateDisconnect();
           await Future<void>.delayed(const Duration(milliseconds: 50));
         },
@@ -68,7 +54,6 @@ void main() {
 
   test('dispose is safe to call more than once', () async {
     await de1Controller.dispose();
-    // Second call must not throw (subjects already closed, _de1 null).
     await expectLater(de1Controller.dispose(), completes);
   });
 }

@@ -66,14 +66,12 @@ void main() {
       await machine.setProfile(_flowProfile());
       await machine.requestState(MachineState.espresso);
 
-      // Wait past preparingForShot, collect snapshots
       await Future.delayed(const Duration(milliseconds: 600));
       final snapshots = await machine.currentSnapshot
           .take(10)
           .toList()
           .timeout(const Duration(seconds: 3));
 
-      // First few should be below target, last few closer to 3.0
       final firstFlow = snapshots.first.flow;
       final lastFlow = snapshots.last.flow;
 
@@ -99,11 +97,9 @@ void main() {
           .toList()
           .timeout(const Duration(seconds: 4));
 
-      // Pressure and flow should both be rising
       final pressures = snapshots.map((s) => s.pressure).toList();
       final flows = snapshots.map((s) => s.flow).toList();
 
-      // Both should show upward trend
       expect(
         pressures.last,
         greaterThan(pressures.first),
@@ -144,7 +140,6 @@ void main() {
         const Duration(seconds: 2),
       );
 
-      // targetPressure should be set to the pressure step's target
       expect(snapshot.targetPressure, closeTo(6.0, 0.1));
     });
 

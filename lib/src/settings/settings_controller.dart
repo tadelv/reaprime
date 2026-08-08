@@ -11,19 +11,11 @@ import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 
 import 'settings_service.dart';
 
-/// A class that many Widgets can interact with to read user settings, update
-/// user settings, or listen to user settings changes.
-///
-/// Controllers glue Data Services to Flutter Widgets. The SettingsController
-/// uses the SettingsService to store and retrieve user settings.
 class SettingsController with ChangeNotifier {
   SettingsController(this._settingsService);
 
-  // Make SettingsService a private variable so it is not used directly.
   final SettingsService _settingsService;
 
-  // Make ThemeMode a private variable so it is not updated directly without
-  // also persisting the changes with the SettingsService.
   ThemeMode _themeMode = ThemeMode.system;
 
   GatewayMode _gatewayMode = GatewayMode.disabled;
@@ -78,12 +70,10 @@ class SettingsController with ChangeNotifier {
   bool _showSkinExitInstructions = true;
   bool _enableSimulatedWebViews = false;
 
-  // Feature flags — loaded once at startup, hot-swappable at runtime.
   final Map<FeatureFlag, bool> _featureFlags = {};
 
   TelemetryService? _telemetryService;
 
-  // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
   String get logLevel => _logLevel;
@@ -118,15 +108,11 @@ class SettingsController with ChangeNotifier {
   bool get showSkinExitInstructions => _showSkinExitInstructions;
   bool get enableSimulatedWebViews => _enableSimulatedWebViews;
 
-  // Feature flags
   bool isFeatureFlagEnabled(FeatureFlag flag) =>
       _featureFlags[flag] ?? defaultFeatureFlagValues[flag]!;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
-  /// Load the user's settings from the SettingsService. It may load from a
-  /// local database or the internet. The controller only knows it can load the
-  /// settings from the service.
   Future<void> loadSettings() async {
     _themeMode = await _settingsService.themeMode();
     _gatewayMode = await _settingsService.gatewayMode();
@@ -170,36 +156,27 @@ class SettingsController with ChangeNotifier {
         .showSkinExitInstructions();
     _enableSimulatedWebViews = await _settingsService.enableSimulatedWebViews();
 
-    // Load feature flags
     for (final flag in FeatureFlag.values) {
       final stored = await _settingsService.featureFlag(flag);
       _featureFlags[flag] = stored ?? defaultFeatureFlagValues[flag]!;
     }
 
-    // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
       await _telemetryService!.setConsentEnabled(_telemetryConsent);
     }
 
-    // Important! Inform listeners a change has occurred.
     notifyListeners();
   }
 
-  /// Update and persist the ThemeMode based on the user's selection.
   Future<void> updateThemeMode(ThemeMode? newThemeMode) async {
     if (newThemeMode == null) return;
 
-    // Do not perform any work if new and old ThemeMode are identical
     if (newThemeMode == _themeMode) return;
 
-    // Otherwise, store the new ThemeMode in memory
     _themeMode = newThemeMode;
 
-    // Important! Inform listeners a change has occurred.
     notifyListeners();
 
-    // Persist the changes to a local database or the internet using the
-    // SettingService.
     await _settingsService.updateThemeMode(newThemeMode);
   }
 
@@ -249,16 +226,6 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Enable simulated devices for the current session only.
-  ///
-  /// Sets [_simulatedDevices] and preferred device IDs in memory,
-  /// then notifies listeners so that [SimulatedDeviceService] picks up
-  /// the change (via the `main.dart` listener) and
-  /// [ConnectionManager.connect] sees the preferred IDs for instant
-  /// early-connect.
-  ///
-  /// Does **not** persist to SharedPreferences — all state is lost
-  /// on app restart.
   void enableSimulatedDevicesForSession(Set<SimulatedDevicesTypes> devices) {
     _simulatedDevices = devices;
     _preferredMachineId = devices.contains(SimulatedDevicesTypes.machine)

@@ -1,31 +1,4 @@
 #!/usr/bin/env python3
-"""
-Interactive USB-serial console for DE1 / Bengle.
-
-Mirrors the protocol used by `UnifiedDe1Transport` over the serial path:
-
-  - Notification subscribe:    `<+X>` where X is the endpoint letter
-  - Notification unsubscribe:  `<-X>`
-  - Request state change:      `<B>NN` (NN = hex state byte)
-  - Notification frames:       `[X]<hex_payload>` terminated by `[` or `\n`
-
-Both DE1 and Bengle speak the same protocol over USB. Use the same script
-for either; just point `--port` at the right serial device.
-
-Usage:
-    python3 de1_serial_console.py /dev/cu.usbmodem1234
-
-Then at the `> ` prompt:
-    sub state water shot         # subscribe to the most useful streams
-    sub all                      # subscribe to state, water, shot, settings
-    state idle                   # request idle state
-    state 04                     # request espresso (raw hex)
-    raw <+J>                     # send arbitrary command
-    unsub all
-    quit
-
-Type `help` for a full command list.
-"""
 
 import argparse
 import re
@@ -36,8 +9,6 @@ from datetime import datetime
 
 import serial
 
-# Endpoint letter → human label. Mirrors `Endpoint` enum in
-# lib/src/models/device/impl/de1/de1.models.dart.
 ENDPOINTS = {
     "M": "shotSample",
     "N": "stateInfo",
@@ -48,7 +19,6 @@ ENDPOINTS = {
     "B": "requestedState",
 }
 
-# Aliases accepted at the prompt.
 SUB_ALIASES = {
     "state": "N",
     "shot": "M",
@@ -62,7 +32,6 @@ SUB_ALIASES = {
 }
 SUB_ALL = ["N", "Q", "M", "K"]
 
-# State byte values from `De1StateEnum` in de1.models.dart.
 STATE_BY_NAME = {
     "sleep": 0x00,
     "goingtosleep": 0x01,
@@ -118,8 +87,6 @@ SUBSTATE_NAMES = {
 }
 
 
-# Matches a complete `[X]hex` frame followed by `[` (next frame) or newline.
-# Mirrors the regex in `UnifiedDe1Transport._messagePattern`.
 MESSAGE_RE = re.compile(rb"(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n)")
 
 
@@ -158,7 +125,6 @@ def _u16(p: bytes, off: int) -> int:
 
 
 def parse_shot_sample(payload: bytes) -> str:
-    # Layout from `_parseStateAndShotSample` in unified_de1.parsing.dart.
     if len(payload) < 19:
         return f"short shot frame ({len(payload)} bytes)"
     group_pressure = _u16(payload, 2) / (1 << 12)
@@ -201,14 +167,13 @@ PARSERS = {
 
 
 class Reader(threading.Thread):
-    """Background reader: drains the serial port, parses `[X]hex` frames."""
 
     def __init__(self, port: serial.Serial):
         super().__init__(daemon=True)
         self._port = port
         self._buf = b""
         self._stop = threading.Event()
-        self._raw = False  # also print raw frames when True
+        self._raw = False
         self._lock = threading.Lock()
 
     def stop(self):
@@ -231,7 +196,6 @@ class Reader(threading.Thread):
             self._drain()
 
     def _drain(self):
-        # Discard junk before the first `[`, mirroring the Dart side.
         idx = self._buf.find(b"[")
         if idx < 0:
             self._buf = b""
@@ -357,8 +321,6 @@ def main():
         for letter in SUB_ALL:
             write_command(port, f"<+{letter}>")
             time.sleep(0.05)
-        # Probe state so the first [N] arrives without a manual nudge —
-        # same bootstrap as `_serialConnect` in unified_de1_transport.dart.
         write_command(port, "<B>02")
 
     try:
@@ -406,7 +368,6 @@ def main():
             except ValueError as e:
                 print(f"error: {e}")
     finally:
-        # Best-effort unsubscribe so the firmware stops streaming when we go.
         try:
             for letter in SUB_ALL:
                 port.write(f"<-{letter}>\n".encode())

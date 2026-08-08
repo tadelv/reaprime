@@ -11,8 +11,6 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/data/utils.dart' as parse_utils;
 import 'package:uuid/uuid.dart';
 
-/// Holds a parsed [ShotRecord] plus extracted metadata strings for entity
-/// extraction in later import stages.
 class ParsedShot {
   final ShotRecord shot;
   final String? beanBrand;
@@ -35,11 +33,9 @@ class ParsedShot {
   });
 }
 
-/// Parses de1app history_v2 JSON files into [ParsedShot] instances.
 class ShotV2JsonParser {
   ShotV2JsonParser._();
 
-  /// Parses a de1app history_v2 JSON map into a [ParsedShot].
   static ParsedShot parse(Map<String, dynamic> json) {
     final clockValue = json['clock'];
     if (clockValue == null) {
@@ -51,16 +47,13 @@ class ShotV2JsonParser {
       isUtc: true,
     );
 
-    // Flat settings from app.data.settings (fallback source)
     final settings = _extractSettings(json);
 
-    // Structured meta block (primary source)
     final meta = json['meta'] as Map<String, dynamic>?;
     final metaBean = meta?['bean'] as Map<String, dynamic>?;
     final metaShot = meta?['shot'] as Map<String, dynamic>?;
     final metaGrinder = meta?['grinder'] as Map<String, dynamic>?;
 
-    // --- Bean metadata ---
     final beanBrand = _str(metaBean?['brand']) ?? _str(settings['bean_brand']);
     final beanType = _str(metaBean?['type']) ?? _str(settings['bean_type']);
     final beanNotes = _str(metaBean?['notes']) ?? _str(settings['bean_notes']);
@@ -69,13 +62,11 @@ class ShotV2JsonParser {
     final roastDate =
         _str(metaBean?['roast_date']) ?? _str(settings['roast_date']);
 
-    // --- Grinder metadata ---
     final grinderModel =
         _str(metaGrinder?['model']) ?? _str(settings['grinder_model']);
     final grinderSetting =
         _str(metaGrinder?['setting']) ?? _str(settings['grinder_setting']);
 
-    // --- Profile (parse before annotations so we can read target_weight) ---
     final Profile profile;
     if (json['profile'] != null) {
       profile = Profile.fromJson(json['profile'] as Map<String, dynamic>);
@@ -95,14 +86,12 @@ class ShotV2JsonParser {
       );
     }
 
-    // --- Shot annotations ---
     final doseWeight =
         parse_utils.parseOptionalDouble(meta?['in']) ??
         parse_utils.parseOptionalDouble(settings['grinder_dose_weight']);
     final actualYield =
         parse_utils.parseOptionalDouble(meta?['out']) ??
         parse_utils.parseOptionalDouble(settings['drink_weight']);
-    // Target yield: DYE's target_drink_weight → profile's target_weight → actual
     final targetYield =
         parse_utils.parseOptionalDouble(settings['target_drink_weight']) ??
         profile.targetWeight ??
@@ -128,7 +117,6 @@ class ShotV2JsonParser {
       espressoNotes: espressoNotes,
     );
 
-    // --- Workflow context ---
     final context = WorkflowContext(
       targetDoseWeight: doseWeight,
       targetYield: targetYield,
@@ -140,7 +128,6 @@ class ShotV2JsonParser {
       drinkerName: _str(settings['drinker_name']),
     );
 
-    // --- Workflow ---
     final workflow = Workflow(
       id: const Uuid().v4(),
       name: profile.title,
@@ -151,10 +138,8 @@ class ShotV2JsonParser {
       rinseData: RinseData.defaults(),
     );
 
-    // --- Time-series snapshots ---
     final measurements = _parseSnapshots(json, baseTimestamp, profile);
 
-    // --- ShotRecord ---
     final shot = ShotRecord(
       id: 'de1app-$clock',
       timestamp: baseTimestamp,
@@ -175,18 +160,12 @@ class ShotV2JsonParser {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Internal helpers
-  // ---------------------------------------------------------------------------
-
   static Map<String, dynamic> _extractSettings(Map<String, dynamic> json) {
     final app = json['app'] as Map<String, dynamic>?;
     final data = app?['data'] as Map<String, dynamic>?;
     return (data?['settings'] as Map<String, dynamic>?) ?? {};
   }
 
-  /// Pre-computes cumulative step end-times from profile step durations.
-  /// Used to reconstruct frame numbers for history snapshots.
   static List<double> _stepBoundaries(Profile profile) {
     final boundaries = <double>[];
     var cumulative = 0.0;
@@ -197,12 +176,10 @@ class ShotV2JsonParser {
     return boundaries;
   }
 
-  /// Returns the profile step index for [elapsedSeconds] given step [boundaries].
   static int _frameForElapsed(double elapsedSeconds, List<double> boundaries) {
     for (var i = 0; i < boundaries.length; i++) {
       if (elapsedSeconds < boundaries[i]) return i;
     }
-    // Past all boundaries — last step.
     return boundaries.isEmpty ? 0 : boundaries.length - 1;
   }
 
@@ -291,12 +268,9 @@ class ShotV2JsonParser {
     return snapshots;
   }
 
-  /// Safe index access — returns 0.0 if out of bounds.
   static double _at(List<double> list, int i) =>
       i < list.length ? list[i] : 0.0;
 
-  /// Parses a JSON list of numbers that may contain strings, ints, or doubles.
-  /// Returns an empty list if [value] is null or not a list.
   static List<double> _numList(dynamic value) {
     if (value == null || value is! List) return [];
     return value.map((e) {
@@ -305,7 +279,6 @@ class ShotV2JsonParser {
     }).toList();
   }
 
-  /// Returns a non-null, non-empty string or null.
   static String? _str(dynamic value) {
     if (value == null) return null;
     final s = value.toString().trim();

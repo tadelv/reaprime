@@ -16,7 +16,6 @@ import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// A DeviceDiscoveryService that always throws from `scanForDevices`.
 class _FailingDiscoveryService implements DeviceDiscoveryService {
   final _controller = BehaviorSubject<List<Device>>.seeded(const []);
   final Object error;
@@ -41,7 +40,6 @@ class _FailingDiscoveryService implements DeviceDiscoveryService {
   Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
-/// A DeviceDiscoveryService that succeeds and reports one device.
 class _QuietDiscoveryService implements DeviceDiscoveryService {
   final _controller = BehaviorSubject<List<Device>>.seeded(const []);
   final Device device;
@@ -58,7 +56,6 @@ class _QuietDiscoveryService implements DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) async {
-    // Re-emit on scan so the DeviceController populates its aggregated view.
     _controller.add([device]);
   }
 
@@ -69,7 +66,6 @@ class _QuietDiscoveryService implements DeviceDiscoveryService {
   Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
-/// Manual discovery service — tests push emissions by calling `emit`.
 class _ManualDiscoveryService implements DeviceDiscoveryService {
   final _controller = BehaviorSubject<List<Device>>.seeded(const []);
 
@@ -155,7 +151,6 @@ class _AttachNotifyingDiscoveryService
   void attach(DeviceAttachedEvent event) => _attached.add(event);
 }
 
-/// Minimal `Device` stub.
 class _FakeDevice implements Device {
   @override
   final String deviceId;
@@ -406,17 +401,12 @@ void main() {
           type: DeviceType.machine,
         );
 
-        // Baseline: both present.
         service.emit([a, b]);
         await Future<void>.delayed(Duration.zero);
 
-        // Drop b only.
         service.emit([a]);
         await Future<void>.delayed(Duration.zero);
 
-        // Bring b back. Only b's reconnection_duration_* should land,
-        // not a's (would happen with name-based keying since both named
-        // 'DE1').
         service.emit([a, b]);
         await Future<void>.delayed(Duration.zero);
 
@@ -447,7 +437,7 @@ void main() {
         );
         final afterFirmware = _FakeDevice(
           deviceId: 'CC:33:33:33:33:33',
-          name: 'DE1Pro', // firmware update renamed advertised name
+          name: 'DE1Pro',
           type: DeviceType.machine,
         );
 

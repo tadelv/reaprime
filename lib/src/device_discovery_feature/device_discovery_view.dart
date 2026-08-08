@@ -76,7 +76,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   void initState() {
     super.initState();
 
-    // Show telemetry consent dialog once (non-blocking, after frame renders)
     if (!widget.settingsController.telemetryConsentDialogShown) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showTelemetryConsentDialog();
@@ -86,8 +85,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     _statusSubscription = widget.connectionManager.status.listen((status) {
       if (!mounted) return;
 
-      // Navigate when ready (only once — connectMachine and connectScale
-      // both emit ready, so guard against double navigation)
       if (status.phase == ConnectionPhase.ready &&
           status.pendingAmbiguity == null &&
           !_navigated) {
@@ -101,9 +98,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       });
     });
 
-    // Kick off the connection flow.
-    // Automatic startup uses `connect()` (remembered-machine quick-connect +
-    // early stop). Explicit user/API scans use `scanAndConnect()` instead.
     widget.connectionManager.connect();
   }
 
@@ -113,9 +107,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     super.dispose();
   }
 
-  /// Navigates to the appropriate screen after device connection
   Future<void> _navigateAfterConnection() async {
-    // Check platform - only use WebView on iOS, Android, macOS
     final supportedPlatforms =
         Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
 
@@ -127,7 +119,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       return;
     }
 
-    // Ensure WebUI is ready
     if (!widget.webUIService.isServing) {
       widget.logger.info('WebUI not serving, attempting to start...');
 
@@ -148,23 +139,19 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       }
     }
 
-    // Wait a brief moment for WebUI to be fully ready
     await Future.delayed(const Duration(milliseconds: 500));
 
     widget.logger.info('Navigating to SkinView');
     _navigateToRoute(SkinView.routeName);
   }
 
-  /// Helper to navigate to a specific route
   void _navigateToRoute(String route) {
     if (!mounted) return;
 
     if (route == SkinView.routeName) {
-      // Push both routes to stack: LauncherView first, then SkinView on top
       Navigator.popAndPushNamed(context, LauncherView.routeName);
       Navigator.of(context).pushNamed(SkinView.routeName);
     } else {
-      // For any non-skin route, navigate directly
       Navigator.popAndPushNamed(context, route);
     }
   }
@@ -182,42 +169,34 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Widget _body(BuildContext context) {
-    // Error state is handled by ConnectionErrorBanner above the body.
-    // Scanning
     if (_status.phase == ConnectionPhase.scanning) {
       return _searchingView(context);
     }
 
-    // Connecting to machine or scale
     if (_status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale) {
       return _connectingView(context);
     }
 
-    // Ambiguity: machine picker
     if (_status.pendingAmbiguity == AmbiguityReason.machinePicker) {
       return _resultsView(context);
     }
 
-    // Ambiguity: scale picker
     if (_status.pendingAmbiguity == AmbiguityReason.scalePicker) {
       return _resultsView(context);
     }
 
-    // Idle with no machines found
     if (_status.phase == ConnectionPhase.idle &&
         _status.foundMachines.isEmpty &&
         _status.foundScales.isEmpty) {
       return _noDevicesFoundView(context);
     }
 
-    // Idle with machines (shouldn't normally happen without ambiguity, but fallback)
     if (_status.phase == ConnectionPhase.idle &&
         (_status.foundMachines.isNotEmpty || _status.foundScales.isNotEmpty)) {
       return _resultsView(context);
     }
 
-    // Default: searching
     return _searchingView(context);
   }
 
@@ -262,13 +241,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       mainAxisSize: MainAxisSize.min,
       spacing: 8,
       children: [
-        // Two-column device lists
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: 260, maxWidth: 460),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Machine column
               Expanded(
                 child: DeviceSelectionWidget(
                   deviceController: widget.deviceController,
@@ -291,7 +268,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 ),
               ),
               SizedBox(width: 8),
-              // Scale column
               Expanded(
                 child: DeviceSelectionWidget(
                   deviceController: widget.deviceController,

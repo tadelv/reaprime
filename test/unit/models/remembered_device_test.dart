@@ -87,7 +87,6 @@ void main() {
         RememberedDevice.fromJson({'id': 1, 'name': 'n', 'type': 'scale'}),
         isNull,
       );
-      // Empty id is rejected so decodeList never trips the constructor assert.
       expect(
         RememberedDevice.fromJson({'id': '', 'name': 'n', 'type': 'scale'}),
         isNull,
@@ -137,7 +136,6 @@ void main() {
     });
 
     test('storedCount counts stored records before validity filtering', () {
-      // Two stored, one valid → decodeList drops one; storedCount sees both.
       const json = '[{"id":"a","name":"A","type":"scale"},{"id":"b"}]';
       expect(RememberedDevice.storedCount(json), 2);
       expect(RememberedDevice.decodeList(json), hasLength(1));
@@ -161,7 +159,6 @@ void main() {
       expect(RememberedDevice.decodeList(''), isEmpty);
       expect(RememberedDevice.decodeList('not json'), isEmpty);
       expect(RememberedDevice.decodeList('{}'), isEmpty);
-      // Mixed: one good, one bad → keeps the good one.
       final mixed = '[{"id":"a","name":"A","type":"scale"},{"id":"b"}]';
       expect(RememberedDevice.decodeList(mixed).map((d) => d.id).toList(), [
         'a',
@@ -358,7 +355,6 @@ void main() {
         type: DeviceType.machine,
       );
       final migrated = old.migrate((name) {
-        // Simulate DeviceMatcher.implementationForName
         if (name == 'DE1') return DeviceImplementation.unifiedDe1;
         return null;
       });

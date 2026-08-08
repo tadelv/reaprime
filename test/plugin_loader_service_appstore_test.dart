@@ -172,7 +172,6 @@ function createPlugin() {
       () async {
         final pluginsDir = Directory('${tempDir.path}/plugins');
 
-        // ../escape resolves outside the plugins root.
         final escapeDir = Directory('${tempDir.path}/escape');
         if (escapeDir.existsSync()) escapeDir.deleteSync(recursive: true);
         await expectLater(
@@ -181,7 +180,6 @@ function createPlugin() {
         );
         expect(escapeDir.existsSync(), isFalse);
 
-        // Nested ids must not create nested directories.
         final nested = Directory('${pluginsDir.path}/a/b');
         await expectLater(
           service.addPlugin(makePluginSource('a/b').path),
@@ -189,7 +187,6 @@ function createPlugin() {
         );
         expect(nested.existsSync(), isFalse);
 
-        // Absolute ids must not resolve under the plugins root.
         final absDir = Directory('${pluginsDir.path}/abs');
         if (absDir.existsSync()) absDir.deleteSync(recursive: true);
         await expectLater(
@@ -198,8 +195,6 @@ function createPlugin() {
         );
         expect(absDir.existsSync(), isFalse);
 
-        // Windows-style separators are literal on POSIX hosts, but the id is
-        // still rejected so nothing is created.
         final winSep = Directory('${pluginsDir.path}/a\\b');
         await expectLater(
           service.addPlugin(makePluginSource(r'a\b').path),

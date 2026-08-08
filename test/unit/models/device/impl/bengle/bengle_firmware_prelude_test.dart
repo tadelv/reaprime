@@ -15,12 +15,10 @@ void main() {
       addTearDown(transport.dispose);
       final bengle = Bengle(transport: transport);
 
-      // Tests live in the same package; @protected lint is irrelevant here.
       // ignore: invalid_use_of_protected_member
       await bengle.beforeFirmwareUpload();
 
       expect(transport.lastRequestedState, MachineState.fwUpgrade);
-      // Wire byte must be 0x16 (the firmware's FirmwareUp state).
       final stateWrites = transport.writes
           .where((w) => w.characteristicUUID == Endpoint.requestedState.uuid)
           .toList();
@@ -40,23 +38,13 @@ void main() {
 
         final preFwWrites = transport.writes.length;
 
-        // The FW protocol blocks waiting on `fwMapRequest` notifications
-        // (and a 10s erase wait). Drive it just long enough for the
-        // prelude writes to land, then bail via timeout.
         try {
           await bengle
               .updateFirmware(Uint8List(0), onProgress: (_) {})
               .timeout(const Duration(seconds: 1));
-        } on TimeoutException catch (_) {
-          // Expected: protocol is blocked waiting on FW-path notifications.
-        }
+        } on TimeoutException catch (_) {}
 
         final fwWrites = transport.writes.sublist(preFwWrites);
-        // First two writes belong to the prelude:
-        //   1. requestState(sleeping) — UnifiedDe1._updateFirmware
-        //   2. requestState(fwUpgrade) — Bengle.beforeFirmwareUpload
-        // Subsequent writes (poll for fwMapRequest, etc.) are FW-protocol
-        // territory and intentionally not asserted on.
         expect(
           fwWrites.length,
           greaterThanOrEqualTo(2),

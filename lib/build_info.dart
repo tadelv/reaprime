@@ -1,4 +1,3 @@
-// lib/build_info.dart
 class BuildInfo {
   static const String commit = String.fromEnvironment(
     'COMMIT',
@@ -15,7 +14,7 @@ class BuildInfo {
   static const String buildTime = String.fromEnvironment(
     'BUILD_TIME',
     defaultValue: 'unknown',
-  ); // ISO8601
+  );
   static const String version = String.fromEnvironment(
     'VERSION',
     defaultValue: '0.0.0-dev',
@@ -25,10 +24,7 @@ class BuildInfo {
     defaultValue: '0',
   );
 
-  /// Whether this is an App Store build (iOS).
-  /// Pass --dart-define=APP_STORE=true to enable.
   static const bool appStore = bool.fromEnvironment('APP_STORE');
 
-  /// Full version string including build number (e.g., "1.2.3+456")
   static String get fullVersion => '$version+$buildNumber';
 }

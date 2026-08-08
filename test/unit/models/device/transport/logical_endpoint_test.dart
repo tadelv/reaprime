@@ -11,9 +11,6 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../../../helpers/fake_ble_transport.dart';
 
-/// Minimal LogicalEndpoint stub for exercising the guards in
-/// `UnifiedDe1Transport.{read,write,writeWithResponse}`. Not a Dart enum,
-/// so the `is! Endpoint` check fires on the serial path.
 class _StubEndpoint implements LogicalEndpoint {
   @override
   final String? uuid;
@@ -24,9 +21,6 @@ class _StubEndpoint implements LogicalEndpoint {
   const _StubEndpoint({this.uuid, this.representation, required this.name});
 }
 
-/// Inline serial-transport stub: `FakeBleTransport` is BLE-only by
-/// design (the consolidated helper is used across the BLE-facing
-/// tests), so the small serial stub stays here for the wire-gap tests.
 class _StubSerialTransport extends SerialTransport {
   final _connState = BehaviorSubject<ConnectionState>.seeded(
     ConnectionState.connected,
@@ -115,8 +109,6 @@ void main() {
       final transport = _StubSerialTransport();
       addTearDown(transport.dispose);
       final unified = UnifiedDe1Transport(transport: transport);
-      // Has both uuid and representation set so the only failing guard is
-      // the `is! Endpoint` one.
       const stub = _StubEndpoint(
         uuid: 'A0FF',
         representation: 'Z',

@@ -3,16 +3,13 @@ import 'package:reaprime/src/services/database/database.dart';
 import 'package:reaprime/src/services/database/mappers/profile_mapper.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 
-/// Drift/SQLite implementation of [ProfileStorageService].
 class DriftProfileStorageService implements ProfileStorageService {
   final AppDatabase _db;
 
   DriftProfileStorageService(this._db);
 
   @override
-  Future<void> initialize() async {
-    // No initialization needed — database is already open.
-  }
+  Future<void> initialize() async {}
 
   @override
   Future<void> store(domain.ProfileRecord record) {

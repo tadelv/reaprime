@@ -6,10 +6,6 @@ import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 
-/// Settings is a singleton section: the payload is a fixed small set of
-/// scalar values, wake schedules, and device preferences. It is materialized
-/// as one JSON value, bounded by the handler's maximum record size (the
-/// sink rejects oversized fragments).
 class SettingsExportSection implements DataExportSection {
   final SettingsController _controller;
 
@@ -65,7 +61,6 @@ class SettingsExportSection implements DataExportSection {
     try {
       final data = await input.readWhole();
       final map = data as Map<String, dynamic>;
-      // Import settings
       final settings = map['settings'] as Map<String, dynamic>?;
       if (settings != null) {
         if (settings.containsKey('gatewayMode')) {
@@ -227,13 +222,11 @@ class SettingsExportSection implements DataExportSection {
         }
       }
 
-      // Import wake schedules
       if (map.containsKey('wakeSchedules')) {
         await _controller.setWakeSchedules(map['wakeSchedules'] as String);
         imported++;
       }
 
-      // Import device preferences
       final devicePrefs = map['devicePreferences'] as Map<String, dynamic>?;
       if (devicePrefs != null) {
         if (devicePrefs.containsKey('preferredMachineId')) {

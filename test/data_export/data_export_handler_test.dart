@@ -27,7 +27,6 @@ void corruptCentralDirectoryCrc(List<int> zipBytes, String filename) {
   zipBytes[namePosition - 46 + 16] ^= 0xFF;
 }
 
-/// A mock section implementing the streaming contract.
 class MockExportSection implements DataExportSection {
   @override
   final String filename;
@@ -40,7 +39,6 @@ class MockExportSection implements DataExportSection {
   ConflictStrategy? lastStrategy;
   int importCalls = 0;
 
-  /// Records the largest fragment written (boundedness proof).
   int maxFragmentLength = 0;
 
   MockExportSection({
@@ -69,7 +67,6 @@ class MockExportSection implements DataExportSection {
     importCalls++;
     lastStrategy = strategy;
     if (importPayload != null) {
-      // Capture what the section would see (mirrors handler two-pass).
       final validator = StringJsonInput(importPayload!);
       await for (final _ in validator.valuesAtDepth(1)) {}
       return importResult;
@@ -78,7 +75,6 @@ class MockExportSection implements DataExportSection {
   }
 }
 
-/// A section that writes a huge fragment, exceeding the record cap.
 class OversizeExportSection implements DataExportSection {
   @override
   final String filename;
@@ -87,7 +83,7 @@ class OversizeExportSection implements DataExportSection {
   @override
   Future<void> exportJson(JsonSink output) async {
     output.writeRaw('[');
-    output.writeRaw('"${'x' * 1024 * 1024}"'); // 1 MiB fragment
+    output.writeRaw('"${'x' * 1024 * 1024}"');
     output.writeRaw(']');
   }
 
@@ -98,8 +94,6 @@ class OversizeExportSection implements DataExportSection {
   ) async => const SectionImportResult();
 }
 
-/// A section whose fragment is under the record cap in UTF-16 code units
-/// but over it in UTF-8 bytes (non-ASCII content).
 class UnicodeExportSection implements DataExportSection {
   @override
   final String filename;
@@ -107,7 +101,7 @@ class UnicodeExportSection implements DataExportSection {
 
   @override
   Future<void> exportJson(JsonSink output) async {
-    output.writeRaw('["${'\u00E9' * 40}"]'); // 42 UTF-16, 82 bytes
+    output.writeRaw('["${'\u00E9' * 40}"]');
   }
 
   @override
@@ -164,8 +158,6 @@ void main() {
     );
   }
 
-  /// Helper: build a ZIP archive with given files and return its bytes
-  /// (the old in-memory producer — exercises backward compatibility).
   List<int> buildZip(Map<String, dynamic> files) {
     final archive = Archive();
     for (final entry in files.entries) {
@@ -183,7 +175,6 @@ void main() {
     return ZipEncoder().encode(archive);
   }
 
-  /// Reads the full response body.
   Future<List<int>> responseBytes(Response response) async {
     return await response.read().expand((b) => b).toList();
   }
@@ -228,9 +219,8 @@ void main() {
         final response = await sendGet('/api/v1/data/export');
         final bytes = await responseBytes(response);
 
-        // The previous decoder path decodes the whole archive with ZipDecoder.
         final archive = ZipDecoder().decodeBytes(bytes);
-        expect(archive.length, 3); // metadata + 2 sections
+        expect(archive.length, 3);
 
         final profilesFile = archive.findFile('profiles.json');
         expect(profilesFile, isNotNull);
@@ -252,7 +242,6 @@ void main() {
           final bytes = await file.readAsBytes();
           final archive = ZipDecoder().decodeBytes(bytes);
           expect(archive.findFile('profiles.json'), isNotNull);
-          // Sections wrote one fragment each (whole-value fragments here).
           expect(profileSection.maxFragmentLength, greaterThan(0));
         } finally {
           await tempDir.delete(recursive: true);
@@ -301,7 +290,7 @@ void main() {
               throwsA(isA<DataExportException>()),
             );
             final leftovers = tempDir.listSync();
-            expect(leftovers, isEmpty); // no partial ZIP left behind
+            expect(leftovers, isEmpty);
           } finally {
             await tempDir.delete(recursive: true);
           }
@@ -357,9 +346,6 @@ void main() {
       test(
         'record cap is measured in UTF-8 bytes, not UTF-16 code units',
         () async {
-          // 40 '\u00E9' chars: 40 UTF-16 code units but 80 UTF-8 bytes. With
-          // a 64-byte cap the fragment must be rejected even though its
-          // UTF-16 length is under the limit.
           final handlerWithUnicode = DataExportHandler(
             sections: [UnicodeExportSection('big.json')],
             limits: const DataTransferLimits(maxRecordBytes: 64),
@@ -568,7 +554,6 @@ void main() {
       });
 
       test('rejects an archive exceeding the entry count limit', () async {
-        // Build a zip with many entries; even unknown ones count.
         final files = <String, String>{'metadata.json': '{"formatVersion":1}'};
         for (var i = 0; i < 10; i++) {
           files['file$i.json'] = '{}';
@@ -717,8 +702,6 @@ void main() {
               {'id': 's1'},
             ],
           });
-          // No section filtering via query param in the REST API; test the
-          // programmatic path instead.
           final tempDir = await Directory.systemTemp.createTemp('sel-');
           try {
             final zipFile = File('${tempDir.path}/import.zip');
@@ -796,7 +779,6 @@ void main() {
         for (final response in responses) {
           expect(response.statusCode, 200);
         }
-        // No leftover temp dirs.
         final leftovers = Directory.systemTemp
             .listSync()
             .whereType<Directory>()

@@ -17,10 +17,6 @@ import '../onboarding_controller.dart';
 
 final _log = Logger('InitializationStep');
 
-/// Creates an [OnboardingStep] that initializes core services.
-///
-/// Always shown — runs WebUI storage/service init, plugin loading,
-/// and device controller initialization on every launch.
 OnboardingStep createInitializationStep({
   required DeviceController deviceController,
   required De1Controller de1Controller,
@@ -76,12 +72,8 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
   Future<void> _initializeServices() async {
     BootTiming.mark('init_start');
 
-    // BLE adapter init is independent of skin storage — start it now and
-    // await it later so it overlaps the (local) storage + serve work.
     final deviceInit = widget.deviceController.initialize();
 
-    // Fast, local-only: bundled-skin extraction + installed-skin scan. The
-    // remote-skin network download is deferred to the background below.
     _log.info('Initializing WebUI storage...');
     try {
       await widget.webUIStorage.initialize(downloadRemote: false);
@@ -90,7 +82,6 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
       _log.severe('Failed to initialize WebUI storage', e);
     }
 
-    // Serve the bundled default skin (local, fast) — needed before the webview.
     final override = widget.webUIService.skinOverride;
     bool served = false;
     if (override.source == SkinSource.path) {
@@ -109,7 +100,6 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
       }
     }
     if (!served) {
-      // Registry default (or fallback from failed --skin-path).
       if (override.source == SkinSource.path) {
         _log.info('Falling back to registry default skin');
       }
@@ -127,12 +117,9 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
       }
     }
 
-    // BLE must be ready before the scan step calls connect().
     await deviceInit;
     BootTiming.mark('init_ready');
 
-    // Start foreground service on Android (permissions already granted
-    // by the preceding permissions step or a previous launch).
     if (Platform.isAndroid) {
       await ForegroundTaskService.start();
       ForegroundTaskService.watchMachineConnection(widget.de1Controller.de1);
@@ -141,8 +128,6 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     BootTiming.mark('scan_start');
     widget.onboardingController.advance();
 
-    // Off the critical path — the user is already scanning while the JS
-    // plugin VM spins up and remote skins download in the background.
     final plugins = widget.pluginLoaderService;
     if (plugins != null) {
       unawaited(

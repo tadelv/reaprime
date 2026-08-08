@@ -13,11 +13,6 @@ import 'package:reaprime/src/models/device/device.dart';
 
 import '../../scale.dart';
 
-/// Atomax Skale2 scale implementation.
-///
-/// Uses a simple single-byte command protocol for tare, display, and timer
-/// controls. Weight is reported as a little-endian int32 divided by 2560.
-/// Battery level is read from the standard BLE Battery Service (0x180F).
 class Skale2Scale implements Scale {
   static final BleServiceIdentifier serviceIdentifier =
       BleServiceIdentifier.short('ff08');
@@ -42,16 +37,12 @@ class Skale2Scale implements Scale {
 
   int _batteryLevel = 0;
 
-  /// Logger for Skale2-specific warnings (e.g. button subscription failure).
   final _log = logging.Logger('Skale2Scale');
 
-  /// Whether we have an active subscription to the weight characteristic (EF81).
   bool _weightSubscribed = false;
 
-  /// Whether we have an active subscription to the button characteristic (EF82).
   bool _buttonSubscribed = false;
 
-  /// Delay between init steps, matching de1app/Decenza staggered sequence.
   static const _initStepDelay = Duration(milliseconds: 1000);
 
   Skale2Scale({required BLETransport transport})
@@ -96,7 +87,6 @@ class Skale2Scale implements Scale {
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
             _connectionStateController.add(ConnectionState.disconnected);
-            // Subscriptions are lost when the BLE link drops.
             _weightSubscribed = false;
             _buttonSubscribed = false;
             disconnectSub?.cancel();
@@ -128,31 +118,16 @@ class Skale2Scale implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
-  // --- Initialization ---
-  //
-  // Follows the de1app / Decenza staggered sequence:
-  //   1. LCD ON immediately  (0xED + 0xEC)
-  //   2. After 1s: subscribe weight notifications (EF81)
-  //   3. After 2s: subscribe button notifications (EF82)
-  //   4. After 3s: LCD ON again + set grams (0x03)
-  //
-  // The Skale2's command buffer is fragile — back-to-back operations
-  // without spacing can cause silent drops (de1app double-sends LCD ON
-  // for exactly this reason).  See GH #53 / #421.
   Future<void> _initScale() async {
-    // 1. Turn display on and set to weight mode — BEFORE subscribing.
     await _sendDisplayOn();
     await _sendDisplayWeight();
 
-    // 2. Subscribe to weight notifications after a settle delay.
     await Future.delayed(_initStepDelay);
     await _subscribeWeight();
 
-    // 3. Subscribe to button notifications after another delay.
     await Future.delayed(_initStepDelay);
     await _subscribeButton();
 
-    // Read battery level (best-effort, does not affect scale operation).
     try {
       final batteryData = await _transport.read(
         batteryService.long,
@@ -161,11 +136,8 @@ class Skale2Scale implements Scale {
       if (batteryData.isNotEmpty) {
         _batteryLevel = batteryData[0];
       }
-    } catch (_) {
-      // Battery service may not be available.
-    }
+    } catch (_) {}
 
-    // 4. Re-send LCD ON + set grams after final delay (double-send pattern).
     await Future.delayed(_initStepDelay);
     await _sendDisplayOn();
     await _sendDisplayWeight();
@@ -190,19 +162,10 @@ class Skale2Scale implements Scale {
       );
       _buttonSubscribed = true;
     } catch (e) {
-      // Button characteristic may not be available on all devices, but
-      // log a warning so the failure is visible (unlike the previous
-      // silent swallow).  This is the most likely cause of the
-      // "buttons stop working after sleep" bug — if the initial
-      // subscription silently failed, it was never retried.
       _log.warning('Failed to subscribe to button notifications: $e');
     }
   }
 
-  // --- Commands ---
-
-  /// Safe write — catches [DeviceNotConnectedException] so a write to a
-  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
   Future<void> _safeWrite(Uint8List data) async {
     try {
       await _transport.write(
@@ -228,14 +191,10 @@ class Skale2Scale implements Scale {
     await _safeWrite(Uint8List.fromList([0xEE]));
   }
 
-  // --- Tare ---
-
   @override
   Future<void> tare() async {
     await _safeWrite(Uint8List.fromList([0x10]));
   }
-
-  // --- Display control ---
 
   @override
   Future<void> sleepDisplay() async {
@@ -247,11 +206,6 @@ class Skale2Scale implements Scale {
     await _sendDisplayOn();
     await _sendDisplayWeight();
 
-    // Re-subscribe to notifications if they were lost (e.g. BLE link
-    // dropped during sleep).  The Skale2 may silently lose CCCD
-    // subscriptions when its display is off — de1app handles this by
-    // re-running the full connect sequence, but we take the lighter
-    // approach of only re-subscribing what's missing.
     if (!_weightSubscribed) {
       _log.info('Re-subscribing to weight notifications during wake');
       await _subscribeWeight();
@@ -262,12 +216,9 @@ class Skale2Scale implements Scale {
     }
   }
 
-  // --- Notification parsing ---
-
   void _parseWeightNotification(List<int> data) {
     if (data.length < 4) return;
 
-    // Read 4 bytes as little-endian signed int32
     final byteData = ByteData(4);
     byteData.setUint8(0, data[0] & 0xFF);
     byteData.setUint8(1, data[1] & 0xFF);
@@ -275,7 +226,6 @@ class Skale2Scale implements Scale {
     byteData.setUint8(3, data[3] & 0xFF);
     final rawValue = byteData.getInt32(0, Endian.little);
 
-    // Divide by 10*256 = 2560 to get weight in grams
     final weight = rawValue / 2560.0;
 
     _streamController.add(
@@ -287,10 +237,7 @@ class Skale2Scale implements Scale {
     );
   }
 
-  void _parseButtonNotification(List<int> data) {
-    // Button press notifications - currently informational only.
-    // Could be used to trigger tare or other actions in the future.
-  }
+  void _parseButtonNotification(List<int> data) {}
 
   @override
   Future<void> startTimer() async {

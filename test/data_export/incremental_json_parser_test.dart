@@ -167,8 +167,6 @@ void main() {
     });
 
     test('caps container values while they are constructed', () {
-      // Many small keys/values whose sum exceeds maxValueBytes: the object
-      // span must trip the limit even though no single token does.
       final parser = IncrementalJsonParser(eventDepth: 1, maxValueBytes: 64);
       final doc =
           '[{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7,"h":8,"i":9,"j":10,"k":11,"l":12}]';
@@ -176,16 +174,12 @@ void main() {
     });
 
     test('caps the whole document at eventDepth 0', () {
-      // Depth 0 events (settings/workflow singletons) cover the whole
-      // document; many small elements must trip the cap.
       final parser = IncrementalJsonParser(eventDepth: 0, maxValueBytes: 64);
       final doc = '[${List.generate(30, (i) => '$i').join(',')}]';
       expect(() => parser.feed(doc), throwsA(isA<JsonStreamFormatException>()));
     });
 
     test('measures limits in UTF-8 bytes, not UTF-16 code units', () {
-      // 9 '\u00E9' chars + quotes = 20 bytes; 10 chars = 22 bytes. A
-      // UTF-16 length check would admit both.
       final ok = IncrementalJsonParser(eventDepth: 1, maxValueBytes: 20);
       final events = <JsonValueEvent>[];
       ok.feed('["${'\u00E9' * 9}"]');
@@ -203,12 +197,10 @@ void main() {
     test('never yields a valid prefix of malformed JSON', () {
       final parser = IncrementalJsonParser(eventDepth: 1);
       final events = <JsonValueEvent>[];
-      parser.feed('[1, {"a": '); // first element valid, second truncated
+      parser.feed('[1, {"a": ');
       events.addAll(parser.drain());
       expect(events, hasLength(1));
       expect(() => parser.finish(), throwsA(isA<JsonStreamFormatException>()));
-      // A consumer that ignores the error must not receive the second,
-      // partial element.
       expect(events.map((e) => e.value), [1]);
     });
   });

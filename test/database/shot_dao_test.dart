@@ -95,7 +95,7 @@ void main() {
       );
 
       final shots = await db.shotDao.getAllShots();
-      expect(shots.first.id, 's2'); // newer first
+      expect(shots.first.id, 's2');
       expect(shots.last.id, 's1');
     });
 
@@ -155,7 +155,7 @@ void main() {
 
       final page1 = await db.shotDao.getShotsPaginated(limit: 3, offset: 0);
       expect(page1, hasLength(3));
-      expect(page1.first.id, 'shot-9'); // newest first
+      expect(page1.first.id, 'shot-9');
 
       final page2 = await db.shotDao.getShotsPaginated(limit: 3, offset: 3);
       expect(page2, hasLength(3));
@@ -309,7 +309,6 @@ void main() {
 
     test('getShotsForExport pages with a stable keyset cursor', () async {
       final base = DateTime.parse('2024-01-15T10:00:00Z');
-      // Same timestamp for several shots so the id tiebreak is exercised.
       for (var i = 0; i < 25; i++) {
         await db.shotDao.insertShot(
           makeShot(
@@ -338,7 +337,6 @@ void main() {
       }
 
       expect(collected, hasLength(25));
-      // No duplicates, no omissions.
       expect(collected.toSet(), hasLength(25));
       expect(collected.take(5), [
         'shot-24',

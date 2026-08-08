@@ -74,7 +74,6 @@ void main() {
     expect(result.statusCode, 200);
     expect(result.body, 'SN001\nSN002');
 
-    // Credentials are attached server-side as Basic auth.
     final expected =
         'Basic ${base64Encode(utf8.encode('user@example.com:cryptpw_abc123'))}';
     expect(captured.headers['authorization'], expected);
@@ -158,7 +157,6 @@ void main() {
     expect(result.headers['content-type'], 'application/json');
     expect(result.headers.containsKey('set-cookie'), isFalse);
     expect(result.headers.containsKey('www-authenticate'), isFalse);
-    // Body is already decoded — relaying transfer/length headers would corrupt it.
     expect(result.headers.containsKey('content-encoding'), isFalse);
     expect(result.headers.containsKey('content-length'), isFalse);
   });

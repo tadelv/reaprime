@@ -1,31 +1,22 @@
 import 'package:reaprime/src/models/data/utils.dart';
 
-/// Replaces DoseData, GrinderData, CoffeeData with a single composite.
-/// All fields nullable — supports minimal (dose only), standard (display strings),
-/// and full (entity IDs) usage tiers.
 class WorkflowContext {
-  // Dose & Yield
   final double? targetDoseWeight;
   final double? targetYield;
 
-  // Grinder (ID + display string pattern)
   final String? grinderId;
   final String? grinderModel;
   final String? grinderSetting;
 
-  // Coffee (ID + display strings pattern)
   final String? beanBatchId;
   final String? coffeeName;
   final String? coffeeRoaster;
 
-  // Beverage
   final String? finalBeverageType;
 
-  // People
   final String? baristaName;
   final String? drinkerName;
 
-  // Plugin data channel
   final Map<String, dynamic>? extras;
 
   const WorkflowContext({
@@ -48,14 +39,7 @@ class WorkflowContext {
       ? targetYield! / targetDoseWeight!
       : null;
 
-  /// Deserializes from the `context` JSON object within a Workflow.
-  /// Legacy field migration (doseData/grinderData/coffeeData) is handled
-  /// upstream in Workflow.fromJson, not here.
   factory WorkflowContext.fromJson(Map<String, dynamic> json) {
-    // String-typed fields are coerced via parseOptionalString so a
-    // client sending a numeric id (valid JSON) doesn't crash the
-    // handler. See issue #106 for the deepMerge re-parse flow that
-    // previously required a server restart to recover.
     return WorkflowContext(
       targetDoseWeight: parseOptionalDouble(json['targetDoseWeight']),
       targetYield: parseOptionalDouble(json['targetYield']),

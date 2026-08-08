@@ -17,25 +17,8 @@ import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// How the skin webview should treat a navigation target.
-enum SkinNavDecision {
-  exitDashboard,
+enum SkinNavDecision { exitDashboard, allow, openExternal, block }
 
-  /// Internal navigation — let the webview load it.
-  allow,
-
-  /// External http(s) link — open in the system browser, keep the skin loaded.
-  openExternal,
-
-  /// Anything else — refuse the navigation.
-  block,
-}
-
-/// Classifies a navigation target requested from within the skin webview.
-///
-/// Internal pages (localhost:3000 and the settings plugin) load in-place;
-/// external http/https links open in the OS browser; everything else is
-/// blocked. Pure so it can be unit-tested without a live webview.
 SkinNavDecision classifySkinNavigation(Uri? url) {
   if (url == null) return SkinNavDecision.block;
   if (url.host == 'localhost' && url.path.startsWith('/__decent/')) {
@@ -80,12 +63,6 @@ class SkinExitCoordinator {
   }
 }
 
-/// Displays the WebUI skin in a full-screen webview
-///
-/// This view is only shown on mobile/desktop platforms (iOS, Android, macOS)
-/// and provides a webview interface to the locally-served WebUI at localhost:3000.
-///
-/// The view includes a back button in the app bar to navigate to the home dashboard.
 class SkinView extends StatefulWidget {
   const SkinView({
     super.key,
@@ -120,7 +97,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
 
   bool _didShowExit = false;
 
-  /// The skin URL with cache-busting param
   String get _skinUrl =>
       'http://localhost:3000/?_=${DateTime.now().millisecondsSinceEpoch}';
 
@@ -216,13 +192,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   Future<void> _checkCompatibilityAndInit() async {
     _log.info('Checking WebView compatibility...');
 
-    // Clear HTTP cache. Note: this does NOT clear service worker
-    // CacheStorage on Android — the SW is bypassed via a cache-
-    // busting query param on the initial URL instead.
-    //
-    // Skipped on Windows: flutter_inappwebview_windows has no native
-    // handler for clearAllCache, and awaiting it hangs SkinView on
-    // "Checking compatibility...".
     if (!Platform.isWindows) {
       try {
         await InAppWebViewController.clearAllCache();
@@ -248,37 +217,27 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
 
   InAppWebViewSettings _createSettings() {
     return InAppWebViewSettings(
-      // JavaScript
       javaScriptEnabled: true,
       javaScriptCanOpenWindowsAutomatically: false,
 
-      // Media
       mediaPlaybackRequiresUserGesture: false,
 
-      // Security - restrict file access for localhost-only content
       allowFileAccessFromFileURLs: false,
       allowUniversalAccessFromFileURLs: false,
 
-      // Navigation
       useShouldOverrideUrlLoading: true,
 
-      // Caching
       cacheEnabled: false,
 
-      // Zoom - disable for consistent UI
       supportZoom: false,
       builtInZoomControls: false,
       enableViewportScale: true,
 
-      // Scrollbars - hide on all platforms
       verticalScrollBarEnabled: false,
       horizontalScrollBarEnabled: false,
 
-      // displayZoomControls: false,
       userAgent: "Decent",
 
-      // Memory management: let Android kill the renderer process (not the app)
-      // when the WebView is not visible and memory is tight.
       rendererPriorityPolicy: RendererPriorityPolicy(
         rendererRequestedPriority: RendererPriority.RENDERER_PRIORITY_BOUND,
         waivedWhenNotVisible: false,
@@ -300,7 +259,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     } else if (Platform.isWindows) {
       instructions = 'Press Alt+Backspace to return to Dashboard';
     } else {
-      // Fallback for other platforms
       instructions = 'Use back navigation to return to Dashboard';
     }
 
@@ -327,12 +285,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // No AppBar for fullscreen appearance
       body: SafeArea(
-        // Edge-to-edge: the skin webview owns the entire screen on every side.
-        // left/right default to true, which insets the webview and lets the
-        // scaffold background bleed through as a 1px line on the right (most
-        // visible on dark skins). Disable all four for true fullscreen.
         top: false,
         bottom: false,
         left: false,
@@ -497,8 +450,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     );
   }
 
-  /// Launches an external link from the skin in the OS browser. Failures are
-  /// logged only — the skin stays put, so a dead link is a no-op, not a crash.
   Future<void> _launchExternal(Uri uri) async {
     try {
       if (await canLaunchUrl(uri)) {
@@ -522,7 +473,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       if (canLaunch) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
 
-        // Return to dashboard after opening browser
         if (mounted) {
           Navigator.of(context).pop();
         }
@@ -553,7 +503,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   }
 
   Widget _buildBody() {
-    // Show compatibility check in progress
     if (_isCheckingCompatibility) {
       return Center(
         child: Column(
@@ -570,12 +519,10 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       );
     }
 
-    // Show incompatibility message if check failed
     if (_compatibilityResult != null && !_compatibilityResult!.isCompatible) {
       return _buildIncompatibilityMessage();
     }
 
-    // Show error message if WebView failed to load
     if (_errorMessage != null) {
       return Center(
         child: Padding(
@@ -642,12 +589,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       valueListenable: simulatedWebViewDevice,
       builder: (context, simulatedDevice, _) {
         return Stack(
-          // Android-only: device-pixel-ratio rounding lays the Android WebView out
-          // ~1px short on the right/bottom on some devices, revealing the background
-          // as a hairline (flutter_webview_plugin#356/#654, flutter_inappwebview#1542).
-          // On Android, size the webview 1px past those edges inside a Clip.none
-          // Stack so it covers every pixel; the OS clips the off-screen bleed.
-          // Other platforms don't have this compositing quirk.
           clipBehavior: Platform.isAndroid ? Clip.none : Clip.hardEdge,
           children: [
             Positioned.fill(
@@ -665,9 +606,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   Widget _buildWebView(SimulatedWebViewDevice? simulatedDevice) {
     return InAppWebView(
       key: ValueKey(simulatedDevice?.id ?? 'native-webview'),
-      // Cache-busting param bypasses stale service workers: a SW
-      // caches responses by exact URL, so /?_=<ts> won't match
-      // its cached '/' and falls through to the network.
       initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
       initialSettings: _createSettings(),
       initialUserScripts: _initialUserScripts(simulatedDevice),
@@ -679,7 +617,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       onLoadStart: (controller, url) {
         _log.info('Page started loading: $url');
         _mainFrameUri = url;
-        // Webview is up — final cold-boot milestone (idempotent).
         BootTiming.mark('webview');
         BootTiming.complete();
         setState(() {
@@ -692,29 +629,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         setState(() {
           _isLoading = false;
         });
-        // Inject CSS to hide scrollbars in web content
-        // await controller.evaluateJavascript(source: '''
-        //   (function() {
-        //     var style = document.createElement('style');
-        //     style.textContent = `
-        //       ::-webkit-scrollbar {
-        //         display: none !important;
-        //         width: 0 !important;
-        //         height: 0 !important;
-        //       }
-        //       * {
-        //         scrollbar-width: none !important;
-        //         -ms-overflow-style: none !important;
-        //       }
-        //       html, body {
-        //         overflow: overlay !important;
-        //       }
-        //     `;
-        //     document.head.appendChild(style);
-        //   })();
-        // ''');
 
-        // Show exit instructions snackbar
         if (mounted &&
             !_didShowExit &&
             widget.settingsController.showSkinExitInstructions) {
@@ -758,7 +673,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
             _log.fine('Allowing navigation to: $uri');
             return NavigationActionPolicy.ALLOW;
           case SkinNavDecision.openExternal:
-            // Open in the system browser and stay on the skin.
             _log.info('Opening external link in system browser: $uri');
             unawaited(_launchExternal(uri!));
             return NavigationActionPolicy.CANCEL;
@@ -768,14 +682,12 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         }
       },
       onConsoleMessage: (controller, consoleMessage) {
-        // Route to dedicated webview log service (file + stream)
         final skinId = widget.settingsController.defaultSkinId;
         widget.webViewLogService.log(
           skinId,
           consoleMessage.messageLevel.toString(),
           consoleMessage.message,
         );
-        // Also log at FINEST for app-level debug visibility
         _log.finest(
           'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
         );
@@ -787,7 +699,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           'rendererPriorityAtExit: ${detail.rendererPriorityAtExit}',
         );
         _webViewController = null;
-        // Show reload UI, then rebuild the WebView after a brief delay
         setState(() {
           _rendererCrashed = true;
         });
@@ -822,10 +733,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     }
   }
 
-  /// Scripts injected into the skin at document start, before any page script
-  /// runs. Always carries the host-identity beacon; appends the simulated-device
-  /// shims only on desktop (macOS/Windows/Linux) when simulated WebViews are
-  /// enabled and a device is selected.
   UnmodifiableListView<UserScript> _initialUserScripts(
     SimulatedWebViewDevice? simulatedDevice,
   ) {
@@ -835,22 +742,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     ]);
   }
 
-  /// A deterministic "you are inside reaprime" beacon for skins.
-  ///
-  /// Skins serve from localhost:3000, which is *also* reachable from an ordinary
-  /// browser on the tablet's :3000 port — so a skin needs a reliable way to tell
-  /// "embedded in reaprime" apart from "opened in a browser" (e.g. Beanie shows a
-  /// full-screen tap-to-wake overlay only inside reaprime). The webview user-agent
-  /// override ("Decent") isn't dependable — some Android System WebView builds
-  /// drop it — and the flutter_inappwebview JS bridge is gated by a bridge secret
-  /// in v6 and isn't reliably exposed as a page global. This user script is the
-  /// dependable signal: injected at document start in the page content world, so
-  /// it's visible to skin JS regardless of UA or bridge state, and it never exists
-  /// in a plain browser because it isn't part of the served HTML.
   UserScript _hostIdentityScript() {
-    // jsonEncode the whole payload so quotes/newlines in any value can't break
-    // out of the injected source. Platform.operatingSystem already yields
-    // 'android'/'ios'/'macos'/'windows'/'linux'.
     final payload = jsonEncode({
       'app': 'decent.app',
       'platform': Platform.operatingSystem,

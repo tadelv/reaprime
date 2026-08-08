@@ -5,14 +5,11 @@ import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:hive_ce/hive.dart';
 
-/// Mock implementation of ProfileStorageService for testing
 class MockProfileStorage implements ProfileStorageService {
   final Map<String, ProfileRecord> _storage = {};
 
   @override
-  Future<void> initialize() async {
-    // No-op for mock
-  }
+  Future<void> initialize() async {}
 
   @override
   Future<void> store(ProfileRecord record) async {
@@ -86,14 +83,11 @@ class MockProfileStorage implements ProfileStorageService {
         .length;
   }
 
-  // Test helper
   void reset() {
     _storage.clear();
   }
 }
 
-/// A minimal valid step, for profiles that must round-trip through
-/// Profile.fromJson (which requires a non-empty steps array).
 ProfileStep _sampleStep() => ProfileStepPressure(
   name: 'pour',
   transition: TransitionType.fast,
@@ -105,9 +99,7 @@ ProfileStep _sampleStep() => ProfileStepPressure(
 );
 
 void main() {
-  // Ensure Hive is initialized for tests
   setUpAll(() async {
-    // Initialize Hive in-memory for testing
     Hive.init(null);
   });
 
@@ -127,10 +119,10 @@ void main() {
 
       final profile2 = Profile(
         version: '2',
-        title: 'Different Title', // Metadata different
+        title: 'Different Title',
         author: 'Author 2',
         notes: 'Different notes',
-        beverageType: BeverageType.espresso, // Execution fields same
+        beverageType: BeverageType.espresso,
         steps: [],
         tankTemperature: 93.0,
         targetWeight: 36.0,
@@ -140,10 +132,9 @@ void main() {
       final hash1 = ProfileHash.calculateProfileHash(profile1);
       final hash2 = ProfileHash.calculateProfileHash(profile2);
 
-      // Same execution fields = same hash
       expect(hash1, equals(hash2));
       expect(hash1.startsWith('profile:'), isTrue);
-      expect(hash1.length, equals(28)); // 'profile:' + 20 chars
+      expect(hash1.length, equals(28));
     });
 
     test('different execution fields produce different profile hashes', () {
@@ -165,7 +156,7 @@ void main() {
         notes: '',
         beverageType: BeverageType.espresso,
         steps: [],
-        tankTemperature: 94.0, // Different temperature
+        tankTemperature: 94.0,
         targetVolumeCountStart: 0,
       );
 
@@ -222,7 +213,7 @@ void main() {
       expect(hashes.metadataHash, isNotEmpty);
       expect(hashes.compoundHash, isNotEmpty);
       expect(hashes.profileHash.length, equals(28));
-      expect(hashes.metadataHash.length, equals(64)); // SHA-256 hex
+      expect(hashes.metadataHash.length, equals(64));
       expect(hashes.compoundHash.length, equals(64));
     });
   });
@@ -310,13 +301,10 @@ void main() {
       final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
       final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
 
-      // Same profile hash (execution fields)
       expect(record1.id, equals(record2.id));
 
-      // Different metadata hash
       expect(record1.metadataHash, isNot(equals(record2.metadataHash)));
 
-      // Different compound hash
       expect(record1.compoundHash, isNot(equals(record2.compoundHash)));
     });
 
@@ -367,13 +355,10 @@ void main() {
       final updatedProfile = profile.copyWith(tankTemperature: 94.0);
       final updated = original.copyWith(profile: updatedProfile);
 
-      // Different profile hash due to temperature change
       expect(updated.id, isNot(equals(original.id)));
 
-      // Metadata hash unchanged (title/author/notes same)
       expect(updated.metadataHash, equals(original.metadataHash));
 
-      // Compound hash changed (profile hash changed)
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
   });
@@ -426,16 +411,14 @@ void main() {
       final record1 = ProfileRecord.create(profile: profile, isDefault: false);
       final record2 = ProfileRecord.create(profile: profile, isDefault: false);
 
-      // Both have same ID
       expect(record1.id, equals(record2.id));
 
       await storage.store(record1);
 
-      // Storing record2 overwrites record1 (same ID)
       await storage.store(record2);
 
       final count = await storage.count();
-      expect(count, equals(1)); // Only one profile
+      expect(count, equals(1));
     });
 
     test('filters by visibility', () async {
@@ -461,7 +444,7 @@ void main() {
             notes: '',
             beverageType: BeverageType.espresso,
             steps: [],
-            tankTemperature: 94.0, // Different to get different hash
+            tankTemperature: 94.0,
             targetVolumeCountStart: 0,
           ),
           isDefault: false,
@@ -512,17 +495,15 @@ void main() {
 
       await storage.store(parent);
 
-      // Create modified version with different execution field
       final childProfile = parentProfile.copyWith(tankTemperature: 94.0);
       final child = ProfileRecord.create(
         profile: childProfile,
-        parentId: parent.id, // Reference parent
+        parentId: parent.id,
         isDefault: false,
       );
 
       await storage.store(child);
 
-      // Verify different IDs (different execution fields)
       expect(child.id, isNot(equals(parent.id)));
       expect(child.parentId, equals(parent.id));
 
@@ -577,7 +558,6 @@ void main() {
 
       await storage.store(record);
 
-      // Simulate hiding a default profile
       final hiddenRecord = record.copyWith(visibility: Visibility.hidden);
       await storage.update(hiddenRecord);
 
@@ -602,7 +582,6 @@ void main() {
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
 
-      // Update only metadata fields
       final updatedProfile = profile.copyWith(
         title: 'New Title',
         author: 'New Author',
@@ -611,13 +590,10 @@ void main() {
 
       final updated = original.copyWith(profile: updatedProfile);
 
-      // Same profile ID (execution fields unchanged)
       expect(updated.id, equals(original.id));
 
-      // Different metadata hash
       expect(updated.metadataHash, isNot(equals(original.metadataHash)));
 
-      // Different compound hash
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
 
@@ -635,17 +611,13 @@ void main() {
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
 
-      // Update execution field
       final updatedProfile = profile.copyWith(tankTemperature: 94.0);
       final updated = original.copyWith(profile: updatedProfile);
 
-      // Different profile ID (execution field changed)
       expect(updated.id, isNot(equals(original.id)));
 
-      // Same metadata hash (metadata unchanged)
       expect(updated.metadataHash, equals(original.metadataHash));
 
-      // Different compound hash
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
 
@@ -663,21 +635,18 @@ void main() {
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
 
-      // Update both
       final updatedProfile = profile.copyWith(
         title: 'Updated',
         tankTemperature: 94.0,
       );
       final updated = original.copyWith(profile: updatedProfile);
 
-      // All hashes different
       expect(updated.id, isNot(equals(original.id)));
       expect(updated.metadataHash, isNot(equals(original.metadataHash)));
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
 
     test('identical profiles from different sources have same ID', () {
-      // Simulate two users creating the "same" profile
       final profile1 = Profile(
         version: '2',
         title: 'User A Version',
@@ -703,10 +672,8 @@ void main() {
       final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
       final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
 
-      // Same functional profile → same ID
       expect(record1.id, equals(record2.id));
 
-      // Can detect they're different presentations
       expect(record1.metadataHash, isNot(equals(record2.metadataHash)));
       expect(record1.compoundHash, isNot(equals(record2.compoundHash)));
     });
@@ -725,11 +692,9 @@ void main() {
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
 
-      // Serialize and deserialize
       final json = original.toJson();
       final deserialized = ProfileRecord.fromJson(json);
 
-      // All hashes preserved
       expect(deserialized.id, equals(original.id));
       expect(deserialized.metadataHash, equals(original.metadataHash));
       expect(deserialized.compoundHash, equals(original.compoundHash));
@@ -752,7 +717,7 @@ void main() {
         title: 'Test',
         author: 'Test',
         notes: '',
-        beverageType: BeverageType.pourover, // Different beverage type
+        beverageType: BeverageType.pourover,
         steps: [],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
@@ -761,13 +726,11 @@ void main() {
       final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
       final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
 
-      // Different beverage type → different profile hash
       expect(record1.id, isNot(equals(record2.id)));
     });
   });
 
   group('Profile.fromJson field tolerance', () {
-    // Minimal valid profile body; tests override / remove individual keys.
     Map<String, dynamic> validJson() => {
       'version': '2',
       'title': 'Test',

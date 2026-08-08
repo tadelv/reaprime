@@ -12,11 +12,6 @@ void main() {
 
   late MockDeviceScanner scanner;
 
-  /// The gate ScaleWatch consults — mirrors ConnectionManager's
-  /// `_shouldRetryPreferredScale`. Successful connects flip it false
-  /// (scale now connected), failed connects leave it true; ScaleWatch
-  /// itself never throws out of connectScale (ConnectionManager's
-  /// connectScale swallows errors).
   late bool gate;
   late String? preferredId;
   late List<Scale> connectCalls;
@@ -73,9 +68,6 @@ void main() {
     await watch.arm();
     expect(watch.armed, isTrue);
     expect(scanner.startWatchCallCount, 1);
-    // No OS name filter: remembered names are friendly constants that
-    // rarely match advertised names, and the universal_ble fork filters
-    // plugin-side anyway. Matching happens in Dart via DeviceMatcher.
     expect(scanner.lastWatchFilter?.namePrefix, isNull);
   });
 
@@ -109,7 +101,6 @@ void main() {
     () async {
       var watchActiveDuringConnect = true;
       watch = build();
-      // Re-wire connectScale via a fresh instance capturing watch state.
       final probe = ScaleWatch(
         scanner: scanner,
         shouldWatch: () => gate,
@@ -168,7 +159,6 @@ void main() {
     await watch.arm();
     scanner.addDevice(TestScale(deviceId: scaleId));
     await pump();
-    // Second emission while the first connect is still in flight.
     scanner.removeDevice(scaleId);
     scanner.addDevice(TestScale(deviceId: scaleId));
     await pump();
@@ -201,7 +191,7 @@ void main() {
     expect(watch.armed, isFalse);
     expect(scanner.watchActive, isFalse);
 
-    await watch.disarm(); // second call must not throw or double-stop
+    await watch.disarm();
     expect(scanner.stopWatchCallCount, 1);
   });
 
@@ -213,7 +203,7 @@ void main() {
   test(
     'disarm during an in-flight connect does not resurrect the watch',
     () async {
-      connectSucceeds = false; // would normally re-arm after the attempt
+      connectSucceeds = false;
       connectGate = Completer<void>();
       await watch.arm();
       scanner.addDevice(TestScale(deviceId: scaleId));

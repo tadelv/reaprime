@@ -10,16 +10,8 @@ class ShotRecord {
   final Workflow workflow;
   final ShotAnnotations? annotations;
 
-  /// Why the shot ended, as decided by the ShotSequencer
-  /// (`ShotDecisionReason.name`, e.g. `targetWeight`, `machineEnded`).
-  /// Machine-derived and immutable — deliberately NOT part of
-  /// [ShotAnnotations], which holds user-entered tasting metadata. Stored as
-  /// an open string: newer builds may persist reasons this build doesn't
-  /// know, and they must survive round-trips. Null for legacy shots and for
-  /// shots the app didn't sequence (e.g. full gateway mode, backgrounded).
   final String? stopReason;
 
-  // Legacy fields kept for backward compatibility during migration.
   final String? _shotNotes;
   final Map<String, dynamic>? _metadata;
 
@@ -35,7 +27,6 @@ class ShotRecord {
   }) : _shotNotes = annotations != null ? annotations.espressoNotes : shotNotes,
        _metadata = annotations != null ? annotations.extras : metadata;
 
-  /// Synthesized from annotations when available, otherwise from legacy field.
   @Deprecated('Use annotations?.espressoNotes instead')
   String? get shotNotes => _shotNotes;
 
@@ -50,13 +41,11 @@ class ShotRecord {
       "workflow": workflow.toJson(),
       if (annotations != null) "annotations": annotations!.toJson(),
       if (stopReason != null) "stopReason": stopReason,
-      // Write legacy fields too for backward compat with older app versions
       if (_shotNotes != null) "shotNotes": _shotNotes,
       if (_metadata != null) "metadata": _metadata,
     };
   }
 
-  /// JSON without measurements — used for paginated list responses.
   Map<String, dynamic> toJsonWithoutMeasurements() {
     return {
       "id": id,
@@ -89,7 +78,6 @@ class ShotRecord {
       workflow: Workflow.fromJson(json["workflow"]),
       annotations: ann,
       stopReason: json["stopReason"] as String?,
-      // Still parse legacy fields for backward compat with old callers
       shotNotes: json.containsKey('annotations')
           ? null
           : json["shotNotes"] as String?,

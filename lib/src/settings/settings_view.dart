@@ -18,8 +18,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'settings_controller.dart';
 
-/// Flat iOS-style list of settings. Heavy sub-pages (devices, data, skins,
-/// account, advanced) are standalone launcher destinations.
 class SettingsView extends StatelessWidget {
   const SettingsView({
     super.key,
@@ -48,7 +46,6 @@ class SettingsView extends StatelessWidget {
           final isMobile = Platform.isAndroid || Platform.isIOS;
           return ListView(
             children: [
-              // MARK: General
               const SettingsSectionHeader('General'),
               SettingsTile(
                 icon: Icons.palette_outlined,
@@ -74,7 +71,6 @@ class SettingsView extends StatelessWidget {
                 ),
               ),
 
-              // MARK: Updates
               const SettingsSectionHeader('Updates'),
               if (!Platform.isIOS) ...[
                 SettingsTile(
@@ -131,7 +127,6 @@ class SettingsView extends StatelessWidget {
                 onTap: () => _checkForUpdates(context),
               ),
 
-              // MARK: Power
               const SettingsSectionHeader('Power'),
               if (isMobile) ...[
                 SettingsTile(
@@ -182,7 +177,6 @@ class SettingsView extends StatelessWidget {
                 ),
               ),
 
-              // MARK: About
               const SettingsSectionHeader('About'),
               SettingsTile(
                 icon: Icons.info_outline,
@@ -196,8 +190,6 @@ class SettingsView extends StatelessWidget {
       ),
     );
   }
-
-  // MARK: - Label Helpers
 
   static String _themeModeLabel(ThemeMode mode) {
     switch (mode) {
@@ -239,8 +231,6 @@ class SettingsView extends StatelessWidget {
     if (timeout > 0) return 'Sleep after $timeout min';
     return 'Enabled, no sleep timeout';
   }
-
-  // MARK: - Dialogs
 
   void _showThemePicker(BuildContext context) {
     showShadDialog(
@@ -406,7 +396,6 @@ class SettingsView extends StatelessWidget {
   Future<void> _checkForUpdates(BuildContext context) async {
     final updater = macosUpdater;
     if (updater != null && updater.isSupported) {
-      // macOS: Sparkle owns app updates.
       if (updater.isAvailable) {
         try {
           await updater.checkForUpdates();
@@ -419,8 +408,6 @@ class SettingsView extends StatelessWidget {
         }
         return;
       }
-      // Sparkle could not be configured: no functional app-update path exists
-      // on macOS, so never claim a Dart "latest version" result.
       if (!context.mounted) return;
       showDialog(
         context: context,
@@ -518,7 +505,6 @@ class SettingsView extends StatelessWidget {
         );
       }
 
-      // Also update WebUI skins
       await webUIStorage?.downloadRemoteSkins();
     } catch (e, stackTrace) {
       log.severe('Error checking for updates', e, stackTrace);

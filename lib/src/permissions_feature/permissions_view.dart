@@ -105,27 +105,19 @@ class _PermissionsViewState extends State<PermissionsView> {
       if (Platform.isAndroid) {
         final sdkVersion = await _getAndroidSdkVersion();
         if (sdkVersion >= 31) {
-          // Android 12+: use new BLUETOOTH_SCAN/CONNECT permissions
           await Permission.bluetoothScan.request();
           await Permission.bluetoothConnect.request();
         } else {
-          // Android 9-11: use legacy BLUETOOTH + location
           await Permission.bluetooth.request();
           await Permission.locationWhenInUse.request();
         }
 
-        // Request notification permission for Android 13+ (API 33+)
-        // This allows foreground service notification to appear in notification drawer
         await Permission.notification.request();
 
-        // Start foreground service now that BLE + notification permissions are granted
         await ForegroundTaskService.start();
 
-        // Wire foreground service auto-stop to machine connection state
         ForegroundTaskService.watchMachineConnection(widget.de1controller.de1);
 
-        // CRITICAL: Request battery optimization exemption
-        // This prevents Android from killing the app in the background
         final batteryOptStatus =
             await Permission.ignoreBatteryOptimizations.status;
         if (!batteryOptStatus.isGranted) {
@@ -146,21 +138,14 @@ class _PermissionsViewState extends State<PermissionsView> {
       }
     }
 
-    // Telemetry consent prompt is shown as a dialog after device picker loads
-    // (see DeviceDiscoveryView.initState). This keeps startup non-blocking
-    // while still prompting the user (PRIV-03, PRIV-04).
-
-    // Initialize WebUI storage and service BEFORE device controller
     _log.info('Initializing WebUI storage...');
     try {
       await widget.webUIStorage.initialize();
       _log.info('WebUI storage initialized successfully');
     } catch (e) {
       _log.severe('Failed to initialize WebUI storage', e);
-      // Continue anyway - we can still use the app without WebUI
     }
 
-    // Start WebUI service if we have a default skin
     final defaultSkin = widget.webUIStorage.defaultSkin;
     if (defaultSkin != null) {
       _log.info('Starting WebUI service with skin: ${defaultSkin.name}');
@@ -169,23 +154,19 @@ class _PermissionsViewState extends State<PermissionsView> {
         _log.info('WebUI service started successfully');
       } catch (e) {
         _log.severe('Failed to start WebUI service', e);
-        // Continue anyway - we can still use the app without WebUI
       }
     } else {
       _log.warning('No default skin available, WebUI service not started');
     }
 
-    // Initialize plugins after WebUI is ready
     if (widget.pluginLoaderService != null) {
       try {
         await widget.pluginLoaderService!.initialize();
       } catch (e) {
-        // Log error but don't fail the permissions check
         _log.warning('Failed to initialize plugins: $e');
       }
     }
 
-    // Initialize device controller last
     await widget.deviceController.initialize();
 
     return true;

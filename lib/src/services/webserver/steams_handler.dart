@@ -25,9 +25,6 @@ class SteamsHandler {
   Future<Response> _getSteams(Request req) async {
     try {
       final records = await _controller.storageService.getAllSteams();
-      // List view drops measurements blobs to keep the response small —
-      // mirrors `/api/v1/shots` behaviour. Clients needing per-frame
-      // data request a single record by id.
       final items = records.map((r) => r.toJsonWithoutMeasurements()).toList();
       return jsonOk(items);
     } catch (e, st) {
@@ -70,8 +67,6 @@ class SteamsHandler {
     }
   }
 
-  /// Partial update — only annotations are accepted; the rest of the
-  /// record (measurements, workflow) is immutable.
   Future<Response> _updateSteam(Request req, String id) async {
     id = Uri.decodeComponent(id);
     try {

@@ -43,8 +43,6 @@ void main() {
       if (tmpRoot.existsSync()) tmpRoot.deleteSync(recursive: true);
     });
 
-    // Builds a source skin directory whose skin-manifest.json shares [id] but
-    // carries a distinct [version], mimicking two builds of the same skin.
     Directory makeSkinSource(String version) {
       final dir = Directory('${tmpRoot.path}/src_$version');
       dir.createSync(recursive: true);
@@ -149,11 +147,9 @@ void main() {
           expect(storage.getSkin('passione-dist')!.isBundled, isFalse);
           expect(urlGetRequests, 1);
 
-          // Unchanged ETag: updateAllSkins skips the re-download.
           await storage.updateAllSkins();
           expect(urlGetRequests, 1);
 
-          // Changed ETag: updateAllSkins re-downloads and refreshes metadata.
           etag = 'url-etag-v2';
           await storage.updateAllSkins();
           expect(urlGetRequests, 2);
@@ -218,17 +214,14 @@ void main() {
           expect(storage.getSkin('passione-dist')!.isBundled, isFalse);
           expect(assetGets, 1);
 
-          // Same tag: updateAllSkins skips the asset download.
           await storage.updateAllSkins();
           expect(assetGets, 1);
 
-          // New release: updateAllSkins re-downloads and retargets metadata.
           releaseTag = 'v1.1.0';
           await storage.updateAllSkins();
           expect(assetGets, 2);
           metadata = storage.getSkin('passione-dist')!.reaMetadata!;
           expect(metadata.sourceUrl, 'github_release:acme/custom-skin@v1.1.0');
-          // User-installed skin stays removable after an update.
           expect(storage.getSkin('passione-dist')!.isBundled, isFalse);
         },
         () => MockClient((request) async {
@@ -294,7 +287,6 @@ void main() {
               'second.zip',
             );
 
-            // New release: the update re-selects second.zip, not first.zip.
             releaseTag = 'v1.1.0';
             await storage.updateAllSkins();
             expect(requestedAssets, [
@@ -357,8 +349,6 @@ void main() {
             isTrue,
           );
 
-          // New prerelease: the update hits the /releases list endpoint
-          // (not /releases/latest) and re-selects a prerelease.
           releaseTag = 'v1.1.0-rc.1';
           await storage.updateAllSkins();
           expect(
@@ -381,7 +371,6 @@ void main() {
               url ==
                   'https://api.github.com/repos/acme/custom-skin/releases/latest') {
             latestApiGets.add(url);
-            // The /releases list endpoint returns an array.
             return http.Response(
               url.endsWith('/releases')
                   ? jsonEncode([releaseBody()])
@@ -400,11 +389,9 @@ void main() {
     });
 
     test('overwriteIfExists:false leaves an existing skin untouched', () async {
-      // Newer copy installed first (e.g. from a GitHub release).
       await storage.installFromPath(makeSkinSource('0.1.33').path);
       expect(installedVersion(), '0.1.33');
 
-      // Bundled (older) copy must not clobber it — issue #250.
       await storage.installFromPath(
         makeSkinSource('0.1.31').path,
         overwriteIfExists: false,

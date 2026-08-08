@@ -7,7 +7,6 @@ import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// In-memory storage stub good enough to exercise the create path.
 class _StubStorage implements ProfileStorageService {
   final Map<String, ProfileRecord> _records = {};
 
@@ -66,7 +65,6 @@ void main() {
     handler = app.call;
   });
 
-  // Minimal profile that omits the optional metadata strings (notes/author).
   Map<String, dynamic> profileWithoutMetadata() => {
     'version': '2',
     'title': 'Imported profile',
@@ -89,8 +87,6 @@ void main() {
 
   group('POST /api/v1/profiles', () {
     test('creates a profile when notes and author are omitted', () async {
-      // Regression: previously crashed in Profile.fromJson with
-      // "type 'Null' is not a subtype of type 'String'" → opaque 500.
       final response = await postProfile({'profile': profileWithoutMetadata()});
 
       expect(response.statusCode, 201);

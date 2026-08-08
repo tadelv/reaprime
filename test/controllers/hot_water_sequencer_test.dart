@@ -270,16 +270,13 @@ void main() {
   });
 
   group('stopping', () {
-    // Drives a machine into hotWater and emits the post-tare zero frame so the
-    // monitor confirms the tare applied (mirrors a scale reporting ~0 after the
-    // tare command lands).
     Future<_TestMachine> armAndConfirmTare() async {
       final m = _TestMachine();
       de1.emitMachine(m);
       await settle();
       m.emit(_snap(MachineState.hotWater));
       await settle();
-      scale.emitWeight(0, flow: 0, at: clock); // post-tare zero observed
+      scale.emitWeight(0, flow: 0, at: clock);
       await settle();
       return m;
     }
@@ -288,7 +285,6 @@ void main() {
       await build();
       final m = await armAndConfirmTare();
 
-      // Past the tare-settle window.
       clock = clock.add(const Duration(seconds: 1));
       scale.emitWeight(30, flow: 0, at: clock);
       await settle();
@@ -313,7 +309,6 @@ void main() {
       await build();
       final m = await armAndConfirmTare();
 
-      // Still inside the settle window.
       clock = clock.add(const Duration(milliseconds: 100));
       scale.emitWeight(50, flow: 0, at: clock);
       await settle();
@@ -325,9 +320,6 @@ void main() {
     test(
       'waits for the post-tare zero before stopping (stale pre-tare weight)',
       () async {
-        // The cup is still on the platter and the physical tare lags: the scale
-        // keeps reporting the pre-tare weight (>= target) past the time window.
-        // The monitor must NOT false-stop until it has seen the weight settle low.
         await build();
         final m = _TestMachine();
         de1.emitMachine(m);
@@ -335,8 +327,8 @@ void main() {
         m.emit(_snap(MachineState.hotWater));
         await settle();
 
-        clock = clock.add(const Duration(seconds: 1)); // window elapsed
-        scale.emitWeight(50, flow: 0, at: clock); // stale pre-tare cup weight
+        clock = clock.add(const Duration(seconds: 1));
+        scale.emitWeight(50, flow: 0, at: clock);
         await settle();
         expect(
           m.requested,
@@ -344,7 +336,6 @@ void main() {
           reason: 'must not stop on an unconfirmed (pre-tare) reading',
         );
 
-        // Tare finally lands — scale drops to zero, then water climbs to target.
         scale.emitWeight(0, flow: 0, at: clock);
         await settle();
         clock = clock.add(const Duration(milliseconds: 200));
@@ -373,18 +364,15 @@ void main() {
       await build();
       final m = await armAndConfirmTare();
 
-      // First dispense reaches target and stops.
       clock = clock.add(const Duration(seconds: 1));
       scale.emitWeight(30, flow: 0, at: clock);
       await settle();
       expect(m.requested.where((s) => s == MachineState.idle).length, 1);
 
-      // Machine returns to idle → disarm.
       m.emit(_snap(MachineState.idle, substate: MachineSubstate.idle));
       await settle();
       expect(sequencer.isArmed, isFalse);
 
-      // Second dispense: re-arm, re-tare, confirm, reach target, stop again.
       m.emit(_snap(MachineState.hotWater));
       await settle();
       expect(sequencer.isArmed, isTrue);

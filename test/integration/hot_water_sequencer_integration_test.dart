@@ -16,11 +16,6 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 
 import '../helpers/mock_settings_service.dart';
 
-/// Integration tier: wires the real [De1Controller], [ScaleController],
-/// [SettingsController] and [HotWaterSequencer] with the simulated MockDe1 +
-/// MockScale — the same objects `main.dart` constructs. MockDe1 has no
-/// autonomous hot-water stop, so a `hotWater → idle` transition can only have
-/// been driven by the sequencer requesting idle.
 class _EmptyDiscovery extends DeviceDiscoveryService {
   @override
   Stream<List<Device>> get devices => const Stream.empty();
@@ -55,7 +50,6 @@ void main() {
     scaleController.dispose();
   });
 
-  /// Waits for the machine to reach [state], failing after [within].
   Future<void> waitForState(
     MockDe1 machine,
     MachineState state, {
@@ -70,12 +64,9 @@ void main() {
     final machine = MockDe1();
     await de1Controller.connectToDe1(machine);
     final scale = MockScale();
-    // Same wiring SimulatedDeviceService applies: the scale's weight follows
-    // the machine's dispense flow.
     scale.attachMachine(machine);
     await scaleController.connectToScale(scale);
 
-    // Small target (5 g at 2 mL/s) so the dispense reaches it quickly.
     await de1Controller.updateHotWaterSettings(
       HotWaterFormSettings(
         targetTemperature: 85,
@@ -84,10 +75,8 @@ void main() {
         duration: 30,
       ),
     );
-    // Let the hot-water target propagate to the sequencer.
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
-    // Externally-started hot water (as a GHC / REST / skin would).
     await machine.requestState(MachineState.hotWater);
     await waitForState(machine, MachineState.hotWater);
     expect(
@@ -96,7 +85,6 @@ void main() {
       reason: 'sequencer should arm on hotWater entry',
     );
 
-    // The scale weight ramps past 5 g; the sequencer must request idle.
     await waitForState(machine, MachineState.idle);
     expect(
       sequencer.isArmed,
@@ -125,7 +113,6 @@ void main() {
 
     await machine.requestState(MachineState.hotWater);
     await waitForState(machine, MachineState.hotWater);
-    // Give the sequencer a few snapshots' worth of time to (not) arm.
     await Future<void>.delayed(const Duration(seconds: 2));
 
     expect(sequencer.isArmed, isFalse);

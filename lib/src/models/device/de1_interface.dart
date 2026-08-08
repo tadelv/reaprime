@@ -6,8 +6,6 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/data/utils.dart';
 
 abstract class De1Interface extends Machine {
-  /// End-of-life cleanup. Release resources held by this machine
-  /// implementation. Default is a no-op.
   Future<void> dispose() async {}
 
   Stream<bool> get ready;
@@ -26,19 +24,15 @@ abstract class De1Interface extends Machine {
 
   Future<void> setProfile(Profile profile);
 
-  //// Timeouts and Thresholds
   Future<void> setFanThreshhold(int temp);
   Future<int> getFanThreshhold();
   Future<int> getTankTempThreshold();
   Future<void> setTankTempThreshold(int temp);
-  //
-  //// Flow Control
   Future<void> setSteamFlow(double newFlow);
   Future<double> getSteamFlow();
   Future<void> setHotWaterFlow(double newFlow);
   Future<double> getHotWaterFlow();
 
-  // Flush/Rinse control
   Future<void> setFlushFlow(double newFlow);
   Future<double> getFlushFlow();
   Future<void> setFlushTimeout(double newTimeout);
@@ -46,33 +40,23 @@ abstract class De1Interface extends Machine {
   Future<double> getFlushTemperature();
   Future<void> setFlushTemperature(double newTemp);
 
-  // Calibration
   Future<double> getFlowEstimation();
   Future<void> setFlowEstimation(double multiplier);
 
-  /// The flow-estimation calibration as last read/written this session, without
-  /// a BLE round-trip. Warmed on connect and updated on [setFlowEstimation];
-  /// null until first read. (The DE1 doesn't advertise to other apps while we're
-  /// connected, so nothing changes it behind our back.)
   double? get cachedFlowEstimation;
 
   Future<De1HeaterVoltage> getHeaterVoltage();
-  // auto clamped to valid values
   Future<void> setHeaterVoltage(De1HeaterVoltage voltage);
 
-  //// USB and Charger Settings
   Future<bool> getUsbChargerMode();
   Future<void> setUsbChargerMode(bool t);
 
-  //// Steam Purge
   Future<void> setSteamPurgeMode(int mode);
   Future<int> getSteamPurgeMode();
 
-  //// User Presence
   Future<void> enableUserPresenceFeature();
   Future<void> sendUserPresent();
 
-  // Heater prefs
   Future<double> getHeaterPhase1Flow();
   Future<void> setHeaterPhase1Flow(double val);
   Future<double> getHeaterPhase2Flow();
@@ -82,22 +66,16 @@ abstract class De1Interface extends Machine {
   Future<double> getHeaterIdleTemp();
   Future<void> setHeaterIdleTemp(double val);
 
-  // Firmware upgrade
   Future<void> updateFirmware(
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
   });
 
-  /// Read-only observable state of the firmware update operation.
-  /// [FirmwareUpdateState.idle] when no operation is active.
   FirmwareUpdateState get firmwareUpdateState => FirmwareUpdateState.idle;
 
-  /// Cancel an in-progress firmware upload. Sets the machine to sleeping.
-  /// No-op if no upload is in progress.
   Future<void> cancelFirmwareUpload() async {}
 }
 
-// This doesn't change anything
 enum De1SteamSettingsValues {
   none(0),
   fastStart(0x80),
@@ -129,7 +107,6 @@ enum De1HeaterVoltage {
   final int voltage;
   const De1HeaterVoltage(this.voltage);
   factory De1HeaterVoltage.fromInt(int voltage) {
-    // account for v + 1000 when voltage has been already set
     voltage = voltage > 1000 ? voltage - 1000 : voltage;
     if (voltage >= 90 && voltage <= 150) return .v110;
     if (voltage >= 180 && voltage <= 260) return .v220;

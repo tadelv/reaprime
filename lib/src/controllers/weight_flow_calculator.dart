@@ -20,16 +20,13 @@ class FlowCalculator {
   });
 
   double addSample(DateTime timestamp, double weight) {
-    // Add new sample
     _samples.addLast(WeightedSample(timestamp, weight));
 
-    // Remove old samples
     while (_samples.isNotEmpty &&
         timestamp.difference(_samples.first.timestamp) > windowDuration) {
       _samples.removeFirst();
     }
 
-    // Not enough data
     if (_samples.length < 2) return 0.0;
 
     final first = _samples.first;
@@ -39,7 +36,6 @@ class FlowCalculator {
         .inMilliseconds;
     final deltaWeight = last.weight - first.weight;
 
-    // Avoid division by zero
     if (deltaTimeMs <= 0 || deltaWeight.abs() < deadband) return 0.0;
 
     var flow = (deltaWeight * 1000) / deltaTimeMs;

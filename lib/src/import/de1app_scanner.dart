@@ -2,15 +2,12 @@ import 'dart:io';
 import 'package:reaprime/src/import/import_result.dart';
 
 class De1appScanner {
-  /// Scan a folder for de1app data sources.
-  /// Returns ScanResult with counts and detected source types.
   static Future<ScanResult> scan(String path) async {
     int shotCount = 0;
     String? shotSource;
     int profileCount = 0;
     bool hasDyeGrinders = false;
 
-    // Prefer history_v2/ (JSON), fall back to history/ (TCL)
     final historyV2 = Directory('$path/history_v2');
     if (await historyV2.exists()) {
       shotCount = await _countFiles(historyV2, '.json');
@@ -24,16 +21,13 @@ class De1appScanner {
       }
     }
 
-    // Profiles
     final profilesV2 = Directory('$path/profiles_v2');
     if (await profilesV2.exists()) {
       profileCount = await _countFiles(profilesV2, '.json');
     }
 
-    // DYE grinders
     hasDyeGrinders = await File('$path/plugins/DYE/grinders.tdb').exists();
 
-    // Settings
     final hasSettings = await File('$path/settings.tdb').exists();
 
     return ScanResult(

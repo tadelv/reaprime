@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 
-/// In-memory fake for testing — no flutter_secure_storage dependency.
 class FakeCredentialStore implements CredentialStore {
   final Map<String, String> _store = {};
 
@@ -20,14 +19,9 @@ class FakeCredentialStore implements CredentialStore {
     _store.remove(key);
   }
 
-  // Exposed for test assertions.
   bool get hasCredentials =>
       _store.containsKey('email') && _store.containsKey('password');
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const _baseUrl = 'https://decentespresso.com';
 
@@ -39,10 +33,6 @@ http_testing.MockClient _mockClient({
     return http.Response(body, statusCode);
   });
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 void main() {
   group('DecentAccountService', () {
@@ -63,9 +53,6 @@ void main() {
     group('login', () {
       late http.BaseRequest capturedRequest;
 
-      /// Helper that builds a service whose MockClient captures the request
-      /// and returns [statusCode]/[body], then asserts on [capturedRequest]
-      /// after the async call completes.
       DecentAccountService serviceWithCapture({
         required int statusCode,
         required String body,
@@ -132,7 +119,6 @@ void main() {
       test('persists encrypted password on successful login', () async {
         await service.login('test@example.com', 'hunter2');
         expect(await store.read(key: 'email'), 'test@example.com');
-        // Stores the encrypted password returned by the API, not the plaintext.
         expect(await store.read(key: 'password'), 'cryptpw_abc123');
       });
 
@@ -149,7 +135,6 @@ void main() {
       });
 
       test('sends correctly-encoded Basic Auth header', () async {
-        // base64("test@example.com:hunter2") = "dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy"
         const expectedAuth = 'Basic dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy';
         final s = serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
 
@@ -201,10 +186,8 @@ void main() {
 
       test('returns true when credentials are already stored from a '
           'previous session', () async {
-        // Simulate credentials from a previous session.
         await store.write(key: 'email', value: 'returning@example.com');
         await store.write(key: 'password', value: 'oldpassword');
-        // Recreate service — it should pick up stored creds.
         service = DecentAccountService(
           httpClient: httpClient,
           credentialStore: store,
@@ -240,7 +223,6 @@ void main() {
       test(
         'calls /support/api/sn?onlyespressomachines=1 with Basic Auth from stored credentials',
         () async {
-          // base64("test@example.com:cryptpw_abc123")
           const expectedAuth =
               'Basic dGVzdEBleGFtcGxlLmNvbTpjcnlwdHB3X2FiYzEyMw==';
           final s = serviceWithCapture(statusCode: 200, body: 'DE1-0001');
