@@ -97,18 +97,13 @@ class MockConnectionManager extends ConnectionManager {
   }
 
   @override
-  Future<void> selectMachine(De1Interface machine) async {
+  Future<ConnectionResult> selectMachine(De1Interface machine) async {
     selectMachineCallCount++;
-    try {
-      await connectMachine(machine);
-    } catch (_) {
-      // connectMachine already updates the status stream with the error.
-      // The widget must not see the exception.
-    }
+    return connectMachine(machine);
   }
 
   @override
-  Future<void> connectMachine(De1Interface machine) async {
+  Future<ConnectionResult> connectMachine(De1Interface machine) async {
     if (shouldFailMachineConnect) {
       final error = ConnectionError(
         kind: ConnectionErrorKind.machineConnectFailed,
@@ -138,8 +133,9 @@ class MockConnectionManager extends ConnectionManager {
           ),
         );
       }
-      throw Exception('connectMachine failed');
+      return const ConnectionResult.failed('connectMachine failed');
     }
+    return const ConnectionResult.succeeded();
   }
 
   @override

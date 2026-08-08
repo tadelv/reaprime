@@ -140,12 +140,15 @@ channels:
       individual device connection state changes, scanning state changes,
       and ConnectionManager status updates (phase, found devices, ambiguity).
       Accepts commands to scan, connect, and disconnect devices.
+      Connect commands receive a DeviceConnectResult when the attempt finishes.
     address: ws/v1/devices
     messages:
       devicesState:
         $ref: '#/components/messages/DevicesState'
       devicesCommand:
         $ref: '#/components/messages/DevicesCommand'
+      deviceConnectResult:
+        $ref: '#/components/messages/DeviceConnectResult'
   Display:
     address: ws/v1/display
     description: |
@@ -234,6 +237,7 @@ operations:
       $ref: '#/channels/Devices'
     messages:
       - $ref: '#/channels/Devices/messages/devicesState'
+      - $ref: '#/channels/Devices/messages/deviceConnectResult'
   devicesCommand:
     action: send
     channel:
@@ -346,6 +350,12 @@ components:
       summary: Command sent by the client to scan, connect, or disconnect devices.
       payload:
         $ref: '#/components/schemas/DevicesCommand'
+    DeviceConnectResult:
+      name: DeviceConnectResult
+      title: Device connect command result
+      summary: Outcome returned after a connect command finishes.
+      payload:
+        $ref: '#/components/schemas/DeviceConnectResult'
     DisplayState:
       name: DisplayState
       title: Display state
@@ -434,7 +444,7 @@ components:
           description: >
             Error kind identifier. Skins should look up localized copy
             by this field. Initial set:
-            scaleConnectFailed, machineConnectFailed,
+            scaleConnectFailed, machineConnectFailed, sensorConnectFailed,
             scaleDisconnected, machineDisconnected,
             adapterOff, bluetoothPermissionDenied, scanFailed,
             profileUploadFailed.
@@ -840,6 +850,30 @@ components:
             "disconnected"). Remembered devices persist across restarts until
             forgotten via the REST /api/v1/devices/forget endpoint.
           example: true
+
+    DeviceConnectResult:
+      type: object
+      required: [deviceId, operation, outcome, state, connectionError]
+      properties:
+        deviceId:
+          type: string
+        operation:
+          type: string
+          enum: [connect]
+        outcome:
+          type: string
+          enum: [connected, alreadyConnected, conflict, failed, timedOut]
+        state:
+          type: string
+          enum: [discovered, connecting, connected, disconnecting, disconnected]
+        connectionError:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ConnectionError'
+        error:
+          type: string
+          nullable: true
+          description: Human-readable command error on non-successful outcomes.
 
     DevicesCommand:
       type: object

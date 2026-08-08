@@ -230,6 +230,78 @@ void main() {
       );
     });
 
+    test('connect returns a structured successful outcome', () async {
+      final scale = TestScale(deviceId: 'scale-success', name: 'Scale');
+      mockDiscovery.addDevice(scale);
+      await Future.delayed(Duration.zero);
+
+      final response = await sendPut(
+        '/api/v1/devices/connect',
+        body: jsonEncode({'deviceId': scale.deviceId}),
+      );
+      final body = jsonDecode(await response.readAsString());
+
+      expect(response.statusCode, 200);
+      expect(body, {
+        'deviceId': scale.deviceId,
+        'operation': 'connect',
+        'outcome': 'connected',
+        'state': 'connected',
+        'connectionError': null,
+      });
+    });
+
+    test('connect failure returns 503 and the structured error', () async {
+      final scale = _FailingTestScale(deviceId: 'scale-failure');
+      mockDiscovery.addDevice(scale);
+      await Future.delayed(Duration.zero);
+
+      final response = await sendPut(
+        '/api/v1/devices/connect',
+        body: jsonEncode({'deviceId': scale.deviceId}),
+      );
+      final body = jsonDecode(await response.readAsString());
+
+      expect(response.statusCode, 503);
+      expect(body['outcome'], 'failed');
+      expect(body['state'], 'disconnected');
+      expect(body['connectionError']['kind'], 'scaleConnectFailed');
+      expect(body['connectionError']['deviceId'], scale.deviceId);
+    });
+
+    test('overlapping connect returns 409 instead of false success', () async {
+      final blocker = Completer<void>();
+      final first = _BlockingTestScale(
+        deviceId: 'scale-first',
+        blocker: blocker,
+      );
+      final second = TestScale(
+        deviceId: 'scale-second',
+        initialState: ConnectionState.disconnected,
+      );
+      mockDiscovery.addDevice(first);
+      mockDiscovery.addDevice(second);
+      await Future.delayed(Duration.zero);
+
+      final firstRequest = sendPut(
+        '/api/v1/devices/connect',
+        body: jsonEncode({'deviceId': first.deviceId}),
+      );
+      await Future.delayed(Duration.zero);
+      final response = await sendPut(
+        '/api/v1/devices/connect',
+        body: jsonEncode({'deviceId': second.deviceId}),
+      );
+      final body = jsonDecode(await response.readAsString());
+
+      expect(response.statusCode, 409);
+      expect(body['outcome'], 'conflict');
+      expect(body['deviceId'], second.deviceId);
+
+      blocker.complete();
+      await firstRequest;
+    });
+
     group('disconnect', () {
       test('reads deviceId from JSON body', () async {
         mockDiscovery.addDevice(
@@ -654,4 +726,23 @@ void main() {
       expect(emissions.length, countAfterClose);
     });
   });
+}
+
+class _FailingTestScale extends TestScale {
+  _FailingTestScale({required super.deviceId})
+    : super(initialState: ConnectionState.disconnected);
+
+  @override
+  Future<void> onConnect() async {
+    throw StateError('scale unavailable');
+  }
+}
+
+class _BlockingTestScale extends TestScale {
+  final Completer<void> blocker;
+
+  _BlockingTestScale({required super.deviceId, required this.blocker});
+
+  @override
+  Future<void> onConnect() => blocker.future;
 }

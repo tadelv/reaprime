@@ -8,13 +8,35 @@ enum ScanTerminationReason {
   adapterStateChanged,
 }
 
+enum ConnectionOutcome {
+  connected,
+  alreadyConnected,
+  conflict,
+  failed,
+  timedOut,
+}
+
 class ConnectionResult {
-  final bool success;
+  final ConnectionOutcome outcome;
   final String? error;
 
-  const ConnectionResult.succeeded() : success = true, error = null;
-  const ConnectionResult.failed(this.error) : success = false;
-  const ConnectionResult.skipped() : success = false, error = null;
+  const ConnectionResult.succeeded()
+    : outcome = ConnectionOutcome.connected,
+      error = null;
+  const ConnectionResult.alreadyConnected()
+    : outcome = ConnectionOutcome.alreadyConnected,
+      error = null;
+  const ConnectionResult.conflict()
+    : outcome = ConnectionOutcome.conflict,
+      error = null;
+  const ConnectionResult.failed(this.error)
+    : outcome = ConnectionOutcome.failed;
+  const ConnectionResult.timedOut(this.error)
+    : outcome = ConnectionOutcome.timedOut;
+
+  bool get success =>
+      outcome == ConnectionOutcome.connected ||
+      outcome == ConnectionOutcome.alreadyConnected;
 }
 
 class MatchedDevice {

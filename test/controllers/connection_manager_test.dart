@@ -1352,9 +1352,10 @@ void main() {
             ScanTerminationReason.cancelledByUser,
           );
 
-          await connectionManager.selectMachine(staleA);
+          final result = await connectionManager.selectMachine(staleA);
 
           expect(mockDe1Controller.connectCalls, isEmpty);
+          expect(result.outcome, ConnectionOutcome.conflict);
           expect(
             connectionManager.currentStatus.pendingAmbiguity,
             AmbiguityReason.machinePicker,
@@ -1427,13 +1428,11 @@ void main() {
         mockDe1Controller.shouldFailConnect = true;
         final fakeDe1 = _FakeDe1(deviceId: 'fail-de1');
 
-        expect(
-          () => connectionManager.connectMachine(fakeDe1),
-          throwsA(isA<Exception>()),
-        );
+        final result = await connectionManager.connectMachine(fakeDe1);
 
         await Future.delayed(Duration.zero);
 
+        expect(result.outcome, ConnectionOutcome.failed);
         expect(settingsController.preferredMachineId, isNull);
       });
 
@@ -1455,17 +1454,13 @@ void main() {
           );
 
           final fakeDe1 = _FakeDe1(deviceId: 'timeout-de1');
-          Object? caughtError;
-          manager.connectMachine(fakeDe1).catchError((e) => caughtError = e);
+          ConnectionResult? result;
+          manager.connectMachine(fakeDe1).then((value) => result = value);
 
           async.elapse(Duration(seconds: timeoutSeconds + 5));
           async.flushMicrotasks();
 
-          expect(
-            caughtError,
-            isA<TimeoutException>(),
-            reason: 'connectMachine must rethrow TimeoutException',
-          );
+          expect(result?.outcome, ConnectionOutcome.timedOut);
           final status = manager.currentStatus;
           expect(status.phase, ConnectionPhase.idle);
           expect(status.error?.kind, ConnectionErrorKind.machineConnectFailed);
@@ -1497,9 +1492,10 @@ void main() {
 
         final future1 = manager.connectMachine(fakeDe1);
         final future2 = manager.connectMachine(_FakeDe1(deviceId: 'de1-2'));
-        await future2;
+        final secondResult = await future2;
 
         expect(slowDe1Controller.connectCalls, hasLength(1));
+        expect(secondResult.outcome, ConnectionOutcome.conflict);
 
         completer.complete();
         await future1;
@@ -1539,9 +1535,7 @@ void main() {
           errors.add(s.error);
         });
 
-        try {
-          await connectionManager.connectMachine(fakeDe1);
-        } catch (_) {}
+        await connectionManager.connectMachine(fakeDe1);
         await Future.delayed(Duration.zero);
 
         // Two trailing idles: one from the phase revert, one from _emit
@@ -1566,11 +1560,7 @@ void main() {
           mockDe1Controller.shouldFailConnect = true;
           final fakeDe1 = _FailingFakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
 
-          try {
-            await connectionManager.connectMachine(fakeDe1);
-          } catch (_) {
-            // connectMachine rethrows — that's expected.
-          }
+          await connectionManager.connectMachine(fakeDe1);
           await Future<void>.delayed(Duration.zero);
 
           final err = connectionManager.currentStatus.error!;
@@ -1590,9 +1580,7 @@ void main() {
         );
         final fakeDe1 = _FailingFakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
 
-        try {
-          await connectionManager.connectMachine(fakeDe1);
-        } catch (_) {}
+        await connectionManager.connectMachine(fakeDe1);
         await Future<void>.delayed(Duration.zero);
 
         final err = connectionManager.currentStatus.error!;
@@ -1750,9 +1738,10 @@ void main() {
 
         final future1 = manager.connectScale(testScale);
         final future2 = manager.connectScale(TestScale(deviceId: 'scale-2'));
-        await future2;
+        final secondResult = await future2;
 
         expect(slowScaleController.connectCalls, hasLength(1));
+        expect(secondResult.outcome, ConnectionOutcome.conflict);
 
         completer.complete();
         await future1;

@@ -413,6 +413,11 @@ so a full scan that ran to completion never triggers one.
 - `selectMachine(De1Interface)` / `selectScale(Scale)` — Continue the active selection session; stale choices are rejected
 - `disconnectMachine()` / `disconnectScale()` — Explicit disconnects
 
+The deliberate connect and selection methods return `ConnectionResult` with a
+connected, already-connected, conflict, failed, or timed-out outcome. REST and
+WebSocket connect handlers preserve that result instead of inferring success
+from normal completion.
+
 ### Disconnect Handling
 
 ConnectionManager listens for disconnects automatically:

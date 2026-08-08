@@ -369,6 +369,26 @@ void main() {
       await channel.sink.close();
     });
 
+    test('connect failure sends a structured command result', () async {
+      final scale = _FailingWsScale(deviceId: 'scale-failure');
+      mockDiscovery.addDevice(scale);
+      await Future.delayed(Duration.zero);
+
+      final (channel, messages) = connectWs();
+      await waitForState(messages);
+
+      channel.sink.add(
+        jsonEncode({'command': 'connect', 'deviceId': scale.deviceId}),
+      );
+
+      final response = await waitForError(messages);
+      expect(response['outcome'], 'failed');
+      expect(response['connectionError']['kind'], 'scaleConnectFailed');
+      expect(response['connectionError']['deviceId'], scale.deviceId);
+
+      await channel.sink.close();
+    });
+
     test('emits update when device connection state changes', () async {
       final scale = TestScale(deviceId: 'scale-1', name: 'Scale');
       mockDiscovery.addDevice(scale);
@@ -544,4 +564,14 @@ void main() {
       await channel2.sink.close();
     });
   });
+}
+
+class _FailingWsScale extends TestScale {
+  _FailingWsScale({required super.deviceId})
+    : super(initialState: ConnectionState.disconnected);
+
+  @override
+  Future<void> onConnect() async {
+    throw StateError('scale unavailable');
+  }
 }

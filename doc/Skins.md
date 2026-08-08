@@ -1915,6 +1915,8 @@ displayWs.onmessage = (event) => {
 
 **Purpose:** Broadcasts the full `ConnectionManager` status (discovered devices, current phase, pending ambiguity, and the most recent BLE error) plus a snapshot of all known devices. Also accepts `scan`, `connect`, and `disconnect` commands — see [`assets/api/websocket_v1.yml`](../assets/api/websocket_v1.yml) for the command schema.
 
+Each `connect` command receives a `DeviceConnectResult` after the attempt finishes. Use its `outcome` and `state` instead of inferring command success from later status updates. Failed sensor commands use `sensorConnectFailed` in the result's `connectionError`.
+
 #### Handling connection errors
 
 When a BLE operation fails, the stream emits an update with a structured `connectionStatus.error` object. The socket stays open across errors — do not reconnect the WebSocket when you see one.

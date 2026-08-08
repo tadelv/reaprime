@@ -1613,32 +1613,29 @@ class ConnectionManager {
     }
   }
 
-  Future<void> selectMachine(De1Interface machine) async {
+  Future<ConnectionResult> selectMachine(De1Interface machine) async {
     final session = _selectionSession;
     if (session == null ||
         currentStatus.pendingAmbiguity != AmbiguityReason.machinePicker) {
       _log.fine('Ignoring stale machine selection ${machine.deviceId}');
-      return;
+      return const ConnectionResult.conflict();
     }
     final resolved = session.resolveMachine(machine.deviceId);
     if (resolved == null) {
       _log.fine('Ignoring stale machine selection ${machine.deviceId}');
-      return;
+      return const ConnectionResult.conflict();
     }
-    try {
-      await connectMachine(resolved);
-    } catch (_) {
-      // connectMachine already emitted the classified error and either
-      // re-presented the machine picker (alternatives remain) or
-      // transitioned to the scale phase (no alternatives, scale candidates
-      // present). The widget must not see the exception.
-    }
+    return connectMachine(resolved);
   }
 
-  Future<void> connectMachine(De1Interface machine) async {
+  Future<ConnectionResult> connectMachine(De1Interface machine) async {
     if (_isConnectingMachine) {
       _log.fine('connectMachine: already connecting, skipping');
-      return;
+      return const ConnectionResult.conflict();
+    }
+    if (_machineConnected &&
+        de1Controller.connectedDe1OrNull?.deviceId == machine.deviceId) {
+      return const ConnectionResult.alreadyConnected();
     }
     _isConnectingMachine = true;
     final selectionSession =
@@ -1679,11 +1676,12 @@ class ConnectionManager {
       } else if (!_isConnecting) {
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
       }
+      return const ConnectionResult.succeeded();
     } catch (e) {
-      selectionSession?.scanReport.recordResult(
-        machine.deviceId,
-        ConnectionResult.failed(e.toString()),
-      );
+      final result = e is TimeoutException
+          ? ConnectionResult.timedOut(e.toString())
+          : ConnectionResult.failed(e.toString());
+      selectionSession?.scanReport.recordResult(machine.deviceId, result);
       final machineError = _buildConnectError(
         kind: ConnectionErrorKind.machineConnectFailed,
         deviceId: machine.deviceId,
@@ -1706,7 +1704,7 @@ class ConnectionManager {
           ),
         );
         _emit(machineError);
-        rethrow;
+        return result;
       }
 
       final alternatives = selectionSession.machines
@@ -1720,7 +1718,7 @@ class ConnectionManager {
           ),
         );
         _emit(machineError);
-        rethrow;
+        return result;
       }
 
       _publishStatus(
@@ -1739,6 +1737,7 @@ class ConnectionManager {
       _settleAfterScalePhase();
       _ensureScaleReacquisition();
       _emit(machineError);
+      return result;
     } finally {
       _isConnectingMachine = false;
     }
@@ -1747,16 +1746,20 @@ class ConnectionManager {
   /// Returns the attempt outcome so tracked callers can report it —
   /// failures are handled here (status emit) and NOT rethrown.
   Future<ConnectionResult> connectScale(Scale scale) async {
+    if (_isConnectingScale) {
+      _log.fine('connectScale: already connecting, skipping');
+      return const ConnectionResult.conflict();
+    }
+    if (_scaleConnected &&
+        scaleController.lastConnectedDeviceId == scale.deviceId) {
+      return const ConnectionResult.alreadyConnected();
+    }
     if (_scaleReconnectBlockedByPowerMode) {
       _log.fine(
         'connectScale: blocked while machine is sleeping and scale power '
         'mode is disconnect',
       );
-      return const ConnectionResult.skipped();
-    }
-    if (_isConnectingScale) {
-      _log.fine('connectScale: already connecting, skipping');
-      return const ConnectionResult.skipped();
+      return const ConnectionResult.conflict();
     }
     _isConnectingScale = true;
     _log.fine('connectScale: connecting to ${scale.name} (${scale.deviceId})');
@@ -1824,7 +1827,9 @@ class ConnectionManager {
           exception: e,
         ),
       );
-      return ConnectionResult.failed(e.toString());
+      return timedOut
+          ? ConnectionResult.timedOut(e.toString())
+          : ConnectionResult.failed(e.toString());
     } finally {
       _isConnectingScale = false;
     }
@@ -1835,12 +1840,12 @@ class ConnectionManager {
     if (session == null ||
         currentStatus.pendingAmbiguity != AmbiguityReason.scalePicker) {
       _log.fine('Ignoring stale scale selection ${scale.deviceId}');
-      return const ConnectionResult.skipped();
+      return const ConnectionResult.conflict();
     }
     final resolved = session.resolveScale(scale.deviceId);
     if (resolved == null) {
       _log.fine('Ignoring stale scale selection ${scale.deviceId}');
-      return const ConnectionResult.skipped();
+      return const ConnectionResult.conflict();
     }
     // Capture the machine error before connectScale publishes a clearing
     // phase (connectingScale) and the gatekeeper strips it.
@@ -1874,18 +1879,8 @@ class ConnectionManager {
     ScanReportBuilder scanReport,
   ) async {
     scanReport.markAttempted(machine.deviceId);
-    try {
-      await connectMachine(machine);
-      scanReport.recordResult(
-        machine.deviceId,
-        const ConnectionResult.succeeded(),
-      );
-    } catch (e) {
-      scanReport.recordResult(
-        machine.deviceId,
-        ConnectionResult.failed(e.toString()),
-      );
-    }
+    final result = await connectMachine(machine);
+    scanReport.recordResult(machine.deviceId, result);
   }
 
   /// Wrap [_connectScaleTracked] with the early-connect deferral gate.
