@@ -537,61 +537,47 @@ void main() {
   });
 
   test(
-    'rapid tag edits survive a stale failure and keep the latest state',
+    'rapid tag edits preserve ownership after stale failure and stale success',
     () async {
       final harness = await _loadPlugin('''
-      globalThis.__requests = [];
-      globalThis.__resolvers = [];
+      globalThis.__remoteTags = ['remote']; globalThis.__requests = []; globalThis.__resolvers = [];
       globalThis.fetch = (url, init = {}) => {
         if (url.endsWith('/shots/visualizer-9?essentials=1')) {
-          return Promise.resolve({ ok: true, json: async () => ({ id: 'visualizer-9', tags: [] }) });
+          return Promise.resolve({ ok: true, json: async () => ({ id: 'visualizer-9', tags: globalThis.__remoteTags }) });
         }
         if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
           globalThis.__requests = [...globalThis.__requests, JSON.parse(init.body)];
-          return new Promise((resolve) => {
-            globalThis.__resolvers = [...globalThis.__resolvers, resolve];
-          });
+          return new Promise((resolve) => { globalThis.__resolvers = [...globalThis.__resolvers, resolve]; });
         }
         throw new Error('Unexpected URL: ' + url);
       };
     ''');
-      Map<String, dynamic> shotWithTag(String tag) => _shot(
-        annotations: {
-          'extras': {
-            'visualizerId': 'visualizer-9',
-            'tags': [tag],
-          },
-        },
-      );
-      Map<String, dynamic> patchWithTag(String tag) => {
-        'annotations': {
-          'extras': {
-            'tags': [tag],
-          },
-        },
-      };
-
-      _dispatchShotUpdate(
+      void dispatchTag(String tag) => _dispatchShotUpdate(
         harness.manager,
-        shotWithTag('old'),
-        patchWithTag('old'),
+        _shot(
+          annotations: {
+            'extras': {
+              'visualizerId': 'visualizer-9',
+              'tags': [tag],
+            },
+          },
+        ),
+        {
+          'annotations': {
+            'extras': {
+              'tags': [tag],
+            },
+          },
+        },
       );
+      dispatchTag('old');
       await _waitForJs(
         harness.manager,
         'globalThis.__requests.length === 1 ? true : null',
       );
-      _dispatchShotUpdate(
-        harness.manager,
-        shotWithTag('latest'),
-        patchWithTag('latest'),
-      );
+      dispatchTag('middle');
       harness.manager.js.evaluate('''
-      globalThis.__resolvers[0]({
-        ok: false,
-        status: 400,
-        statusText: 'Bad Request',
-        text: async () => 'stale request',
-      });
+      globalThis.__resolvers[0]({ ok: false, status: 400, statusText: 'Bad Request', text: async () => 'stale request' });
     ''');
       final requests =
           await _waitForJs(
@@ -600,12 +586,27 @@ void main() {
               )
               as List<dynamic>;
       final second = requests[1] as Map<String, dynamic>;
-      expect((second['shot'] as Map<String, dynamic>)['tags'], ['latest']);
+      expect((second['shot'] as Map<String, dynamic>)['tags'], [
+        'middle',
+        'remote',
+      ]);
+      dispatchTag('latest');
       harness.manager.js.evaluate('''
-      globalThis.__resolvers[1]({
-        ok: true,
-        json: async () => ({ id: 'visualizer-9', updated_at: 2 }),
-      });
+      globalThis.__remoteTags = ['middle', 'remote']; globalThis.__resolvers[1]({ ok: true, json: async () => ({ id: 'visualizer-9', updated_at: 2 }) });
+    ''');
+      final latestRequests =
+          await _waitForJs(
+                harness.manager,
+                'globalThis.__requests.length === 3 ? globalThis.__requests : null',
+              )
+              as List<dynamic>;
+      final third = latestRequests[2] as Map<String, dynamic>;
+      expect((third['shot'] as Map<String, dynamic>)['tags'], [
+        'latest',
+        'remote',
+      ]);
+      harness.manager.js.evaluate('''
+      globalThis.__resolvers[2]({ ok: true, json: async () => ({ id: 'visualizer-9', updated_at: 3 }) });
     ''');
       expect(
         await _waitForStored(

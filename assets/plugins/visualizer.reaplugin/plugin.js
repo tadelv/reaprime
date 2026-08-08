@@ -680,8 +680,6 @@ function createPlugin(host) {
         const merged = await mergeCurrentVisualizerTags(visualizerId, pending.update);
         const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: merged.update });
         updateBackSyncState(visualizerId, detail);
-        const current = state.pendingLocalSync[visualizerId];
-        if (current?.revision !== pending.revision) continue;
         if (merged.managedTags !== null) {
           state.managedLocalTags = {
             ...state.managedLocalTags,
@@ -689,6 +687,8 @@ function createPlugin(host) {
           };
           persistManagedLocalTags();
         }
+        const current = state.pendingLocalSync[visualizerId];
+        if (current?.revision !== pending.revision) continue;
         removePendingLocalSync(visualizerId);
         host.emit("shotForwardSynced", {
           shotId: pending.shotId,
