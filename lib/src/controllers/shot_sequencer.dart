@@ -138,60 +138,38 @@ class ShotSequencer {
       return;
     }
 
-    if (!scaleConnected) {
-      _log.info("Continuing without scale");
-      _snapshotSubscription = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .map((snapshot) => ShotSnapshot(machine: snapshot))
-          .listen(
-            _processSnapshot,
-            onError: (error) =>
-                _log.warning("Error processing DE1 snapshot: $error"),
-          );
-    } else {
-      _log.info("Scale connected, combining streams");
-      final combinedStream = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .withLatestFrom(
-            scaleController.weightSnapshot,
-            (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
-          );
-
-      _snapshotSubscription = combinedStream.listen(
-        _processSnapshot,
-        onError: (error) =>
-            _log.warning("Error processing combined snapshot: $error"),
-      );
-
-      // Monitor scale connection during shot
-      _scaleConnectionSubscription = scaleController.connectionState.listen((
-        state,
-      ) {
-        if (state == device.ConnectionState.disconnected && !_scaleLost) {
-          if (_state != ShotState.idle && _state != ShotState.finished) {
-            _scaleLost = true;
-            _log.warning(
-              'Scale disconnected during shot (state: ${_state.name}). '
-              'Stop-at-weight disabled for remainder of this shot.',
-            );
-          }
-        }
-      });
-    }
+    _scaleConnected = scaleConnected;
+    _scaleConnectionGeneration = scaleController.connectionGeneration;
+    _latestScale = scaleController.currentWeightSnapshot;
+    _scaleConnectionSubscription = scaleController.connectionState.listen(
+      _onScaleConnection,
+    );
+    _scaleWeightSubscription = scaleController.weightSnapshot.listen(
+      _onScaleWeight,
+    );
+    _snapshotSubscription = de1controller.connectedDe1().currentSnapshot.listen(
+      (machine) {
+        _syncScaleConnectionGeneration();
+        _processSnapshot(
+          ShotSnapshot(machine: machine, scale: _scaleFor(machine)),
+        );
+      },
+      onError: (error) => _log.warning("Error processing DE1 snapshot: $error"),
+    );
   }
 
   void dispose() {
     _log.fine("dispose");
     _snapshotSubscription?.cancel();
     _scaleConnectionSubscription?.cancel();
+    _scaleWeightSubscription?.cancel();
     _rawShotDataStream.close();
     _shotDataStream.close();
     _decisionStream.close();
   }
 
-  StreamSubscription<ShotSnapshot>? _snapshotSubscription;
+  StreamSubscription<MachineSnapshot>? _snapshotSubscription;
+  StreamSubscription<WeightSnapshot>? _scaleWeightSubscription;
 
   final StreamController<ShotSnapshot> _rawShotDataStream =
       StreamController.broadcast();
@@ -272,6 +250,11 @@ class ShotSequencer {
   final double targetYield;
   ShotState _state = ShotState.idle;
   bool _scaleLost = false;
+  bool _scaleConnected = false;
+  bool _continueScaleless = false;
+  int _scaleConnectionGeneration = 0;
+  WeightSnapshot? _latestScale;
+  static const Duration _scaleFreshWindow = Duration(seconds: 2);
 
   /// Whether this shot's scale has been tared for the pour yet. Flips `true`
   /// when the app issues the pour-time tare (the preheating→pouring
@@ -286,6 +269,67 @@ class ShotSequencer {
   /// for, so the scale's own readings are trusted as-is.
   bool _scaleTared = false;
   StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
+
+  void _onScaleConnection(device.ConnectionState state) {
+    _syncScaleConnectionGeneration();
+    final connected = state == device.ConnectionState.connected;
+    if (!connected) {
+      _latestScale = null;
+    }
+    _scaleConnected = connected;
+    if (!connected) {
+      _continueWithoutScale();
+    }
+  }
+
+  void _onScaleWeight(WeightSnapshot snapshot) {
+    _syncScaleConnectionGeneration();
+    if (_scaleConnected &&
+        !_scaleLost &&
+        snapshot.connectionGeneration == _scaleConnectionGeneration &&
+        snapshot.connectionGeneration == scaleController.connectionGeneration) {
+      _latestScale = snapshot;
+    }
+  }
+
+  void _syncScaleConnectionGeneration() {
+    final generation = scaleController.connectionGeneration;
+    if (generation == _scaleConnectionGeneration) {
+      return;
+    }
+    _latestScale = null;
+    _scaleConnectionGeneration = generation;
+    _continueWithoutScale();
+  }
+
+  void _continueWithoutScale() {
+    if (_scaleLost ||
+        _state == ShotState.idle ||
+        _state == ShotState.finished) {
+      return;
+    }
+    _scaleLost = true;
+    _continueScaleless = true;
+    _log.warning(
+      'Scale connection changed during shot (state: ${_state.name}). '
+      'Stop-at-weight disabled for remainder of this shot.',
+    );
+  }
+
+  WeightSnapshot? _scaleFor(MachineSnapshot machine) {
+    final scale = _latestScale;
+    if (_continueScaleless ||
+        _scaleLost ||
+        !_scaleConnected ||
+        scale == null ||
+        scale.connectionGeneration != _scaleConnectionGeneration ||
+        scale.connectionGeneration != scaleController.connectionGeneration ||
+        machine.timestamp.difference(scale.timestamp).abs() >=
+            _scaleFreshWindow) {
+      return null;
+    }
+    return scale;
+  }
 
   void _processSnapshot(ShotSnapshot snapshot) {
     _log.finest("Processing snapshot");
@@ -302,6 +346,7 @@ class ShotSequencer {
           weightFlow: 0,
           battery: raw.battery,
           timerValue: raw.timerValue,
+          connectionGeneration: raw.connectionGeneration,
         ),
       );
     }
@@ -403,6 +448,13 @@ class ShotSequencer {
           _maxFrameSeen = -1;
           _finalStopReason = null;
 
+          if (scale == null) {
+            _continueScaleless = true;
+            _log.info(
+              'No fresh scale sample at shot start; continuing scaleless',
+            );
+          }
+
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info(
               "Machine getting ready. Taring scale and resetting timer...",
@@ -440,6 +492,9 @@ class ShotSequencer {
         }
         if (machine.state.substate == MachineSubstate.preinfusion ||
             machine.state.substate == MachineSubstate.pouring) {
+          if (scale == null) {
+            _continueScaleless = true;
+          }
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info("Taring scale again and starting timer.");
             scaleController.tare().catchError(

@@ -129,6 +129,35 @@ void main() {
     controller.dispose();
   });
 
+  test('weight snapshots cache their scale connection generation', () async {
+    final controller = ScaleController();
+    final scale = _TrackingScale('A');
+    final frames = <WeightSnapshot>[];
+    final subscription = controller.weightSnapshot.listen(frames.add);
+
+    await controller.connectToScale(scale);
+    scale.emitAt(DateTime.now(), 40);
+    await Future<void>.delayed(Duration.zero);
+    final firstGeneration = frames.single.connectionGeneration;
+    expect(controller.currentWeightSnapshot, same(frames.single));
+
+    await controller.connectToScale(scale);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.currentWeightSnapshot, isNull);
+    expect(frames, hasLength(1));
+
+    scale.emitAt(DateTime.now(), 2);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(frames, hasLength(2));
+    expect(controller.currentWeightSnapshot, same(frames.last));
+    expect(frames.last.connectionGeneration, controller.connectionGeneration);
+    expect(frames.last.connectionGeneration, isNot(firstGeneration));
+
+    await subscription.cancel();
+    controller.dispose();
+  });
+
   test('a scale whose onConnect throws surfaces as disconnected and leaks no '
       'snapshot subscription', () async {
     final controller = ScaleController();

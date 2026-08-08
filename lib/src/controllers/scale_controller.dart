@@ -20,6 +20,11 @@ class ScaleController {
   /// device went away. Overwritten on the next successful connect.
   String? _lastConnectedDeviceId;
   String? get lastConnectedDeviceId => _lastConnectedDeviceId;
+  int _connectionGeneration = 0;
+  int get connectionGeneration => _connectionGeneration;
+  bool _snapshotSessionActive = false;
+  WeightSnapshot? _currentWeightSnapshot;
+  WeightSnapshot? get currentWeightSnapshot => _currentWeightSnapshot;
 
   final Logger log = Logger('ScaleController');
 
@@ -39,6 +44,8 @@ class ScaleController {
     if (!_weightSnapshotController.isClosed) {
       _weightSnapshotController.close();
     }
+    _snapshotSessionActive = false;
+    _currentWeightSnapshot = null;
   }
 
   Future<void> connectToScale(Scale scale) async {
@@ -93,6 +100,7 @@ class ScaleController {
       _connectionController.add(ConnectionState.disconnected);
       throw StateError('Scale failed to connect (state: ${state.name})');
     }
+    _snapshotSessionActive = true;
     // Subscribe to connection state AFTER onConnect succeeds, so we don't
     // get poisoned by a BehaviorSubject replaying a stale 'disconnected'
     // state from before reconnection.
@@ -131,12 +139,16 @@ class ScaleController {
       _connectionController.add(ConnectionState.disconnected);
       throw StateError('Adopted scale not connected (state: ${state.name})');
     }
+    _snapshotSessionActive = true;
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
     _scaleConnection = scale.connectionState.listen(_processConnection);
   }
 
   void _onDisconnect() {
+    _connectionGeneration++;
+    _snapshotSessionActive = false;
+    _currentWeightSnapshot = null;
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
     _scale = null;
@@ -241,6 +253,9 @@ class ScaleController {
   }
 
   void _processSnapshot(ScaleSnapshot snapshot) {
+    if (!_snapshotSessionActive) {
+      return;
+    }
     _lastSnapshotTime = snapshot.timestamp;
 
     _kalmanEstimator ??= KalmanFlowEstimator(initialWeight: snapshot.weight);
@@ -259,16 +274,17 @@ class ScaleController {
         snapshot.timestamp.isBefore(_flowSettleUntil!);
     final displayFlow = settling ? 0.0 : weightFlowAverage.average;
 
-    _weightSnapshotController.add(
-      WeightSnapshot(
-        timestamp: snapshot.timestamp,
-        weight: snapshot.weight,
-        weightFlow: displayFlow,
-        controlWeightFlow: controlFlow,
-        battery: snapshot.batteryLevel,
-        timerValue: snapshot.timerValue,
-      ),
+    final weightSnapshot = WeightSnapshot(
+      timestamp: snapshot.timestamp,
+      weight: snapshot.weight,
+      weightFlow: displayFlow,
+      controlWeightFlow: controlFlow,
+      battery: snapshot.batteryLevel,
+      timerValue: snapshot.timerValue,
+      connectionGeneration: _connectionGeneration,
     );
+    _currentWeightSnapshot = weightSnapshot;
+    _weightSnapshotController.add(weightSnapshot);
   }
 
   void _processConnection(ConnectionState d) {
@@ -287,6 +303,7 @@ class WeightSnapshot {
   final double controlWeightFlow;
   final int? battery;
   final Duration? timerValue;
+  final int connectionGeneration;
   WeightSnapshot({
     required this.timestamp,
     required this.weight,
@@ -294,6 +311,7 @@ class WeightSnapshot {
     double? controlWeightFlow,
     this.battery,
     this.timerValue,
+    this.connectionGeneration = 0,
   }) : controlWeightFlow = controlWeightFlow ?? weightFlow;
 
   Map<String, dynamic> toJson() {
