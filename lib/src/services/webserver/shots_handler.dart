@@ -216,10 +216,8 @@ class ShotsHandler {
       }
 
       // Deep merge partial payload onto existing shot data
-      final merged = _deepMerge(
-        existingShot.toJson(),
-        _normalizeLegacyAnnotationPatch(json),
-      );
+      final normalizedPatch = _normalizeLegacyAnnotationPatch(json);
+      final merged = _deepMerge(existingShot.toJson(), normalizedPatch);
       _synchronizeLegacyAnnotationAliases(merged);
       merged['id'] = id;
 
@@ -229,7 +227,7 @@ class ShotsHandler {
       _pluginManager?.broadcastEvent('shotUpdated', {
         'id': updatedShot.id,
         'shot': updatedShot.toJsonWithoutMeasurements(),
-        'patch': json,
+        'patch': normalizedPatch,
       });
 
       return jsonOk(updatedShot.toJson());
