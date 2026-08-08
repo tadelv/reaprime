@@ -140,6 +140,7 @@ class ShotSequencer {
 
     _scaleConnected = scaleConnected;
     _scaleConnectionGeneration = scaleController.connectionGeneration;
+    _latestScale = scaleController.currentWeightSnapshot;
     _scaleConnectionSubscription = scaleController.connectionState.listen(
       _onScaleConnection,
     );
@@ -147,9 +148,12 @@ class ShotSequencer {
       _onScaleWeight,
     );
     _snapshotSubscription = de1controller.connectedDe1().currentSnapshot.listen(
-      (machine) => _processSnapshot(
-        ShotSnapshot(machine: machine, scale: _scaleFor(machine)),
-      ),
+      (machine) {
+        _syncScaleConnectionGeneration();
+        _processSnapshot(
+          ShotSnapshot(machine: machine, scale: _scaleFor(machine)),
+        );
+      },
       onError: (error) => _log.warning("Error processing DE1 snapshot: $error"),
     );
   }
@@ -267,31 +271,49 @@ class ShotSequencer {
   StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
 
   void _onScaleConnection(device.ConnectionState state) {
-    final generation = scaleController.connectionGeneration;
+    _syncScaleConnectionGeneration();
     final connected = state == device.ConnectionState.connected;
-    if (!connected || generation != _scaleConnectionGeneration) {
+    if (!connected) {
       _latestScale = null;
-      _scaleConnectionGeneration = generation;
     }
     _scaleConnected = connected;
-    if (!connected &&
-        !_scaleLost &&
-        _state != ShotState.idle &&
-        _state != ShotState.finished) {
-      _scaleLost = true;
-      _continueScaleless = true;
-      _log.warning(
-        'Scale disconnected during shot (state: ${_state.name}). '
-        'Stop-at-weight disabled for remainder of this shot.',
-      );
+    if (!connected) {
+      _continueWithoutScale();
     }
   }
 
   void _onScaleWeight(WeightSnapshot snapshot) {
+    _syncScaleConnectionGeneration();
     if (_scaleConnected &&
-        snapshot.connectionGeneration == _scaleConnectionGeneration) {
+        !_scaleLost &&
+        snapshot.connectionGeneration == _scaleConnectionGeneration &&
+        snapshot.connectionGeneration == scaleController.connectionGeneration) {
       _latestScale = snapshot;
     }
+  }
+
+  void _syncScaleConnectionGeneration() {
+    final generation = scaleController.connectionGeneration;
+    if (generation == _scaleConnectionGeneration) {
+      return;
+    }
+    _latestScale = null;
+    _scaleConnectionGeneration = generation;
+    _continueWithoutScale();
+  }
+
+  void _continueWithoutScale() {
+    if (_scaleLost ||
+        _state == ShotState.idle ||
+        _state == ShotState.finished) {
+      return;
+    }
+    _scaleLost = true;
+    _continueScaleless = true;
+    _log.warning(
+      'Scale connection changed during shot (state: ${_state.name}). '
+      'Stop-at-weight disabled for remainder of this shot.',
+    );
   }
 
   WeightSnapshot? _scaleFor(MachineSnapshot machine) {
@@ -301,6 +323,7 @@ class ShotSequencer {
         !_scaleConnected ||
         scale == null ||
         scale.connectionGeneration != _scaleConnectionGeneration ||
+        scale.connectionGeneration != scaleController.connectionGeneration ||
         machine.timestamp.difference(scale.timestamp).abs() >=
             _scaleFreshWindow) {
       return null;

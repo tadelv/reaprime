@@ -22,6 +22,8 @@ class ScaleController {
   String? get lastConnectedDeviceId => _lastConnectedDeviceId;
   int _connectionGeneration = 0;
   int get connectionGeneration => _connectionGeneration;
+  WeightSnapshot? _currentWeightSnapshot;
+  WeightSnapshot? get currentWeightSnapshot => _currentWeightSnapshot;
 
   final Logger log = Logger('ScaleController');
 
@@ -41,6 +43,7 @@ class ScaleController {
     if (!_weightSnapshotController.isClosed) {
       _weightSnapshotController.close();
     }
+    _currentWeightSnapshot = null;
   }
 
   Future<void> connectToScale(Scale scale) async {
@@ -140,6 +143,7 @@ class ScaleController {
 
   void _onDisconnect() {
     _connectionGeneration++;
+    _currentWeightSnapshot = null;
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
     _scale = null;
@@ -262,17 +266,17 @@ class ScaleController {
         snapshot.timestamp.isBefore(_flowSettleUntil!);
     final displayFlow = settling ? 0.0 : weightFlowAverage.average;
 
-    _weightSnapshotController.add(
-      WeightSnapshot(
-        timestamp: snapshot.timestamp,
-        weight: snapshot.weight,
-        weightFlow: displayFlow,
-        controlWeightFlow: controlFlow,
-        battery: snapshot.batteryLevel,
-        timerValue: snapshot.timerValue,
-        connectionGeneration: _connectionGeneration,
-      ),
+    final weightSnapshot = WeightSnapshot(
+      timestamp: snapshot.timestamp,
+      weight: snapshot.weight,
+      weightFlow: displayFlow,
+      controlWeightFlow: controlFlow,
+      battery: snapshot.batteryLevel,
+      timerValue: snapshot.timerValue,
+      connectionGeneration: _connectionGeneration,
     );
+    _currentWeightSnapshot = weightSnapshot;
+    _weightSnapshotController.add(weightSnapshot);
   }
 
   void _processConnection(ConnectionState d) {

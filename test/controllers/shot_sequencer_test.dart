@@ -60,6 +60,7 @@ class _TestScaleController extends ScaleController {
   final BehaviorSubject<ConnectionState> _connectionState;
   final StreamController<WeightSnapshot> _weight;
   int generation = 0;
+  WeightSnapshot? _currentWeight;
 
   _TestScaleController(this.testScale, {bool replayWeights = true})
     : _connectionState = BehaviorSubject.seeded(ConnectionState.connected),
@@ -80,6 +81,9 @@ class _TestScaleController extends ScaleController {
   Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
 
   @override
+  WeightSnapshot? get currentWeightSnapshot => _currentWeight;
+
+  @override
   Scale connectedScale() {
     if (_connectionState.value != ConnectionState.connected) {
       throw 'No scale connected';
@@ -93,24 +97,35 @@ class _TestScaleController extends ScaleController {
     double? controlWeightFlow,
     DateTime? timestamp,
   }) {
-    _weight.add(
-      WeightSnapshot(
-        timestamp: timestamp ?? DateTime(2026, 1, 15, 8, 0),
-        weight: weight,
-        weightFlow: weightFlow,
-        controlWeightFlow: controlWeightFlow,
-        connectionGeneration: generation,
-      ),
+    final snapshot = WeightSnapshot(
+      timestamp: timestamp ?? DateTime(2026, 1, 15, 8, 0),
+      weight: weight,
+      weightFlow: weightFlow,
+      controlWeightFlow: controlWeightFlow,
+      connectionGeneration: generation,
     );
+    _currentWeight = snapshot;
+    _weight.add(snapshot);
   }
 
   void simulateDisconnect() {
     generation++;
+    _currentWeight = null;
     _connectionState.add(ConnectionState.disconnected);
   }
 
   void simulateReconnect() {
     generation++;
+    _currentWeight = null;
+    _connectionState.add(ConnectionState.connected);
+  }
+
+  void simulateHandoff() {
+    generation++;
+    _currentWeight = null;
+  }
+
+  void announceConnected() {
     _connectionState.add(ConnectionState.connected);
   }
 
@@ -351,7 +366,7 @@ void main() {
     }
 
     test(
-      'machine lifecycle starts without a post-subscription scale sample',
+      'fresh pre-subscription scale sample remains active for replayed start',
       () {
         fakeAsync((async) {
           final nonReplayingScale = _TestScaleController(
@@ -359,6 +374,10 @@ void main() {
             replayWeights: false,
           );
           nonReplayingScale.emitWeight(0);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.preparingForShot,
+          );
           final shotSequencer = ShotSequencer(
             scaleController: nonReplayingScale,
             de1controller: de1Controller,
@@ -374,18 +393,65 @@ void main() {
           final snapshots = <ShotSnapshot>[];
           shotSequencer.shotData.listen(snapshots.add);
 
-          driveToPouring(shotSequencer);
+          async.elapse(const Duration(milliseconds: 10));
+          expect(shotSequencer.currentState, ShotState.preheating);
+
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
+          nonReplayingScale.emitWeight(40);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
           async.elapse(const Duration(milliseconds: 10));
 
-          expect(shotSequencer.currentState, ShotState.pouring);
-          expect(snapshots, isNotEmpty);
-          expect(snapshots.every((snapshot) => snapshot.scale == null), isTrue);
+          expect(testDe1.requestedStates, contains(MachineState.idle));
+          expect(snapshots.any((snapshot) => snapshot.scale != null), isTrue);
 
           shotSequencer.dispose();
           nonReplayingScale.dispose();
         });
       },
     );
+
+    test('scale handoff during a shot stays scaleless', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0);
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
+        );
+        final snapshots = <ShotSnapshot>[];
+        shotSequencer.shotData.listen(snapshots.add);
+
+        driveToPouring(shotSequencer);
+        async.elapse(const Duration(milliseconds: 10));
+        scaleController.simulateHandoff();
+        scaleController.announceConnected();
+        scaleController.emitWeight(40);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(const Duration(milliseconds: 10));
+
+        expect(shotSequencer.scaleLost, isTrue);
+        expect(testDe1.requestedStates, isEmpty);
+        expect(snapshots.last.scale, isNull);
+
+        shotSequencer.dispose();
+      });
+    });
 
     test('continues scaleless when the first scale sample arrives late', () {
       fakeAsync((async) {
