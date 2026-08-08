@@ -20,6 +20,8 @@ class ScaleController {
   /// device went away. Overwritten on the next successful connect.
   String? _lastConnectedDeviceId;
   String? get lastConnectedDeviceId => _lastConnectedDeviceId;
+  int _connectionGeneration = 0;
+  int get connectionGeneration => _connectionGeneration;
 
   final Logger log = Logger('ScaleController');
 
@@ -137,6 +139,7 @@ class ScaleController {
   }
 
   void _onDisconnect() {
+    _connectionGeneration++;
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
     _scale = null;
@@ -267,6 +270,7 @@ class ScaleController {
         controlWeightFlow: controlFlow,
         battery: snapshot.batteryLevel,
         timerValue: snapshot.timerValue,
+        connectionGeneration: _connectionGeneration,
       ),
     );
   }
@@ -287,6 +291,7 @@ class WeightSnapshot {
   final double controlWeightFlow;
   final int? battery;
   final Duration? timerValue;
+  final int connectionGeneration;
   WeightSnapshot({
     required this.timestamp,
     required this.weight,
@@ -294,6 +299,7 @@ class WeightSnapshot {
     double? controlWeightFlow,
     this.battery,
     this.timerValue,
+    this.connectionGeneration = 0,
   }) : controlWeightFlow = controlWeightFlow ?? weightFlow;
 
   Map<String, dynamic> toJson() {

@@ -58,16 +58,23 @@ class _TestDe1Controller extends De1Controller {
 class _TestScaleController extends ScaleController {
   final TestScale testScale;
   final BehaviorSubject<ConnectionState> _connectionState;
-  final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
+  final StreamController<WeightSnapshot> _weight;
+  int generation = 0;
 
-  _TestScaleController(this.testScale)
-    : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
+  _TestScaleController(this.testScale, {bool replayWeights = true})
+    : _connectionState = BehaviorSubject.seeded(ConnectionState.connected),
+      _weight = replayWeights
+          ? BehaviorSubject<WeightSnapshot>()
+          : StreamController<WeightSnapshot>.broadcast();
 
   @override
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
   ConnectionState get currentConnectionState => _connectionState.value;
+
+  @override
+  int get connectionGeneration => generation;
 
   @override
   Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
@@ -84,19 +91,27 @@ class _TestScaleController extends ScaleController {
     double weight, {
     double weightFlow = 0.0,
     double? controlWeightFlow,
+    DateTime? timestamp,
   }) {
     _weight.add(
       WeightSnapshot(
-        timestamp: DateTime(2026, 1, 15, 8, 0),
+        timestamp: timestamp ?? DateTime(2026, 1, 15, 8, 0),
         weight: weight,
         weightFlow: weightFlow,
         controlWeightFlow: controlWeightFlow,
+        connectionGeneration: generation,
       ),
     );
   }
 
   void simulateDisconnect() {
+    generation++;
     _connectionState.add(ConnectionState.disconnected);
+  }
+
+  void simulateReconnect() {
+    generation++;
+    _connectionState.add(ConnectionState.connected);
   }
 
   @override
@@ -335,9 +350,154 @@ void main() {
       );
     }
 
+    test(
+      'machine lifecycle starts without a post-subscription scale sample',
+      () {
+        fakeAsync((async) {
+          final nonReplayingScale = _TestScaleController(
+            testScale,
+            replayWeights: false,
+          );
+          nonReplayingScale.emitWeight(0);
+          final shotSequencer = ShotSequencer(
+            scaleController: nonReplayingScale,
+            de1controller: de1Controller,
+            persistenceController: persistenceController,
+            targetProfile: profile,
+            targetYield: 36.0,
+            bypassSAW: false,
+            blockOnNoScale: false,
+            weightFlowMultiplier: 0.0,
+            volumeFlowMultiplier: 0.0,
+            stepExitArbiterEnabled: true,
+          );
+          final snapshots = <ShotSnapshot>[];
+          shotSequencer.shotData.listen(snapshots.add);
+
+          driveToPouring(shotSequencer);
+          async.elapse(const Duration(milliseconds: 10));
+
+          expect(shotSequencer.currentState, ShotState.pouring);
+          expect(snapshots, isNotEmpty);
+          expect(snapshots.every((snapshot) => snapshot.scale == null), isTrue);
+
+          shotSequencer.dispose();
+          nonReplayingScale.dispose();
+        });
+      },
+    );
+
+    test('continues scaleless when the first scale sample arrives late', () {
+      fakeAsync((async) {
+        final nonReplayingScale = _TestScaleController(
+          testScale,
+          replayWeights: false,
+        );
+        final shotSequencer = ShotSequencer(
+          scaleController: nonReplayingScale,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
+        );
+        final snapshots = <ShotSnapshot>[];
+        shotSequencer.shotData.listen(snapshots.add);
+
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        nonReplayingScale.emitWeight(40);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        nonReplayingScale.emitWeight(40);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(const Duration(milliseconds: 10));
+
+        expect(shotSequencer.currentState, ShotState.pouring);
+        expect(testDe1.requestedStates, isEmpty);
+        expect(snapshots.every((snapshot) => snapshot.scale == null), isTrue);
+
+        shotSequencer.dispose();
+        nonReplayingScale.dispose();
+      });
+    });
+
+    test('does not associate a stale scale sample', () {
+      fakeAsync((async) {
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
+        );
+        scaleController.emitWeight(
+          0,
+          timestamp: DateTime(2026, 1, 15, 7, 59, 57),
+        );
+
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        async.elapse(const Duration(milliseconds: 10));
+
+        expect(shotSequencer.currentState, ShotState.preheating);
+        expect(testScale.tareCallCount, 0);
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('does not associate a sample from an older scale connection', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0);
+        scaleController.simulateDisconnect();
+        scaleController.simulateReconnect();
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
+        );
+
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        async.elapse(const Duration(milliseconds: 10));
+
+        expect(shotSequencer.currentState, ShotState.preheating);
+        expect(testScale.tareCallCount, 0);
+
+        shotSequencer.dispose();
+      });
+    });
+
     test('disables SAW when scale disconnects during pouring', () {
       fakeAsync((async) {
-        // Emit initial weight so withLatestFrom has a value to combine with
         scaleController.emitWeight(0.0);
 
         final shotSequencer = ShotSequencer(
@@ -366,7 +526,6 @@ void main() {
         // With the fix, SAW should be disabled because scale is disconnected.
         scaleController.emitWeight(40.0);
 
-        // Emit a machine snapshot to trigger processing of the combined stream
         testDe1.emitStateAndSubstate(
           MachineState.espresso,
           MachineSubstate.pouring,
@@ -374,8 +533,6 @@ void main() {
         async.elapse(Duration(milliseconds: 10));
 
         // SAW should NOT have fired because scale is disconnected.
-        // The bug: requestedStates will contain MachineState.idle because
-        // withLatestFrom still combines with the stale weight.
         expect(
           testDe1.requestedStates,
           isEmpty,
@@ -426,7 +583,6 @@ void main() {
       'does not crash when scale disconnects and timer stop is attempted',
       () {
         fakeAsync((async) {
-          // Emit initial weight so withLatestFrom has a value
           scaleController.emitWeight(0.0);
 
           final shotSequencer = ShotSequencer(
@@ -481,7 +637,6 @@ void main() {
 
     test('SAW still works normally when scale stays connected', () {
       fakeAsync((async) {
-        // Emit initial weight so withLatestFrom has a value
         scaleController.emitWeight(0.0);
 
         final shotSequencer = ShotSequencer(
