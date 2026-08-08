@@ -73,3 +73,6 @@ Response jsonBadGateway(Object? data) =>
 
 Response jsonServiceUnavailable(Object? data) =>
     Response(503, body: jsonEncode(data), headers: _jsonHeaders);
+
+Response jsonGatewayTimeout(Object? data) =>
+    Response(504, body: jsonEncode(data), headers: _jsonHeaders);

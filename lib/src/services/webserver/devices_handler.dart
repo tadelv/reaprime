@@ -334,8 +334,15 @@ class DevicesHandler {
     if (device == null) {
       return jsonNotFound({'error': 'Device not found: $deviceId'});
     }
-    await _connectDevice(device);
-    return jsonOk(null);
+    final result = await _connectDevice(device);
+    final body = await _connectResultBody(device, result);
+    return switch (result.outcome) {
+      ConnectionOutcome.connected ||
+      ConnectionOutcome.alreadyConnected => jsonOk(body),
+      ConnectionOutcome.conflict => jsonConflict(body),
+      ConnectionOutcome.failed => jsonServiceUnavailable(body),
+      ConnectionOutcome.timedOut => jsonGatewayTimeout(body),
+    };
   }
 
   Future<Response> _handleDisconnect(Request req) async {
@@ -369,16 +376,22 @@ class DevicesHandler {
         _log.warning("failed to send devices state to websocket", e, st);
       }
     });
+    var commandQueue = Future<void>.value();
 
     // Listen for incoming commands
     socket.stream.listen(
       (message) {
-        try {
-          final data = jsonDecode(message.toString()) as Map<String, dynamic>;
-          _handleCommand(data, socket);
-        } catch (e) {
-          socket.sink.add(jsonEncode({'error': 'Invalid JSON: $e'}));
-        }
+        commandQueue = commandQueue
+            .catchError((Object _, StackTrace _) {})
+            .then((_) async {
+              try {
+                final data =
+                    jsonDecode(message.toString()) as Map<String, dynamic>;
+                await _handleCommand(data, socket);
+              } catch (e) {
+                socket.sink.add(jsonEncode({'error': 'Invalid JSON: $e'}));
+              }
+            });
       },
       onDone: () {
         _log.fine("devices websocket disconnected");
@@ -391,7 +404,10 @@ class DevicesHandler {
     );
   }
 
-  void _handleCommand(Map<String, dynamic> data, WebSocketChannel socket) {
+  Future<void> _handleCommand(
+    Map<String, dynamic> data,
+    WebSocketChannel socket,
+  ) async {
     final command = data['command'] as String?;
     if (command == null) {
       socket.sink.add(jsonEncode({'error': 'Missing "command" field'}));
@@ -439,9 +455,7 @@ class DevicesHandler {
           socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
           return;
         }
-        _connectDevice(device).catchError((e) {
-          socket.sink.add(jsonEncode({'error': 'Connect failed: $e'}));
-        });
+        await _sendConnectResult(device, socket);
 
       case 'disconnect':
         final deviceId = data['deviceId'] as String?;
@@ -468,27 +482,98 @@ class DevicesHandler {
     }
   }
 
-  Future<void> _connectDevice(Device device) async {
+  Future<void> _sendConnectResult(
+    Device device,
+    WebSocketChannel socket,
+  ) async {
+    try {
+      final result = await _connectDevice(device);
+      final body = await _connectResultBody(device, result);
+      socket.sink.add(
+        jsonEncode(
+          result.success
+              ? body
+              : {
+                  ...body,
+                  'error':
+                      body['connectionError']?['message'] ??
+                      'Connect ${result.outcome.name}',
+                },
+        ),
+      );
+    } catch (e) {
+      socket.sink.add(jsonEncode({'error': 'Connect failed: $e'}));
+    }
+  }
+
+  Future<ConnectionResult> _connectDevice(Device device) async {
     switch (device.type) {
       case DeviceType.machine:
         final machine = device as De1Interface;
         if (_connectionManager.currentStatus.pendingAmbiguity ==
             AmbiguityReason.machinePicker) {
-          await _connectionManager.selectMachine(machine);
-        } else {
-          await _connectionManager.connectMachine(machine);
+          return _connectionManager.selectMachine(machine);
         }
+        return _connectionManager.connectMachine(machine);
       case DeviceType.scale:
         final scale = device as Scale;
         if (_connectionManager.currentStatus.pendingAmbiguity ==
             AmbiguityReason.scalePicker) {
-          await _connectionManager.selectScale(scale);
-        } else {
-          await _connectionManager.connectScale(scale);
+          return _connectionManager.selectScale(scale);
         }
+        return _connectionManager.connectScale(scale);
       case DeviceType.sensor:
-        await (device as Sensor).onConnect();
+        try {
+          final sensor = device as Sensor;
+          if (await sensor.connectionState.first == ConnectionState.connected) {
+            return const ConnectionResult.alreadyConnected();
+          }
+          await sensor.onConnect();
+          return const ConnectionResult.succeeded();
+        } on TimeoutException catch (e) {
+          return ConnectionResult.timedOut(e.toString());
+        } catch (e) {
+          return ConnectionResult.failed(e.toString());
+        }
     }
+  }
+
+  Future<Map<String, dynamic>> _connectResultBody(
+    Device device,
+    ConnectionResult result,
+  ) async {
+    final state = await device.connectionState.first;
+    return {
+      'deviceId': device.deviceId,
+      'operation': 'connect',
+      'outcome': result.outcome.name,
+      'state': state.name,
+      'connectionError': _connectionError(device, result)?.toJson(),
+    };
+  }
+
+  ConnectionError? _connectionError(Device device, ConnectionResult result) {
+    if (result.success || result.outcome == ConnectionOutcome.conflict) {
+      return null;
+    }
+    final currentError = _connectionManager.currentStatus.error;
+    if (currentError?.deviceId == device.deviceId) return currentError;
+    final timedOut = result.outcome == ConnectionOutcome.timedOut;
+    return ConnectionError(
+      kind: switch (device.type) {
+        DeviceType.machine => ConnectionErrorKind.machineConnectFailed,
+        DeviceType.scale => ConnectionErrorKind.scaleConnectFailed,
+        DeviceType.sensor => ConnectionErrorKind.sensorConnectFailed,
+      },
+      severity: ConnectionErrorSeverity.error,
+      timestamp: DateTime.now().toUtc(),
+      deviceId: device.deviceId,
+      deviceName: device.name,
+      message: timedOut
+          ? '${device.name} did not respond before the connection timed out.'
+          : '${device.name} failed to connect.',
+      suggestion: 'Check that the device is available and try again.',
+    );
   }
 }
 

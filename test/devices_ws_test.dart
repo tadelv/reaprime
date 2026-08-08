@@ -17,6 +17,7 @@ import 'package:reaprime/src/services/webserver_service.dart';
 import 'helpers/mock_device_discovery_service.dart';
 import 'helpers/mock_settings_service.dart';
 import 'helpers/test_scale.dart';
+import 'helpers/test_sensor.dart';
 
 void main() {
   late DeviceController deviceController;
@@ -369,6 +370,96 @@ void main() {
       await channel.sink.close();
     });
 
+    test('connect failure sends a structured command result', () async {
+      final scale = _FailingWsScale(deviceId: 'scale-failure');
+      mockDiscovery.addDevice(scale);
+      await Future.delayed(Duration.zero);
+
+      final (channel, messages) = connectWs();
+      await waitForState(messages);
+
+      channel.sink.add(
+        jsonEncode({'command': 'connect', 'deviceId': scale.deviceId}),
+      );
+
+      final response = await waitForError(messages);
+      expect(response['outcome'], 'failed');
+      expect(response['connectionError']['kind'], 'scaleConnectFailed');
+      expect(response['connectionError']['deviceId'], scale.deviceId);
+
+      await channel.sink.close();
+    });
+
+    test('serializes connect results in command order', () async {
+      final blocker = Completer<void>();
+      final scale = _BlockingWsScale(
+        deviceId: 'scale-blocked',
+        blocker: blocker,
+      );
+      mockDiscovery.addDevice(scale);
+      await Future.delayed(Duration.zero);
+
+      final (channel, messages) = connectWs();
+      await waitForState(messages);
+      final resultsFuture = messages
+          .where(
+            (message) =>
+                message['operation'] == 'connect' &&
+                message['deviceId'] == scale.deviceId,
+          )
+          .take(2)
+          .toList()
+          .timeout(Duration(seconds: 2));
+
+      final command = jsonEncode({
+        'command': 'connect',
+        'deviceId': scale.deviceId,
+      });
+      channel.sink.add(command);
+      channel.sink.add(command);
+      await Future.delayed(Duration.zero);
+      blocker.complete();
+
+      final results = await resultsFuture;
+      expect(results.map((result) => result['outcome']), [
+        'connected',
+        'alreadyConnected',
+      ]);
+
+      await channel.sink.close();
+    });
+
+    test(
+      'connect reports an already-connected sensor without reconnecting',
+      () async {
+        final sensor = TestSensor(deviceId: 'sensor-connected');
+        mockDiscovery.addDevice(sensor);
+        await Future.delayed(Duration.zero);
+
+        final (channel, messages) = connectWs();
+        await waitForState(messages);
+        final resultFuture = messages
+            .where(
+              (message) =>
+                  message['operation'] == 'connect' &&
+                  message['deviceId'] == sensor.deviceId,
+            )
+            .first
+            .timeout(Duration(seconds: 2));
+
+        channel.sink.add(
+          jsonEncode({'command': 'connect', 'deviceId': sensor.deviceId}),
+        );
+
+        final result = await resultFuture;
+        expect(result['outcome'], 'alreadyConnected');
+        expect(result['state'], 'connected');
+        expect(sensor.connectCallCount, 0);
+
+        await channel.sink.close();
+      },
+    );
+
     test('emits update when device connection state changes', () async {
       final scale = TestScale(deviceId: 'scale-1', name: 'Scale');
       mockDiscovery.addDevice(scale);
@@ -544,4 +635,23 @@ void main() {
       await channel2.sink.close();
     });
   });
+}
+
+class _FailingWsScale extends TestScale {
+  _FailingWsScale({required super.deviceId})
+    : super(initialState: ConnectionState.disconnected);
+
+  @override
+  Future<void> onConnect() async {
+    throw StateError('scale unavailable');
+  }
+}
+
+class _BlockingWsScale extends TestScale {
+  final Completer<void> blocker;
+
+  _BlockingWsScale({required super.deviceId, required this.blocker});
+
+  @override
+  Future<void> onConnect() => blocker.future;
 }

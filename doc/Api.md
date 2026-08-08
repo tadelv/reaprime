@@ -102,6 +102,13 @@ enabled, the request scans first, preserves occupied slots, then fills missing
 machine and scale slots; this may take longer than the former quick-connect
 behavior. `quick=true` returns immediately but does not change that policy.
 
+`PUT /api/v1/devices/connect` waits for the attempt and returns `deviceId`,
+`operation`, `outcome`, the resulting device `state`, and a structured
+`connectionError` when applicable. Connected and already-connected devices return
+200; conflicting or stale requests return 409; transport failures return 503;
+and connection timeouts return 504. The devices WebSocket returns the same result
+after each connect command.
+
 Each device entry carries an **`available`** boolean. `true` = currently present
 in discovery; `false` = a **remembered** device that isn't present (reported with
 `state: "disconnected"`). Devices the user connects to are remembered and persist

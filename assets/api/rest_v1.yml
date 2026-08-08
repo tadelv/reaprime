@@ -144,10 +144,32 @@ paths:
       responses:
         "200":
           description: "Device connected successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceConnectResult"
         "400":
           description: "Missing deviceId"
         "404":
           description: "Device not found"
+        "409":
+          description: "Connection conflicts with another operation or a stale selection"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceConnectResult"
+        "503":
+          description: "Device transport currently unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceConnectResult"
+        "504":
+          description: "Device connection timed out"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceConnectResult"
 
   /api/v1/devices/disconnect:
     put:
@@ -4710,6 +4732,31 @@ components:
           type: string
           description: Error message (on failure)
 
+    DeviceConnectResult:
+      type: object
+      required: [deviceId, operation, outcome, state, connectionError]
+      properties:
+        deviceId:
+          type: string
+        operation:
+          type: string
+          enum: [connect]
+        outcome:
+          type: string
+          enum: [connected, alreadyConnected, conflict, failed, timedOut]
+        state:
+          type: string
+          enum: [discovered, connecting, connected, disconnecting, disconnected]
+        connectionError:
+          oneOf:
+            - $ref: '#/components/schemas/ConnectionError'
+            - type: object
+              nullable: true
+              enum: [null]
+        error:
+          type: string
+          nullable: true
+
     ConnectionError:
       type: object
       required: [kind, severity, timestamp, message]
@@ -4719,7 +4766,7 @@ components:
           description: >
             Error kind identifier. Skins should look up localized copy
             by this field. Initial set:
-            scaleConnectFailed, machineConnectFailed,
+            scaleConnectFailed, machineConnectFailed, sensorConnectFailed,
             scaleDisconnected, machineDisconnected,
             adapterOff, bluetoothPermissionDenied, scanFailed,
             profileUploadFailed.

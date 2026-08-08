@@ -35,4 +35,23 @@ void main() {
     expect(matched.connectionResult!.success, isFalse);
     expect(matched.connectionResult!.error, 'timeout');
   });
+
+  test('ConnectionResult distinguishes API-relevant outcomes', () {
+    expect(
+      const ConnectionResult.succeeded().outcome,
+      ConnectionOutcome.connected,
+    );
+    expect(
+      const ConnectionResult.alreadyConnected().outcome,
+      ConnectionOutcome.alreadyConnected,
+    );
+    expect(
+      const ConnectionResult.conflict().outcome,
+      ConnectionOutcome.conflict,
+    );
+    expect(
+      const ConnectionResult.timedOut('timeout').outcome,
+      ConnectionOutcome.timedOut,
+    );
+  });
 }

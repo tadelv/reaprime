@@ -4,6 +4,7 @@
 class ConnectionErrorKind {
   static const scaleConnectFailed = 'scaleConnectFailed';
   static const machineConnectFailed = 'machineConnectFailed';
+  static const sensorConnectFailed = 'sensorConnectFailed';
   static const scaleDisconnected = 'scaleDisconnected';
   static const machineDisconnected = 'machineDisconnected';
   static const adapterOff = 'adapterOff';
