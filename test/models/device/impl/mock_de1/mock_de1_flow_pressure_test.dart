@@ -3,7 +3,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
-Profile _flowProfile() {
+Profile _flowProfile({StepLimiter? limiter}) {
   return Profile(
     version: '1.0',
     title: 'flow-test',
@@ -16,6 +16,7 @@ Profile _flowProfile() {
       ProfileStepFlow(
         name: 'pour',
         flow: 3.0,
+        limiter: limiter,
         seconds: 5,
         temperature: 94,
         sensor: TemperatureSensor.coffee,
@@ -26,7 +27,7 @@ Profile _flowProfile() {
   );
 }
 
-Profile _pressureProfile() {
+Profile _pressureProfile({StepLimiter? limiter}) {
   return Profile(
     version: '1.0',
     title: 'pressure-test',
@@ -39,6 +40,7 @@ Profile _pressureProfile() {
       ProfileStepPressure(
         name: 'pour',
         pressure: 6.0,
+        limiter: limiter,
         seconds: 5,
         temperature: 94,
         sensor: TemperatureSensor.coffee,
@@ -158,6 +160,70 @@ void main() {
       );
 
       expect(snapshot.targetFlow, closeTo(3.0, 0.1));
+    });
+
+    test('pressure-step: flow limiter applies its range', () async {
+      await machine.setProfile(
+        _pressureProfile(limiter: const StepLimiter(value: 1.5, range: 5)),
+      );
+      await machine.requestState(MachineState.espresso);
+
+      await Future.delayed(const Duration(milliseconds: 600));
+      final snapshots = await machine.currentSnapshot
+          .take(10)
+          .toList()
+          .timeout(const Duration(seconds: 3));
+
+      expect(
+        snapshots.map((snapshot) => snapshot.flow),
+        everyElement(lessThanOrEqualTo(6.5)),
+      );
+      expect(snapshots.any((snapshot) => snapshot.flow > 1.5), isTrue);
+    });
+
+    test('flow-step: pressure limiter applies its range', () async {
+      await machine.setProfile(
+        _flowProfile(limiter: const StepLimiter(value: 0.15, range: 1)),
+      );
+      await machine.requestState(MachineState.espresso);
+
+      await Future.delayed(const Duration(milliseconds: 600));
+      final snapshots = await machine.currentSnapshot
+          .take(10)
+          .toList()
+          .timeout(const Duration(seconds: 3));
+
+      expect(
+        snapshots.map((snapshot) => snapshot.pressure),
+        everyElement(lessThanOrEqualTo(1.15)),
+      );
+      expect(snapshots.any((snapshot) => snapshot.pressure > 0.15), isTrue);
+    });
+
+    test('wider limiter range produces a softer response', () async {
+      Future<double> lastFlow(double range) async {
+        final rangedMachine = MockDe1();
+        await rangedMachine.onConnect();
+        try {
+          await rangedMachine.setProfile(
+            _pressureProfile(limiter: StepLimiter(value: 1.5, range: range)),
+          );
+          await rangedMachine.requestState(MachineState.espresso);
+          await Future.delayed(const Duration(milliseconds: 600));
+          final snapshots = await rangedMachine.currentSnapshot
+              .take(10)
+              .toList()
+              .timeout(const Duration(seconds: 3));
+          return snapshots.last.flow;
+        } finally {
+          await rangedMachine.onDisconnect();
+        }
+      }
+
+      final narrowRangeFlow = await lastFlow(0.1);
+      final wideRangeFlow = await lastFlow(5);
+
+      expect(wideRangeFlow, greaterThan(narrowRangeFlow));
     });
   });
 }

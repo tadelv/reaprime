@@ -22,6 +22,20 @@ enum _SimulationType { espresso, steam, hotWater, idle }
 class MockDe1 implements De1Interface, SimulatedDevice {
   MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
 
+  static double _applyLimiter(double measurement, StepLimiter? limiter) {
+    if (limiter == null || limiter.value <= 0 || measurement <= limiter.value) {
+      return measurement;
+    }
+    if (limiter.range <= 0) {
+      return limiter.value;
+    }
+    final excess = measurement - limiter.value;
+    return limiter.value + limiter.range * excess / (limiter.range + excess);
+  }
+
+  final Random _puckRandom = Random(0);
+  double _puckResistanceMultiplier = 1.0;
+
   final StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
 
@@ -107,6 +121,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       _shotElapsedMs = 0.0;
       _fromFlowTarget = 0;
       _fromPressureTarget = 0;
+      _puckResistanceMultiplier = 0.85 + _puckRandom.nextDouble() * 0.3;
     } else if (_currentState == MachineState.hotWater) {
       _simulationType = _SimulationType.hotWater;
       _hotWaterElapsedMs = 0.0;
@@ -323,6 +338,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       final e = min((shotSecs - peakSecs) / erodeSecs, 1.0);
       resistance = rPeak - (rPeak - rErode) * e;
     }
+    resistance *= _puckResistanceMultiplier;
 
     // --- Temperature: cold-puck dip, then recovery ---
     // Group temp plunges ~16C when water first hits the cold puck (start of
@@ -389,6 +405,10 @@ class MockDe1 implements De1Interface, SimulatedDevice {
         _lastSnapshot.flow +
         (targetFlow - _lastSnapshot.flow) * flowResponseRate;
 
+    if (currentStep is ProfileStepPressure) {
+      newFlow = _applyLimiter(newFlow, currentStep.limiter);
+    }
+
     // Pressure lags behind flow (puck-mediated).
     final unboundedPressure = newFlow * resistance;
     double newPressure =
@@ -406,12 +426,20 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       if (newPressure >= targetPressure) {
         newPressure = targetPressure;
         newFlow = min(targetPressure / resistance, pumpMaxFlow);
+        newFlow = _applyLimiter(newFlow, currentStep.limiter);
       }
     }
 
     // Clamp flow-step: don't exceed target (pump can't deliver more).
     if (currentStep is ProfileStepFlow && newFlow > targetFlow) {
       newFlow = targetFlow;
+    }
+    if (currentStep is ProfileStepFlow) {
+      final limitedPressure = _applyLimiter(newPressure, currentStep.limiter);
+      if (limitedPressure < newPressure) {
+        newPressure = limitedPressure;
+        newFlow = min(newFlow, limitedPressure / resistance);
+      }
     }
 
     // Physical pressure ceiling (real DE1 tops out ~11 bar; the puck model
