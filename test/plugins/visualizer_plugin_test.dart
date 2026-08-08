@@ -6,7 +6,21 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/kv_store_service.dart';
 
+final _pluginSource = File(
+  'assets/plugins/visualizer.reaplugin/plugin.js',
+).readAsStringSync();
+final _manifest = PluginManifest.fromJson(
+  jsonDecode(
+        File(
+          'assets/plugins/visualizer.reaplugin/manifest.json',
+        ).readAsStringSync(),
+      )
+      as Map<String, dynamic>,
+);
+
 class _FakeKeyValueStore implements KeyValueStoreService {
+  Map<(String, String), Object> _values = const {};
+
   @override
   Future<void> initialize() async {}
 
@@ -15,77 +29,207 @@ class _FakeKeyValueStore implements KeyValueStoreService {
     String namespace = 'default',
     required String key,
     required Object value,
-  }) async {}
+  }) async {
+    _values = {..._values, (namespace, key): value};
+  }
 
   @override
   Future<bool> delete({
     String namespace = 'default',
     required String key,
-  }) async => false;
+  }) async {
+    final storageKey = (namespace, key);
+    final existed = _values.containsKey(storageKey);
+    _values = Map.fromEntries(
+      _values.entries.where((entry) => entry.key != storageKey),
+    );
+    return existed;
+  }
 
   @override
   Future<Object?> get({
     String namespace = 'default',
     required String key,
-  }) async => null;
+  }) async => _values[(namespace, key)];
 
   @override
-  Future<List<String>> keys({String namespace = 'default'}) async => [];
+  Future<List<String>> keys({String namespace = 'default'}) async => _values
+      .keys
+      .where((key) => key.$1 == namespace)
+      .map((key) => key.$2)
+      .toList();
 
   @override
-  List<String> get namespaces => [];
+  List<String> get namespaces =>
+      _values.keys.map((key) => key.$1).toSet().toList();
 
   @override
   Future<Map<String, Object>> getAll({String namespace = 'default'}) async =>
-      {};
+      Map.fromEntries(
+        _values.entries
+            .where((entry) => entry.key.$1 == namespace)
+            .map((entry) => MapEntry(entry.key.$2, entry.value)),
+      );
+}
+
+class _Harness {
+  const _Harness(this.manager, this.store);
+
+  final PluginManager manager;
+  final _FakeKeyValueStore store;
+}
+
+Map<String, dynamic> _shot({
+  Map<String, dynamic>? annotations,
+  Map<String, dynamic>? context,
+}) => {
+  'id': 'shot-1',
+  'annotations': annotations ?? <String, dynamic>{},
+  'workflow': {
+    'profile': {'target_weight': 36},
+    'context': context ?? <String, dynamic>{},
+  },
+  'measurements': [
+    for (var i = 0; i < 4; i++)
+      {
+        'machine': {
+          'timestamp': '2026-01-01T00:00:0${i * 2}Z',
+          'state': {'substate': 'pouring'},
+          'profileFrame': [0, 0, 1, 2][i],
+          'pressure': 9,
+          'targetPressure': 9,
+          'flow': 2,
+          'targetFlow': 2,
+          'mixTemperature': 93,
+          'groupTemperature': 92,
+          'targetGroupTemperature': 93,
+          'targetMixTemperature': 93,
+        },
+        'scale': {'weight': i * 10, 'weightFlow': 2},
+      },
+  ],
+};
+
+Future<_Harness> _loadPlugin(
+  String fetchSource, {
+  _FakeKeyValueStore? store,
+}) async {
+  final keyValueStore = store ?? _FakeKeyValueStore();
+  final manager = PluginManager(kvStore: keyValueStore);
+  final setupResult = manager.js.evaluate('''
+    globalThis.__testTimers = [];
+    globalThis.__nextTimerId = 1;
+    globalThis.setTimeout = (callback, delay = 0) => {
+      if (delay === 5000) {
+        callback();
+        return 0;
+      }
+      const timer = { id: globalThis.__nextTimerId++, callback, delay };
+      globalThis.__testTimers = [...globalThis.__testTimers, timer];
+      return timer.id;
+    };
+    globalThis.clearTimeout = (id) => {
+      globalThis.__testTimers = globalThis.__testTimers.filter((timer) => timer.id !== id);
+    };
+    globalThis.__runTimers = (delay) => {
+      const ready = globalThis.__testTimers.filter((timer) => timer.delay === delay);
+      globalThis.__testTimers = globalThis.__testTimers.filter((timer) => timer.delay !== delay);
+      for (const timer of ready) timer.callback();
+    };
+    $fetchSource
+  ''');
+  expect(setupResult.isError, isFalse, reason: setupResult.stringResult);
+  await manager.loadPlugin(
+    id: _manifest.id,
+    manifest: _manifest,
+    settings: {
+      'Username': 'user',
+      'Password': 'password',
+      'LengthThreshold': 0,
+    },
+    jsCode: _pluginSource,
+  );
+  addTearDown(() => manager.unloadPlugin(_manifest.id));
+  return _Harness(manager, keyValueStore);
+}
+
+Future<Object?> _waitForJs(PluginManager manager, String expression) async {
+  for (var i = 0; i < 500; i++) {
+    manager.js.executePendingJob();
+    final result = manager.js.evaluate(
+      'JSON.stringify(($expression) ?? null)',
+    );
+    expect(result.isError, isFalse, reason: result.stringResult);
+    final value = jsonDecode(result.stringResult);
+    if (value != null) return value;
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+  fail('Timed out waiting for JavaScript expression: $expression');
+}
+
+Future<Map<String, dynamic>> _callApi(
+  PluginManager manager,
+  String endpoint,
+  Map<String, dynamic> body,
+) async {
+  const requestId = 'request-1';
+  manager.dispatchEvent(_manifest.id, 'httpRequest', {
+    'requestId': requestId,
+    'endpoint': endpoint,
+    'method': 'POST',
+    'headers': <String, String>{},
+    'body': body,
+  });
+  for (var i = 0; i < 500; i++) {
+    manager.js.executePendingJob();
+    final response = manager.getPendingHttpResponse(requestId);
+    if (response != null) return response;
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+  fail('Timed out waiting for plugin API response');
+}
+
+Future<Object?> _waitForStored(
+  _Harness harness,
+  String key,
+  bool Function(Object? value) matches,
+) async {
+  for (var i = 0; i < 500; i++) {
+    harness.manager.js.executePendingJob();
+    final value = await harness.store.get(namespace: _manifest.id, key: key);
+    if (matches(value)) return value;
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+  fail('Timed out waiting for stored value: $key');
+}
+
+void _startAutoUpload(PluginManager manager) {
+  manager.dispatchEvent(_manifest.id, 'stateUpdate', {
+    'state': {'state': 'espresso'},
+  });
+  manager.dispatchEvent(_manifest.id, 'stateUpdate', {
+    'state': {'state': 'idle'},
+  });
+}
+
+void _dispatchShotUpdate(
+  PluginManager manager,
+  Map<String, dynamic> shot,
+  Map<String, dynamic> patch,
+) {
+  manager.dispatchEvent(_manifest.id, 'shotUpdated', {
+    'id': 'shot-1',
+    'shot': shot,
+    'patch': patch,
+  });
 }
 
 void main() {
   test(
     'Visualizer upload uses profile frame indices for state_change',
     () async {
-      final pluginSource = File(
-        'assets/plugins/visualizer.reaplugin/plugin.js',
-      ).readAsStringSync();
-      final manifest = PluginManifest.fromJson(
-        jsonDecode(
-              File(
-                'assets/plugins/visualizer.reaplugin/manifest.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, dynamic>,
-      );
-      final shot = {
-        'id': 'shot-1',
-        'annotations': <String, dynamic>{},
-        'workflow': {
-          'profile': {'target_weight': 36},
-          'context': <String, dynamic>{},
-        },
-        'measurements': [
-          for (var i = 0; i < 4; i++)
-            {
-              'machine': {
-                'timestamp': '2026-01-01T00:00:0${i * 2}Z',
-                'state': {'substate': 'pouring'},
-                'profileFrame': [0, 0, 1, 2][i],
-                'pressure': 9,
-                'targetPressure': 9,
-                'flow': 2,
-                'targetFlow': 2,
-                'mixTemperature': 93,
-                'groupTemperature': 92,
-                'targetGroupTemperature': 93,
-                'targetMixTemperature': 93,
-              },
-              'scale': {'weight': i * 10, 'weightFlow': 2},
-            },
-        ],
-      };
-      final manager = PluginManager(kvStore: _FakeKeyValueStore());
-      final setupResult = manager.js.evaluate('''
-      globalThis.setTimeout = (callback) => { callback(); return 1; };
-      globalThis.clearTimeout = () => {};
+      final shot = _shot();
+      final harness = await _loadPlugin('''
       globalThis.fetch = async (url, init = {}) => {
         if (url.endsWith('/shots/latest')) {
           return { ok: true, json: async () => ({ id: 'shot-1' }) };
@@ -94,237 +238,370 @@ void main() {
           return { ok: true, json: async () => (${jsonEncode(shot)}) };
         }
         if (url.endsWith('/shots/upload')) {
-          const body = init.body;
-          const start = body.indexOf('\\r\\n\\r\\n') + 4;
-          const end = body.lastIndexOf('\\r\\n--');
-          globalThis.__visualizerUpload = JSON.parse(body.slice(start, end));
+          const start = init.body.indexOf('\\r\\n\\r\\n') + 4;
+          const end = init.body.lastIndexOf('\\r\\n--');
+          globalThis.__visualizerUpload = JSON.parse(init.body.slice(start, end));
           return { ok: true, json: async () => ({ id: 'visualizer-1' }) };
+        }
+        if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
+          return { ok: true, json: async () => ({}) };
         }
         throw new Error('Unexpected URL: ' + url);
       };
     ''');
-      expect(setupResult.isError, isFalse, reason: setupResult.stringResult);
 
-      await manager.loadPlugin(
-        id: manifest.id,
-        manifest: manifest,
-        settings: {
-          'Username': 'user',
-          'Password': 'password',
-          'LengthThreshold': 0,
-        },
-        jsCode: pluginSource,
-      );
-      manager.dispatchEvent(manifest.id, 'stateUpdate', {
-        'state': {'state': 'espresso'},
-      });
-      manager.dispatchEvent(manifest.id, 'stateUpdate', {
-        'state': {'state': 'idle'},
-      });
+      _startAutoUpload(harness.manager);
+      final upload =
+          await _waitForJs(
+                harness.manager,
+                'globalThis.__visualizerUpload',
+              )
+              as Map<String, dynamic>;
 
-      Map<String, dynamic>? upload;
-      for (var i = 0; i < 20 && upload == null; i++) {
-        manager.js.executePendingJob();
-        final result = manager.js.evaluate(
-          'JSON.stringify(globalThis.__visualizerUpload ?? null)',
-        );
-        upload = jsonDecode(result.stringResult) as Map<String, dynamic>?;
-        await Future<void>.delayed(Duration.zero);
-      }
-
-      expect(upload?['state_change'], [0, 0, 1, 2]);
+      expect(upload['state_change'], [0, 0, 1, 2]);
     },
   );
 
-  test(
-    'Visualizer upload PATCHes deduped recipe and shot-review tags after the initial import',
-    () async {
-      // The /shots/upload JSON importer doesn't persist a tags field, so tags
-      // must be pushed via a follow-up PATCH to /shots/<visualizerId> using
-      // the same flat field name Visualizer's own API returns on read.
-      final pluginSource = File(
-        'assets/plugins/visualizer.reaplugin/plugin.js',
-      ).readAsStringSync();
-      final manifest = PluginManifest.fromJson(
-        jsonDecode(
-              File(
-                'assets/plugins/visualizer.reaplugin/manifest.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, dynamic>,
-      );
-      final shot = {
-        'id': 'shot-1',
-        'annotations': <String, dynamic>{
-          'extras': {
-            // "bright" overlaps with the recipe tags below to exercise dedupe.
-            'tags': ['bright', 'floral'],
-          },
+  test('upload PATCHes deduped recipe and review tags', () async {
+    final shot = _shot(
+      annotations: {
+        'extras': {
+          'tags': ['bright', 'floral'],
         },
-        'workflow': {
-          'profile': {'target_weight': 36},
-          'context': {
-            'extras': {
-              'tags': ['fast shot', 'washed', 'bright'],
-            },
-          },
+      },
+      context: {
+        'extras': {
+          'tags': ['fast shot', 'washed', 'bright'],
         },
-        'measurements': [
-          for (var i = 0; i < 4; i++)
-            {
-              'machine': {
-                'timestamp': '2026-01-01T00:00:0${i * 2}Z',
-                'state': {'substate': 'pouring'},
-                'profileFrame': [0, 0, 1, 2][i],
-                'pressure': 9,
-                'targetPressure': 9,
-                'flow': 2,
-                'targetFlow': 2,
-                'mixTemperature': 93,
-                'groupTemperature': 92,
-                'targetGroupTemperature': 93,
-                'targetMixTemperature': 93,
-              },
-              'scale': {'weight': i * 10, 'weightFlow': 2},
-            },
-        ],
-      };
-      final manager = PluginManager(kvStore: _FakeKeyValueStore());
-      final setupResult = manager.js.evaluate('''
-      globalThis.setTimeout = (callback) => { callback(); return 1; };
-      globalThis.clearTimeout = () => {};
+      },
+    );
+    final harness = await _loadPlugin('''
       globalThis.fetch = async (url, init = {}) => {
         if (url.endsWith('/shots/latest')) {
           return { ok: true, json: async () => ({ id: 'shot-1' }) };
         }
-        if (url.endsWith('/shots/shot-1')) {
+        if (url.endsWith('/shots/shot-1') && (!init.method || init.method === 'GET')) {
           return { ok: true, json: async () => (${jsonEncode(shot)}) };
         }
         if (url.endsWith('/shots/upload')) {
-          const body = init.body;
-          const start = body.indexOf('\\r\\n\\r\\n') + 4;
-          const end = body.lastIndexOf('\\r\\n--');
-          globalThis.__visualizerUpload = JSON.parse(body.slice(start, end));
           return { ok: true, json: async () => ({ id: 'visualizer-1' }) };
         }
+        if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
+          return { ok: true, json: async () => ({}) };
+        }
         if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
-          globalThis.__visualizerTagPatch = JSON.parse(init.body);
-          return { ok: true, json: async () => ({ id: 'visualizer-1', updated_at: 0 }) };
+          globalThis.__tagPatch = JSON.parse(init.body);
+          return { ok: true, json: async () => ({ id: 'visualizer-1', updated_at: 1 }) };
         }
         throw new Error('Unexpected URL: ' + url + ' ' + (init.method || 'GET'));
       };
     ''');
-      expect(setupResult.isError, isFalse, reason: setupResult.stringResult);
 
-      await manager.loadPlugin(
-        id: manifest.id,
-        manifest: manifest,
-        settings: {
-          'Username': 'user',
-          'Password': 'password',
-          'LengthThreshold': 0,
-        },
-        jsCode: pluginSource,
-      );
-      manager.dispatchEvent(manifest.id, 'stateUpdate', {
-        'state': {'state': 'espresso'},
-      });
-      manager.dispatchEvent(manifest.id, 'stateUpdate', {
-        'state': {'state': 'idle'},
-      });
-
-      Map<String, dynamic>? tagPatch;
-      for (var i = 0; i < 20 && tagPatch == null; i++) {
-        manager.js.executePendingJob();
-        final result = manager.js.evaluate(
-          'JSON.stringify(globalThis.__visualizerTagPatch ?? null)',
-        );
-        tagPatch = jsonDecode(result.stringResult) as Map<String, dynamic>?;
-        await Future<void>.delayed(Duration.zero);
-      }
-
-      final patchedShot = tagPatch?['shot'] as Map<String, dynamic>?;
-      expect(patchedShot?['tags'], ['fast shot', 'washed', 'bright', 'floral']);
-    },
-  );
-
-  test(
-    'Visualizer forward-sync pushes shot-review tag edits made after upload',
-    () async {
-      final pluginSource = File(
-        'assets/plugins/visualizer.reaplugin/plugin.js',
-      ).readAsStringSync();
-      final manifest = PluginManifest.fromJson(
-        jsonDecode(
-              File(
-                'assets/plugins/visualizer.reaplugin/manifest.json',
-              ).readAsStringSync(),
+    _startAutoUpload(harness.manager);
+    final patch =
+        await _waitForJs(
+              harness.manager,
+              'globalThis.__tagPatch',
             )
-            as Map<String, dynamic>,
-      );
-      final manager = PluginManager(kvStore: _FakeKeyValueStore());
-      final setupResult = manager.js.evaluate('''
-      globalThis.setTimeout = (callback) => { callback(); return 1; };
-      globalThis.clearTimeout = () => {};
+            as Map<String, dynamic>;
+
+    expect((patch['shot'] as Map<String, dynamic>)['tags'], [
+      'fast shot',
+      'washed',
+      'bright',
+      'floral',
+    ]);
+  });
+
+  test('forward sync preserves mirrored Visualizer tags', () async {
+    final harness = await _loadPlugin('''
       globalThis.fetch = async (url, init = {}) => {
         if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
-          globalThis.__forwardSyncPatch = JSON.parse(init.body);
-          return { ok: true, json: async () => ({ id: 'visualizer-9', updated_at: 0 }) };
+          globalThis.__tagPatch = JSON.parse(init.body);
+          return { ok: true, json: async () => ({ id: 'visualizer-9', updated_at: 1 }) };
+        }
+        throw new Error('Unexpected URL: ' + url);
+      };
+    ''');
+    final shot = _shot(
+      annotations: {
+        'extras': {
+          'visualizerId': 'visualizer-9',
+          'tags': ['local'],
+          'visualizer': {
+            'tags': ['remote'],
+          },
+        },
+      },
+      context: {
+        'extras': {
+          'tags': ['recipe'],
+        },
+      },
+    );
+
+    _dispatchShotUpdate(harness.manager, shot, {
+      'annotations': {
+        'extras': {
+          'tags': ['local'],
+        },
+      },
+    });
+    final patch =
+        await _waitForJs(
+              harness.manager,
+              'globalThis.__tagPatch',
+            )
+            as Map<String, dynamic>;
+
+    expect((patch['shot'] as Map<String, dynamic>)['tags'], [
+      'recipe',
+      'local',
+      'remote',
+    ]);
+  });
+
+  test('ancestor replacements clear tags', () async {
+    final harness = await _loadPlugin('''
+      globalThis.__patches = [];
+      globalThis.fetch = async (url, init = {}) => {
+        if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
+          globalThis.__patches = [...globalThis.__patches, JSON.parse(init.body)];
+          return { ok: true, json: async () => ({ id: 'visualizer-9', updated_at: globalThis.__patches.length }) };
+        }
+        throw new Error('Unexpected URL: ' + url);
+      };
+    ''');
+    harness.manager.dispatchEvent(_manifest.id, 'storageRead', {
+      'key': 'shotMap',
+      'value': jsonEncode({'visualizer-9': 'shot-1'}),
+    });
+    final patches = <Map<String, dynamic>>[
+      {
+        'annotations': {'extras': null},
+      },
+      {'annotations': null},
+      {
+        'workflow': {
+          'context': {'extras': null},
+        },
+      },
+      {
+        'workflow': {'context': null},
+      },
+    ];
+
+    for (var i = 0; i < patches.length; i++) {
+      _dispatchShotUpdate(harness.manager, _shot(), patches[i]);
+      final sent =
+          await _waitForJs(
+                harness.manager,
+                'globalThis.__patches.length > $i ? globalThis.__patches[$i] : null',
+              )
+              as Map<String, dynamic>;
+      expect((sent['shot'] as Map<String, dynamic>)['tags'], isEmpty);
+    }
+  });
+
+  test(
+    'rapid tag edits survive a stale failure and keep the latest state',
+    () async {
+      final harness = await _loadPlugin('''
+      globalThis.__requests = [];
+      globalThis.__resolvers = [];
+      globalThis.fetch = (url, init = {}) => {
+        if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
+          globalThis.__requests = [...globalThis.__requests, JSON.parse(init.body)];
+          return new Promise((resolve) => {
+            globalThis.__resolvers = [...globalThis.__resolvers, resolve];
+          });
+        }
+        throw new Error('Unexpected URL: ' + url);
+      };
+    ''');
+      Map<String, dynamic> shotWithTag(String tag) => _shot(
+        annotations: {
+          'extras': {
+            'visualizerId': 'visualizer-9',
+            'tags': [tag],
+          },
+        },
+      );
+      Map<String, dynamic> patchWithTag(String tag) => {
+        'annotations': {
+          'extras': {
+            'tags': [tag],
+          },
+        },
+      };
+
+      _dispatchShotUpdate(
+        harness.manager,
+        shotWithTag('old'),
+        patchWithTag('old'),
+      );
+      await _waitForJs(
+        harness.manager,
+        'globalThis.__requests.length === 1 ? true : null',
+      );
+      _dispatchShotUpdate(
+        harness.manager,
+        shotWithTag('latest'),
+        patchWithTag('latest'),
+      );
+      harness.manager.js.evaluate('''
+      globalThis.__resolvers[0]({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => 'stale request',
+      });
+    ''');
+      final requests =
+          await _waitForJs(
+                harness.manager,
+                'globalThis.__requests.length === 2 ? globalThis.__requests : null',
+              )
+              as List<dynamic>;
+      final second = requests[1] as Map<String, dynamic>;
+      expect((second['shot'] as Map<String, dynamic>)['tags'], ['latest']);
+      harness.manager.js.evaluate('''
+      globalThis.__resolvers[1]({
+        ok: true,
+        json: async () => ({ id: 'visualizer-9', updated_at: 2 }),
+      });
+    ''');
+      expect(
+        await _waitForStored(
+          harness,
+          'pendingLocalSync',
+          (value) => value == '{}',
+        ),
+        '{}',
+      );
+    },
+  );
+
+  test('partial upload preserves its id and retries tag sync', () async {
+    final shot = _shot(
+      annotations: {
+        'extras': {
+          'tags': ['bright'],
+        },
+      },
+    );
+    final harness = await _loadPlugin('''
+      globalThis.__patchFails = true;
+      globalThis.__patchAttempts = 0;
+      globalThis.fetch = async (url, init = {}) => {
+        if (url.endsWith('/shots/shot-1') && (!init.method || init.method === 'GET')) {
+          return { ok: true, text: async () => '${jsonEncode(shot)}' };
+        }
+        if (url.endsWith('/shots/upload')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1' }) };
+        }
+        if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
+          return { ok: true, json: async () => ({}) };
+        }
+        if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
+          globalThis.__patchAttempts++;
+          if (globalThis.__patchFails) {
+            return {
+              ok: false,
+              status: 503,
+              statusText: 'Service Unavailable',
+              text: async () => 'retry',
+            };
+          }
+          return { ok: true, json: async () => ({ id: 'visualizer-1', updated_at: 2 }) };
         }
         throw new Error('Unexpected URL: ' + url + ' ' + (init.method || 'GET'));
       };
     ''');
-      expect(setupResult.isError, isFalse, reason: setupResult.stringResult);
 
-      await manager.loadPlugin(
-        id: manifest.id,
-        manifest: manifest,
-        settings: {
-          'Username': 'user',
-          'Password': 'password',
-          'LengthThreshold': 0,
-        },
-        jsCode: pluginSource,
-      );
+    final response = await _callApi(harness.manager, 'upload', {
+      'shotId': 'shot-1',
+    });
+    final body = jsonDecode(response['body'] as String) as Map<String, dynamic>;
 
-      // A shot already uploaded to Visualizer (visualizerId known) gets a tag
-      // added during shot review, well after the initial upload completed.
-      manager.dispatchEvent(manifest.id, 'shotUpdated', {
-        'id': 'shot-1',
-        'shot': {
-          'id': 'shot-1',
-          'annotations': {
-            'extras': {
-              'visualizerId': 'visualizer-9',
-              'tags': ['bright'],
-            },
-          },
-          'workflow': {
-            'profile': {'target_weight': 36},
-            'context': {'extras': <String, dynamic>{}},
-          },
-        },
-        'patch': {
-          'annotations': {
-            'extras': {
-              'tags': ['bright'],
-            },
-          },
-        },
-      });
+    expect(response['status'], 202);
+    expect(body, {
+      'visualizer_id': 'visualizer-1',
+      'tag_sync_pending': true,
+    });
+    expect(
+      await _waitForStored(
+        harness,
+        'lastVisualizerId',
+        (value) => value == 'visualizer-1',
+      ),
+      'visualizer-1',
+    );
+    final shotMap =
+        await _waitForStored(
+              harness,
+              'shotMap',
+              (value) => value is String && value.contains('visualizer-1'),
+            )
+            as String;
+    expect(jsonDecode(shotMap), {'visualizer-1': 'shot-1'});
+    final pending =
+        await _waitForStored(
+              harness,
+              'pendingLocalSync',
+              (value) => value is String && value.contains('bright'),
+            )
+            as String;
+    expect(
+      ((jsonDecode(pending) as Map<String, dynamic>)['visualizer-1']
+          as Map<String, dynamic>)['update'],
+      {
+        'tags': ['bright'],
+      },
+    );
+    expect(
+      await _waitForJs(
+        harness.manager,
+        'globalThis.__testTimers.length > 0 ? globalThis.__testTimers.map((timer) => timer.delay) : null',
+      ),
+      contains(1000),
+    );
+    final syncStatusResponse = await _callApi(
+      harness.manager,
+      'forwardSyncStatus',
+      {},
+    );
+    final syncStatus =
+        jsonDecode(syncStatusResponse['body'] as String)
+            as Map<String, dynamic>;
+    expect(syncStatus['running'], isEmpty);
+    expect(syncStatus['pending'], ['visualizer-1']);
 
-      Map<String, dynamic>? forwardPatch;
-      for (var i = 0; i < 20 && forwardPatch == null; i++) {
-        manager.js.executePendingJob();
-        final result = manager.js.evaluate(
-          'JSON.stringify(globalThis.__forwardSyncPatch ?? null)',
-        );
-        forwardPatch = jsonDecode(result.stringResult) as Map<String, dynamic>?;
-        await Future<void>.delayed(Duration.zero);
-      }
+    final retryResult = harness.manager.js.evaluate('''
+      globalThis.__patchFails = false;
+      globalThis.__runTimers(1000);
+    ''');
+    expect(retryResult.isError, isFalse, reason: retryResult.stringResult);
+    expect(
+      await _waitForJs(
+        harness.manager,
+        'globalThis.__patchAttempts === 2 ? globalThis.__patchAttempts : null',
+      ),
+      2,
+    );
+    final cleared = await _waitForStored(
+      harness,
+      'pendingLocalSync',
+      (value) => value == '{}',
+    );
+    expect(cleared, '{}');
+  });
 
-      final patchedShot = forwardPatch?['shot'] as Map<String, dynamic>?;
-      expect(patchedShot?['tags'], ['bright']);
-    },
-  );
+  test('plugin source and manifest versions match', () {
+    final sourceVersion = RegExp(
+      r'version:\s*"([^"]+)"',
+    ).firstMatch(_pluginSource)?.group(1);
+
+    expect(sourceVersion, _manifest.version);
+  });
 }

@@ -11,6 +11,7 @@ function createPlugin(host) {
   "use strict";
 
   const SHOT_FETCH_DELAY_MS = 5000;
+  const LOCAL_SYNC_RETRY_BASE_MS = 1000;
   const NS = "visualizer.reaplugin";
   const LOCAL_API_URL = "http://localhost:8080/api/v1";
   const VISUALIZER_API_URL = "https://visualizer.coffee/api";
@@ -20,6 +21,7 @@ function createPlugin(host) {
   let shotFetchTimeoutId = null;
   let backSyncTimeoutId = null;
   let isUploading = false;
+  let localSyncRetryTimers = {};
 
   const state = {
     lastUploadedShot: null,
@@ -37,6 +39,7 @@ function createPlugin(host) {
     shotMap: {}, // visualizerId -> localShotId, for our own uploads only
     backSyncState: {}, // visualizerId -> { remoteUpdatedAt }
     backSyncRunning: false,
+    pendingLocalSync: {},
     localSyncRunning: {},
     localSyncSuppressUntil: {},
     localSyncStatus: { lastCheck: null, lastResult: null, lastError: null, lastShotId: null, lastVisualizerId: null },
@@ -179,22 +182,10 @@ function createPlugin(host) {
     const context = shot?.workflow?.context || {};
     const recipeTags = Array.isArray(context.extras?.tags) ? context.extras.tags : [];
     const shotTags = Array.isArray(annotations.extras?.tags) ? annotations.extras.tags : [];
-    return Array.from(new Set([...recipeTags, ...shotTags]));
-  }
-
-  // Push tags onto an already-uploaded Visualizer shot. The /shots/upload JSON
-  // importer only captures a fixed field set that does not include tags, so
-  // tags must be applied as a separate PATCH using the same field name
-  // Visualizer's own API (and our back-sync reader) uses.
-  async function pushTagsToVisualizer(shot, visualizerId) {
-    const tags = extractTags(shot);
-    if (tags.length === 0) return;
-    try {
-      await visualizerPatch(`/shots/${visualizerId}`, { shot: { tags } });
-      log(`Synced ${tags.length} tag(s) to Visualizer shot ${visualizerId}`);
-    } catch (e) {
-      log(`Failed to sync tags to Visualizer shot ${visualizerId}: ${e.message}`);
-    }
+    const visualizerTags = Array.isArray(annotations.extras?.visualizer?.tags)
+      ? annotations.extras.visualizer.tags
+      : [];
+    return Array.from(new Set([...recipeTags, ...shotTags, ...visualizerTags]));
   }
 
   function convertReaToVisualizerFormat(reaShot) {
@@ -310,34 +301,19 @@ function createPlugin(host) {
       }
 
       const result = await uploadShot(convertReaToVisualizerFormat(fullShot), null);
-      state.lastUploadedShot = fullShot.id;
-      state.lastVisualizerId = result.id;
-
-      await pushTagsToVisualizer(fullShot, result.id);
-
-      host.storage({
-        type: "write",
-        key: "lastUploadedShot",
-        namespace: NS,
-        data: fullShot.id
-      });
-
-      host.storage({
-        type: "write",
-        key: "lastVisualizerId",
-        namespace: NS,
-        data: result.id
-      });
-
-      // Record the local↔visualizer mapping so back-sync can later find this
-      // shot, and only ever touches shots we uploaded ourselves.
-      await rememberUpload(fullShot.id, result.id);
+      await rememberSuccessfulUpload(fullShot.id, result.id);
+      const tags = extractTags(fullShot);
+      const tagSync = tags.length > 0
+        ? await queueLocalSync(fullShot.id, result.id, { tags })
+        : { ok: true };
 
       log(`Uploaded ${fullShot.id} → ${result.id}`);
 
       host.emit("shotUploaded", {
         shotId: fullShot.id,
         visualizerId: result.id,
+        tagSyncPending: tagSync.pending === true,
+        tagSyncError: tagSync.error || null,
         timestamp: Date.now()
       });
     } catch (e) {
@@ -353,18 +329,25 @@ function createPlugin(host) {
 
   function handleStorageRead(payload) {
     if (payload.key === "lastUploadedShot") {
-      state.lastUploadedShot = payload.value;
+      if (state.lastUploadedShot == null) state.lastUploadedShot = payload.value;
       log(`Loaded lastUploadedShot from storage: ${payload.value}`);
     } else if (payload.key === "lastVisualizerId") {
-      state.lastVisualizerId = payload.value;
+      if (state.lastVisualizerId == null) state.lastVisualizerId = payload.value;
       log(`Loaded lastVisualizerId from storage: ${payload.value}`);
     } else if (payload.key === "shotMap") {
-      state.shotMap = safeParseObject(payload.value) || {};
+      state.shotMap = { ...(safeParseObject(payload.value) || {}), ...state.shotMap };
       log(`Loaded shot map (${Object.keys(state.shotMap).length} entries)`);
     } else if (payload.key === "backSyncCursor") {
-      state.backSyncCursor = Number(payload.value) || 0;
+      state.backSyncCursor = Math.max(Number(payload.value) || 0, Number(state.backSyncCursor) || 0);
     } else if (payload.key === "backSyncState") {
-      state.backSyncState = safeParseObject(payload.value) || {};
+      state.backSyncState = { ...(safeParseObject(payload.value) || {}), ...state.backSyncState };
+    } else if (payload.key === "pendingLocalSync") {
+      const loadedPending = safeParseObject(payload.value) || {};
+      const currentPending = state.pendingLocalSync;
+      state.pendingLocalSync = { ...loadedPending, ...currentPending };
+      for (const visualizerId of Object.keys(loadedPending)) {
+        if (!currentPending[visualizerId]) startPendingLocalSync(visualizerId);
+      }
     }
   }
 
@@ -556,7 +539,7 @@ function createPlugin(host) {
   // visualizer id onto the local shot so it's durable and visible to clients.
   async function rememberUpload(localId, visualizerId) {
     if (!localId || visualizerId == null) return;
-    state.shotMap[String(visualizerId)] = localId;
+    state.shotMap = { ...state.shotMap, [String(visualizerId)]: localId };
     persistBackSyncState();
     try {
       suppressLocalSync(localId);
@@ -568,6 +551,14 @@ function createPlugin(host) {
     } catch (e) {
       log(`Could not stamp visualizerId on ${localId}: ${e.message}`);
     }
+  }
+
+  async function rememberSuccessfulUpload(localId, visualizerId) {
+    state.lastUploadedShot = localId;
+    state.lastVisualizerId = visualizerId;
+    host.storage({ type: "write", key: "lastUploadedShot", namespace: NS, data: localId });
+    host.storage({ type: "write", key: "lastVisualizerId", namespace: NS, data: visualizerId });
+    await rememberUpload(localId, visualizerId);
   }
 
   async function visualizerGet(path) {
@@ -591,9 +582,134 @@ function createPlugin(host) {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      const error = new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
+  }
+
+  function withoutKey(object, key) {
+    return Object.fromEntries(Object.entries(object).filter(([entryKey]) => entryKey !== key));
+  }
+
+  function persistPendingLocalSync() {
+    host.storage({
+      type: "write",
+      key: "pendingLocalSync",
+      namespace: NS,
+      data: JSON.stringify(state.pendingLocalSync)
+    });
+  }
+
+  function removePendingLocalSync(visualizerId) {
+    state.pendingLocalSync = withoutKey(state.pendingLocalSync, visualizerId);
+    persistPendingLocalSync();
+  }
+
+  function updateBackSyncState(visualizerId, detail) {
+    const updatedAt = Number(detail?.updated_at) || Number(detail?.meta?.visualizer?.updated_at) || 0;
+    if (updatedAt <= 0) return;
+    state.backSyncState = {
+      ...state.backSyncState,
+      [visualizerId]: { remoteUpdatedAt: updatedAt }
+    };
+    state.backSyncCursor = Math.max(Number(state.backSyncCursor) || 0, updatedAt);
+    persistBackSyncState();
+  }
+
+  function schedulePendingLocalSync(visualizerId, attempts) {
+    if (localSyncRetryTimers[visualizerId] != null) return;
+    const delay = Math.min(60000, LOCAL_SYNC_RETRY_BASE_MS * (2 ** Math.max(0, attempts - 1)));
+    const timerId = setTimeout(() => {
+      localSyncRetryTimers = withoutKey(localSyncRetryTimers, visualizerId);
+      startPendingLocalSync(visualizerId);
+    }, delay);
+    localSyncRetryTimers = { ...localSyncRetryTimers, [visualizerId]: timerId };
+  }
+
+  function isRetryableLocalSyncError(error) {
+    const status = Number(error?.status) || 0;
+    return status === 0 || status === 408 || status === 429 || status >= 500;
+  }
+
+  async function drainPendingLocalSync(visualizerId) {
+    while (state.pendingLocalSync[visualizerId]) {
+      const pending = state.pendingLocalSync[visualizerId];
+      try {
+        const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: pending.update });
+        updateBackSyncState(visualizerId, detail);
+        const current = state.pendingLocalSync[visualizerId];
+        if (current?.revision !== pending.revision) continue;
+        removePendingLocalSync(visualizerId);
+        host.emit("shotForwardSynced", {
+          shotId: pending.shotId,
+          visualizerId,
+          timestamp: Date.now()
+        });
+        log(`Local sync: updated ${pending.shotId} -> ${visualizerId}`);
+        recordLocalSyncStatus(pending.shotId, visualizerId, "updated", null);
+        return { ok: true, visualizerId };
+      } catch (error) {
+        const current = state.pendingLocalSync[visualizerId] || pending;
+        if (current.revision !== pending.revision) continue;
+        const retryable = isRetryableLocalSyncError(error);
+        if (retryable) {
+          const attempts = (Number(current.attempts) || 0) + 1;
+          state.pendingLocalSync = {
+            ...state.pendingLocalSync,
+            [visualizerId]: { ...current, attempts }
+          };
+          persistPendingLocalSync();
+          schedulePendingLocalSync(visualizerId, attempts);
+        } else {
+          removePendingLocalSync(visualizerId);
+        }
+        log(`Local sync failed for ${current.shotId}: ${error.message}`);
+        host.emit("shotForwardSyncError", {
+          shotId: current.shotId,
+          visualizerId,
+          error: error.message,
+          retrying: retryable,
+          timestamp: Date.now()
+        });
+        recordLocalSyncStatus(
+          current.shotId,
+          visualizerId,
+          retryable ? "pending retry" : "error",
+          error.message
+        );
+        return { error: error.message, pending: retryable, visualizerId };
+      }
+    }
+    return { ok: true, visualizerId };
+  }
+
+  function startPendingLocalSync(visualizerId) {
+    const id = String(visualizerId);
+    if (!state.pendingLocalSync[id]) return Promise.resolve({ ok: true, visualizerId: id });
+    if (state.localSyncRunning[id]) return state.localSyncRunning[id];
+    const running = drainPendingLocalSync(id).finally(() => {
+      state.localSyncRunning = withoutKey(state.localSyncRunning, id);
+    });
+    state.localSyncRunning = { ...state.localSyncRunning, [id]: running };
+    return running;
+  }
+
+  function queueLocalSync(shotId, visualizerId, update) {
+    const id = String(visualizerId);
+    const previous = state.pendingLocalSync[id] || {};
+    state.pendingLocalSync = {
+      ...state.pendingLocalSync,
+      [id]: {
+        shotId,
+        update: { ...(previous.update || {}), ...update },
+        revision: (Number(previous.revision) || 0) + 1,
+        attempts: 0
+      }
+    };
+    persistPendingLocalSync();
+    return startPendingLocalSync(id);
   }
 
   function suppressLocalSync(localId) {
@@ -636,6 +752,15 @@ function createPlugin(host) {
     const patchContext = patch?.workflow?.context || {};
     const payload = {};
     const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+    const pathTouched = (source, path) => {
+      let current = source;
+      for (const key of path) {
+        if (current == null || typeof current !== "object") return true;
+        if (!has(current, key)) return false;
+        current = current[key];
+      }
+      return true;
+    };
     const touched = (source, sourceKey) => force === true || has(source, sourceKey);
     const setNumber = (key, value, source, sourceKey, transform) => {
       if (!touched(source, sourceKey)) return;
@@ -667,18 +792,14 @@ function createPlugin(host) {
     setString("grinder_setting", context.grinderSetting, patchContext, "grinderSetting");
     setString("bean_brand", context.coffeeRoaster, patchContext, "coffeeRoaster");
     setString("bean_type", context.coffeeName, patchContext, "coffeeName");
-    // profile_title has no patch key; only send it in a full (force) sync.
     if (force === true) {
       const title = shot.workflow?.profile?.title || shot.workflow?.name;
       if (typeof title === "string" && title.trim() !== "") payload.profile_title = title;
     }
-    // Tags can change on either side (recipe extras or shot-review extras), so
-    // touched-ness is checked on both patch sources; the value sent is always
-    // the full deduped set (there's no per-tag diff to send).
     if (
       force === true ||
-      has(patchAnnotations.extras || {}, "tags") ||
-      has(patchContext.extras || {}, "tags")
+      pathTouched(patch || {}, ["annotations", "extras", "tags"]) ||
+      pathTouched(patch || {}, ["workflow", "context", "extras", "tags"])
     ) {
       payload.tags = extractTags(shot);
     }
@@ -706,10 +827,6 @@ function createPlugin(host) {
       recordLocalSyncStatus(shot.id, null, "skipped: suppressed", null);
       return { skipped: "suppressed" };
     }
-    if (state.localSyncRunning[shot.id]) {
-      recordLocalSyncStatus(shot.id, null, "skipped: already running", null);
-      return { skipped: "already running" };
-    }
     if (!state.username || !state.password) {
       recordLocalSyncStatus(shot.id, null, "skipped: no credentials", null);
       return { skipped: "no credentials" };
@@ -728,27 +845,7 @@ function createPlugin(host) {
       return { skipped: "empty update" };
     }
 
-    state.localSyncRunning[shot.id] = true;
-    try {
-      const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: update });
-      const updatedAt = Number(detail?.updated_at) || Number(detail?.meta?.visualizer?.updated_at) || 0;
-      if (updatedAt > 0) {
-        state.backSyncState[visualizerId] = { remoteUpdatedAt: updatedAt };
-        state.backSyncCursor = Math.max(Number(state.backSyncCursor) || 0, updatedAt);
-        persistBackSyncState();
-      }
-      host.emit("shotForwardSynced", { shotId: shot.id, visualizerId, timestamp: Date.now() });
-      log(`Local sync: updated ${shot.id} → ${visualizerId}`);
-      recordLocalSyncStatus(shot.id, visualizerId, "updated", null);
-      return { ok: true, visualizerId };
-    } catch (e) {
-      log(`Local sync failed for ${shot.id}: ${e.message}`);
-      host.emit("shotForwardSyncError", { shotId: shot.id, visualizerId, error: e.message, timestamp: Date.now() });
-      recordLocalSyncStatus(shot.id, visualizerId, "error", e.message);
-      return { error: e.message };
-    } finally {
-      delete state.localSyncRunning[shot.id];
-    }
+    return await queueLocalSync(shot.id, visualizerId, update);
   }
 
   async function syncLocalShotNow(shotId) {
@@ -1012,7 +1109,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.5.2",
+    version: "1.5.4",
 
     onLoad(settings) {
       state.username = settings.Username;
@@ -1030,6 +1127,7 @@ function createPlugin(host) {
       host.storage({ type: "read", key: "shotMap", namespace: NS });
       host.storage({ type: "read", key: "backSyncCursor", namespace: NS });
       host.storage({ type: "read", key: "backSyncState", namespace: NS });
+      host.storage({ type: "read", key: "pendingLocalSync", namespace: NS });
 
       // First run ~30s after load so storage reads have settled.
       if (state.backSyncEnabled) armBackSync(30000);
@@ -1045,7 +1143,12 @@ function createPlugin(host) {
         clearTimeout(backSyncTimeoutId);
         backSyncTimeoutId = null;
       }
+      for (const timerId of Object.values(localSyncRetryTimers)) {
+        clearTimeout(timerId);
+      }
+      localSyncRetryTimers = {};
       persistBackSyncState();
+      persistPendingLocalSync();
 
       // Save current state to storage
       if (state.lastUploadedShot) {
@@ -1116,14 +1219,21 @@ function createPlugin(host) {
             return uploadShot(convertReaToVisualizerFormat(shot), null);
           })
           .then(async (shotResponse) => {
-            await rememberUpload(shotId, shotResponse.id);
-            await pushTagsToVisualizer(requestedShot, shotResponse.id);
+            await rememberSuccessfulUpload(shotId, shotResponse.id);
+            const tags = extractTags(requestedShot);
+            const tagSync = tags.length > 0
+              ? await queueLocalSync(shotId, shotResponse.id, { tags })
+              : { ok: true };
 
             return {
               requestId: request.requestId,
-              status: 200,
+              status: tagSync.ok ? 200 : (tagSync.pending ? 202 : 502),
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ visualizer_id: shotResponse.id }),
+              body: JSON.stringify({
+                visualizer_id: shotResponse.id,
+                ...(tagSync.pending ? { tag_sync_pending: true } : {}),
+                ...(tagSync.error && !tagSync.pending ? { tag_sync_error: tagSync.error } : {})
+              }),
             };
           })
           .catch((error) => ({
@@ -1262,6 +1372,7 @@ function createPlugin(host) {
             lastShotId: state.localSyncStatus.lastShotId,
             lastVisualizerId: state.localSyncStatus.lastVisualizerId,
             running: Object.keys(state.localSyncRunning),
+            pending: Object.keys(state.pendingLocalSync),
           })
         };
       }

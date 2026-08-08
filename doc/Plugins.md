@@ -205,6 +205,10 @@ host.emit("timeToReady", {
 });
 ```
 
+The bundled Visualizer plugin emits `shotUploaded` after preserving the
+local-to-remote mapping. When its follow-up tag update has not completed,
+`tagSyncPending` is `true` and `tagSyncError` contains the latest failure.
+
 The event name is tied to the api endpoint, defined in the plugin manifest.
 When Decent.app matches an external request to an endpoint that is defined in the
 plugins manifest,
