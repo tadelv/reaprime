@@ -41,7 +41,8 @@ function createPlugin(host) {
     backSyncRunning: false,
     pendingLocalSync: {},
     localSyncRunning: {},
-    localSyncSuppressUntil: {},
+    localSyncSuppressions: {},
+    managedLocalTags: {},
     localSyncStatus: { lastCheck: null, lastResult: null, lastError: null, lastShotId: null, lastVisualizerId: null },
     backSyncStatus: { lastCheck: null, lastResult: null, lastError: null, lastApplied: 0 },
   };
@@ -182,10 +183,7 @@ function createPlugin(host) {
     const context = shot?.workflow?.context || {};
     const recipeTags = Array.isArray(context.extras?.tags) ? context.extras.tags : [];
     const shotTags = Array.isArray(annotations.extras?.tags) ? annotations.extras.tags : [];
-    const visualizerTags = Array.isArray(annotations.extras?.visualizer?.tags)
-      ? annotations.extras.visualizer.tags
-      : [];
-    return Array.from(new Set([...recipeTags, ...shotTags, ...visualizerTags]));
+    return normalizeTags([...recipeTags, ...shotTags]);
   }
 
   function convertReaToVisualizerFormat(reaShot) {
@@ -304,10 +302,7 @@ function createPlugin(host) {
 
       const result = await uploadShot(convertReaToVisualizerFormat(fullShot), null);
       await rememberSuccessfulUpload(fullShot.id, result.id);
-      const tags = extractTags(fullShot);
-      const tagSync = tags.length > 0
-        ? await queueLocalSync(fullShot.id, result.id, { tags })
-        : { ok: true };
+      const tagSync = await syncSuccessfulUpload(fullShot.id, fullShot);
 
       log(`Uploaded ${fullShot.id} → ${result.id}`);
 
@@ -343,6 +338,8 @@ function createPlugin(host) {
       state.backSyncCursor = Math.max(Number(payload.value) || 0, Number(state.backSyncCursor) || 0);
     } else if (payload.key === "backSyncState") {
       state.backSyncState = { ...(safeParseObject(payload.value) || {}), ...state.backSyncState };
+    } else if (payload.key === "managedLocalTags") {
+      state.managedLocalTags = { ...(safeParseObject(payload.value) || {}), ...state.managedLocalTags };
     } else if (payload.key === "pendingLocalSync") {
       const loadedPending = safeParseObject(payload.value) || {};
       const currentPending = state.pendingLocalSync;
@@ -543,14 +540,17 @@ function createPlugin(host) {
     if (!localId || visualizerId == null) return;
     state.shotMap = { ...state.shotMap, [String(visualizerId)]: localId };
     persistBackSyncState();
+    const update = { annotations: { extras: { visualizerId: String(visualizerId) } } };
+    suppressLocalSync(localId, update);
     try {
-      suppressLocalSync(localId);
-      await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
+      const response = await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ annotations: { extras: { visualizerId: String(visualizerId) } } }),
+        body: JSON.stringify(update),
       });
+      if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
     } catch (e) {
+      consumeLocalSyncSuppression(localId, update);
       log(`Could not stamp visualizerId on ${localId}: ${e.message}`);
     }
   }
@@ -563,12 +563,21 @@ function createPlugin(host) {
     await rememberUpload(localId, visualizerId);
   }
 
+  async function syncSuccessfulUpload(localId, fallbackShot) {
+    const currentShot = await fetchShot(localId) || fallbackShot;
+    return await pushLocalShotUpdate(currentShot, currentShot, { force: true });
+  }
+
   async function visualizerGet(path) {
     const res = await fetch(`${VISUALIZER_API_URL}${path}`, {
       method: "GET",
       headers: { "Authorization": getAuthHeader(), "Content-Type": "application/json" },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      const error = new Error(`HTTP ${res.status} ${res.statusText}`);
+      error.status = res.status;
+      throw error;
+    }
     return await res.json();
   }
 
@@ -604,6 +613,15 @@ function createPlugin(host) {
     });
   }
 
+  function persistManagedLocalTags() {
+    host.storage({
+      type: "write",
+      key: "managedLocalTags",
+      namespace: NS,
+      data: JSON.stringify(state.managedLocalTags)
+    });
+  }
+
   function removePendingLocalSync(visualizerId) {
     state.pendingLocalSync = withoutKey(state.pendingLocalSync, visualizerId);
     persistPendingLocalSync();
@@ -635,14 +653,42 @@ function createPlugin(host) {
     return status === 0 || status === 408 || status === 429 || status >= 500;
   }
 
+  function normalizeTags(tags) {
+    if (!Array.isArray(tags)) return [];
+    return Array.from(new Set(tags.map((tag) => String(tag).trim()).filter((tag) => tag.length > 0)));
+  }
+
+  async function mergeCurrentVisualizerTags(visualizerId, update) {
+    if (!Object.prototype.hasOwnProperty.call(update, "tags")) {
+      return { update, managedTags: null };
+    }
+    const detail = await visualizerGet(`/shots/${visualizerId}?essentials=1`);
+    const localTags = normalizeTags(update.tags);
+    const managedTags = new Set(normalizeTags(state.managedLocalTags[visualizerId]));
+    const remoteOnlyTags = normalizeTags(detail?.tags).filter((tag) => !managedTags.has(tag));
+    const remoteOnlySet = new Set(remoteOnlyTags);
+    return {
+      update: { ...update, tags: normalizeTags([...localTags, ...remoteOnlyTags]) },
+      managedTags: localTags.filter((tag) => !remoteOnlySet.has(tag))
+    };
+  }
+
   async function drainPendingLocalSync(visualizerId) {
     while (state.pendingLocalSync[visualizerId]) {
       const pending = state.pendingLocalSync[visualizerId];
       try {
-        const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: pending.update });
+        const merged = await mergeCurrentVisualizerTags(visualizerId, pending.update);
+        const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: merged.update });
         updateBackSyncState(visualizerId, detail);
         const current = state.pendingLocalSync[visualizerId];
         if (current?.revision !== pending.revision) continue;
+        if (merged.managedTags !== null) {
+          state.managedLocalTags = {
+            ...state.managedLocalTags,
+            [visualizerId]: merged.managedTags
+          };
+          persistManagedLocalTags();
+        }
         removePendingLocalSync(visualizerId);
         host.emit("shotForwardSynced", {
           shotId: pending.shotId,
@@ -714,17 +760,26 @@ function createPlugin(host) {
     return startPendingLocalSync(id);
   }
 
-  function suppressLocalSync(localId) {
+  function suppressLocalSync(localId, patch) {
     if (!localId) return;
-    state.localSyncSuppressUntil[localId] = Date.now() + 10000;
+    const id = String(localId);
+    state.localSyncSuppressions = {
+      ...state.localSyncSuppressions,
+      [id]: [...(state.localSyncSuppressions[id] || []), JSON.stringify(patch || {})]
+    };
+    setTimeout(() => consumeLocalSyncSuppression(id, patch), 10000);
   }
 
-  function consumeLocalSyncSuppression(localId) {
-    const until = state.localSyncSuppressUntil[localId];
-    if (!until) return false;
-    if (Date.now() <= until) return true;
-    delete state.localSyncSuppressUntil[localId];
-    return false;
+  function consumeLocalSyncSuppression(localId, patch) {
+    const id = String(localId || "");
+    const suppressions = state.localSyncSuppressions[id] || [];
+    const index = suppressions.indexOf(JSON.stringify(patch || {}));
+    if (index < 0) return false;
+    const remaining = [...suppressions.slice(0, index), ...suppressions.slice(index + 1)];
+    state.localSyncSuppressions = remaining.length > 0
+      ? { ...state.localSyncSuppressions, [id]: remaining }
+      : withoutKey(state.localSyncSuppressions, id);
+    return true;
   }
 
   function visualizerIdForLocalShot(shot) {
@@ -825,7 +880,7 @@ function createPlugin(host) {
       recordLocalSyncStatus(null, null, "skipped: missing shot", null);
       return { skipped: "missing shot" };
     }
-    if (!opts.force && consumeLocalSyncSuppression(shot.id)) {
+    if (consumeLocalSyncSuppression(shot.id, patch)) {
       recordLocalSyncStatus(shot.id, null, "skipped: suppressed", null);
       return { skipped: "suppressed" };
     }
@@ -1049,17 +1104,24 @@ function createPlugin(host) {
         const update = mapRemoteToLocal(detail);
         let processed = Object.keys(update).length === 0;
         if (Object.keys(update).length > 0) {
-          suppressLocalSync(localId);
-          const res = await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(update),
-          });
+          suppressLocalSync(localId, update);
+          let res;
+          try {
+            res = await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(update),
+            });
+          } catch (error) {
+            consumeLocalSyncSuppression(localId, update);
+            throw error;
+          }
           if (res.ok) {
             applied++;
             processed = true;
             host.emit("shotBackSynced", { shotId: localId, visualizerId: item.id, timestamp: Date.now() });
           } else {
+            consumeLocalSyncSuppression(localId, update);
             log(`Back-sync: PUT ${localId} failed ${res.status}`);
           }
         }
@@ -1129,6 +1191,7 @@ function createPlugin(host) {
       host.storage({ type: "read", key: "shotMap", namespace: NS });
       host.storage({ type: "read", key: "backSyncCursor", namespace: NS });
       host.storage({ type: "read", key: "backSyncState", namespace: NS });
+      host.storage({ type: "read", key: "managedLocalTags", namespace: NS });
       host.storage({ type: "read", key: "pendingLocalSync", namespace: NS });
 
       // First run ~30s after load so storage reads have settled.
@@ -1151,6 +1214,7 @@ function createPlugin(host) {
       localSyncRetryTimers = {};
       persistBackSyncState();
       persistPendingLocalSync();
+      persistManagedLocalTags();
 
       // Save current state to storage
       if (state.lastUploadedShot) {
@@ -1222,14 +1286,11 @@ function createPlugin(host) {
           })
           .then(async (shotResponse) => {
             await rememberSuccessfulUpload(shotId, shotResponse.id);
-            const tags = extractTags(requestedShot);
-            const tagSync = tags.length > 0
-              ? await queueLocalSync(shotId, shotResponse.id, { tags })
-              : { ok: true };
+            const tagSync = await syncSuccessfulUpload(shotId, requestedShot);
 
             return {
               requestId: request.requestId,
-              status: tagSync.ok ? 200 : (tagSync.pending ? 202 : 502),
+              status: tagSync.ok ? 200 : (tagSync.pending ? 202 : 207),
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 visualizer_id: shotResponse.id,

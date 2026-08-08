@@ -240,6 +240,12 @@ void main() {
         if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
           return { ok: true, json: async () => ({}) };
         }
+        if (url.endsWith('/shots/visualizer-1?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1', tags: [] }) };
+        }
+        if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
+          return { ok: true, json: async () => ({ id: 'visualizer-1', updated_at: 1 }) };
+        }
         throw new Error('Unexpected URL: ' + url);
       };
     ''');
@@ -280,6 +286,9 @@ void main() {
         if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
           return { ok: true, json: async () => ({}) };
         }
+        if (url.endsWith('/shots/visualizer-1?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1', tags: [] }) };
+        }
         if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
           globalThis.__tagPatch = JSON.parse(init.body);
           return { ok: true, json: async () => ({ id: 'visualizer-1', updated_at: 1 }) };
@@ -301,11 +310,121 @@ void main() {
     ]);
   });
 
-  test('forward sync preserves mirrored Visualizer tags', () async {
-    final harness = await _loadPlugin('''
+  test(
+    'upload forwards edits made in flight and only suppresses its mapping write',
+    () async {
+      final initialShot = _shot();
+      final editedDuringUpload = _shot(
+        annotations: {
+          'extras': {
+            'tags': ['during-upload'],
+          },
+        },
+      );
+      final editedAfterMapping = _shot(
+        annotations: {
+          'extras': {
+            'visualizerId': 'visualizer-1',
+            'tags': ['after-mapping'],
+          },
+        },
+      );
+      final harness = await _loadPlugin('''
+      globalThis.__currentShot = ${jsonEncode(initialShot)};
+      globalThis.__tagPatches = [];
       globalThis.fetch = async (url, init = {}) => {
+        if (url.endsWith('/shots/latest')) {
+          return { ok: true, json: async () => ({ id: 'shot-1' }) };
+        }
+        if (url.endsWith('/shots/shot-1') && (!init.method || init.method === 'GET')) {
+          return { ok: true, json: async () => globalThis.__currentShot };
+        }
+        if (url.endsWith('/shots/upload')) {
+          globalThis.__uploadStarted = true;
+          return await new Promise((resolve) => {
+            globalThis.__finishUpload = () => resolve({
+              ok: true,
+              json: async () => ({ id: 'visualizer-1' }),
+            });
+          });
+        }
+        if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
+          return { ok: true, json: async () => ({}) };
+        }
+        if (url.endsWith('/shots/visualizer-1?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1', tags: [] }) };
+        }
+        if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
+          globalThis.__tagPatches = [
+            ...globalThis.__tagPatches,
+            JSON.parse(init.body),
+          ];
+          return { ok: true, json: async () => ({ id: 'visualizer-1', updated_at: globalThis.__tagPatches.length }) };
+        }
+        throw new Error('Unexpected URL: ' + url + ' ' + (init.method || 'GET'));
+      };
+    ''');
+
+      _startAutoUpload(harness.manager);
+      await _waitForJs(harness.manager, 'globalThis.__uploadStarted');
+      _dispatchShotUpdate(harness.manager, editedDuringUpload, {
+        'annotations': {
+          'extras': {
+            'tags': ['during-upload'],
+          },
+        },
+      });
+      final finishUpload = harness.manager.js.evaluate('''
+        globalThis.__currentShot = ${jsonEncode(editedDuringUpload)};
+        globalThis.__finishUpload();
+      ''');
+      expect(finishUpload.isError, isFalse, reason: finishUpload.stringResult);
+      final firstPatch =
+          await _waitForJs(
+                harness.manager,
+                'globalThis.__tagPatches.length === 1 ? globalThis.__tagPatches[0] : null',
+              )
+              as Map<String, dynamic>;
+      expect((firstPatch['shot'] as Map<String, dynamic>)['tags'], [
+        'during-upload',
+      ]);
+
+      _dispatchShotUpdate(harness.manager, editedDuringUpload, {
+        'annotations': {
+          'extras': {'visualizerId': 'visualizer-1'},
+        },
+      });
+      _dispatchShotUpdate(harness.manager, editedAfterMapping, {
+        'annotations': {
+          'extras': {
+            'tags': ['after-mapping'],
+          },
+        },
+      });
+      final secondPatch =
+          await _waitForJs(
+                harness.manager,
+                'globalThis.__tagPatches.length === 2 ? globalThis.__tagPatches[1] : null',
+              )
+              as Map<String, dynamic>;
+      expect((secondPatch['shot'] as Map<String, dynamic>)['tags'], [
+        'after-mapping',
+      ]);
+    },
+  );
+
+  test('forward sync preserves current Visualizer tags', () async {
+    final harness = await _loadPlugin('''
+      globalThis.__remoteTags = ['remote'];
+      globalThis.__tagPatches = [];
+      globalThis.fetch = async (url, init = {}) => {
+        if (url.endsWith('/shots/visualizer-9?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-9', tags: globalThis.__remoteTags }) };
+        }
         if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
           globalThis.__tagPatch = JSON.parse(init.body);
+          globalThis.__tagPatches = [...globalThis.__tagPatches, globalThis.__tagPatch];
+          globalThis.__remoteTags = globalThis.__tagPatch.shot.tags;
           return { ok: true, json: async () => ({ id: 'visualizer-9', updated_at: 1 }) };
         }
         throw new Error('Unexpected URL: ' + url);
@@ -317,7 +436,7 @@ void main() {
           'visualizerId': 'visualizer-9',
           'tags': ['local'],
           'visualizer': {
-            'tags': ['remote'],
+            'tags': ['stale-removed'],
           },
         },
       },
@@ -344,12 +463,41 @@ void main() {
       'local',
       'remote',
     ]);
+
+    _dispatchShotUpdate(
+      harness.manager,
+      _shot(
+        annotations: {
+          'extras': {'visualizerId': 'visualizer-9'},
+        },
+      ),
+      {
+        'annotations': {
+          'extras': {'tags': <String>[]},
+        },
+        'workflow': {
+          'context': {
+            'extras': {'tags': <String>[]},
+          },
+        },
+      },
+    );
+    final clearedPatch =
+        await _waitForJs(
+              harness.manager,
+              'globalThis.__tagPatches.length === 2 ? globalThis.__tagPatches[1] : null',
+            )
+            as Map<String, dynamic>;
+    expect((clearedPatch['shot'] as Map<String, dynamic>)['tags'], ['remote']);
   });
 
   test('ancestor replacements clear tags', () async {
     final harness = await _loadPlugin('''
       globalThis.__patches = [];
       globalThis.fetch = async (url, init = {}) => {
+        if (url.endsWith('/shots/visualizer-9?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-9', tags: [] }) };
+        }
         if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
           globalThis.__patches = [...globalThis.__patches, JSON.parse(init.body)];
           return { ok: true, json: async () => ({ id: 'visualizer-9', updated_at: globalThis.__patches.length }) };
@@ -395,6 +543,9 @@ void main() {
       globalThis.__requests = [];
       globalThis.__resolvers = [];
       globalThis.fetch = (url, init = {}) => {
+        if (url.endsWith('/shots/visualizer-9?essentials=1')) {
+          return Promise.resolve({ ok: true, json: async () => ({ id: 'visualizer-9', tags: [] }) });
+        }
         if (url.endsWith('/shots/visualizer-9') && init.method === 'PATCH') {
           globalThis.__requests = [...globalThis.__requests, JSON.parse(init.body)];
           return new Promise((resolve) => {
@@ -480,13 +631,20 @@ void main() {
       globalThis.__patchAttempts = 0;
       globalThis.fetch = async (url, init = {}) => {
         if (url.endsWith('/shots/shot-1') && (!init.method || init.method === 'GET')) {
-          return { ok: true, text: async () => '${jsonEncode(shot)}' };
+          return {
+            ok: true,
+            json: async () => (${jsonEncode(shot)}),
+            text: async () => '${jsonEncode(shot)}',
+          };
         }
         if (url.endsWith('/shots/upload')) {
           return { ok: true, json: async () => ({ id: 'visualizer-1' }) };
         }
         if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
           return { ok: true, json: async () => ({}) };
+        }
+        if (url.endsWith('/shots/visualizer-1?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1', tags: [] }) };
         }
         if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
           globalThis.__patchAttempts++;
@@ -578,6 +736,58 @@ void main() {
     );
     expect(cleared, '{}');
   });
+
+  test(
+    'permanent tag failure returns partial success with upload id',
+    () async {
+      final shot = _shot(
+        annotations: {
+          'extras': {
+            'tags': ['bright'],
+          },
+        },
+      );
+      final harness = await _loadPlugin('''
+      globalThis.fetch = async (url, init = {}) => {
+        if (url.endsWith('/shots/shot-1') && (!init.method || init.method === 'GET')) {
+          return {
+            ok: true,
+            json: async () => (${jsonEncode(shot)}),
+            text: async () => '${jsonEncode(shot)}',
+          };
+        }
+        if (url.endsWith('/shots/upload')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1' }) };
+        }
+        if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
+          return { ok: true, json: async () => ({}) };
+        }
+        if (url.endsWith('/shots/visualizer-1?essentials=1')) {
+          return { ok: true, json: async () => ({ id: 'visualizer-1', tags: [] }) };
+        }
+        if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
+          return {
+            ok: false,
+            status: 400,
+            statusText: 'Bad Request',
+            text: async () => 'invalid tags',
+          };
+        }
+        throw new Error('Unexpected URL: ' + url + ' ' + (init.method || 'GET'));
+      };
+    ''');
+
+      final response = await _callApi(harness.manager, 'upload', {
+        'shotId': 'shot-1',
+      });
+      final body =
+          jsonDecode(response['body'] as String) as Map<String, dynamic>;
+
+      expect(response['status'], 207);
+      expect(body['visualizer_id'], 'visualizer-1');
+      expect(body['tag_sync_error'], contains('HTTP 400'));
+    },
+  );
 
   test('plugin source and manifest versions match', () {
     final sourceVersion = RegExp(
