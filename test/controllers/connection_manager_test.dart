@@ -1839,7 +1839,7 @@ void main() {
         },
       );
 
-      test('sleep during scale connect settles back to ready', () async {
+      test('sleep during scale connect reports conflict', () async {
         await connectionManager.dispose();
         final slowScaleController = _SlowMockScaleController();
         connectionManager = ConnectionManager(
@@ -1870,9 +1870,10 @@ void main() {
         fakeMachine.emitState(MachineState.sleeping);
         await Future<void>.delayed(Duration.zero);
         connectCompleter.complete();
-        await future;
+        final result = await future;
         await Future<void>.delayed(Duration.zero);
 
+        expect(result.outcome, ConnectionOutcome.conflict);
         expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
         expect(connectionManager.currentStatus.error, isNull);
         expect(settingsController.preferredScaleId, isNull);

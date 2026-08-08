@@ -15,6 +15,7 @@ import 'package:reaprime/src/services/webserver_service.dart';
 import 'helpers/mock_device_discovery_service.dart';
 import 'helpers/mock_settings_service.dart';
 import 'helpers/test_scale.dart';
+import 'helpers/test_sensor.dart';
 
 void main() {
   late DeviceController deviceController;
@@ -250,6 +251,26 @@ void main() {
         'connectionError': null,
       });
     });
+
+    test(
+      'connect reports an already-connected sensor without reconnecting',
+      () async {
+        final sensor = TestSensor(deviceId: 'sensor-connected');
+        mockDiscovery.addDevice(sensor);
+        await Future.delayed(Duration.zero);
+
+        final response = await sendPut(
+          '/api/v1/devices/connect',
+          body: jsonEncode({'deviceId': sensor.deviceId}),
+        );
+        final body = jsonDecode(await response.readAsString());
+
+        expect(response.statusCode, 200);
+        expect(body['outcome'], 'alreadyConnected');
+        expect(body['state'], 'connected');
+        expect(sensor.connectCallCount, 0);
+      },
+    );
 
     test('connect failure returns 503 and the structured error', () async {
       final scale = _FailingTestScale(deviceId: 'scale-failure');

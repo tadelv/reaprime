@@ -867,9 +867,9 @@ components:
           type: string
           enum: [discovered, connecting, connected, disconnecting, disconnected]
         connectionError:
-          nullable: true
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/ConnectionError'
+            - type: "null"
         error:
           type: string
           nullable: true

@@ -376,16 +376,22 @@ class DevicesHandler {
         _log.warning("failed to send devices state to websocket", e, st);
       }
     });
+    var commandQueue = Future<void>.value();
 
     // Listen for incoming commands
     socket.stream.listen(
       (message) {
-        try {
-          final data = jsonDecode(message.toString()) as Map<String, dynamic>;
-          _handleCommand(data, socket);
-        } catch (e) {
-          socket.sink.add(jsonEncode({'error': 'Invalid JSON: $e'}));
-        }
+        commandQueue = commandQueue
+            .catchError((Object _, StackTrace _) {})
+            .then((_) async {
+              try {
+                final data =
+                    jsonDecode(message.toString()) as Map<String, dynamic>;
+                await _handleCommand(data, socket);
+              } catch (e) {
+                socket.sink.add(jsonEncode({'error': 'Invalid JSON: $e'}));
+              }
+            });
       },
       onDone: () {
         _log.fine("devices websocket disconnected");
@@ -398,7 +404,10 @@ class DevicesHandler {
     );
   }
 
-  void _handleCommand(Map<String, dynamic> data, WebSocketChannel socket) {
+  Future<void> _handleCommand(
+    Map<String, dynamic> data,
+    WebSocketChannel socket,
+  ) async {
     final command = data['command'] as String?;
     if (command == null) {
       socket.sink.add(jsonEncode({'error': 'Missing "command" field'}));
@@ -446,7 +455,7 @@ class DevicesHandler {
           socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
           return;
         }
-        _sendConnectResult(device, socket);
+        await _sendConnectResult(device, socket);
 
       case 'disconnect':
         final deviceId = data['deviceId'] as String?;
@@ -515,7 +524,11 @@ class DevicesHandler {
         return _connectionManager.connectScale(scale);
       case DeviceType.sensor:
         try {
-          await (device as Sensor).onConnect();
+          final sensor = device as Sensor;
+          if (await sensor.connectionState.first == ConnectionState.connected) {
+            return const ConnectionResult.alreadyConnected();
+          }
+          await sensor.onConnect();
           return const ConnectionResult.succeeded();
         } on TimeoutException catch (e) {
           return ConnectionResult.timedOut(e.toString());

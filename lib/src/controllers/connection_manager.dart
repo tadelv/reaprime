@@ -1785,7 +1785,7 @@ class ConnectionManager {
           ),
         );
         await scale.disconnect();
-        return const ConnectionResult.succeeded();
+        return const ConnectionResult.conflict();
       }
       await settingsController.setPreferredScaleId(scale.deviceId);
       _publishStatus(
