@@ -74,8 +74,9 @@ class DisplayState {
 ///
 /// Two concerns:
 /// 1. **Wake-lock** — auto-managed based on machine state (enabled when
-///    connected and not sleeping, released on sleep/disconnect). Skins can
-///    override via [requestWakeLock] / [releaseWakeLock].
+///    connected and not sleeping, released on sleep/disconnect). The
+///    `keepAwake` setting forces the wake-lock on while the app runs. Skins
+///    can override via [requestWakeLock] / [releaseWakeLock].
 /// 2. **Brightness** — 0-100 integer range via [setBrightness]. Value 100
 ///    resets to OS-managed brightness. Battery-aware cap reduces brightness
 ///    when battery is low and the setting is enabled.
@@ -165,6 +166,7 @@ class DisplayController {
     _de1Subscription = _de1Controller.de1.listen(_onDe1Changed);
     _batterySubscription = _batteryStateStream?.listen(_onBatteryChanged);
     _settingsController.addListener(_onSettingsChanged);
+    unawaited(_evaluateWakeLock());
   }
 
   void dispose() {
@@ -279,6 +281,9 @@ class DisplayController {
 
   void _onSettingsChanged() {
     unawaited(_applyBrightness());
+    // keepAwake toggle must take effect immediately, not on the next machine
+    // state transition.
+    unawaited(_evaluateWakeLock());
   }
 
   // ---------------------------------------------------------------------------
@@ -361,6 +366,12 @@ class DisplayController {
   // ---------------------------------------------------------------------------
 
   Future<void> _evaluateWakeLock() async {
+    // keepAwake setting: screen always on while the app runs (full override).
+    if (_settingsController.keepAwake) {
+      await _applyWakeLock(true);
+      return;
+    }
+
     // Override always wins
     if (_wakeLockOverride) {
       await _applyWakeLock(true);

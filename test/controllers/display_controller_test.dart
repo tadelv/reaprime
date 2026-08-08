@@ -301,6 +301,9 @@ void main() {
     final mockSettings = MockSettingsService();
     settingsCtrl = SettingsController(mockSettings);
     await settingsCtrl.loadSettings();
+    // Auto-manage wake-lock tests below assume keepAwake is off; the
+    // keepAwake-setting group re-enables it explicitly.
+    await settingsCtrl.setKeepAwake(false);
   });
 
   group('initial state', () {
@@ -536,6 +539,99 @@ void main() {
         async.flushMicrotasks();
 
         expect(controller.currentState.wakeLockOverride, isFalse);
+        expect(controller.currentState.wakeLockEnabled, isFalse);
+
+        controller.dispose();
+      });
+    });
+  });
+
+  group('keepAwake setting', () {
+    test('keeps wake-lock enabled while machine sleeps', () {
+      fakeAsync((async) {
+        final controller = _createController(
+          de1Controller,
+          settingsController: settingsCtrl,
+        );
+        controller.initialize();
+        async.flushMicrotasks();
+
+        settingsCtrl.setKeepAwake(true);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+
+        controller.dispose();
+      });
+    });
+
+    test('keeps wake-lock enabled while disconnected', () {
+      fakeAsync((async) {
+        final controller = _createController(
+          de1Controller,
+          settingsController: settingsCtrl,
+        );
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+
+        settingsCtrl.setKeepAwake(true);
+        async.flushMicrotasks();
+        de1Controller.setDe1(null);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+
+        controller.dispose();
+      });
+    });
+
+    test(
+      'initializing while disconnected with keepAwake already set keeps wake-lock on',
+      () {
+        fakeAsync((async) {
+          settingsCtrl.setKeepAwake(true);
+          async.flushMicrotasks();
+
+          final controller = _createController(
+            de1Controller,
+            settingsController: settingsCtrl,
+          );
+          controller.initialize();
+          async.flushMicrotasks();
+
+          expect(controller.currentState.wakeLockEnabled, isTrue);
+
+          controller.dispose();
+        });
+      },
+    );
+
+    test('disabling keepAwake while sleeping releases wake-lock', () {
+      fakeAsync((async) {
+        final controller = _createController(
+          de1Controller,
+          settingsController: settingsCtrl,
+        );
+        controller.initialize();
+        async.flushMicrotasks();
+
+        settingsCtrl.setKeepAwake(true);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+
+        settingsCtrl.setKeepAwake(false);
+        async.flushMicrotasks();
         expect(controller.currentState.wakeLockEnabled, isFalse);
 
         controller.dispose();

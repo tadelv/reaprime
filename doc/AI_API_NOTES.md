@@ -28,7 +28,8 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 
 - A successful backup import requires at least one recognized selected payload; metadata alone is not payload.
 - `200` means all processed import sections completed without errors. Any section error, including a returned `SectionImportResult.errors` list, means `207`.
-- Section errors remain isolated so other recognized sections may import. Imports are not transactional and successful sections are not rolled back.
+- ZIP integrity and structural JSON for every selected section are validated before any section mutates storage. Any failure in that phase returns `400` and imports nothing.
+- Semantic record and section errors remain isolated after validation, so other recognized sections may import. Those imports are not transactional and successful sections are not rolled back.
 - `DataImportOutcome` (or its equivalent) is the source of import completeness classification; clients must not infer it by reparsing the section response map.
 - Data sync preserves complete, partial, and fatal phase states. A remote import `207` is a partial push, not a target failure.
 - UI clients must not collapse `207` into complete success.
@@ -139,6 +140,64 @@ Add protocol compatibility rules, API versioning decisions, and endpoint design 
 - Legacy HTTP `200` import bodies with embedded errors are partial or failed according to section progress.
 - Two-way push requires a complete pull unless `continueOnPullFailure: true` is explicitly requested.
 - Skipped push is represented as a `skipped` phase, and partial section processing is not transactional.
+
+## Bounded Backup Streaming (issue #555)
+
+The backup pipeline streams data end to end; peak memory scales with one page
+of records and one JSON record, never with backup size. Rationale and traps:
+
+- **ZIP export keeps the custom streaming writer because `archive`'s encoder
+  buffers compressed entries.** Import uses `archive`'s file-backed
+  `InputFileStream` / `ZipDecoder` path. Each selected `ArchiveFile` writes to
+  one bounded temporary JSON file through `OutputFileStream`; size and CRC are
+  verified before incremental parsing, and the file is deleted before the next
+  entry. New exports remain byte-compatible with `ZipDecoder`, and old
+  `ZipEncoder` backups still import.
+- **JSON is parsed with a real incremental parser**
+  (`util/incremental_json_parser.dart`): a token-level state machine that
+  yields complete values at a configured depth (1 for array sections, 3 for
+  the KV `namespaces` map, 0 for singletons), handles strings/escapes/UTF-8
+  boundaries, and throws on truncation, trailing garbage, and bad tokens.
+  Import first validates every selected section without mutation, then runs
+  the record imports. Malformed JSON returns `400` without importing any
+  section; valid JSON with individually invalid records keeps per-record error
+  accounting.
+- **Sections stream records** via injected page functions (keyset cursors for
+  shots/steams on `(timestamp, id)`, beans/grinders on `(createdAt, id)`;
+  profile ids and KV keys are small, documented exceptions). Storage
+  interfaces are unchanged; `BackupDataSources` carries the DB-backed page
+  functions from `main.dart`, and tests inject instrumented paging seams.
+- **Limits** are centralized in `data_transfer_limits.dart` and injectable
+  for tests: request body 2 GiB, entry count 4096, per-entry uncompressed
+  1 GiB, total uncompressed 2 GiB, metadata 64 KiB, per-record 64 MiB, ZIP
+  header fields 256 B/64 KiB/64 KiB, sync request 1 MiB, target response
+  8 MiB; timeouts 10 s connection (TCP establishment only) / 30 s idle /
+  10 min deadline per phase covering the NETWORK stages only (upload/
+  download + response); local export and the pull-side import run to
+  completion and report their actual results. Timeouts abort the request
+  at the transport level via `http.AbortableRequest` /
+  `AbortableStreamedRequest`: a timed-out pull is cut off even before
+  headers (while the target is still generating its export) and never
+  starts its import; a timed-out push aborts its upload so a push still
+  uploading cannot complete remotely. The push body is fed with
+  `sink.addStream`, which pauses the file read while the transport is
+  backpressured (the archive is never read ahead of the network); the
+  sink closes only after the file is fully read (`addStream` does not
+  forward the source's done event). Once the archive is fully uploaded
+  the remote outcome is unknowable and the phase reports reason
+  `timeout_unknown` rather than claiming the push did not happen. The
+  completed export archive is also bounded by the 2 GiB import request
+  limit, and per-record caps are measured in UTF-8 bytes. All are below
+  ZIP64 thresholds so Zip64 can be rejected outright.
+- **Temp files**: every operation owns one unique temp directory
+  (`util/temp_archive_files.dart`), deleted in `finally` or on stream
+  cancel/done. Native export defers cleanup (grace timer) because the OS
+  share sheet reads the file asynchronously.
+- **Legacy compatibility**: entry names, JSON shapes (including
+  `store.json`'s `namespaces` wrapper and beans' embedded `batches`),
+  `metadata.json` semantics, conflict strategies, selected-section behavior,
+  platform warnings, atomic export, non-transactional section isolation, and
+  `200`/`207`/`400` + sync phase semantics are unchanged.
 
 ## Workflow PUT Queue
 

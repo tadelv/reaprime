@@ -1,28 +1,53 @@
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_data_sources.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
+import 'package:reaprime/src/util/incremental_json_parser.dart';
 
 class SteamExportSection implements DataExportSection {
   final PersistenceController _controller;
+  final PageCursor<SteamRecord> _pageSteams;
+  final int pageSize;
 
-  SteamExportSection({required PersistenceController controller})
-    : _controller = controller;
+  SteamExportSection({
+    required PersistenceController controller,
+    required PageCursor<SteamRecord> pageSteams,
+    this.pageSize = DataTransferLimits.defaultExportPageSize,
+  }) : _controller = controller,
+       _pageSteams = pageSteams;
 
   @override
   String get filename => 'steams.json';
 
   @override
-  Future<dynamic> export() async {
-    final records = await _controller.storageService.getAllSteams();
-    return records.map((r) => r.toJson()).toList();
+  Future<void> exportJson(JsonSink output) async {
+    final emitter = JsonArrayEmitter(output);
+    DateTime? cursorTimestamp;
+    String? cursorId;
+    while (true) {
+      final page = await _pageSteams(
+        pageSize,
+        afterTimestamp: cursorTimestamp,
+        afterId: cursorId,
+      );
+      if (page.isEmpty) break;
+      for (final record in page) {
+        emitter.add(record.toJson());
+        cursorTimestamp = record.timestamp;
+        cursorId = record.id;
+      }
+      if (page.length < pageSize) break;
+    }
+    emitter.end();
   }
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
-    if (data is! List) {
+    if (await input.open() != JsonContainerKind.array) {
       return const SectionImportResult(
         errors: ['Expected JSON array of steam records'],
       );
@@ -30,11 +55,13 @@ class SteamExportSection implements DataExportSection {
 
     int imported = 0;
     int skipped = 0;
-    final errors = <String>[];
+    final errors = SectionImportErrors();
 
-    for (final item in data) {
+    await for (final event in input.valuesAtDepth(1)) {
       try {
-        final record = SteamRecord.fromJson(item as Map<String, dynamic>);
+        final record = SteamRecord.fromJson(
+          event.value as Map<String, dynamic>,
+        );
         final existing = await _controller.storageService.getSteam(record.id);
 
         if (existing != null) {
@@ -60,7 +87,7 @@ class SteamExportSection implements DataExportSection {
     return SectionImportResult(
       imported: imported,
       skipped: skipped,
-      errors: errors,
+      errors: errors.toList(),
     );
   }
 }

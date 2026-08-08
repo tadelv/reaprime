@@ -174,4 +174,37 @@ void main() {
       },
     );
   });
+
+  test('getBeansForExport pages with a stable keyset cursor', () async {
+    final base = DateTime.parse('2024-01-15T10:00:00Z');
+    for (var i = 0; i < 12; i++) {
+      await db.beanDao.insertBean(
+        BeansCompanion(
+          id: Value('bean-$i'),
+          roaster: Value('R'),
+          name: Value('N$i'),
+          createdAt: Value(base.add(Duration(minutes: i))),
+          updatedAt: Value(base.add(Duration(minutes: i))),
+        ),
+      );
+    }
+    final collected = <String>[];
+    DateTime? cursorCreatedAt;
+    String? cursorId;
+    while (true) {
+      final page = await db.beanDao.getBeansForExport(
+        limit: 5,
+        cursorCreatedAt: cursorCreatedAt,
+        cursorId: cursorId,
+      );
+      if (page.isEmpty) break;
+      for (final b in page) {
+        collected.add(b.id);
+        cursorCreatedAt = b.createdAt;
+        cursorId = b.id;
+      }
+    }
+    expect(collected, hasLength(12));
+    expect(collected.toSet(), hasLength(12));
+  });
 }

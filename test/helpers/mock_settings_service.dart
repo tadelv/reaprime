@@ -39,6 +39,7 @@ class MockSettingsService extends SettingsService {
   String _wakeSchedules = '[]';
   String _rememberedDevices = '[]';
   bool _lowBatteryBrightnessLimit = false;
+  bool _keepAwake = true;
   bool _onboardingCompleted = true; // skip onboarding in tests
   bool _accountStepSeen = true; // skip account step in tests
   bool _androidWarningDismissed = true; // skip android warning in tests
@@ -214,6 +215,10 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setLowBatteryBrightnessLimit(bool value) async =>
       _lowBatteryBrightnessLimit = value;
+  @override
+  Future<bool> keepAwake() async => _keepAwake;
+  @override
+  Future<void> setKeepAwake(bool value) async => _keepAwake = value;
   @override
   Future<bool> onboardingCompleted() async => _onboardingCompleted;
   @override

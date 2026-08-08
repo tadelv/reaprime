@@ -26,10 +26,12 @@ import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:reaprime/src/services/webserver/firmware_handler.dart';
 import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_data_sources.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/steam_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
@@ -144,6 +146,7 @@ Future<void> startWebServer(
   BeanStorageService? beanStorage,
   GrinderStorageService? grinderStorage,
   required ConnectionManager connectionManager,
+  required BackupDataSources backupSources,
   WifiScaleDiscoveryService? wifiScaleDiscoveryService,
   RememberedDevicesController? rememberedDevicesController,
   DecentAccountService? decentAccountService,
@@ -258,19 +261,61 @@ Future<void> startWebServer(
   final dataExportHandler = DataExportHandler(
     sections: [
       ProfileExportSection(controller: profileController),
-      ShotExportSection(controller: persistenceController),
-      SteamExportSection(controller: persistenceController),
+      ShotExportSection(
+        controller: persistenceController,
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+            backupSources.pageShots(
+              limit,
+              afterTimestamp: afterTimestamp,
+              afterId: afterId,
+            ),
+      ),
+      SteamExportSection(
+        controller: persistenceController,
+        pageSteams: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+            backupSources.pageSteams(
+              limit,
+              afterTimestamp: afterTimestamp,
+              afterId: afterId,
+            ),
+      ),
       WorkflowExportSection(controller: workflowController),
       SettingsExportSection(controller: settingsController),
       KvStoreExportSection(store: kvStoreHandler.store),
-      if (beanStorage != null) BeanExportSection(storage: beanStorage),
-      if (grinderStorage != null) GrinderExportSection(storage: grinderStorage),
+      if (beanStorage != null)
+        BeanExportSection(
+          storage: beanStorage,
+          pageBeans: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+              backupSources.pageBeans(
+                limit,
+                afterCreatedAt: afterCreatedAt,
+                afterId: afterId,
+              ),
+        ),
+      if (grinderStorage != null)
+        GrinderExportSection(
+          storage: grinderStorage,
+          pageGrinders: (limit, {afterTimestamp, afterCreatedAt, afterId}) =>
+              backupSources.pageGrinders(
+                limit,
+                afterCreatedAt: afterCreatedAt,
+                afterId: afterId,
+              ),
+        ),
     ],
   );
 
   final dataSyncHandler = DataSyncHandler(
     exportHandler: dataExportHandler,
-    httpClient: http.Client(),
+    // The sync client needs a bounded connect timeout but must NOT time out
+    // while the target is generating/importing an archive: the target only
+    // responds after it has processed the whole body. connectionTimeout
+    // covers connection establishment only; phases are bounded by
+    // syncOverallTimeout in the handler.
+    httpClient: IOClient(
+      HttpClient()
+        ..connectionTimeout = dataExportHandler.limits.syncHeaderTimeout,
+    ),
   );
 
   final infoHandler = InfoHandler();

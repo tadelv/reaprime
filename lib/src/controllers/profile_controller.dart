@@ -395,6 +395,9 @@ class ProfileController {
     return lineage;
   }
 
+  /// Get all profile IDs (content hashes; used for streaming export paging).
+  Future<List<String>> getAllIds() => _storage.getAllIds();
+
   /// Import profiles from JSON
   Future<Map<String, dynamic>> importProfiles(
     List<Map<String, dynamic>> profilesJson,

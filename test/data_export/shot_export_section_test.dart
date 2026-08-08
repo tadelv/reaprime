@@ -1,61 +1,40 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
-import 'package:reaprime/src/models/data/profile.dart';
-import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
-import 'package:reaprime/src/models/data/workflow_context.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
+import 'package:reaprime/src/util/incremental_json_parser.dart';
 
-/// Mock implementation of StorageService for testing.
-class MockStorageService implements StorageService {
-  final Map<String, ShotRecord> _shots = {};
-  Workflow? _currentWorkflow;
+import 'streaming_test_helpers.dart';
 
-  @override
-  Future<void> storeShot(ShotRecord record) async {
-    _shots[record.id] = record;
-  }
+/// In-memory storage + instrumented page seam for shot export/import tests.
+class _TestShotStorage {
+  final Map<String, Map<String, dynamic>> shots = {};
+  int stored = 0;
+  int updated = 0;
+  int shotsChangedNotifications = 0;
 
-  @override
-  Future<void> updateShot(ShotRecord record) async {
-    if (!_shots.containsKey(record.id)) {
-      throw Exception('Shot not found: ${record.id}');
-    }
-    _shots[record.id] = record;
-  }
+  /// Records page sizes requested by the exporter (boundedness proof).
+  final List<int> pageSizes = [];
 
-  @override
-  Future<void> deleteShot(String id) async {
-    _shots.remove(id);
-  }
+  StorageService get service => _service;
+  late final StorageService _service = _FakeStorage(this);
+}
 
-  @override
-  Future<List<String>> getShotIds() async {
-    return _shots.keys.toList();
-  }
+class _FakeStorage implements StorageService {
+  final _TestShotStorage owner;
+
+  _FakeStorage(this.owner);
 
   @override
   Future<List<ShotRecord>> getAllShots() async {
-    return _shots.values.toList();
-  }
-
-  @override
-  Future<ShotRecord?> getShot(String id) async {
-    return _shots[id];
-  }
-
-  @override
-  Future<void> storeCurrentWorkflow(Workflow workflow) async {
-    _currentWorkflow = workflow;
-  }
-
-  @override
-  Future<Workflow?> loadCurrentWorkflow() async {
-    return _currentWorkflow;
+    throw StateError('getAllShots must not be called during streaming export');
   }
 
   @override
@@ -72,8 +51,40 @@ class MockStorageService implements StorageService {
     String? search,
     bool ascending = false,
   }) async {
-    return _shots.values.skip(offset).take(limit).toList();
+    throw StateError('offset paging must not be used for export');
   }
+
+  @override
+  Future<void> storeShot(ShotRecord record) async {
+    owner.shots[record.id] = record.toJson();
+    owner.stored++;
+  }
+
+  @override
+  Future<void> updateShot(ShotRecord record) async {
+    owner.shots[record.id] = record.toJson();
+    owner.updated++;
+  }
+
+  @override
+  Future<ShotRecord?> getShot(String id) async {
+    final json = owner.shots[id];
+    return json == null ? null : ShotRecord.fromJson(json);
+  }
+
+  @override
+  Future<void> deleteShot(String id) async {
+    owner.shots.remove(id);
+  }
+
+  @override
+  Future<List<String>> getShotIds() async => owner.shots.keys.toList();
+
+  @override
+  Future<void> storeCurrentWorkflow(Workflow workflow) async {}
+
+  @override
+  Future<Workflow?> loadCurrentWorkflow() async => null;
 
   @override
   Future<int> countShots({
@@ -85,20 +96,15 @@ class MockStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-    bool ascending = false,
-  }) async {
-    return _shots.length;
-  }
+  }) async => owner.shots.length;
 
   @override
-  Future<ShotRecord?> getLatestShot() async {
-    if (_shots.isEmpty) return null;
-    return _shots.values.last;
-  }
+  Future<ShotRecord?> getLatestShot() async => null;
 
   @override
-  Future<ShotRecord?> getLatestShotMeta() => getLatestShot();
+  Future<ShotRecord?> getLatestShotMeta() async => null;
 
+  // Steam stubs
   @override
   Future<void> storeSteam(SteamRecord record) async {}
   @override
@@ -115,201 +121,221 @@ class MockStorageService implements StorageService {
   Future<SteamRecord?> getLatestSteam() async => null;
   @override
   Future<SteamRecord?> getLatestSteamMeta() async => null;
-
-  void reset() {
-    _shots.clear();
-    _currentWorkflow = null;
-  }
 }
 
-ShotRecord _makeShotRecord({
-  String id = 'shot-1',
-  String workflowName = 'Test Workflow',
-  String? shotNotes,
-}) {
-  return ShotRecord(
-    id: id,
-    timestamp: DateTime.parse('2024-01-15T10:30:00.000Z'),
-    measurements: [],
-    workflow: Workflow(
-      id: 'workflow-1',
-      name: workflowName,
-      description: 'Test',
-      profile: Profile(
-        version: '2',
-        title: 'Test Profile',
-        author: 'Test Author',
-        notes: '',
-        beverageType: BeverageType.espresso,
-        steps: [
-          ProfileStepPressure(
-            name: 'pour',
-            transition: TransitionType.fast,
-            volume: 100,
-            seconds: 30,
-            temperature: 93,
-            sensor: TemperatureSensor.coffee,
-            pressure: 9,
-          ),
-        ],
-        tankTemperature: 0.0,
-        targetWeight: 36.0,
-        targetVolumeCountStart: 0,
+Map<String, dynamic> makeWorkflowJson() => Workflow(
+  id: 'workflow-1',
+  name: 'Test Workflow',
+  description: '',
+  profile: Profile(
+    version: '2',
+    title: 'Test Profile',
+    author: 'Test Author',
+    notes: '',
+    beverageType: BeverageType.espresso,
+    steps: [
+      ProfileStepPressure(
+        name: 'pour',
+        transition: TransitionType.fast,
+        volume: 100,
+        seconds: 30,
+        temperature: 93,
+        sensor: TemperatureSensor.coffee,
+        pressure: 9,
       ),
-      context: WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0),
-      steamSettings: SteamSettings.defaults(),
-      hotWaterData: HotWaterData.defaults(),
-      rinseData: RinseData.defaults(),
-    ),
-    annotations: shotNotes != null
-        ? ShotAnnotations(espressoNotes: shotNotes)
-        : null,
-  );
-}
+    ],
+    tankTemperature: 0.0,
+    targetWeight: 36.0,
+    targetVolumeCountStart: 0,
+  ),
+  steamSettings: SteamSettings.defaults(),
+  hotWaterData: HotWaterData.defaults(),
+  rinseData: RinseData.defaults(),
+).toJson();
+
+ShotRecord makeShot(int i) => ShotRecord.fromJson({
+  'id': 'shot-$i',
+  'timestamp': DateTime(2024, 1, 1).add(Duration(minutes: i)).toIso8601String(),
+  'measurements': <Object?>[],
+  'workflow': makeWorkflowJson(),
+});
 
 void main() {
-  late MockStorageService storage;
-  late PersistenceController controller;
-  late ShotExportSection section;
-
-  setUp(() {
-    storage = MockStorageService();
-    controller = PersistenceController(storageService: storage);
-    section = ShotExportSection(controller: controller);
-  });
-
-  tearDown(() {
-    storage.reset();
-  });
-
-  test('filename is shots.json', () {
-    expect(section.filename, equals('shots.json'));
-  });
-
-  group('export', () {
-    test('returns empty list when no shots exist', () async {
-      final result = await section.export();
-      expect(result, isA<List>());
-      expect((result as List), isEmpty);
-    });
-
-    test('returns list of shot JSON maps', () async {
-      final record = _makeShotRecord();
-      await storage.storeShot(record);
-
-      final result = await section.export();
-      expect(result, isA<List>());
-      final list = result as List;
-      expect(list, hasLength(1));
-      expect(list.first['id'], equals('shot-1'));
-      expect(list.first['workflow'], isA<Map<String, dynamic>>());
-    });
-
-    test('returns multiple shots', () async {
-      await storage.storeShot(_makeShotRecord(id: 'shot-1'));
-      await storage.storeShot(
-        _makeShotRecord(id: 'shot-2', workflowName: 'Workflow 2'),
+  group('ShotExportSection', () {
+    test('streams records in bounded pages and encodes a JSON array', () async {
+      final storage = _TestShotStorage();
+      for (var i = 0; i < 250; i++) {
+        storage.shots['shot-$i'] = makeShot(i).toJson();
+      }
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          storage.pageSizes.add(limit);
+          final all = storage.shots.values.map(ShotRecord.fromJson).toList()
+            ..sort((a, b) {
+              final c = b.timestamp.compareTo(a.timestamp);
+              return c != 0 ? c : b.id.compareTo(a.id);
+            });
+          final start = all.indexWhere(
+            (s) =>
+                afterTimestamp == null ||
+                s.timestamp.isBefore(afterTimestamp) ||
+                (s.timestamp == afterTimestamp && s.id.compareTo(afterId!) < 0),
+          );
+          final from = start < 0 ? all.length : start;
+          return all.skip(from).take(limit).toList();
+        },
+        pageSize: 100,
       );
 
-      final result = await section.export();
-      final list = result as List;
-      expect(list, hasLength(2));
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
+
+      // Instrumented seam proves bounded processing.
+      expect(storage.pageSizes, everyElement(100));
+      expect(storage.pageSizes.length, 3); // 100 + 100 + 50
+
+      final decoded = jsonDecode(sink.json) as List;
+      expect(decoded, hasLength(250));
+      expect(decoded.first['id'], 'shot-249');
+      expect(decoded.last['id'], 'shot-0');
     });
-  });
 
-  group('import with skip strategy', () {
-    test('imports new shots', () async {
-      final record = _makeShotRecord();
-      final json = record.toJson();
+    test('a lazy source is pulled only until exhausted', () async {
+      var calls = 0;
+      final section = ShotExportSection(
+        controller: PersistenceController(
+          storageService: _TestShotStorage().service,
+        ),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async {
+          calls++;
+          if (afterTimestamp == null) {
+            // A full page: forces another pull.
+            return List.generate(limit, (i) => makeShot(i));
+          }
+          return [];
+        },
+        pageSize: 100,
+      );
+      final sink = CapturingJsonSink();
+      await section.exportJson(sink);
+      expect(calls, 2);
+      expect(jsonDecode(sink.json), hasLength(100));
+    });
 
-      final result = await section.import([json], ConflictStrategy.skip);
+    test('imports records incrementally with skip semantics', () async {
+      final storage = _TestShotStorage();
+      storage.shots['shot-1'] = makeShot(1).toJson();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
 
-      expect(result.imported, equals(1));
-      expect(result.skipped, equals(0));
+      final json = jsonEncode(List.generate(50, (i) => makeShot(i).toJson()));
+      final result = await importSectionJson(
+        section,
+        json,
+        ConflictStrategy.skip,
+      );
+      expect(result.imported, 49);
+      expect(result.skipped, 1);
       expect(result.errors, isEmpty);
-
-      final stored = await storage.getShot('shot-1');
-      expect(stored, isNotNull);
-      expect(stored!.id, equals('shot-1'));
+      expect(storage.shots, hasLength(50));
     });
 
-    test('skips duplicate shots', () async {
-      final record = _makeShotRecord();
-      await storage.storeShot(record);
+    test('imports records incrementally with overwrite semantics', () async {
+      final storage = _TestShotStorage();
+      storage.shots['shot-1'] = makeShot(1).toJson();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
 
-      final json = record.toJson();
-      final result = await section.import([json], ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.skipped, equals(1));
-      expect(result.errors, isEmpty);
-    });
-
-    test('returns error for non-list data', () async {
-      final result = await section.import({
-        'not': 'a list',
-      }, ConflictStrategy.skip);
-
-      expect(result.imported, equals(0));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Expected JSON array'));
-    });
-  });
-
-  group('import with overwrite strategy', () {
-    test('imports new shots', () async {
-      final record = _makeShotRecord();
-      final json = record.toJson();
-
-      final result = await section.import([json], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-
-      final stored = await storage.getShot('shot-1');
-      expect(stored, isNotNull);
-    });
-
-    test('overwrites existing shots', () async {
-      final original = _makeShotRecord(shotNotes: 'original');
-      await storage.storeShot(original);
-
-      final updated = _makeShotRecord(shotNotes: 'updated');
-      final json = updated.toJson();
-      final result = await section.import([json], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
-      expect(result.errors, isEmpty);
-
-      final stored = await storage.getShot('shot-1');
-      expect(stored, isNotNull);
-      expect(stored!.annotations?.espressoNotes, equals('updated'));
-    });
-
-    test('returns error for non-list data', () async {
-      final result = await section.import(
-        'not a list',
+      final result = await importSectionJson(
+        section,
+        jsonEncode([makeShot(1).toJson()]),
         ConflictStrategy.overwrite,
       );
-
-      expect(result.imported, equals(0));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Expected JSON array'));
+      expect(result.imported, 1);
+      expect(storage.updated, 1);
     });
 
-    test('collects errors for individual shot failures', () async {
-      final validRecord = _makeShotRecord();
-      final validJson = validRecord.toJson();
-      final invalidJson = <String, dynamic>{'garbage': true};
+    test('individually invalid records keep partial-result behavior', () async {
+      final storage = _TestShotStorage();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
 
-      final result = await section.import([
-        validJson,
-        invalidJson,
-      ], ConflictStrategy.overwrite);
-
-      expect(result.imported, equals(1));
+      final workflowJson = jsonEncode(makeWorkflowJson());
+      final json =
+          '[{"id":"ok-1","timestamp":"2024-01-01T00:00:00Z","measurements":[],"workflow":$workflowJson},'
+          '{"id":"bad","timestamp":null,"measurements":{},"workflow":$workflowJson},'
+          '{"id":"ok-2","timestamp":"2024-01-02T00:00:00Z","measurements":[],"workflow":$workflowJson}]';
+      final result = await importSectionJson(
+        section,
+        json,
+        ConflictStrategy.skip,
+      );
+      expect(result.imported, 2);
       expect(result.errors, hasLength(1));
-      expect(result.errors.first, contains('Failed to import shot'));
+    });
+
+    test('bounds semantic record errors', () async {
+      final storage = _TestShotStorage();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
+
+      final result = await importSectionJson(
+        section,
+        jsonEncode(List.generate(101, (_) => <String, dynamic>{})),
+        ConflictStrategy.skip,
+      );
+
+      expect(result.errors, hasLength(101));
+      expect(result.errors.last, '1 additional error omitted');
+    });
+
+    test('rejects a structurally malformed section payload', () async {
+      final storage = _TestShotStorage();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
+      // Valid prefix must not import: `[{"id":"x"...}]` then truncated.
+      final workflowJson = jsonEncode(makeWorkflowJson());
+      await expectLater(
+        importSectionJson(
+          section,
+          '[{"id":"a","timestamp":"2024-01-01T00:00:00Z","measurements":[],"workflow":$workflowJson}, {"id":',
+          ConflictStrategy.skip,
+        ),
+        throwsA(isA<JsonStreamFormatException>()),
+      );
+      expect(storage.shots, isEmpty);
+    });
+
+    test('rejects a non-array payload without importing', () async {
+      final storage = _TestShotStorage();
+      final section = ShotExportSection(
+        controller: PersistenceController(storageService: storage.service),
+        pageShots: (limit, {afterTimestamp, afterCreatedAt, afterId}) async =>
+            [],
+      );
+      final result = await importSectionJson(
+        section,
+        '{"a": 1}',
+        ConflictStrategy.skip,
+      );
+      expect(result.errors, hasLength(1));
+      expect(storage.shots, isEmpty);
     });
   });
 }

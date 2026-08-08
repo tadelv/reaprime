@@ -124,4 +124,36 @@ void main() {
       expect(await db.steamDao.getSteamById('steam-1'), isNull);
     });
   });
+
+  test('getSteamsForExport pages with a stable keyset cursor', () async {
+    final base = DateTime.parse('2024-01-15T10:00:00Z');
+    for (var i = 0; i < 15; i++) {
+      await db.steamDao.insertSteam(
+        SteamRecordsCompanion(
+          id: Value('steam-$i'),
+          timestamp: Value(base.add(Duration(minutes: i))),
+          workflowJson: Value({}),
+          measurementsJson: Value('[]'),
+        ),
+      );
+    }
+    final collected = <String>[];
+    DateTime? cursorTimestamp;
+    String? cursorId;
+    while (true) {
+      final page = await db.steamDao.getSteamsForExport(
+        limit: 7,
+        cursorTimestamp: cursorTimestamp,
+        cursorId: cursorId,
+      );
+      if (page.isEmpty) break;
+      for (final r in page) {
+        collected.add(r.id);
+        cursorTimestamp = r.timestamp;
+        cursorId = r.id;
+      }
+    }
+    expect(collected, hasLength(15));
+    expect(collected.toSet(), hasLength(15));
+  });
 }

@@ -221,7 +221,7 @@ asynchronously — so it commits even while no machine is connected.
 | GET | `/api/v1/settings` | All app settings (gateway, theme, charging, devices, etc.) | `settings_handler.dart` |
 | POST | `/api/v1/settings` | Update settings (partial, key-by-key) | |
 
-Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMultiplier`, `volumeFlowMultiplier`, `hotWaterFlowMultiplier`, `scalePowerMode`, `blockOnNoScale`, `blockTareDuringShot`, `stopHotWaterAtWeight`, `preferredMachineId`, `preferredScaleId`, `defaultSkinId`, `automaticUpdateCheck`, `chargingMode`, `nightModeEnabled`, `nightModeSleepTime`, `nightModeMorningTime`, `lowBatteryBrightnessLimit`, `simulatedDevices`.
+Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMultiplier`, `volumeFlowMultiplier`, `hotWaterFlowMultiplier`, `scalePowerMode`, `blockOnNoScale`, `blockTareDuringShot`, `stopHotWaterAtWeight`, `preferredMachineId`, `preferredScaleId`, `defaultSkinId`, `automaticUpdateCheck`, `chargingMode`, `nightModeEnabled`, `nightModeSleepTime`, `nightModeMorningTime`, `lowBatteryBrightnessLimit`, `keepAwake`, `simulatedDevices`.
 
 `stopHotWaterAtWeight` (boolean, default `true`): when on and a scale is connected, hot-water dispensing tares the scale and stops at the configured hot-water `volume` target treated as grams (mirrors the espresso stop-at-weight). The machine's own volume/time stop remains a backstop, and the value is ignored in `full` gateway mode (a skin owns the machine). `hotWaterFlowMultiplier` (number, default `0.3`) is the seconds-of-lookahead applied to scale weight flow for that stop — separate from `weightFlowMultiplier` because hot water dispenses with a different pump/flow profile than espresso. See [DeviceManagement.md](DeviceManagement.md#hot-water-stop-at-weight).
 
@@ -330,9 +330,12 @@ registered section names; unknown files are ignored, but an archive must contain
 at least one recognized selected section. `metadata.json` is not payload:
 metadata-only, empty, and unknown-only archives return `400`. Metadata is
 optional for legacy archives without it. When present, its JSON and
-`formatVersion` are validated before any section is imported. Sections are
-processed independently and are not transactional, so successful sections are
-not rolled back when another section fails. Export is atomic: if any requested
+`formatVersion` are validated before any section is imported. ZIP integrity and
+structural JSON are validated for every selected section before storage is
+mutated; any failure returns `400` without importing a section. Semantic record
+errors are processed independently and are not transactional, so successful
+sections are not rolled back when another section reports semantic errors.
+Export is atomic: if any requested
 section fails to export, the request returns an error identifying the failed
 section(s) and no partial ZIP is returned.
 
@@ -349,6 +352,48 @@ when its body reports semantic `partial` progress. A two-way sync returns `207`
 when it has meaningful progress but is incomplete; a two-way sync with no
 complete or partial phase returns `502`. Phase results remain under `pull` and
 `push`, including successful sections and fatal error details.
+
+### Bounded-memory transfer (issue #555)
+
+Backup export, import, and sync stream data instead of buffering whole
+archives in memory; peak memory scales with one page of records and one JSON
+record, never with backup size.
+
+- **Export** streams each section (records paged via stable keyset cursors)
+  through a file-backed ZIP writer (raw deflate via `dart:io`, data
+descriptors, central directory written last) and serves the completed
+temporary ZIP with `Content-Type: application/zip`, `Content-Disposition:
+attachment`, and `Content-Length`. The archive is atomic: a failing section
+returns an error and no partial ZIP.
+- **Import** streams the request body into a temporary ZIP (never
+`read().toList()`), opens it with `InputFileStream` / `ZipDecoder`, and writes
+one selected entry at a time to a bounded temporary JSON file for incremental
+parsing. Every selected entry is structurally validated before the record-import
+pass begins. ZIP bombs, duplicate names, encrypted/unsupported entries, CRC
+failures, truncation, Zip64, and malformed JSON all fail safely.
+- **Sync** pulls stream the remote response into a temporary ZIP; pushes
+export locally and stream the file with a known content length.
+- **Native transfer** downloads the localhost export into a temporary file
+(validating HTTP status and `application/zip` before presenting a
+destination), shares it via the OS share sheet on iOS/Android, and streams
+picked files into the import request.
+
+Limits (documented in `assets/api/rest_v1.yml`): request body 2 GiB, entry
+count 4096, per-entry uncompressed 1 GiB, total uncompressed 2 GiB,
+metadata 64 KiB, per-record 64 MiB (measured in UTF-8 bytes), ZIP header
+fields 256 B/64 KiB/64 KiB; sync request body 1 MiB, target response
+8 MiB; connection 10 s (TCP establishment only — server-side
+export/import processing is not counted against it), idle 30 s, and one
+deadline (10 min) per phase covering the network stages (upload/download
+and response). Timeouts abort the request at the transport level: a
+timed-out pull is cut off even while the target is still generating its
+export (before headers) and never starts its import; a timed-out push
+aborts its upload, and the upload is backpressured so the archive file
+is never read ahead of the network. Local export and the pull-side
+import run to completion and report their actual results. If the archive
+was already fully uploaded before the deadline, the remote outcome is
+unknown and the phase reports reason `timeout_unknown`. A generated
+archive is also bounded by the 2 GiB import request limit.
 
 ### Account
 

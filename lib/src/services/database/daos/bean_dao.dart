@@ -19,6 +19,30 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
     return query.get();
   }
 
+  /// Keyset-paged beans for streaming export: ordered by (createdAt, id)
+  /// ascending; returns up to [limit] rows strictly after the cursor.
+  Future<List<Bean>> getBeansForExport({
+    int limit = 200,
+    DateTime? cursorCreatedAt,
+    String? cursorId,
+  }) {
+    final query = select(beans)
+      ..orderBy([
+        (b) => OrderingTerm.asc(b.createdAt),
+        (b) => OrderingTerm.asc(b.id),
+      ])
+      ..limit(limit);
+    if (cursorCreatedAt != null) {
+      query.where(
+        (b) =>
+            b.createdAt.isBiggerThanValue(cursorCreatedAt) |
+            (b.createdAt.equals(cursorCreatedAt) &
+                b.id.isBiggerThanValue(cursorId!)),
+      );
+    }
+    return query.get();
+  }
+
   Stream<List<Bean>> watchAllBeans({bool includeArchived = false}) {
     final query = select(beans);
     if (!includeArchived) {

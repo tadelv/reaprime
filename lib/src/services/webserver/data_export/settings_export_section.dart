@@ -1,9 +1,15 @@
+import 'dart:convert';
+
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 
+/// Settings is a singleton section: the payload is a fixed small set of
+/// scalar values, wake schedules, and device preferences. It is materialized
+/// as one JSON value, bounded by the handler's maximum record size (the
+/// sink rejects oversized fragments).
 class SettingsExportSection implements DataExportSection {
   final SettingsController _controller;
 
@@ -14,47 +20,51 @@ class SettingsExportSection implements DataExportSection {
   String get filename => 'settings.json';
 
   @override
-  Future<dynamic> export() async {
-    return {
-      'settings': {
-        'gatewayMode': _controller.gatewayMode.name,
-        'logLevel': _controller.logLevel,
-        'themeMode': _controller.themeMode.name,
-        'weightFlowMultiplier': _controller.weightFlowMultiplier,
-        'volumeFlowMultiplier': _controller.volumeFlowMultiplier,
-        'hotWaterFlowMultiplier': _controller.hotWaterFlowMultiplier,
-        'scalePowerMode': _controller.scalePowerMode.name,
-        'blockOnNoScale': _controller.blockOnNoScale,
-        'blockTareDuringShot': _controller.blockTareDuringShot,
-        'stopHotWaterAtWeight': _controller.stopHotWaterAtWeight,
-        'defaultSkinId': _controller.defaultSkinId,
-        'automaticUpdateCheck': _controller.automaticUpdateCheck,
-        'chargingMode': _controller.chargingMode.name,
-        'nightModeEnabled': _controller.nightModeEnabled,
-        'nightModeSleepTime': _controller.nightModeSleepTime,
-        'nightModeMorningTime': _controller.nightModeMorningTime,
-        'userPresenceEnabled': _controller.userPresenceEnabled,
-        'sleepTimeoutMinutes': _controller.sleepTimeoutMinutes,
-      },
-      'wakeSchedules': _controller.wakeSchedules,
-      'devicePreferences': {
-        'preferredMachineId': _controller.preferredMachineId,
-        'preferredScaleId': _controller.preferredScaleId,
-      },
-    };
+  Future<void> exportJson(JsonSink output) async {
+    output.writeRaw(
+      jsonEncode({
+        'settings': {
+          'gatewayMode': _controller.gatewayMode.name,
+          'logLevel': _controller.logLevel,
+          'themeMode': _controller.themeMode.name,
+          'weightFlowMultiplier': _controller.weightFlowMultiplier,
+          'volumeFlowMultiplier': _controller.volumeFlowMultiplier,
+          'hotWaterFlowMultiplier': _controller.hotWaterFlowMultiplier,
+          'scalePowerMode': _controller.scalePowerMode.name,
+          'blockOnNoScale': _controller.blockOnNoScale,
+          'blockTareDuringShot': _controller.blockTareDuringShot,
+          'stopHotWaterAtWeight': _controller.stopHotWaterAtWeight,
+          'defaultSkinId': _controller.defaultSkinId,
+          'automaticUpdateCheck': _controller.automaticUpdateCheck,
+          'chargingMode': _controller.chargingMode.name,
+          'nightModeEnabled': _controller.nightModeEnabled,
+          'nightModeSleepTime': _controller.nightModeSleepTime,
+          'nightModeMorningTime': _controller.nightModeMorningTime,
+          'userPresenceEnabled': _controller.userPresenceEnabled,
+          'sleepTimeoutMinutes': _controller.sleepTimeoutMinutes,
+          'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
+          'keepAwake': _controller.keepAwake,
+        },
+        'wakeSchedules': _controller.wakeSchedules,
+        'devicePreferences': {
+          'preferredMachineId': _controller.preferredMachineId,
+          'preferredScaleId': _controller.preferredScaleId,
+        },
+      }),
+    );
   }
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
     final errors = <String>[];
-    int imported = 0;
+    var imported = 0;
 
     try {
+      final data = await input.readWhole();
       final map = data as Map<String, dynamic>;
-
       // Import settings
       final settings = map['settings'] as Map<String, dynamic>?;
       if (settings != null) {
@@ -202,6 +212,18 @@ class SettingsExportSection implements DataExportSection {
               'sleepTimeoutMinutes must be an integer, got ${v.runtimeType}',
             );
           }
+        }
+
+        if (settings.containsKey('lowBatteryBrightnessLimit')) {
+          await _controller.setLowBatteryBrightnessLimit(
+            settings['lowBatteryBrightnessLimit'] as bool,
+          );
+          imported++;
+        }
+
+        if (settings.containsKey('keepAwake')) {
+          await _controller.setKeepAwake(settings['keepAwake'] as bool);
+          imported++;
         }
       }
 

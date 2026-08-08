@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
@@ -21,13 +21,15 @@ import 'package:reaprime/src/import/widgets/import_summary_view.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
-import 'package:reaprime/src/settings/backup_export_response.dart';
 import 'package:reaprime/src/settings/backup_import_response.dart';
+import 'package:reaprime/src/services/webserver/data_export/backup_transfer_service.dart';
+import 'package:reaprime/src/util/temp_archive_files.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:share_plus/share_plus.dart';
 
 final Logger _log = Logger("DataManagement");
 
@@ -284,56 +286,62 @@ class _DataManagementPageState extends State<DataManagementPage> {
     if (!mounted) return;
     _showProgressDialog(context, 'Preparing full backup...');
 
-    late final BackupExportResponse exportResponse;
-    final client = HttpClient();
+    final tempDir = await TempArchiveDir.create('reaprime-native-export-');
+    final transfer = BackupTransferService();
+    late final File zipFile;
     try {
-      final request = await client.getUrl(
-        Uri.parse('http://localhost:8080/api/v1/data/export'),
-      );
-      final response = await request.close();
-      final builder = BytesBuilder();
-      await for (final chunk in response) {
-        builder.add(chunk);
-      }
-      exportResponse = BackupExportResponse.fromHttp(
-        statusCode: response.statusCode,
-        mimeType: response.headers.contentType?.mimeType,
-        bytes: builder.takeBytes(),
+      // Streams the localhost response into a temp file after validating
+      // HTTP status and MIME; never accumulates the archive in memory.
+      zipFile = await transfer.downloadExportZip(
+        'http://localhost:8080/api/v1/data/export',
+        tempDir.directory,
       );
     } catch (e) {
       _log.severe("Failed to export full backup", e);
       _dismissProgressDialog();
+      await tempDir.dispose();
       if (mounted) {
-        final message = e is BackupExportException ? e.message : '$e';
+        final message = e is BackupTransferException ? e.message : '$e';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to export full backup: $message')),
         );
       }
       return;
     } finally {
-      client.close();
+      transfer.close();
     }
 
-    if (!mounted) return;
-    _dismissProgressDialog(); // dismiss progress dialog before picker
+    if (!mounted) {
+      // The page went away while downloading; the downloaded backup must not
+      // be left behind in the system temp directory.
+      await tempDir.dispose();
+      return;
+    }
+    _dismissProgressDialog(); // dismiss progress dialog before picker/share
 
-    try {
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final fileName = 'decent_export_$timestamp.zip';
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
+    final fileName = 'decent_export_$timestamp.zip';
 
-      final outputFile = await FilePicker.saveFile(
-        fileName: fileName,
-        dialogTitle: 'Choose where to save backup',
-        bytes: exportResponse.bytes,
-      );
-
-      if (outputFile != null) {
-        // file_picker writes bytes on all platforms (mobile SAF, desktop
-        // saveBytesToFile, web Blob download) — no manual write needed.
+    if (Platform.isIOS || Platform.isAndroid) {
+      // OS share/save sheet with the temp file; the receiving app may read
+      // the file after the sheet closes, so cleanup is deferred.
+      try {
+        final result = await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(zipFile.path, mimeType: 'application/zip')],
+            subject: 'Decent backup',
+          ),
+        );
+        if (result.status == ShareResultStatus.dismissed) {
+          // Cancelled — do not report success.
+          await tempDir.dispose();
+          return;
+        }
+        Timer(const Duration(minutes: 5), () => tempDir.dispose());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -342,13 +350,43 @@ class _DataManagementPageState extends State<DataManagementPage> {
             ),
           );
         }
+      } catch (e) {
+        _log.severe("Failed to export full backup", e);
+        await tempDir.dispose();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to export full backup: $e')),
+          );
+        }
       }
-    } catch (e) {
-      _log.severe("Failed to export full backup", e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export full backup: $e')),
+    } else {
+      try {
+        // Desktop: obtain a destination path, then stream-copy the temp
+        // file (no bytes are passed to the picker).
+        final outputFile = await FilePicker.saveFile(
+          fileName: fileName,
+          dialogTitle: 'Choose where to save backup',
         );
+        if (outputFile != null) {
+          await zipFile.copy(outputFile);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Full backup exported successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        _log.severe("Failed to export full backup", e);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to export full backup: $e')),
+          );
+        }
+      } finally {
+        await tempDir.dispose();
       }
     }
   }
@@ -519,6 +557,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
+      withReadStream: true,
     );
     if (result == null || result.files.isEmpty) return;
 
@@ -527,42 +566,48 @@ class _DataManagementPageState extends State<DataManagementPage> {
     // Show progress dialog
     _showProgressDialog(context, 'Importing backup...');
 
+    final transfer = BackupTransferService();
     try {
       final file = result.files.first;
-      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
-
-      final client = HttpClient();
-      try {
-        final request = await client.postUrl(
-          Uri.parse(
-            'http://localhost:8080/api/v1/data/import?onConflict=$strategy',
-          ),
+      // Prefer the picker's local path; fall back to the read stream (cloud/
+      // provider files) or an in-memory blob for tiny files. Never read the
+      // whole archive via readAsBytes().
+      final filePath = file.path;
+      Stream<List<int>>? readStream = file.readStream;
+      final int? length;
+      if (filePath != null) {
+        length = await File(filePath).length();
+      } else if (readStream != null) {
+        length = null;
+      } else if (file.bytes != null) {
+        readStream = Stream.fromIterable([file.bytes!]);
+        length = file.bytes!.length;
+      } else {
+        throw const BackupImportException(
+          'Could not access the selected file.',
         );
-        request.headers.contentType = ContentType('application', 'zip');
-        request.add(bytes);
-        final response = await request.close();
-        final responseBody = await response.transform(utf8.decoder).join();
+      }
 
-        final importResponse = BackupImportResponse.fromHttp(
-          response.statusCode,
-          responseBody,
-        );
+      final importResponse = await transfer.uploadZip(
+        'http://localhost:8080/api/v1/data/import',
+        strategy,
+        filePath: filePath,
+        readStream: readStream,
+        contentLength: length,
+      );
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        // Pop progress dialog
-        Navigator.of(context).pop();
+      // Pop progress dialog
+      Navigator.of(context).pop();
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        // Show result summary
-        await _showImportResultDialog(importResponse);
+      // Show result summary
+      await _showImportResultDialog(importResponse);
 
-        if (importResponse.shouldNotifyShotsChanged) {
-          widget.persistenceController.notifyShotsChanged();
-        }
-      } finally {
-        client.close();
+      if (importResponse.shouldNotifyShotsChanged) {
+        widget.persistenceController.notifyShotsChanged();
       }
     } on BackupImportException catch (e) {
       _log.severe("Failed to import backup", e);
@@ -580,6 +625,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to import backup: $e')));
       }
+    } finally {
+      transfer.close();
     }
   }
 

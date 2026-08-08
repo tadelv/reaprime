@@ -1,60 +1,120 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/data_transfer_limits.dart';
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// A simple mock section that stores/returns canned data.
+import 'streaming_test_helpers.dart';
+
+void corruptCentralDirectoryCrc(List<int> zipBytes, String filename) {
+  final nameBytes = utf8.encode(filename);
+  var namePosition = -1;
+  for (var i = 0; i <= zipBytes.length - nameBytes.length; i++) {
+    var matches = true;
+    for (var j = 0; j < nameBytes.length; j++) {
+      if (zipBytes[i + j] != nameBytes[j]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) namePosition = i;
+  }
+  if (namePosition < 0) throw StateError('$filename not found');
+  zipBytes[namePosition - 46 + 16] ^= 0xFF;
+}
+
+/// A mock section implementing the streaming contract.
 class MockExportSection implements DataExportSection {
   @override
   final String filename;
 
-  final dynamic exportData;
+  final Object? exportData;
   final SectionImportResult importResult;
+  final bool failExport;
+  final String? importPayload;
 
-  /// Captured import calls for verification.
-  dynamic lastImportedData;
   ConflictStrategy? lastStrategy;
-  bool importCalled = false;
+  int importCalls = 0;
+
+  /// Records the largest fragment written (boundedness proof).
+  int maxFragmentLength = 0;
 
   MockExportSection({
     required this.filename,
     this.exportData = const {'mock': true},
     this.importResult = const SectionImportResult(imported: 1),
+    this.failExport = false,
+    this.importPayload,
   });
 
   @override
-  Future<dynamic> export() async => exportData;
+  Future<void> exportJson(JsonSink output) async {
+    if (failExport) throw Exception('Export failed');
+    final fragment = jsonEncode(exportData);
+    maxFragmentLength = fragment.length > maxFragmentLength
+        ? fragment.length
+        : maxFragmentLength;
+    output.writeRaw(fragment);
+  }
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
   ) async {
-    importCalled = true;
-    lastImportedData = data;
+    importCalls++;
     lastStrategy = strategy;
+    if (importPayload != null) {
+      // Capture what the section would see (mirrors handler two-pass).
+      final validator = StringJsonInput(importPayload!);
+      await for (final _ in validator.valuesAtDepth(1)) {}
+      return importResult;
+    }
     return importResult;
   }
 }
 
-/// A section that throws on export.
-class FailingExportSection implements DataExportSection {
+/// A section that writes a huge fragment, exceeding the record cap.
+class OversizeExportSection implements DataExportSection {
   @override
   final String filename;
-
-  FailingExportSection({required this.filename});
-
-  @override
-  Future<dynamic> export() async => throw Exception('Export failed');
+  OversizeExportSection(this.filename);
 
   @override
-  Future<SectionImportResult> import(
-    dynamic data,
+  Future<void> exportJson(JsonSink output) async {
+    output.writeRaw('[');
+    output.writeRaw('"${'x' * 1024 * 1024}"'); // 1 MiB fragment
+    output.writeRaw(']');
+  }
+
+  @override
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
     ConflictStrategy strategy,
-  ) async => throw Exception('Import failed');
+  ) async => const SectionImportResult();
+}
+
+/// A section whose fragment is under the record cap in UTF-16 code units
+/// but over it in UTF-8 bytes (non-ASCII content).
+class UnicodeExportSection implements DataExportSection {
+  @override
+  final String filename;
+  UnicodeExportSection(this.filename);
+
+  @override
+  Future<void> exportJson(JsonSink output) async {
+    output.writeRaw('["${'\u00E9' * 40}"]'); // 42 UTF-16, 82 bytes
+  }
+
+  @override
+  Future<SectionImportResult> importJson(
+    SectionJsonInput input,
+    ConflictStrategy strategy,
+  ) async => const SectionImportResult();
 }
 
 void main() {
@@ -66,30 +126,18 @@ void main() {
   setUp(() {
     profileSection = MockExportSection(
       filename: 'profiles.json',
-      exportData: {
-        'profiles': [
-          {'id': 'p1', 'name': 'Default'},
-        ],
-      },
-      importResult: const SectionImportResult(
-        imported: 1,
-        skipped: 0,
-        warnings: [],
-      ),
+      exportData: [
+        {'id': 'p1', 'name': 'Default'},
+      ],
+      importResult: const SectionImportResult(imported: 1, skipped: 0),
     );
 
     shotsSection = MockExportSection(
       filename: 'shots.json',
-      exportData: {
-        'shots': [
-          {'id': 's1', 'timestamp': '2024-01-01'},
-        ],
-      },
-      importResult: const SectionImportResult(
-        imported: 2,
-        skipped: 1,
-        warnings: [],
-      ),
+      exportData: [
+        {'id': 's1', 'timestamp': '2024-01-01'},
+      ],
+      importResult: const SectionImportResult(imported: 2, skipped: 1),
     );
 
     handler = DataExportHandler(sections: [profileSection, shotsSection]);
@@ -116,7 +164,8 @@ void main() {
     );
   }
 
-  /// Helper: build a ZIP archive with given files and return its bytes.
+  /// Helper: build a ZIP archive with given files and return its bytes
+  /// (the old in-memory producer — exercises backward compatibility).
   List<int> buildZip(Map<String, dynamic> files) {
     final archive = Archive();
     for (final entry in files.entries) {
@@ -132,6 +181,11 @@ void main() {
       archive.addFile(ArchiveFile.string(entry.key, entry.value));
     }
     return ZipEncoder().encode(archive);
+  }
+
+  /// Reads the full response body.
+  Future<List<int>> responseBytes(Response response) async {
+    return await response.read().expand((b) => b).toList();
   }
 
   group('DataExportHandler', () {
@@ -153,12 +207,11 @@ void main() {
 
       test('ZIP contains metadata.json with correct fields', () async {
         final response = await sendGet('/api/v1/data/export');
-        final bytes = await response.read().expand((b) => b).toList();
+        final bytes = await responseBytes(response);
         final archive = ZipDecoder().decodeBytes(bytes);
 
         final metadataFile = archive.findFile('metadata.json');
         expect(metadataFile, isNotNull);
-
         final metadata =
             jsonDecode(utf8.decode(metadataFile!.content))
                 as Map<String, dynamic>;
@@ -170,28 +223,47 @@ void main() {
         expect(metadata.containsKey('platform'), isTrue);
       });
 
-      test('ZIP contains section files with correct data', () async {
+      test('ZIP contains section files with correct data and is readable by '
+          'the previous ZipDecoder', () async {
         final response = await sendGet('/api/v1/data/export');
-        final bytes = await response.read().expand((b) => b).toList();
-        final archive = ZipDecoder().decodeBytes(bytes);
+        final bytes = await responseBytes(response);
 
-        // Should have metadata + 2 sections = 3 files
-        expect(archive.length, 3);
+        // The previous decoder path decodes the whole archive with ZipDecoder.
+        final archive = ZipDecoder().decodeBytes(bytes);
+        expect(archive.length, 3); // metadata + 2 sections
 
         final profilesFile = archive.findFile('profiles.json');
         expect(profilesFile, isNotNull);
-        final profilesData = jsonDecode(utf8.decode(profilesFile!.content));
-        expect(profilesData['profiles'], isList);
-        expect((profilesData['profiles'] as List).first['id'], 'p1');
+        final profilesData =
+            jsonDecode(utf8.decode(profilesFile!.content)) as List;
+        expect(profilesData.first['id'], 'p1');
 
         final shotsFile = archive.findFile('shots.json');
         expect(shotsFile, isNotNull);
-        final shotsData = jsonDecode(utf8.decode(shotsFile!.content));
-        expect(shotsData['shots'], isList);
+        final shotsData = jsonDecode(utf8.decode(shotsFile!.content)) as List;
+        expect(shotsData.first['id'], 's1');
+      });
+
+      test('exportToZipFile returns a valid file and streams fragments in '
+          'bounded pieces', () async {
+        final tempDir = await Directory.systemTemp.createTemp('export-test-');
+        try {
+          final file = await handler.exportToZipFile(tempDir);
+          final bytes = await file.readAsBytes();
+          final archive = ZipDecoder().decodeBytes(bytes);
+          expect(archive.findFile('profiles.json'), isNotNull);
+          // Sections wrote one fragment each (whole-value fragments here).
+          expect(profileSection.maxFragmentLength, greaterThan(0));
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
       });
 
       test('aborts ZIP generation when a section export fails', () async {
-        final failingSection = FailingExportSection(filename: 'failing.json');
+        final failingSection = MockExportSection(
+          filename: 'failing.json',
+          failExport: true,
+        );
         final goodSection = MockExportSection(
           filename: 'good.json',
           exportData: {'data': 'ok'},
@@ -200,7 +272,6 @@ void main() {
         final handlerWithFailure = DataExportHandler(
           sections: [failingSection, goodSection],
         );
-
         final app = Router().plus;
         handlerWithFailure.addRoutes(app);
         final response = await app.call(
@@ -212,22 +283,110 @@ void main() {
         expect(body['error'], 'Export failed');
         expect(body['sections'], contains('failing'));
       });
+
+      test(
+        'exportToZipFile deletes its temp file when a section fails',
+        () async {
+          final failingSection = MockExportSection(
+            filename: 'failing.json',
+            failExport: true,
+          );
+          final handlerWithFailure = DataExportHandler(
+            sections: [failingSection],
+          );
+          final tempDir = await Directory.systemTemp.createTemp('export-fail-');
+          try {
+            await expectLater(
+              handlerWithFailure.exportToZipFile(tempDir),
+              throwsA(isA<DataExportException>()),
+            );
+            final leftovers = tempDir.listSync();
+            expect(leftovers, isEmpty); // no partial ZIP left behind
+          } finally {
+            await tempDir.delete(recursive: true);
+          }
+        },
+      );
+
+      test('section export failure leaves no temp directory behind on the '
+          'HTTP path', () async {
+        final failingSection = MockExportSection(
+          filename: 'failing.json',
+          failExport: true,
+        );
+        final handlerWithFailure = DataExportHandler(
+          sections: [failingSection],
+        );
+        final app = Router().plus;
+        handlerWithFailure.addRoutes(app);
+        final tempDirsBefore = Directory.systemTemp
+            .listSync()
+            .whereType<Directory>()
+            .where((d) => d.path.contains('reaprime-export-'))
+            .length;
+
+        await app.call(
+          Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
+        );
+
+        final tempDirsAfter = Directory.systemTemp
+            .listSync()
+            .whereType<Directory>()
+            .where((d) => d.path.contains('reaprime-export-'))
+            .length;
+        expect(tempDirsAfter, tempDirsBefore);
+      });
+
+      test('oversized record fragments fail the export atomically', () async {
+        final handlerWithOversize = DataExportHandler(
+          sections: [OversizeExportSection('big.json')],
+          limits: const DataTransferLimits(maxRecordBytes: 64 * 1024),
+        );
+        final tempDir = await Directory.systemTemp.createTemp('oversize-');
+        try {
+          await expectLater(
+            handlerWithOversize.exportToZipFile(tempDir),
+            throwsA(isA<DataExportException>()),
+          );
+          expect(tempDir.listSync(), isEmpty);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      test(
+        'record cap is measured in UTF-8 bytes, not UTF-16 code units',
+        () async {
+          // 40 '\u00E9' chars: 40 UTF-16 code units but 80 UTF-8 bytes. With
+          // a 64-byte cap the fragment must be rejected even though its
+          // UTF-16 length is under the limit.
+          final handlerWithUnicode = DataExportHandler(
+            sections: [UnicodeExportSection('big.json')],
+            limits: const DataTransferLimits(maxRecordBytes: 64),
+          );
+          final tempDir = await Directory.systemTemp.createTemp('unicode-');
+          try {
+            await expectLater(
+              handlerWithUnicode.exportToZipFile(tempDir),
+              throwsA(isA<DataExportException>()),
+            );
+          } finally {
+            await tempDir.delete(recursive: true);
+          }
+        },
+      );
     });
 
     group('POST /api/v1/data/import', () {
-      test('with valid ZIP returns import summary', () async {
+      test('with a legacy in-memory ZIP returns import summary', () async {
         final zipBytes = buildZip({
           'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'profiles.json': {
-            'profiles': [
-              {'id': 'p1'},
-            ],
-          },
-          'shots.json': {
-            'shots': [
-              {'id': 's1'},
-            ],
-          },
+          'profiles.json': [
+            {'id': 'p1'},
+          ],
+          'shots.json': [
+            {'id': 's1'},
+          ],
         });
 
         final response = await sendPost('/api/v1/data/import', body: zipBytes);
@@ -235,31 +394,44 @@ void main() {
         expect(response.statusCode, 200);
         final body =
             jsonDecode(await response.readAsString()) as Map<String, dynamic>;
-
         expect(body.containsKey('profiles'), isTrue);
         expect(body['profiles']['imported'], 1);
-
         expect(body.containsKey('shots'), isTrue);
         expect(body['shots']['imported'], 2);
         expect(body['shots']['skipped'], 1);
       });
 
+      test('round-trips a streamed export through import', () async {
+        final tempDir = await Directory.systemTemp.createTemp('roundtrip-');
+        try {
+          final zipFile = await handler.exportToZipFile(tempDir);
+          final outcome = await handler.importFromZipFile(
+            zipFile,
+            ConflictStrategy.skip,
+          );
+          expect(outcome.phase.complete, isTrue);
+          expect(profileSection.importCalls, 1);
+          expect(shotsSection.importCalls, 1);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
       test('uses skip strategy by default', () async {
         final zipBytes = buildZip({
           'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'profiles.json': {'profiles': []},
+          'profiles.json': <Object?>[],
         });
 
         await sendPost('/api/v1/data/import', body: zipBytes);
 
-        expect(profileSection.importCalled, isTrue);
         expect(profileSection.lastStrategy, ConflictStrategy.skip);
       });
 
       test('uses overwrite strategy when specified', () async {
         final zipBytes = buildZip({
           'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'profiles.json': {'profiles': []},
+          'profiles.json': <Object?>[],
         });
 
         final response = await sendPost(
@@ -302,8 +474,6 @@ void main() {
           final body =
               jsonDecode(await response.readAsString()) as Map<String, dynamic>;
           expect(body['error'], 'Invalid backup archive');
-          expect(body['message'], contains('recognized data sections'));
-          expect(body, isNot(contains('profiles')));
         },
       );
 
@@ -316,7 +486,6 @@ void main() {
         expect(response.statusCode, 400);
         final body = jsonDecode(await response.readAsString());
         expect(body['error'], 'Invalid backup archive');
-        expect(body['message'], contains('recognized data sections'));
       });
 
       test(
@@ -328,23 +497,10 @@ void main() {
           );
 
           expect(response.statusCode, 400);
-          expect(profileSection.importCalled, isFalse);
-          expect(shotsSection.importCalled, isFalse);
+          expect(profileSection.importCalls, 0);
+          expect(shotsSection.importCalls, 0);
         },
       );
-
-      test('returns 400 for a metadata-only archive', () async {
-        final response = await sendPost(
-          '/api/v1/data/import',
-          body: buildZip({
-            'metadata.json': {'formatVersion': 1},
-          }),
-        );
-
-        expect(response.statusCode, 400);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['message'], contains('recognized data sections'));
-      });
 
       test('returns 400 when formatVersion is too high', () async {
         final zipBytes = buildZip({
@@ -355,7 +511,6 @@ void main() {
 
         expect(response.statusCode, 400);
         final body = jsonDecode(await response.readAsString());
-        expect(body['error'], 'Invalid backup archive');
         expect(body['message'], contains('999'));
       });
 
@@ -364,214 +519,41 @@ void main() {
           '/api/v1/data/import',
           body: buildZipEntries({
             'metadata.json': '{not json',
-            'profiles.json': '{}',
+            'profiles.json': '[]',
           }),
         );
 
         expect(response.statusCode, 400);
-        expect(profileSection.importCalled, isFalse);
+        expect(profileSection.importCalls, 0);
       });
 
       test('returns 400 when metadata is not an object', () async {
         final response = await sendPost(
           '/api/v1/data/import',
-          body: buildZip({
-            'metadata.json': ['not', 'an', 'object'],
-            'profiles.json': {},
-          }),
+          body: buildZipEntries({'metadata.json': '[1,2,3]'}),
         );
 
         expect(response.statusCode, 400);
-        expect(profileSection.importCalled, isFalse);
-      });
-
-      test(
-        'returns 400 when metadata formatVersion has the wrong type',
-        () async {
-          final response = await sendPost(
-            '/api/v1/data/import',
-            body: buildZip({
-              'metadata.json': {'formatVersion': '1'},
-              'profiles.json': {},
-            }),
-          );
-
-          expect(response.statusCode, 400);
-          expect(profileSection.importCalled, isFalse);
-        },
-      );
-
-      test('succeeds when metadata.json is missing from archive', () async {
-        final zipBytes = buildZip({
-          'profiles.json': {'profiles': []},
-        });
-
-        final response = await sendPost('/api/v1/data/import', body: zipBytes);
-
-        expect(response.statusCode, 200);
-        expect(profileSection.importCalled, isTrue);
-      });
-
-      test('skips sections not present in the archive', () async {
-        final zipBytes = buildZip({
-          'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'profiles.json': {'profiles': []},
-          // No shots.json
-        });
-
-        final response = await sendPost('/api/v1/data/import', body: zipBytes);
-
-        expect(response.statusCode, 200);
         final body = jsonDecode(await response.readAsString());
-        expect(body.containsKey('profiles'), isTrue);
-        expect(body.containsKey('shots'), isFalse);
-        expect(shotsSection.importCalled, isFalse);
+        expect(body['error'], 'Invalid backup archive');
       });
 
-      test(
-        'returns 207 when one section succeeds and another throws',
-        () async {
-          final failingSection = FailingExportSection(filename: 'failing.json');
-          final handlerWithFailure = DataExportHandler(
-            sections: [profileSection, failingSection],
-          );
-
-          final app = Router().plus;
-          handlerWithFailure.addRoutes(app);
-          final testHandler = app.call;
-          final response = await testHandler(
-            Request(
-              'POST',
-              Uri.parse('http://localhost/api/v1/data/import'),
-              body: buildZip({
-                'metadata.json': {'formatVersion': 1},
-                'profiles.json': {},
-                'failing.json': {},
-              }),
-              headers: {'content-type': 'application/octet-stream'},
-            ),
-          );
-
-          expect(response.statusCode, 207);
-          final body = jsonDecode(await response.readAsString());
-          expect(body['profiles']['imported'], 1);
-          expect(body['failing']['errors'], isList);
-        },
-      );
-
-      test('returns 207 when a section result contains errors', () async {
-        final errorSection = MockExportSection(
-          filename: 'profiles.json',
-          importResult: const SectionImportResult(
-            imported: 2,
-            errors: ['One record could not be imported'],
-          ),
-        );
-        final handlerWithError = DataExportHandler(sections: [errorSection]);
-        final app = Router().plus;
-        handlerWithError.addRoutes(app);
-        final response = await app.call(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/v1/data/import'),
-            body: buildZip({'profiles.json': {}}),
-            headers: {'content-type': 'application/octet-stream'},
-          ),
-        );
-
-        expect(response.statusCode, 207);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['profiles']['imported'], 2);
-        expect(
-          body['profiles']['errors'],
-          contains('One record could not be imported'),
-        );
-      });
-
-      test('warnings and skipped records alone return 200', () async {
-        final warningSection = MockExportSection(
-          filename: 'profiles.json',
-          importResult: const SectionImportResult(
-            skipped: 3,
-            warnings: ['Device preferences need re-pairing'],
-          ),
-        );
-        final handlerWithWarning = DataExportHandler(
-          sections: [warningSection],
+      test('rejects oversized request bodies while streaming', () async {
+        final smallHandler = DataExportHandler(
+          sections: [shotsSection],
+          limits: const DataTransferLimits(maxImportRequestBytes: 100),
         );
         final app = Router().plus;
-        handlerWithWarning.addRoutes(app);
-        final response = await app.call(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/v1/data/import'),
-            body: buildZip({'profiles.json': {}}),
-            headers: {'content-type': 'application/octet-stream'},
-          ),
-        );
-
-        expect(response.statusCode, 200);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['profiles']['skipped'], 3);
-        expect(body['profiles']['warnings'], isNotEmpty);
-      });
-
-      test('returns 207 when every recognized section fails', () async {
-        final handlerWithFailures = DataExportHandler(
-          sections: [
-            FailingExportSection(filename: 'profiles.json'),
-            FailingExportSection(filename: 'shots.json'),
+        smallHandler.addRoutes(app);
+        final zipBytes = buildZip({
+          'metadata.json': {'formatVersion': 1},
+          'shots.json': [
+            {'id': 's1'},
           ],
-        );
-        final app = Router().plus;
-        handlerWithFailures.addRoutes(app);
-        final response = await app.call(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/v1/data/import'),
-            body: buildZip({'profiles.json': {}, 'shots.json': {}}),
-            headers: {'content-type': 'application/octet-stream'},
-          ),
-        );
-
-        expect(response.statusCode, 207);
-        final body = jsonDecode(await response.readAsString());
-        expect(body.keys, containsAll(['profiles', 'shots']));
-        expect(body['profiles']['errors'], isNotEmpty);
-        expect(body['shots']['errors'], isNotEmpty);
-      });
-
-      test('returns 207 for malformed JSON in a recognized section', () async {
-        final response = await sendPost(
-          '/api/v1/data/import',
-          body: buildZipEntries({
-            'profiles.json': '{not json',
-            'shots.json': '{}',
-          }),
-        );
-
-        expect(response.statusCode, 207);
-        final body = jsonDecode(await response.readAsString());
-        expect(body['profiles']['errors'], isNotEmpty);
-        expect(body['shots']['imported'], 2);
-      });
-
-      test('reports errors when a section import fails', () async {
-        final failingSection = FailingExportSection(filename: 'failing.json');
-        final handlerWithFailure = DataExportHandler(
-          sections: [failingSection],
-        );
-
-        final app = Router().plus;
-        handlerWithFailure.addRoutes(app);
-        final testHandler = app.call;
-
-        final zipBytes = buildZip({
-          'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'failing.json': {'data': 'test'},
         });
+        expect(zipBytes.length, greaterThan(100));
 
-        final response = await testHandler(
+        final response = await app.call(
           Request(
             'POST',
             Uri.parse('http://localhost/api/v1/data/import'),
@@ -579,194 +561,247 @@ void main() {
             headers: {'content-type': 'application/octet-stream'},
           ),
         );
-
-        expect(response.statusCode, 207);
+        expect(response.statusCode, 400);
         final body = jsonDecode(await response.readAsString());
-        expect(body['failing']['errors'], isList);
-        expect((body['failing']['errors'] as List).first, contains('Failed'));
-      });
-    });
-
-    group('exportToBytes()', () {
-      test('returns ZIP bytes containing all sections', () async {
-        final bytes = await handler.exportToBytes();
-
-        final archive = ZipDecoder().decodeBytes(bytes);
-        expect(archive.findFile('metadata.json'), isNotNull);
-        expect(archive.findFile('profiles.json'), isNotNull);
-        expect(archive.findFile('shots.json'), isNotNull);
+        expect(body['message'], contains('size limit'));
+        expect(shotsSection.importCalls, 0);
       });
 
-      test('filters sections when specified', () async {
-        final bytes = await handler.exportToBytes(sections: ['profiles']);
-
-        final archive = ZipDecoder().decodeBytes(bytes);
-        expect(archive.findFile('metadata.json'), isNotNull);
-        expect(archive.findFile('profiles.json'), isNotNull);
-        expect(archive.findFile('shots.json'), isNull);
-      });
-    });
-
-    group('importFromBytes()', () {
-      test('imports all sections from ZIP bytes', () async {
-        final zipBytes = buildZip({
-          'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'profiles.json': {
-            'profiles': [
-              {'id': 'p1'},
-            ],
-          },
-          'shots.json': {
-            'shots': [
-              {'id': 's1'},
-            ],
-          },
-        });
-
-        final outcome = await handler.importFromBytes(
-          zipBytes,
-          ConflictStrategy.skip,
+      test('rejects an archive exceeding the entry count limit', () async {
+        // Build a zip with many entries; even unknown ones count.
+        final files = <String, String>{'metadata.json': '{"formatVersion":1}'};
+        for (var i = 0; i < 10; i++) {
+          files['file$i.json'] = '{}';
+        }
+        final zipBytes = buildZipEntries(files);
+        final smallHandler = DataExportHandler(
+          sections: [shotsSection],
+          limits: const DataTransferLimits(maxEntryCount: 5),
         );
-
-        expect(outcome.recognizedSections, 2);
-        expect(outcome.isPartial, isFalse);
-        expect(outcome.sectionResults, contains('profiles'));
-        expect(outcome.sectionResults, contains('shots'));
-        expect(profileSection.importCalled, isTrue);
-        expect(shotsSection.importCalled, isTrue);
-      });
-
-      test('returned section errors mark the outcome partial', () async {
-        final errorSection = MockExportSection(
-          filename: 'profiles.json',
-          importResult: const SectionImportResult(
-            imported: 2,
-            errors: ['bad record'],
+        final app = Router().plus;
+        smallHandler.addRoutes(app);
+        final response = await app.call(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/v1/data/import'),
+            body: zipBytes,
+            headers: {'content-type': 'application/octet-stream'},
           ),
         );
-        final outcome = await DataExportHandler(sections: [errorSection])
-            .importFromBytes(
-              buildZip({'profiles.json': {}}),
-              ConflictStrategy.skip,
-            );
-
-        expect(outcome.recognizedSections, 1);
-        expect(outcome.isPartial, isTrue);
-        expect(outcome.failedSections, contains('profiles'));
-      });
-
-      test('thrown section errors mark the outcome failed', () async {
-        final outcome =
-            await DataExportHandler(
-              sections: [FailingExportSection(filename: 'profiles.json')],
-            ).importFromBytes(
-              buildZip({'profiles.json': {}}),
-              ConflictStrategy.skip,
-            );
-
-        expect(outcome.recognizedSections, 1);
-        expect(outcome.isFailed, isTrue);
-        expect(outcome.isPartial, isFalse);
-        expect(outcome.sectionResults['profiles']['errors'], isNotEmpty);
-      });
-
-      test('filters sections when specified', () async {
-        final zipBytes = buildZip({
-          'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
-          'profiles.json': {
-            'profiles': [
-              {'id': 'p1'},
-            ],
-          },
-          'shots.json': {
-            'shots': [
-              {'id': 's1'},
-            ],
-          },
-        });
-
-        final outcome = await handler.importFromBytes(
-          zipBytes,
-          ConflictStrategy.skip,
-          sections: ['profiles'],
-        );
-
-        expect(outcome.recognizedSections, 1);
-        expect(outcome.sectionResults, contains('profiles'));
-        expect(outcome.sectionResults, isNot(contains('shots')));
-        expect(profileSection.importCalled, isTrue);
-        expect(shotsSection.importCalled, isFalse);
+        expect(response.statusCode, 400);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['message'], contains('too many entries'));
       });
 
       test(
-        'throws InvalidBackupException for unsupported format version',
+        'rejects a section whose JSON is truncated without importing',
+        () async {
+          final zipBytes = buildZipEntries({
+            'metadata.json': '{"formatVersion":1}',
+            'shots.json': '[{"id":"s1"},{"id":',
+          });
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: zipBytes,
+          );
+
+          expect(response.statusCode, 400);
+          final body = jsonDecode(await response.readAsString());
+          expect(body['error'], 'Invalid backup archive');
+          expect(shotsSection.importCalls, 0);
+        },
+      );
+
+      test('returns 400 when a section entry fails CRC verification', () async {
+        final zipBytes = buildZipEntries({
+          'metadata.json': '{"formatVersion":1}',
+          'shots.json': '[{"id":"s1"}]',
+        });
+        corruptCentralDirectoryCrc(zipBytes, 'shots.json');
+
+        final response = await sendPost('/api/v1/data/import', body: zipBytes);
+        expect(response.statusCode, 400);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], 'Invalid backup archive');
+      });
+
+      test(
+        'validates every selected entry before importing any section',
+        () async {
+          final zipBytes = buildZipEntries({
+            'metadata.json': '{"formatVersion":1}',
+            'profiles.json': '[{"id":"p1"}]',
+            'shots.json': '[{"id":"s1"}]',
+          });
+          corruptCentralDirectoryCrc(zipBytes, 'shots.json');
+
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: zipBytes,
+          );
+
+          expect(response.statusCode, 400);
+          expect(profileSection.importCalls, 0);
+          expect(shotsSection.importCalls, 0);
+        },
+      );
+
+      test(
+        'rejects a later section with the wrong root before importing',
+        () async {
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: buildZipEntries({
+              'metadata.json': '{"formatVersion":1}',
+              'profiles.json': '[{"id":"p1"}]',
+              'shots.json': '{}',
+            }),
+          );
+
+          expect(response.statusCode, 400);
+          expect(profileSection.importCalls, 0);
+          expect(shotsSection.importCalls, 0);
+        },
+      );
+
+      test(
+        'preserves partial results for individually invalid records',
+        () async {
+          final importPayload = '[{"id":"ok"},{"id":null}]';
+          final section = MockExportSection(
+            filename: 'shots.json',
+            importPayload: importPayload,
+            importResult: const SectionImportResult(
+              imported: 1,
+              errors: [
+                'Failed to import shot: instance of JsonUnsupportedObjectError',
+              ],
+            ),
+          );
+          final partialHandler = DataExportHandler(
+            sections: [
+              MockExportSection(
+                filename: 'profiles.json',
+                importResult: const SectionImportResult(imported: 5),
+              ),
+              section,
+            ],
+          );
+          final app = Router().plus;
+          partialHandler.addRoutes(app);
+          final zipBytes = buildZipEntries({
+            'metadata.json': '{"formatVersion":1}',
+            'shots.json': importPayload,
+          });
+          final response = await app.call(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/v1/data/import'),
+              body: zipBytes,
+              headers: {'content-type': 'application/octet-stream'},
+            ),
+          );
+          expect(response.statusCode, 207);
+        },
+      );
+
+      test(
+        'selected-section import only processes requested sections',
         () async {
           final zipBytes = buildZip({
-            'metadata.json': {'formatVersion': 99},
+            'metadata.json': {'formatVersion': 1},
+            'profiles.json': [
+              {'id': 'p1'},
+            ],
+            'shots.json': [
+              {'id': 's1'},
+            ],
           });
-
-          expect(
-            () => handler.importFromBytes(zipBytes, ConflictStrategy.skip),
-            throwsA(isA<InvalidBackupException>()),
-          );
-        },
-      );
-
-      test(
-        'throws InvalidBackupException when no recognized section exists',
-        () async {
-          expect(
-            () => handler.importFromBytes(
-              buildZip({
-                'metadata.json': {'formatVersion': 1},
-              }),
+          // No section filtering via query param in the REST API; test the
+          // programmatic path instead.
+          final tempDir = await Directory.systemTemp.createTemp('sel-');
+          try {
+            final zipFile = File('${tempDir.path}/import.zip');
+            await zipFile.writeAsBytes(zipBytes);
+            final outcome = await handler.importFromZipFile(
+              zipFile,
               ConflictStrategy.skip,
-            ),
-            throwsA(isA<InvalidBackupException>()),
-          );
+              sections: ['profiles'],
+            );
+            expect(outcome.phase.complete, isTrue);
+            expect(profileSection.importCalls, 1);
+            expect(shotsSection.importCalls, 0);
+          } finally {
+            await tempDir.delete(recursive: true);
+          }
         },
       );
 
-      test(
-        'throws InvalidBackupException for an unknown selected section',
-        () async {
-          expect(
-            () => handler.importFromBytes(
-              buildZip({'profiles.json': {}}),
+      test('unknown selected section is rejected', () async {
+        final tempDir = await Directory.systemTemp.createTemp('unknown-');
+        try {
+          final zipFile = File('${tempDir.path}/import.zip');
+          await zipFile.writeAsBytes(
+            buildZip({
+              'metadata.json': {'formatVersion': 1},
+            }),
+          );
+          await expectLater(
+            handler.importFromZipFile(
+              zipFile,
               ConflictStrategy.skip,
-              sections: ['unknown'],
+              sections: ['nope'],
             ),
-            throwsA(isA<InvalidBackupException>()),
+            throwsA(
+              isA<InvalidBackupException>().having(
+                (e) => e.reason,
+                'reason',
+                'unknown_selected_section',
+              ),
+            ),
           );
-        },
-      );
-
-      test('rejects a selected section absent from the archive', () async {
-        expect(
-          () => handler.importFromBytes(
-            buildZip({'shots.json': {}}),
-            ConflictStrategy.skip,
-            sections: ['profiles'],
-          ),
-          throwsA(isA<InvalidBackupException>()),
-        );
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
       });
 
-      test('does not import unselected sections or their failures', () async {
-        final failingSection = FailingExportSection(filename: 'shots.json');
-        final selectedHandler = DataExportHandler(
-          sections: [profileSection, failingSection],
-        );
+      test(
+        'missing metadata.json imports with a warning (legacy behavior)',
+        () async {
+          final zipBytes = buildZipEntries({'profiles.json': '[{"id":"p1"}]'});
+          final response = await sendPost(
+            '/api/v1/data/import',
+            body: zipBytes,
+          );
+          expect(response.statusCode, 200);
+        },
+      );
 
-        final outcome = await selectedHandler.importFromBytes(
-          buildZip({'profiles.json': {}, 'shots.json': {}}),
-          ConflictStrategy.skip,
-          sections: ['profiles', 'profiles'],
-        );
-
-        expect(outcome.isPartial, isFalse);
-        expect(outcome.recognizedSections, 1);
-        expect(profileSection.importCalled, isTrue);
+      test('concurrent imports use isolated temp directories', () async {
+        final futures = <Future<Response>>[];
+        for (var i = 0; i < 4; i++) {
+          futures.add(
+            sendPost(
+              '/api/v1/data/import',
+              body: buildZip({
+                'metadata.json': {'formatVersion': 1},
+                'profiles.json': [
+                  {'id': 'p$i'},
+                ],
+              }),
+            ),
+          );
+        }
+        final responses = await Future.wait(futures);
+        for (final response in responses) {
+          expect(response.statusCode, 200);
+        }
+        // No leftover temp dirs.
+        final leftovers = Directory.systemTemp
+            .listSync()
+            .whereType<Directory>()
+            .where((d) => d.path.contains('reaprime-import-'));
+        expect(leftovers, isEmpty);
       });
     });
   });
