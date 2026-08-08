@@ -55,7 +55,10 @@ class PluginManager {
   final KeyValueStoreService kvStore;
   final DecentProxyService? decentProxyService;
   late final PluginDecentProxyBridge _decentProxyBridge;
-  final Map<String, String> _decentProxyBridgeTokens = {};
+  final Map<String, String> _pluginBridgeTokens = {};
+  final Map<String, String> _pluginIdsByBridgeToken = {};
+  final Set<String> _loggedPermissionDenials = {};
+  final Map<String, Set<PluginPermissions>> _closingPluginPermissions = {};
 
   final StreamController<Map<String, dynamic>> _emitController =
       StreamController.broadcast();
@@ -92,6 +95,49 @@ class PluginManager {
     _bootstrapJs();
   }
 
+  bool _hasPermission(String pluginId, PluginPermissions permission) {
+    final permissions =
+        _plugins[pluginId]?.manifest.permissions ??
+        _closingPluginPermissions[pluginId];
+    final allowed = permissions?.contains(permission) ?? false;
+    if (!allowed) {
+      final denial = '$pluginId:${permission.wireName}';
+      if (_loggedPermissionDenials.add(denial)) {
+        _log.warning(
+          'Plugin $pluginId denied permission ${permission.wireName}',
+        );
+      }
+    }
+    return allowed;
+  }
+
+  String _permissionError(String pluginId, PluginPermissions permission) =>
+      'PluginPermissionError: Plugin $pluginId requires manifest permission ${permission.wireName}';
+
+  String? _pluginIdForBridgeMessage(Map<String, dynamic> msg, String channel) {
+    final token = msg['bridgeToken'];
+    final pluginId = token is String ? _pluginIdsByBridgeToken[token] : null;
+    if (pluginId == null) {
+      _log.warning(
+        'Rejected $channel message with invalid plugin bridge token',
+      );
+      return null;
+    }
+    final claimedPluginId = msg['pluginId'];
+    if (claimedPluginId != null && claimedPluginId != pluginId) {
+      _log.warning(
+        'Rejected $channel message claiming plugin $claimedPluginId as $pluginId',
+      );
+      return null;
+    }
+    return pluginId;
+  }
+
+  void _removePluginBridgeToken(String pluginId) {
+    final token = _pluginBridgeTokens.remove(pluginId);
+    if (token != null) _pluginIdsByBridgeToken.remove(token);
+  }
+
   // ─────────────────────────────────────────────
   // JS bootstrap (ONCE)
   // ─────────────────────────────────────────────
@@ -99,6 +145,7 @@ class PluginManager {
   void _bootstrapJs() {
     js.evaluate(r'''
       (function () {
+        "use strict";
         if (globalThis.__plugins__) return;
 
         globalThis.__plugins__ = Object.create(null);
@@ -111,6 +158,7 @@ class PluginManager {
         const __nativeFreeze = Object.freeze.bind(Object);
         const __nativeReflectApply = Reflect.apply.bind(Reflect);
         const __nativePromiseThen = Promise.prototype.then;
+        const __nativePromiseResolve = Promise.resolve;
         const __nativePromiseCatch = Promise.prototype.catch;
         const __nativePromiseFinally = Promise.prototype.finally;
         const __nativeMapHas = Map.prototype.has;
@@ -226,15 +274,50 @@ class PluginManager {
           enumerable: false
         });
         
-        globalThis.__sendApiResponse = function (pluginId, requestId, response) {
-          console.log("sending plugin api response", pluginId);
-          sendMessage("host", JSON.stringify({
-            pluginId: pluginId,
+        function __sendApiResponse(bridgeToken, requestId, response) {
+          __sendHostMessage({
+            bridgeToken: bridgeToken,
             type: "httpResponse",
             requestId: requestId,
             payload: response
-          }));
-        };
+          });
+        }
+
+        function __sendApiError(bridgeToken, requestId, error) {
+          __sendApiResponse(bridgeToken, requestId, {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ error: String(error) })
+          });
+        }
+
+        Object.defineProperty(globalThis, "__dispatchPluginHttp", {
+          value: function (pluginId, bridgeToken, requestId, event) {
+            const plugin = globalThis.__plugins__[pluginId];
+            if (!plugin || typeof plugin.__httpRequestHandler !== "function") return;
+            try {
+              const response = plugin.__httpRequestHandler(event);
+              if (response && typeof response.then === "function") {
+                const promise = __nativeReflectApply(
+                  __nativePromiseResolve,
+                  __NativePromise,
+                  [response]
+                );
+                __nativeReflectApply(__nativePromiseThen, promise, [
+                  (result) => __sendApiResponse(bridgeToken, requestId, result),
+                  (error) => __sendApiError(bridgeToken, requestId, error)
+                ]);
+              } else if (response) {
+                __sendApiResponse(bridgeToken, requestId, response);
+              }
+            } catch (error) {
+              __sendApiError(bridgeToken, requestId, error);
+            }
+          },
+          writable: false,
+          configurable: false,
+          enumerable: false
+        });
 
         // Provide btoa function if not available
         if (typeof globalThis.btoa === 'undefined') {
@@ -293,12 +376,17 @@ class PluginManager {
         // Timer bridge: JS holds callbacks, Dart owns real Timers.
         const __timers = new Map();
         let __timerSeq = 0;
-        globalThis.__debugTimers = __timers;
-        globalThis.__timerSet = function (pluginId, generation, callback, delay) {
+        Object.defineProperty(globalThis, "__debugTimerCount", {
+          value: () => __timers.size,
+          writable: false,
+          configurable: false,
+          enumerable: false
+        });
+        globalThis.__timerSet = function (bridgeToken, generation, callback, delay) {
           const id = ++__timerSeq;
-          __timers.set(id, { pluginId: pluginId, generation: generation, callback: callback });
+          __timers.set(id, { bridgeToken: bridgeToken, generation: generation, callback: callback });
           __sendHostMessage({
-            pluginId: pluginId,
+            bridgeToken: bridgeToken,
             generation: generation,
             type: "timerSet",
             timerId: id,
@@ -306,9 +394,10 @@ class PluginManager {
           });
           return id;
         };
-        globalThis.__timerClear = function (pluginId, id) {
-          if (__timers.delete(id)) {
-            __sendHostMessage({ pluginId: pluginId, type: "timerClear", timerId: id });
+        globalThis.__timerClear = function (bridgeToken, id) {
+          const record = __timers.get(id);
+          if (record && record.bridgeToken === bridgeToken && __timers.delete(id)) {
+            __sendHostMessage({ bridgeToken: bridgeToken, type: "timerClear", timerId: id });
           }
         };
         globalThis.__fireTimer = function (id) {
@@ -320,46 +409,66 @@ class PluginManager {
             __timers.delete(id);
           }
         };
-        globalThis.__cancelTimersForPlugin = function (pluginId) {
-          for (const [id, record] of __timers) {
-            if (record.pluginId === pluginId) __timers.delete(id);
-          }
-        };
+        Object.defineProperty(globalThis, "__cancelTimersForBridgeToken", {
+          value: function (bridgeToken) {
+            for (const [id, record] of __timers) {
+              if (record.bridgeToken === bridgeToken) __timers.delete(id);
+            }
+          },
+          writable: false,
+          configurable: false,
+          enumerable: false
+        });
         globalThis.__cancelAllTimers = function () {
           __timers.clear();
         };
 
-        globalThis.host = {
-          log(pluginId, message) {
-            sendMessage("host", JSON.stringify({
-              pluginId: pluginId,
-              type: "log",
-              payload: { message: String(message) }
-            }));
-          },
-          emit(pluginId, eventName, payload) {
-            sendMessage("host", JSON.stringify({
-              pluginId: pluginId,
-              type: "emit",
-              event: eventName,
-              payload: payload
-            }));
-          },
-          storage(pluginId, command) {
-            sendMessage("host", JSON.stringify({
-              pluginId: pluginId,
-              type: "pluginStorage",
-              payload: command
-            }));
-          }
-        };
+        Object.defineProperty(globalThis, "host", {
+          value: __nativeFreeze({
+            log(bridgeToken, message) {
+              __sendHostMessage({
+                bridgeToken: bridgeToken,
+                type: "log",
+                payload: { message: String(message) }
+              });
+            },
+            emit(bridgeToken, eventName, payload) {
+              __sendHostMessage({
+                bridgeToken: bridgeToken,
+                type: "emit",
+                event: eventName,
+                payload: payload
+              });
+            },
+            storage(bridgeToken, command) {
+              __sendHostMessage({
+                bridgeToken: bridgeToken,
+                type: "pluginStorage",
+                payload: command
+              });
+            },
+            permissionDenied(bridgeToken, permission) {
+              __sendHostMessage({
+                bridgeToken: bridgeToken,
+                type: "permissionDenied",
+                payload: permission
+              });
+            }
+          }),
+          writable: false,
+          configurable: false,
+          enumerable: true
+        });
       })();
   ''');
 
     js.evaluate(r'''
       (function () {
+        "use strict";
         if (globalThis.fetch) return;
 
+        const nativeSendMessage = sendMessage;
+        const nativeJsonStringify = JSON.stringify.bind(JSON);
         let _fetchSeq = 0;
         const _pendingFetches = new Map();
 
@@ -375,18 +484,18 @@ class PluginManager {
           };
         }
 
-        globalThis.__fetchFor = function (pluginId, generation, input, init = {}) {
+        globalThis.__fetchFor = function (bridgeToken, generation, input, init = {}) {
           const id = ++_fetchSeq;
           return new Promise((resolve, reject) => {
-            if (!pluginId) {
+            if (!bridgeToken) {
               reject(new Error("fetch is only available to plugins"));
               return;
             }
-            _pendingFetches.set(id, { pluginId: pluginId, generation: generation, resolve: resolve, reject: reject });
+            _pendingFetches.set(id, { generation: generation, resolve: resolve, reject: reject });
 
-            sendMessage("fetch", JSON.stringify({
+            nativeSendMessage("fetch", nativeJsonStringify({
               id,
-              pluginId,
+              bridgeToken,
               generation,
               url: String(input),
               method: init.method || "GET",
@@ -421,6 +530,29 @@ class PluginManager {
           };
           pending.resolve(response);
         };
+
+        Object.defineProperty(globalThis, "__lockPluginHostBridge", {
+          value: function () {
+            if (globalThis.__reaprimePluginHostBridge) return;
+            Object.defineProperty(globalThis, "__reaprimePluginHostBridge", {
+              value: Object.freeze({
+                log: globalThis.host.log,
+                emit: globalThis.host.emit,
+                storage: globalThis.host.storage,
+                permissionDenied: globalThis.host.permissionDenied,
+                fetch: globalThis.__fetchFor,
+                timerSet: globalThis.__timerSet,
+                timerClear: globalThis.__timerClear
+              }),
+              writable: false,
+              configurable: false,
+              enumerable: false
+            });
+          },
+          writable: false,
+          configurable: false,
+          enumerable: false
+        });
       })();
     ''');
 
@@ -428,21 +560,30 @@ class PluginManager {
       try {
         _log.finest("receiving: $raw");
         final msg = raw as Map<String, dynamic>;
-        final pluginId = msg['pluginId'] as String?;
+        final pluginId = _pluginIdForBridgeMessage(msg, 'host');
         final type = msg['type'];
 
         if (pluginId == null) {
-          _log.warning("JS message missing pluginId");
           return;
         }
 
         if (type == 'log') {
-          _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
+          if (_hasPermission(pluginId, PluginPermissions.log)) {
+            _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
+          }
         } else if (type == 'httpResponse') {
-          // Handle HTTP responses from plugin
-          _handlePluginApiResponse(pluginId, msg);
+          if (_hasPermission(pluginId, PluginPermissions.api)) {
+            _handlePluginApiResponse(pluginId, msg);
+          }
         } else {
-          unawaited(_handleMessageSafely(pluginId, msg));
+          final permission = switch (type) {
+            'emit' => PluginPermissions.emit,
+            'pluginStorage' => PluginPermissions.pluginStorage,
+            _ => null,
+          };
+          if (permission == null || _hasPermission(pluginId, permission)) {
+            unawaited(_handleMessageSafely(pluginId, msg));
+          }
         }
       } catch (e, st) {
         _log.warning("Invalid JS message", e, st);
@@ -452,7 +593,10 @@ class PluginManager {
     js.onMessage("fetch", (raw) {
       try {
         final msg = raw as Map<String, dynamic>;
-        unawaited(_handleFetchSafely(msg));
+        final pluginId = _pluginIdForBridgeMessage(msg, 'fetch');
+        if (pluginId != null) {
+          unawaited(_handleFetchSafely(pluginId, msg));
+        }
       } catch (e, st) {
         _log.warning("Invalid fetch message", e, st);
       }
@@ -474,10 +618,13 @@ class PluginManager {
     }
   }
 
-  Future<void> _handleFetchSafely(Map<String, dynamic> msg) async {
+  Future<void> _handleFetchSafely(
+    String pluginId,
+    Map<String, dynamic> msg,
+  ) async {
     await Future<void>.delayed(Duration.zero);
     try {
-      await _handleFetch(msg);
+      await _handleFetch(pluginId, msg);
     } catch (e, st) {
       _log.warning("Invalid fetch message", e, st);
     }
@@ -496,12 +643,15 @@ class PluginManager {
     final generation = (_pluginGenerations[id] ?? 0) + 1;
     _pluginGenerations[id] = generation;
     await unloadPlugin(id);
+    _loggedPermissionDenials.removeWhere((denial) => denial.startsWith('$id:'));
+    js.evaluate('globalThis.__lockPluginHostBridge();');
 
     final runtime = PluginRuntime(pluginId: id, manifest: manifest);
-    final decentProxyBridgeToken = _newBridgeToken();
+    final pluginBridgeToken = _newBridgeToken();
 
     _plugins[id] = runtime;
-    _decentProxyBridgeTokens[id] = decentProxyBridgeToken;
+    _pluginBridgeTokens[id] = pluginBridgeToken;
+    _pluginIdsByBridgeToken[pluginBridgeToken] = id;
 
     try {
       // Direct injection approach with standard factory name
@@ -510,22 +660,51 @@ class PluginManager {
       (function () {
         const pluginId = "$id";
         const pluginGeneration = $generation;
-        const setTimeout = (callback, delay) => globalThis.__timerSet(pluginId, pluginGeneration, callback, delay);
-        const clearTimeout = (id) => globalThis.__timerClear(pluginId, id);
-        const fetch = (input, init) => globalThis.__fetchFor
-          ? globalThis.__fetchFor(pluginId, pluginGeneration, input, init)
-          : globalThis.fetch(input, init);
+        const pluginBridgeToken = ${jsonEncode(pluginBridgeToken)};
+        const pluginHostBridge = globalThis.__reaprimePluginHostBridge;
+        class PluginPermissionError extends Error {
+          constructor(permission) {
+            super("Plugin " + pluginId + " requires manifest permission " + permission);
+            this.name = "PluginPermissionError";
+          }
+        }
+        const requirePermission = (permission) => {
+          pluginHostBridge.permissionDenied(pluginBridgeToken, permission);
+          throw new PluginPermissionError(permission);
+        };
+        const rejectPermission = (permission) => {
+          pluginHostBridge.permissionDenied(pluginBridgeToken, permission);
+          return Promise.reject(new PluginPermissionError(permission));
+        };
+        const setTimeout = (callback, delay) => pluginHostBridge.timerSet(pluginBridgeToken, pluginGeneration, callback, delay);
+        const clearTimeout = (id) => pluginHostBridge.timerClear(pluginBridgeToken, id);
+        const fetch = ${manifest.permissions.contains(PluginPermissions.api)}
+          ? (input, init) => pluginHostBridge.fetch(pluginBridgeToken, pluginGeneration, input, init)
+          : () => rejectPermission("api");
         
         // Create the host object for this plugin
         const host = {
-          log: (msg) => globalThis.host.log(pluginId, msg),
-          emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
-          storage: (cmd) => globalThis.host.storage(pluginId, cmd),
+          log: ${manifest.permissions.contains(PluginPermissions.log)}
+            ? (msg) => pluginHostBridge.log(pluginBridgeToken, msg)
+            : () => requirePermission("log"),
+          emit: ${manifest.permissions.contains(PluginPermissions.emit)}
+            ? (type, payload) => pluginHostBridge.emit(pluginBridgeToken, type, payload)
+            : () => requirePermission("emit"),
+          storage: ${manifest.permissions.contains(PluginPermissions.pluginStorage)}
+            ? (cmd) => pluginHostBridge.storage(pluginBridgeToken, cmd)
+            : () => requirePermission("pluginStorage"),
           decentProxy: (path, options = {}) => {
+            const method = String(options.method || "GET").toUpperCase();
+            if (method === "GET" && !${manifest.permissions.contains(PluginPermissions.proxyDecentApi)}) {
+              return rejectPermission("proxy.decent_api");
+            }
+            if (method === "POST" && !${manifest.permissions.contains(PluginPermissions.proxyDecentApiWrite)}) {
+              return rejectPermission("proxy.decent_api.write");
+            }
             return globalThis.__reaprimePluginBridge.decentProxy(
               pluginId,
               pluginGeneration,
-              ${jsonEncode(decentProxyBridgeToken)},
+              pluginBridgeToken,
               path,
               options.method || "GET",
               options.query || {},
@@ -587,12 +766,16 @@ class PluginManager {
       runtime.markRunning();
       _log.info("loaded: $id");
     } catch (e, st) {
-      _plugins.remove(id);
-      _decentProxyBridgeTokens.remove(id);
+      final failedRuntime = _plugins.remove(id);
+      if (failedRuntime != null) {
+        _closingPluginPermissions[id] = failedRuntime.manifest.permissions;
+      }
       js.evaluate('''
       delete globalThis.__plugins__["$id"];
     ''');
-      _cleanupPluginResources(id);
+      _cleanupPluginResources(id, pluginBridgeToken);
+      _removePluginBridgeToken(id);
+      _closingPluginPermissions.remove(id);
       // WARNING, not SEVERE: a plugin failing to load is almost always a
       // user-installed third-party plugin with a bad manifest id or a JS
       // syntax error, not an app defect. The caller (e.g. PluginsSettingsView)
@@ -606,8 +789,13 @@ class PluginManager {
 
   Future<void> unloadPlugin(String id) async {
     final runtime = _plugins.remove(id);
-    _decentProxyBridgeTokens.remove(id);
-    if (runtime == null) return;
+    final pluginBridgeToken = _pluginBridgeTokens[id];
+    _loggedPermissionDenials.removeWhere((denial) => denial.startsWith('$id:'));
+    if (runtime == null) {
+      _removePluginBridgeToken(id);
+      return;
+    }
+    _closingPluginPermissions[id] = runtime.manifest.permissions;
 
     try {
       js.evaluate('''
@@ -626,16 +814,18 @@ class PluginManager {
     }
 
     runtime.markDisposed();
-    _cleanupPluginResources(id);
+    _cleanupPluginResources(id, pluginBridgeToken);
+    _removePluginBridgeToken(id);
+    _closingPluginPermissions.remove(id);
     _log.info("unloaded: $id");
   }
 
-  void _cleanupPluginResources(String pluginId) {
+  void _cleanupPluginResources(String pluginId, String? pluginBridgeToken) {
     // Reject operations first: settling promises drains pending jobs, which
     // can run plugin rejection handlers that schedule new timers. The timer
     // sweep after must be the last word.
     _rejectOpsForPlugin(pluginId);
-    _cancelTimersForPlugin(pluginId);
+    _cancelTimersForPlugin(pluginId, pluginBridgeToken);
   }
 
   // ─────────────────────────────────────────────
@@ -652,59 +842,34 @@ class PluginManager {
 
   void dispatchEvent(String pluginId, String name, dynamic payload) {
     if (!_plugins.containsKey(pluginId)) return;
+    final permission = switch (name) {
+      'stateUpdate' => PluginPermissions.eventsMachine,
+      'shotStored' || 'shotUpdated' => PluginPermissions.eventsShots,
+      _ => null,
+    };
+    if (permission != null && !_hasPermission(pluginId, permission)) return;
 
-    String requestId = "";
-    if (payload is Map<String, dynamic> && payload['requestId'] is String) {
-      requestId = payload['requestId'];
-    }
+    final requestIdValue = payload is Map<String, dynamic>
+        ? payload['requestId']
+        : null;
+    final requestId = requestIdValue is String ? requestIdValue : null;
+    final pluginBridgeToken = _pluginBridgeTokens[pluginId];
+    final httpDispatch =
+        name == 'httpRequest' && requestId != null && pluginBridgeToken != null
+        ? '''globalThis.__dispatchPluginHttp(
+          ${jsonEncode(pluginId)},
+          ${jsonEncode(pluginBridgeToken)},
+          ${jsonEncode(requestId)},
+          ${jsonEncode(payload)}
+        );'''
+        : '';
 
     js.evaluate('''
     __dispatchToPlugin("$pluginId", {
       name: "$name",
       payload: ${jsonEncode(payload)}
     });
-    
-    // Special handling for HTTP requests
-    if ("$name" === "httpRequest") {
-      const plugin = globalThis.__plugins__["$pluginId"];
-      if (plugin && typeof plugin.__httpRequestHandler === "function") {
-        try {
-          const response = plugin.__httpRequestHandler(${jsonEncode(payload)});
-          const responseThen = response.then;
-          if (response &&  responseThen) {
-            // Handle async response
-            response.then((res) => {
-              if (globalThis.__sendApiResponse) {
-                globalThis.__sendApiResponse("$pluginId", "$requestId", res);
-              }
-            }).catch((err) => {
-              console.error("HTTP request handler error:", err);
-              if (globalThis.__sendApiResponse) {
-                globalThis.__sendApiResponse("$pluginId", "$requestId", {
-                  status: 500,
-                  headers: {'Content-Type': 'application/json'},
-                  body: JSON.stringify({error: err.toString()})
-                });
-              }
-            });
-          } else if (response) {
-            // Handle sync response
-            if (globalThis.__sendApiResponse) {
-              globalThis.__sendApiResponse("$pluginId", "$requestId", response);
-            }
-          }
-        } catch (e) {
-          console.error("HTTP request handler error:", e);
-          if (globalThis.__sendApiResponse) {
-            globalThis.__sendApiResponse("$pluginId", "$requestId", {
-              status: 500,
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({error: e.toString()})
-            });
-          }
-        }
-      }
-    }
+    $httpDispatch
   ''');
     while (js.executePendingJob() > 0) {}
   }
@@ -734,6 +899,13 @@ class PluginManager {
         await _handlePluginStorage(pluginId, cmd);
         break;
 
+      case 'permissionDenied':
+        final permission = payload is String
+            ? PluginPermissions.fromString(payload)
+            : null;
+        if (permission != null) _hasPermission(pluginId, permission);
+        break;
+
       case 'timerSet':
         _setTimer(
           pluginId,
@@ -744,7 +916,7 @@ class PluginManager {
         break;
 
       case 'timerClear':
-        _clearTimer((msg['timerId'] as num?)?.toInt() ?? 0);
+        _clearTimer(pluginId, (msg['timerId'] as num?)?.toInt() ?? 0);
         break;
 
       case 'decentProxy':
@@ -774,6 +946,9 @@ class PluginManager {
     // Deferred bridge messages can arrive after a reload; a timer from an
     // older generation must not register against the current plugin.
     if (generation != (_pluginGenerations[pluginId] ?? 0)) return;
+    final existing = _timers[id];
+    if (existing != null && existing.pluginId != pluginId) return;
+    existing?.timer.cancel();
     _timers[id] = (
       pluginId: pluginId,
       timer: Timer(Duration(milliseconds: delayMs < 0 ? 0 : delayMs), () {
@@ -782,7 +957,9 @@ class PluginManager {
     );
   }
 
-  void _clearTimer(int id) {
+  void _clearTimer(String pluginId, int id) {
+    final record = _timers[id];
+    if (record?.pluginId != pluginId) return;
     _timers.remove(id)?.timer.cancel();
   }
 
@@ -793,7 +970,7 @@ class PluginManager {
     while (js.executePendingJob() > 0) {}
   }
 
-  void _cancelTimersForPlugin(String pluginId) {
+  void _cancelTimersForPlugin(String pluginId, String? pluginBridgeToken) {
     _timers.removeWhere((id, record) {
       if (record.pluginId == pluginId) {
         record.timer.cancel();
@@ -801,7 +978,12 @@ class PluginManager {
       }
       return false;
     });
-    js.evaluate('globalThis.__cancelTimersForPlugin(${jsonEncode(pluginId)});');
+    if (pluginBridgeToken != null) {
+      js.evaluate(
+        'globalThis.__cancelTimersForBridgeToken('
+        '${jsonEncode(pluginBridgeToken)});',
+      );
+    }
     while (js.executePendingJob() > 0) {}
   }
 
@@ -909,7 +1091,7 @@ class PluginManager {
     final generation = msg['generation'] is num
         ? (msg['generation'] as num).toInt()
         : 0;
-    if (msg['bridgeToken'] != _decentProxyBridgeTokens[pluginId]) {
+    if (msg['bridgeToken'] != _pluginBridgeTokens[pluginId]) {
       _log.warning('Decent proxy message from $pluginId has invalid token');
       final op = _PendingOp(
         kind: _PendingOpKind.decentProxy,
@@ -1025,6 +1207,12 @@ class PluginManager {
       );
       return;
     }
+    if (op.pluginId != pluginId) {
+      _log.warning(
+        'Rejected HTTP response for $requestId from $pluginId; owned by ${op.pluginId}',
+      );
+      return;
+    }
     _completeOp(op, result: response);
   }
 
@@ -1070,10 +1258,9 @@ class PluginManager {
     });
   }
 
-  Future<void> _handleFetch(Map<String, dynamic> msg) async {
+  Future<void> _handleFetch(String pluginId, Map<String, dynamic> msg) async {
     final id = msg['id'];
-    final pluginId = msg['pluginId'] as String?;
-    if (id is! int || pluginId == null) {
+    if (id is! int) {
       _log.warning('Invalid fetch message');
       return;
     }
@@ -1094,6 +1281,14 @@ class PluginManager {
       js.evaluate(
         'globalThis.__handleFetchResponse('
         '${jsonEncode({'id': id, 'error': 'plugin generation changed'})});',
+      );
+      while (js.executePendingJob() > 0) {}
+      return;
+    }
+    if (!_hasPermission(pluginId, PluginPermissions.api)) {
+      js.evaluate(
+        'globalThis.__handleFetchResponse('
+        '${jsonEncode({'id': id, 'error': _permissionError(pluginId, PluginPermissions.api)})});',
       );
       while (js.executePendingJob() > 0) {}
       return;
