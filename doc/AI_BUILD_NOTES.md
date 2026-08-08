@@ -41,6 +41,24 @@ Simulated devices avoid hardware requirements for smoke testing. Available types
 
 Also toggleable from the settings UI after launch.
 
+### Espresso replay (MockDe1)
+
+When a shot starts, `MockDe1` replays a real recorded shot instead of
+synthesizing telemetry — mirroring de1app's simulate mode. The corpus is
+de1app's three `simulations/*.shot` files, converted to native historical-shot
+JSON under `assets/simulations/` (source `.shot` files live in
+`tool/simulation_sources/`). `SimulatedShotLibrary` loads them; `MockDe1` picks
+one at random per shot and streams its samples on the wall-clock timeline via
+`ShotReplayer`, dropping to idle when the recording ends. The simulated scale
+weight follows for free — `MockScale` integrates the machine's (now recorded)
+flow.
+
+Replay is on by default and falls back to the parametric synthetic model when
+no corpus is available (`MockDe1(replayHistoricalShots: false)`, or no library
+injected — e.g. a bare `MockDe1()` in unit tests). To rebuild the corpus after
+editing the sources: `REGEN_SIM_ASSETS=1 flutter test
+test/tools/generate_simulation_assets_test.dart`.
+
 ### `simulate=0` mode
 
 `--dart-define=simulate=0` enables the debug infrastructure (API routes,

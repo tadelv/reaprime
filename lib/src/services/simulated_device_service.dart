@@ -9,11 +9,17 @@ import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_sensor_basket.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/services/simulated_shot_library.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 
 class SimulatedDeviceService
     with ChangeNotifier
     implements DeviceDiscoveryService {
+  SimulatedDeviceService({SimulatedShotLibrary? replayLibrary})
+    : _replayLibrary = replayLibrary ?? SimulatedShotLibrary();
+
+  final SimulatedShotLibrary _replayLibrary;
+
   final Map<String, Device> _devices = {};
 
   final StreamController<List<Device>> _deviceStreamController =
@@ -47,7 +53,11 @@ class SimulatedDeviceService
     // `discovered`. `putIfAbsent` preserves the live instance; a
     // disabled device is removed and re-created fresh on re-enable.
     if (enabledDevices.contains(SimulatedDevicesTypes.machine)) {
-      _devices.putIfAbsent("MockDe1", () => MockDe1());
+      await _replayLibrary.ensureLoaded();
+      _devices.putIfAbsent(
+        "MockDe1",
+        () => MockDe1(replayLibrary: _replayLibrary),
+      );
     } else {
       _devices.remove("MockDe1");
     }

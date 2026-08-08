@@ -119,7 +119,7 @@ class MockScale implements Scale, SimulatedDevice {
 
   void _startEmission() {
     _emissionTimer?.cancel();
-    _emissionTimer = Timer.periodic(Duration(milliseconds: 200), (_) {
+    _emissionTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
       if (_stalled) return;
       Duration? timerValue;
       if (_timerRunning) {
@@ -127,10 +127,18 @@ class MockScale implements Scale, SimulatedDevice {
       } else if (_frozenTimerValue != null) {
         timerValue = _frozenTimerValue;
       }
-      final weight = _model.weight;
-      if ((weight - _emittedWeight).abs() >= _stabilityDeadband) {
-        final jitter = (_random.nextDouble() - 0.5) * 2 * _jitterGrams;
-        _emittedWeight = weight + jitter;
+      // During historical-shot replay the attached machine exposes the real
+      // recorded scale weight; report it directly so the weight curve is the
+      // genuine one. Otherwise follow the machine's flow through the model.
+      final replayWeight = _machine?.replayWeightGrams;
+      if (replayWeight != null) {
+        _emittedWeight = replayWeight;
+      } else {
+        final weight = _model.weight;
+        if ((weight - _emittedWeight).abs() >= _stabilityDeadband) {
+          final jitter = (_random.nextDouble() - 0.5) * 2 * _jitterGrams;
+          _emittedWeight = weight + jitter;
+        }
       }
       _snapshotStream.add(
         ScaleSnapshot(

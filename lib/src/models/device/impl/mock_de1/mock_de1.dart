@@ -9,8 +9,10 @@ import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/firmware_update_state.dart';
+import 'package:reaprime/src/models/device/impl/mock_de1/shot_replayer.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/services/simulated_shot_library.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
@@ -20,7 +22,35 @@ import 'package:rxdart/subjects.dart';
 enum _SimulationType { espresso, steam, hotWater, idle }
 
 class MockDe1 implements De1Interface, SimulatedDevice {
-  MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
+  MockDe1({
+    String deviceId = "MockDe1",
+    SimulatedShotLibrary? replayLibrary,
+    bool replayHistoricalShots = true,
+    Random? random,
+  }) : _deviceId = deviceId,
+       _replayLibrary = replayLibrary,
+       _replayHistoricalShots = replayHistoricalShots,
+       _random = random ?? Random();
+
+  /// Corpus of real recorded shots to replay in place of synthetic telemetry.
+  /// When null (or [_replayHistoricalShots] is false, or the corpus is empty)
+  /// the simulator falls back to the parametric synthetic model.
+  final SimulatedShotLibrary? _replayLibrary;
+  final bool _replayHistoricalShots;
+  final Random _random;
+
+  ShotReplayer? _replayer;
+  bool _replaying = false;
+  DateTime _replayStartedAt = DateTime.now();
+  double? _replayWeightGrams;
+
+  /// The real recorded scale weight at the current replay position, or null
+  /// when no historical shot is loaded. A simulated scale attached to this
+  /// machine reports this directly (see [MockScale]) so the weight curve is the
+  /// genuine recorded one rather than a flow integration. Held after the
+  /// recording ends so the reading rests at the final poured weight; cleared
+  /// when the next shot starts.
+  double? get replayWeightGrams => _replayWeightGrams;
 
   final StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
@@ -107,6 +137,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       _shotElapsedMs = 0.0;
       _fromFlowTarget = 0;
       _fromPressureTarget = 0;
+      _setupReplay();
     } else if (_currentState == MachineState.hotWater) {
       _simulationType = _SimulationType.hotWater;
       _hotWaterElapsedMs = 0.0;
@@ -229,7 +260,41 @@ class MockDe1 implements De1Interface, SimulatedDevice {
   // saturation/erosion model and the cold-puck temperature dip.
   double _shotElapsedMs = 0.0;
 
+  void _setupReplay() {
+    _replayer = null;
+    _replaying = false;
+    _replayWeightGrams = null;
+    if (!_replayHistoricalShots || _replayLibrary == null) return;
+    final shot = _replayLibrary.pickRandom(_random);
+    if (shot == null || shot.measurements.isEmpty) return;
+    _replayer = ShotReplayer(shot.measurements);
+    _replaying = true;
+    _replayStartedAt = DateTime.now();
+    _log.info(
+      "replaying historical shot ${shot.id} "
+      "(${shot.measurements.length} samples)",
+    );
+  }
+
+  MachineSnapshot _replayFrame() {
+    final now = DateTime.now();
+    final elapsed = now.difference(_replayStartedAt).inMilliseconds / 1000.0;
+    final snapshot = _replayer!.frameAt(elapsed, timestamp: now);
+    _replayWeightGrams =
+        _replayer!.scaleAt(elapsed)?.weight ?? _replayWeightGrams;
+    if (_replayer!.isFinished(elapsed)) {
+      _simulationType = _SimulationType.idle;
+      _currentState = MachineState.idle;
+      _replaying = false;
+    }
+    return snapshot;
+  }
+
   MachineSnapshot _simulateEspresso() {
+    if (_replaying && _replayer != null) {
+      return _replayFrame();
+    }
+
     MachineSubstate substate = _lastSnapshot.state.substate;
 
     // Determine substate based on pressure
