@@ -22,6 +22,7 @@ class ScaleController {
   String? get lastConnectedDeviceId => _lastConnectedDeviceId;
   int _connectionGeneration = 0;
   int get connectionGeneration => _connectionGeneration;
+  bool _snapshotSessionActive = false;
   WeightSnapshot? _currentWeightSnapshot;
   WeightSnapshot? get currentWeightSnapshot => _currentWeightSnapshot;
 
@@ -43,6 +44,7 @@ class ScaleController {
     if (!_weightSnapshotController.isClosed) {
       _weightSnapshotController.close();
     }
+    _snapshotSessionActive = false;
     _currentWeightSnapshot = null;
   }
 
@@ -98,6 +100,7 @@ class ScaleController {
       _connectionController.add(ConnectionState.disconnected);
       throw StateError('Scale failed to connect (state: ${state.name})');
     }
+    _snapshotSessionActive = true;
     // Subscribe to connection state AFTER onConnect succeeds, so we don't
     // get poisoned by a BehaviorSubject replaying a stale 'disconnected'
     // state from before reconnection.
@@ -136,6 +139,7 @@ class ScaleController {
       _connectionController.add(ConnectionState.disconnected);
       throw StateError('Adopted scale not connected (state: ${state.name})');
     }
+    _snapshotSessionActive = true;
     _scale = scale;
     _lastConnectedDeviceId = scale.deviceId;
     _scaleConnection = scale.connectionState.listen(_processConnection);
@@ -143,6 +147,7 @@ class ScaleController {
 
   void _onDisconnect() {
     _connectionGeneration++;
+    _snapshotSessionActive = false;
     _currentWeightSnapshot = null;
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
@@ -248,6 +253,9 @@ class ScaleController {
   }
 
   void _processSnapshot(ScaleSnapshot snapshot) {
+    if (!_snapshotSessionActive) {
+      return;
+    }
     _lastSnapshotTime = snapshot.timestamp;
 
     _kalmanEstimator ??= KalmanFlowEstimator(initialWeight: snapshot.weight);

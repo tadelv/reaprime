@@ -131,22 +131,25 @@ void main() {
 
   test('weight snapshots cache their scale connection generation', () async {
     final controller = ScaleController();
-    final first = _TrackingScale('A');
-    final second = _TrackingScale('B');
+    final scale = _TrackingScale('A');
     final frames = <WeightSnapshot>[];
     final subscription = controller.weightSnapshot.listen(frames.add);
 
-    await controller.connectToScale(first);
-    first.emitAt(DateTime.utc(2026, 8, 8), 1);
+    await controller.connectToScale(scale);
+    scale.emitAt(DateTime.now(), 40);
     await Future<void>.delayed(Duration.zero);
     final firstGeneration = frames.single.connectionGeneration;
     expect(controller.currentWeightSnapshot, same(frames.single));
 
-    await controller.connectToScale(second);
+    await controller.connectToScale(scale);
+    await Future<void>.delayed(Duration.zero);
     expect(controller.currentWeightSnapshot, isNull);
-    second.emitAt(DateTime.utc(2026, 8, 8, 0, 0, 1), 2);
+    expect(frames, hasLength(1));
+
+    scale.emitAt(DateTime.now(), 2);
     await Future<void>.delayed(Duration.zero);
 
+    expect(frames, hasLength(2));
     expect(controller.currentWeightSnapshot, same(frames.last));
     expect(frames.last.connectionGeneration, controller.connectionGeneration);
     expect(frames.last.connectionGeneration, isNot(firstGeneration));
