@@ -4748,10 +4748,11 @@ components:
           type: string
           enum: [discovered, connecting, connected, disconnecting, disconnected]
         connectionError:
-          type: object
-          nullable: true
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/ConnectionError'
+            - type: object
+              nullable: true
+              enum: [null]
         error:
           type: string
           nullable: true
