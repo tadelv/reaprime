@@ -214,14 +214,13 @@ host.emit("timeToReady", {
 });
 ```
 
-The bundled Visualizer plugin emits `shotUploaded` after preserving the
-local-to-remote mapping and re-reading the current local shot for forward sync.
+The bundled Visualizer plugin emits `shotUploaded` after enqueueing the
+local-to-remote mapping and current local shot for forward sync.
 Tag updates read the current Visualizer tags first, preserve remote-only tags,
 and track locally managed tags so local removals still propagate. When a
-retryable follow-up update has not completed, `tagSyncPending` is `true` and
-`tagSyncError` contains the latest failure. The upload endpoint returns `202`
-for that pending state and `207` with `visualizer_id` and `tag_sync_error` for a
-non-retryable follow-up failure because the shot upload itself succeeded.
+follow-up update has not completed, `tagSyncPending` is `true`. The upload
+endpoint returns `202` with `visualizer_id` immediately after the upload and
+continues the durable follow-up sync in the background.
 
 The event name is tied to the api endpoint, defined in the plugin manifest.
 When Decaid matches an external request to an endpoint that is defined in the

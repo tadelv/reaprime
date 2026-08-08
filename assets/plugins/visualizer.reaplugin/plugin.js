@@ -301,16 +301,18 @@ function createPlugin(host) {
       }
 
       const result = await uploadShot(convertReaToVisualizerFormat(fullShot), null);
-      await rememberSuccessfulUpload(fullShot.id, result.id);
-      const tagSync = await syncSuccessfulUpload(fullShot.id, fullShot);
+      rememberSuccessfulUpload(fullShot.id, result.id)
+        .catch((e) => log(`Could not remember upload ${fullShot.id}: ${e.message}`));
+      syncSuccessfulUpload(fullShot.id, fullShot)
+        .catch((e) => log(`Post-upload sync failed for ${fullShot.id}: ${e.message}`));
 
       log(`Uploaded ${fullShot.id} → ${result.id}`);
 
       host.emit("shotUploaded", {
         shotId: fullShot.id,
         visualizerId: result.id,
-        tagSyncPending: tagSync.pending === true,
-        tagSyncError: tagSync.error || null,
+        tagSyncPending: true,
+        tagSyncError: null,
         timestamp: Date.now()
       });
     } catch (e) {
@@ -563,9 +565,16 @@ function createPlugin(host) {
     await rememberUpload(localId, visualizerId);
   }
 
-  async function syncSuccessfulUpload(localId, fallbackShot) {
-    const currentShot = await fetchShot(localId) || fallbackShot;
-    return await pushLocalShotUpdate(currentShot, currentShot, { force: true });
+  function syncSuccessfulUpload(localId, fallbackShot) {
+    const initialSync = pushLocalShotUpdate(fallbackShot, fallbackShot, { force: true, defer: true });
+    const visualizerId = visualizerIdForLocalShot(fallbackShot);
+    if (visualizerId) schedulePendingLocalSync(visualizerId, 1);
+    fetchShot(localId)
+      .then((currentShot) => currentShot
+        ? pushLocalShotUpdate(currentShot, currentShot, { force: true })
+        : startPendingLocalSync(visualizerId))
+      .catch((e) => log(`Could not refresh ${localId} after upload: ${e.message}`));
+    return initialSync;
   }
 
   async function visualizerGet(path) {
@@ -634,7 +643,6 @@ function createPlugin(host) {
       ...state.backSyncState,
       [visualizerId]: { remoteUpdatedAt: updatedAt }
     };
-    state.backSyncCursor = Math.max(Number(state.backSyncCursor) || 0, updatedAt);
     persistBackSyncState();
   }
 
@@ -658,13 +666,17 @@ function createPlugin(host) {
     return Array.from(new Set(tags.map((tag) => String(tag).trim()).filter((tag) => tag.length > 0)));
   }
 
-  async function mergeCurrentVisualizerTags(visualizerId, update) {
+  async function mergeCurrentVisualizerTags(visualizerId, pending) {
+    const update = pending.update;
     if (!Object.prototype.hasOwnProperty.call(update, "tags")) {
       return { update, managedTags: null };
     }
     const detail = await visualizerGet(`/shots/${visualizerId}?essentials=1`);
     const localTags = normalizeTags(update.tags);
-    const managedTags = new Set(normalizeTags(state.managedLocalTags[visualizerId]));
+    const managedTags = new Set(normalizeTags([
+      ...normalizeTags(state.managedLocalTags[visualizerId]),
+      ...normalizeTags(pending.managedTags)
+    ]));
     const remoteOnlyTags = normalizeTags(detail?.tags).filter((tag) => !managedTags.has(tag));
     const remoteOnlySet = new Set(remoteOnlyTags);
     return {
@@ -677,7 +689,23 @@ function createPlugin(host) {
     while (state.pendingLocalSync[visualizerId]) {
       const pending = state.pendingLocalSync[visualizerId];
       try {
-        const merged = await mergeCurrentVisualizerTags(visualizerId, pending.update);
+        const merged = await mergeCurrentVisualizerTags(visualizerId, pending);
+        if (merged.managedTags !== null) {
+          const current = state.pendingLocalSync[visualizerId];
+          if (current) {
+            state.pendingLocalSync = {
+              ...state.pendingLocalSync,
+              [visualizerId]: {
+                ...current,
+                managedTags: normalizeTags([
+                  ...normalizeTags(current.managedTags),
+                  ...merged.managedTags
+                ])
+              }
+            };
+            persistPendingLocalSync();
+          }
+        }
         const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: merged.update });
         updateBackSyncState(visualizerId, detail);
         if (merged.managedTags !== null) {
@@ -688,7 +716,24 @@ function createPlugin(host) {
           persistManagedLocalTags();
         }
         const current = state.pendingLocalSync[visualizerId];
-        if (current?.revision !== pending.revision) continue;
+        if (current?.revision !== pending.revision) {
+          const update = Object.fromEntries(
+            Object.entries(current.update).filter(([key, value]) =>
+              !Object.prototype.hasOwnProperty.call(pending.update, key) ||
+              JSON.stringify(value) !== JSON.stringify(pending.update[key])
+            )
+          );
+          if (Object.keys(update).length === 0) {
+            removePendingLocalSync(visualizerId);
+            return { ok: true, visualizerId };
+          }
+          state.pendingLocalSync = {
+            ...state.pendingLocalSync,
+            [visualizerId]: { ...current, update }
+          };
+          persistPendingLocalSync();
+          continue;
+        }
         removePendingLocalSync(visualizerId);
         host.emit("shotForwardSynced", {
           shotId: pending.shotId,
@@ -744,12 +789,13 @@ function createPlugin(host) {
     return running;
   }
 
-  function queueLocalSync(shotId, visualizerId, update) {
+  function queueLocalSync(shotId, visualizerId, update, defer) {
     const id = String(visualizerId);
     const previous = state.pendingLocalSync[id] || {};
     state.pendingLocalSync = {
       ...state.pendingLocalSync,
       [id]: {
+        ...previous,
         shotId,
         update: { ...(previous.update || {}), ...update },
         revision: (Number(previous.revision) || 0) + 1,
@@ -757,7 +803,9 @@ function createPlugin(host) {
       }
     };
     persistPendingLocalSync();
-    return startPendingLocalSync(id);
+    return defer === true
+      ? Promise.resolve({ pending: true, visualizerId: id })
+      : startPendingLocalSync(id);
   }
 
   function suppressLocalSync(localId, patch) {
@@ -902,7 +950,7 @@ function createPlugin(host) {
       return { skipped: "empty update" };
     }
 
-    return await queueLocalSync(shot.id, visualizerId, update);
+    return await queueLocalSync(shot.id, visualizerId, update, opts.defer === true);
   }
 
   async function syncLocalShotNow(shotId) {
@@ -1284,18 +1332,19 @@ function createPlugin(host) {
             requestedShot = shot;
             return uploadShot(convertReaToVisualizerFormat(shot), null);
           })
-          .then(async (shotResponse) => {
-            await rememberSuccessfulUpload(shotId, shotResponse.id);
-            const tagSync = await syncSuccessfulUpload(shotId, requestedShot);
+          .then((shotResponse) => {
+            rememberSuccessfulUpload(shotId, shotResponse.id)
+              .catch((e) => log(`Could not remember upload ${shotId}: ${e.message}`));
+            syncSuccessfulUpload(shotId, requestedShot)
+              .catch((e) => log(`Post-upload sync failed for ${shotId}: ${e.message}`));
 
             return {
               requestId: request.requestId,
-              status: tagSync.ok ? 200 : (tagSync.pending ? 202 : 207),
+              status: 202,
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 visualizer_id: shotResponse.id,
-                ...(tagSync.pending ? { tag_sync_pending: true } : {}),
-                ...(tagSync.error && !tagSync.pending ? { tag_sync_error: tagSync.error } : {})
+                tag_sync_pending: true
               }),
             };
           })

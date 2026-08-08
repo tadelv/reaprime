@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/data/bean.dart';
 import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
+import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/database/database.dart'
     hide Bean, ShotRecord;
 import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
@@ -15,11 +16,23 @@ import 'package:reaprime/src/services/storage/drift_storage_service.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
+class _RecordingPluginManager extends Fake implements PluginManager {
+  String? eventName;
+  Map<String, dynamic>? eventPayload;
+
+  @override
+  void broadcastEvent(String name, dynamic payload) {
+    eventName = name;
+    eventPayload = payload as Map<String, dynamic>;
+  }
+}
+
 void main() {
   late AppDatabase db;
   late DriftBeanStorageService beanStorage;
   late PersistenceController persistence;
   late Handler handler;
+  late _RecordingPluginManager pluginManager;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
@@ -27,9 +40,11 @@ void main() {
     persistence = PersistenceController(
       storageService: DriftStorageService(db),
     );
+    pluginManager = _RecordingPluginManager();
     final shotsHandler = ShotsHandler(
       controller: persistence,
       beanStorage: beanStorage,
+      pluginManager: pluginManager,
     );
     final app = Router().plus;
     shotsHandler.addRoutes(app);
@@ -184,6 +199,32 @@ void main() {
         });
         expect(json['metadata'], json['annotations']['extras']);
       }
+    });
+
+    test('legacy metadata broadcasts a canonical annotation patch', () async {
+      await persistAnnotatedShot();
+
+      final response = await sendPut('annotated', {
+        'metadata': {
+          'tags': ['washed'],
+        },
+      });
+
+      expect(response.statusCode, 200);
+      expect(pluginManager.eventName, 'shotUpdated');
+      expect(pluginManager.eventPayload?['patch'], {
+        'annotations': {
+          'extras': {
+            'tags': ['washed'],
+          },
+        },
+      });
+
+      final clearResponse = await sendPut('annotated', {'metadata': null});
+      expect(clearResponse.statusCode, 200);
+      expect(pluginManager.eventPayload?['patch'], {
+        'annotations': {'extras': null},
+      });
     });
 
     test('canonical annotation fields win over legacy aliases', () async {

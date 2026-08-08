@@ -6,6 +6,8 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/kv_store_service.dart';
 
+part 'visualizer_plugin_sync_cases.dart';
+
 final _pluginSource = File(
   'assets/plugins/visualizer.reaplugin/plugin.js',
 ).readAsStringSync();
@@ -113,6 +115,7 @@ Map<String, dynamic> _shot({
 Future<_Harness> _loadPlugin(
   String fetchSource, {
   _FakeKeyValueStore? store,
+  Map<String, dynamic> settings = const {},
 }) async {
   final keyValueStore = store ?? _FakeKeyValueStore();
   final manager = PluginManager(kvStore: keyValueStore);
@@ -147,6 +150,7 @@ Future<_Harness> _loadPlugin(
       'Username': 'user',
       'Password': 'password',
       'LengthThreshold': 0,
+      ...settings,
     },
     jsCode: _pluginSource,
   );
@@ -219,6 +223,8 @@ void _dispatchShotUpdate(
 }
 
 void main() {
+  registerVisualizerPluginSyncCases();
+
   test(
     'Visualizer upload encodes state_change as non-zero stage markers',
     () async {
@@ -737,58 +743,6 @@ void main() {
     );
     expect(cleared, '{}');
   });
-
-  test(
-    'permanent tag failure returns partial success with upload id',
-    () async {
-      final shot = _shot(
-        annotations: {
-          'extras': {
-            'tags': ['bright'],
-          },
-        },
-      );
-      final harness = await _loadPlugin('''
-      globalThis.fetch = async (url, init = {}) => {
-        if (url.endsWith('/shots/shot-1') && (!init.method || init.method === 'GET')) {
-          return {
-            ok: true,
-            json: async () => (${jsonEncode(shot)}),
-            text: async () => '${jsonEncode(shot)}',
-          };
-        }
-        if (url.endsWith('/shots/upload')) {
-          return { ok: true, json: async () => ({ id: 'visualizer-1' }) };
-        }
-        if (url.endsWith('/shots/shot-1') && init.method === 'PUT') {
-          return { ok: true, json: async () => ({}) };
-        }
-        if (url.endsWith('/shots/visualizer-1?essentials=1')) {
-          return { ok: true, json: async () => ({ id: 'visualizer-1', tags: [] }) };
-        }
-        if (url.endsWith('/shots/visualizer-1') && init.method === 'PATCH') {
-          return {
-            ok: false,
-            status: 400,
-            statusText: 'Bad Request',
-            text: async () => 'invalid tags',
-          };
-        }
-        throw new Error('Unexpected URL: ' + url + ' ' + (init.method || 'GET'));
-      };
-    ''');
-
-      final response = await _callApi(harness.manager, 'upload', {
-        'shotId': 'shot-1',
-      });
-      final body =
-          jsonDecode(response['body'] as String) as Map<String, dynamic>;
-
-      expect(response['status'], 207);
-      expect(body['visualizer_id'], 'visualizer-1');
-      expect(body['tag_sync_error'], contains('HTTP 400'));
-    },
-  );
 
   test('plugin source and manifest versions match', () {
     final sourceVersion = RegExp(
