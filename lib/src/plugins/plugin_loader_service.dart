@@ -21,6 +21,8 @@ class PluginSettingsValidationException implements Exception {
   String toString() => message;
 }
 
+enum PluginLoaderLifecycle { active, disposing, disposed }
+
 class PluginLoaderService {
   static const _loadTimeout = Duration(seconds: 1);
   static const _maxConsecutiveLoadFailures = 3;
@@ -33,6 +35,9 @@ class PluginLoaderService {
   late SharedPreferences _prefs;
   final Map<String, PluginManifest> _availablePluginsCache = {};
   Future<void> _pluginLoadQueue = Future.value();
+  Future<void>? _initialization;
+  Future<void>? _disposeFuture;
+  PluginLoaderLifecycle _lifecycle = PluginLoaderLifecycle.active;
 
   PluginLoaderService({
     required KeyValueStoreService kvStore,
@@ -43,13 +48,33 @@ class PluginLoaderService {
        );
 
   bool _initialized = false;
+  PluginLoaderLifecycle get lifecycle => _lifecycle;
 
-  Future<void> initialize() async {
+  void _ensureActive() {
+    if (_lifecycle != PluginLoaderLifecycle.active) {
+      throw StateError('PluginLoaderService is ${_lifecycle.name}');
+    }
+  }
+
+  Future<void> initialize() {
+    _ensureActive();
     if (_initialized) {
       _log.fine('PluginLoaderService already initialized');
-      return;
+      return Future.value();
     }
+    return _initialization ??= _initializeWithRetry();
+  }
 
+  Future<void> _initializeWithRetry() async {
+    try {
+      await _initialize();
+    } catch (_) {
+      _initialization = null;
+      rethrow;
+    }
+  }
+
+  Future<void> _initialize() async {
     // Get application documents directory
     final appDocDir = await getApplicationDocumentsDirectory();
     _pluginsDir = Directory('${appDocDir.path}/plugins');
@@ -81,6 +106,7 @@ class PluginLoaderService {
   /// user will provide filesystem path and permissions, REA should copy the contents over to
   /// the plugins folder
   Future<void> addPlugin(String sourcePath) async {
+    _ensureActive();
     final source = File(sourcePath);
     final sourceDir = Directory(sourcePath);
 
@@ -136,6 +162,7 @@ class PluginLoaderService {
   /// Remove/uninstall a plugin
   /// This will unload the plugin if it's loaded and delete its files
   Future<void> removePlugin(String pluginId) async {
+    _ensureActive();
     // The id would be joined into a filesystem path; reject unsafe ids
     // before any unload, cache, or directory operation.
     if (!isSafePathComponent(pluginId)) {
@@ -173,12 +200,14 @@ class PluginLoaderService {
   /// Load plugin into the runtime
   /// by using the PluginManager loadPlugin method
   Future<void> loadPlugin(String pluginId) {
+    _ensureActive();
     final load = _pluginLoadQueue.then((_) => _loadPlugin(pluginId));
     _pluginLoadQueue = load.then<void>((_) {}, onError: (_, _) {});
     return load;
   }
 
   Future<void> _loadPlugin(String pluginId) async {
+    _ensureActive();
     if (!_availablePluginsCache.containsKey(pluginId)) {
       throw Exception('Plugin not found: $pluginId');
     }
@@ -218,6 +247,7 @@ class PluginLoaderService {
   /// Unload a plugin
   /// by using the PluginManager unloadPlugin method
   Future<void> unloadPlugin(String pluginId) async {
+    _ensureActive();
     await pluginManager.unloadPlugin(pluginId);
     _log.info('Plugin unloaded: $pluginId');
   }
@@ -225,6 +255,7 @@ class PluginLoaderService {
   /// Reload a plugin (unload and load again)
   /// Useful when plugin settings change
   Future<void> reloadPlugin(String pluginId) async {
+    _ensureActive();
     if (!isPluginLoaded(pluginId)) {
       throw Exception('Plugin not loaded: $pluginId');
     }
@@ -243,6 +274,7 @@ class PluginLoaderService {
 
   /// Store a setting in prefs, whether a specific plugin should be autoloaded at initialize
   Future<void> setPluginAutoLoad(String pluginId, bool enabled) async {
+    _ensureActive();
     if (enabled) {
       await _prefs.remove(_loadFailureKey(pluginId));
       if (_prefs.getString(_loadingPluginKey) == pluginId) {
@@ -278,6 +310,7 @@ class PluginLoaderService {
     String pluginId,
     Map<String, dynamic> settings,
   ) async {
+    _ensureActive();
     if (!_availablePluginsCache.containsKey(pluginId)) {
       throw Exception('Plugin not found: $pluginId');
     }
@@ -610,10 +643,55 @@ class PluginLoaderService {
 
   /// Nukes the plugins folder
   Future<void> reset() async {
+    _ensureActive();
     for (var plugin in availablePlugins) {
       final path = getPluginDirectory(plugin.id);
       final dir = Directory(path);
       await dir.delete(recursive: true);
+    }
+  }
+
+  Future<void> dispose() {
+    final existing = _disposeFuture;
+    if (existing != null) return existing;
+
+    _lifecycle = PluginLoaderLifecycle.disposing;
+    final disposal = _dispose();
+    _disposeFuture = disposal;
+    return disposal;
+  }
+
+  Future<void> _dispose() async {
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
+    Future<void> waitFor(String name, Future<void>? work) async {
+      if (work == null) return;
+      try {
+        await work;
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+        _log.warning(
+          'Plugin loader disposal failed during $name',
+          error,
+          stackTrace,
+        );
+      }
+    }
+
+    try {
+      await waitFor('initialization', _initialization);
+      await waitFor('plugin load queue', _pluginLoadQueue);
+      await waitFor('manager disposal', pluginManager.dispose());
+    } finally {
+      _availablePluginsCache.clear();
+      _initialized = false;
+      _lifecycle = PluginLoaderLifecycle.disposed;
+    }
+
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError!, firstStackTrace!);
     }
   }
 }
