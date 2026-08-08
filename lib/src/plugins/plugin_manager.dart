@@ -56,6 +56,8 @@ class PluginManager {
   final DecentProxyService? decentProxyService;
   late final PluginDecentProxyBridge _decentProxyBridge;
   final Map<String, String> _decentProxyBridgeTokens = {};
+  final Set<String> _loggedPermissionDenials = {};
+  final Map<String, Set<PluginPermissions>> _closingPluginPermissions = {};
 
   final StreamController<Map<String, dynamic>> _emitController =
       StreamController.broadcast();
@@ -91,6 +93,25 @@ class PluginManager {
     // js.enableFetch();
     _bootstrapJs();
   }
+
+  bool _hasPermission(String pluginId, PluginPermissions permission) {
+    final permissions =
+        _plugins[pluginId]?.manifest.permissions ??
+        _closingPluginPermissions[pluginId];
+    final allowed = permissions?.contains(permission) ?? false;
+    if (!allowed) {
+      final denial = '$pluginId:${permission.wireName}';
+      if (_loggedPermissionDenials.add(denial)) {
+        _log.warning(
+          'Plugin $pluginId denied permission ${permission.wireName}',
+        );
+      }
+    }
+    return allowed;
+  }
+
+  String _permissionError(String pluginId, PluginPermissions permission) =>
+      'PluginPermissionError: Plugin $pluginId requires manifest permission ${permission.wireName}';
 
   // ─────────────────────────────────────────────
   // JS bootstrap (ONCE)
@@ -351,6 +372,13 @@ class PluginManager {
               type: "pluginStorage",
               payload: command
             }));
+          },
+          permissionDenied(pluginId, permission) {
+            sendMessage("host", JSON.stringify({
+              pluginId: pluginId,
+              type: "permissionDenied",
+              payload: permission
+            }));
           }
         };
       })();
@@ -437,12 +465,22 @@ class PluginManager {
         }
 
         if (type == 'log') {
-          _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
+          if (_hasPermission(pluginId, PluginPermissions.log)) {
+            _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
+          }
         } else if (type == 'httpResponse') {
-          // Handle HTTP responses from plugin
-          _handlePluginApiResponse(pluginId, msg);
+          if (_hasPermission(pluginId, PluginPermissions.api)) {
+            _handlePluginApiResponse(pluginId, msg);
+          }
         } else {
-          unawaited(_handleMessageSafely(pluginId, msg));
+          final permission = switch (type) {
+            'emit' => PluginPermissions.emit,
+            'pluginStorage' => PluginPermissions.pluginStorage,
+            _ => null,
+          };
+          if (permission == null || _hasPermission(pluginId, permission)) {
+            unawaited(_handleMessageSafely(pluginId, msg));
+          }
         }
       } catch (e, st) {
         _log.warning("Invalid JS message", e, st);
@@ -496,6 +534,7 @@ class PluginManager {
     final generation = (_pluginGenerations[id] ?? 0) + 1;
     _pluginGenerations[id] = generation;
     await unloadPlugin(id);
+    _loggedPermissionDenials.removeWhere((denial) => denial.startsWith('$id:'));
 
     final runtime = PluginRuntime(pluginId: id, manifest: manifest);
     final decentProxyBridgeToken = _newBridgeToken();
@@ -510,18 +549,47 @@ class PluginManager {
       (function () {
         const pluginId = "$id";
         const pluginGeneration = $generation;
+        class PluginPermissionError extends Error {
+          constructor(permission) {
+            super("Plugin " + pluginId + " requires manifest permission " + permission);
+            this.name = "PluginPermissionError";
+          }
+        }
+        const requirePermission = (permission) => {
+          globalThis.host.permissionDenied(pluginId, permission);
+          throw new PluginPermissionError(permission);
+        };
+        const rejectPermission = (permission) => {
+          globalThis.host.permissionDenied(pluginId, permission);
+          return Promise.reject(new PluginPermissionError(permission));
+        };
         const setTimeout = (callback, delay) => globalThis.__timerSet(pluginId, pluginGeneration, callback, delay);
         const clearTimeout = (id) => globalThis.__timerClear(pluginId, id);
-        const fetch = (input, init) => globalThis.__fetchFor
-          ? globalThis.__fetchFor(pluginId, pluginGeneration, input, init)
-          : globalThis.fetch(input, init);
+        const fetch = ${manifest.permissions.contains(PluginPermissions.api)}
+          ? (input, init) => globalThis.__fetchFor
+            ? globalThis.__fetchFor(pluginId, pluginGeneration, input, init)
+            : globalThis.fetch(input, init)
+          : () => rejectPermission("api");
         
         // Create the host object for this plugin
         const host = {
-          log: (msg) => globalThis.host.log(pluginId, msg),
-          emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
-          storage: (cmd) => globalThis.host.storage(pluginId, cmd),
+          log: ${manifest.permissions.contains(PluginPermissions.log)}
+            ? (msg) => globalThis.host.log(pluginId, msg)
+            : () => requirePermission("log"),
+          emit: ${manifest.permissions.contains(PluginPermissions.emit)}
+            ? (type, payload) => globalThis.host.emit(pluginId, type, payload)
+            : () => requirePermission("emit"),
+          storage: ${manifest.permissions.contains(PluginPermissions.pluginStorage)}
+            ? (cmd) => globalThis.host.storage(pluginId, cmd)
+            : () => requirePermission("pluginStorage"),
           decentProxy: (path, options = {}) => {
+            const method = String(options.method || "GET").toUpperCase();
+            if (method === "GET" && !${manifest.permissions.contains(PluginPermissions.proxyDecentApi)}) {
+              return rejectPermission("proxy.decent_api");
+            }
+            if (method === "POST" && !${manifest.permissions.contains(PluginPermissions.proxyDecentApiWrite)}) {
+              return rejectPermission("proxy.decent_api.write");
+            }
             return globalThis.__reaprimePluginBridge.decentProxy(
               pluginId,
               pluginGeneration,
@@ -587,12 +655,16 @@ class PluginManager {
       runtime.markRunning();
       _log.info("loaded: $id");
     } catch (e, st) {
-      _plugins.remove(id);
+      final failedRuntime = _plugins.remove(id);
+      if (failedRuntime != null) {
+        _closingPluginPermissions[id] = failedRuntime.manifest.permissions;
+      }
       _decentProxyBridgeTokens.remove(id);
       js.evaluate('''
       delete globalThis.__plugins__["$id"];
     ''');
       _cleanupPluginResources(id);
+      _closingPluginPermissions.remove(id);
       // WARNING, not SEVERE: a plugin failing to load is almost always a
       // user-installed third-party plugin with a bad manifest id or a JS
       // syntax error, not an app defect. The caller (e.g. PluginsSettingsView)
@@ -607,7 +679,9 @@ class PluginManager {
   Future<void> unloadPlugin(String id) async {
     final runtime = _plugins.remove(id);
     _decentProxyBridgeTokens.remove(id);
+    _loggedPermissionDenials.removeWhere((denial) => denial.startsWith('$id:'));
     if (runtime == null) return;
+    _closingPluginPermissions[id] = runtime.manifest.permissions;
 
     try {
       js.evaluate('''
@@ -627,6 +701,7 @@ class PluginManager {
 
     runtime.markDisposed();
     _cleanupPluginResources(id);
+    _closingPluginPermissions.remove(id);
     _log.info("unloaded: $id");
   }
 
@@ -652,6 +727,12 @@ class PluginManager {
 
   void dispatchEvent(String pluginId, String name, dynamic payload) {
     if (!_plugins.containsKey(pluginId)) return;
+    final permission = switch (name) {
+      'stateUpdate' => PluginPermissions.eventsMachine,
+      'shotStored' || 'shotUpdated' => PluginPermissions.eventsShots,
+      _ => null,
+    };
+    if (permission != null && !_hasPermission(pluginId, permission)) return;
 
     String requestId = "";
     if (payload is Map<String, dynamic> && payload['requestId'] is String) {
@@ -732,6 +813,13 @@ class PluginManager {
       case 'pluginStorage':
         final cmd = PluginStorageCommand.fromPlugin(payload);
         await _handlePluginStorage(pluginId, cmd);
+        break;
+
+      case 'permissionDenied':
+        final permission = payload is String
+            ? PluginPermissions.fromString(payload)
+            : null;
+        if (permission != null) _hasPermission(pluginId, permission);
         break;
 
       case 'timerSet':
@@ -1094,6 +1182,14 @@ class PluginManager {
       js.evaluate(
         'globalThis.__handleFetchResponse('
         '${jsonEncode({'id': id, 'error': 'plugin generation changed'})});',
+      );
+      while (js.executePendingJob() > 0) {}
+      return;
+    }
+    if (!_hasPermission(pluginId, PluginPermissions.api)) {
+      js.evaluate(
+        'globalThis.__handleFetchResponse('
+        '${jsonEncode({'id': id, 'error': _permissionError(pluginId, PluginPermissions.api)})});',
       );
       while (js.executePendingJob() > 0) {}
       return;
